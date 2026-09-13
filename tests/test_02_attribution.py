@@ -155,7 +155,16 @@ def test_excluded_dirs_oversized_nonutf8_binary_and_symlinks(project):
     run = proj.check()
     assert run.code in (0, 1)
     assert _src_lines(run, "R-01") == [("src/ok.py", 1)]
-    assert run.status("C-01") == "UNCITED"
+    # K-03: every C-01 citation was planted inside a never-descended directory (.git, .hg, .svn,
+    # node_modules, __pycache__, .venv, venv, and a dot-directory), so C-01 is UNCITED and no
+    # path from any of those directories appears anywhere in the report, while their sibling
+    # src/ok.py was scanned.
+    assert run.status("C-01") == "UNCITED" and _src_lines(run, "C-01") == []
+    excluded = (".git", ".hg", ".svn", "node_modules", "__pycache__", ".venv", "venv", ".hiddendir")
+    cited_paths = {s["file"] for rec in run.json["ids"] for s in rec["src"]}
+    cited_paths |= {d["file"] for d in run.json["dangling"] + run.json["stale"]}
+    assert cited_paths and not any(f"src/{d}/" in path for d in excluded for path in cited_paths)
+    assert not any(f"/{d}/" in json.dumps(run.json) for d in excluded)
     assert _src_lines(run, "K-01") == [("src/latin1.py", 1)]
     assert _src_lines(run, "E-01") == [("src/late_nul.txt", 1)]
     # E-29: src/blob.bin has a 0x00 byte within its first 8192 bytes -> skipped silently: it
