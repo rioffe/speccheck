@@ -22,7 +22,8 @@ Defaults (all on; each can be switched off):
                    clickable PDF jump-links; implies --toc and runs xelatex
                    a 3rd pass so forward links + the TOC resolve. Links are
                    blue.                                 (off: --no-click)
-  --margin MARGIN  Page margin on all sides, default 1in (e.g. 0.5in, 1cm).
+  --margin MARGIN  Page margin on all sides, default 1in (e.g. 0.5in, 1cm);
+                   --margin=MARGIN is accepted too.
 
   -h, --help       Show this help and exit.
 
@@ -52,7 +53,6 @@ MARGIN_VAL="1in"
 CLICK=1
 
 while [[ $# -gt 0 ]]; do
-  echo "Arg: $1"
   case $1 in
   -h | --help)
     usage
@@ -83,6 +83,14 @@ while [[ $# -gt 0 ]]; do
     MARGIN_VAL="$1"
     shift
     ;;
+  --margin=*)
+    MARGIN_VAL="${1#--margin=}"
+    if [[ -z "$MARGIN_VAL" ]]; then
+      echo "Error: --margin requires a value (e.g. 0.5in, 1cm, 0.3in)." >&2
+      exit 1
+    fi
+    shift
+    ;;
   --click)
     CLICK=1
     shift
@@ -102,6 +110,8 @@ if [[ -z "$INPUT_FILE" ]]; then
   usage >&2
   exit 1
 fi
+
+echo "Options: margin=${MARGIN_VAL} toc=$([[ ${#TOC_FLAG[@]} -gt 0 || $CLICK -eq 1 ]] && echo on || echo off) mermaid=$([[ ${#MERMAID_FLAG[@]} -gt 0 ]] && echo on || echo off) click=$([[ $CLICK -eq 1 ]] && echo on || echo off)"
 
 MARGIN_HEADER_FILE=$(mktemp /tmp/spec2pdf_geometry_$$_XXXXXX)
 echo "\usepackage[margin=${MARGIN_VAL}]{geometry}" >"$MARGIN_HEADER_FILE"
