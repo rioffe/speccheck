@@ -442,7 +442,13 @@ inconsistent are listed in `SPEC_BUILD_REPORT.md` §3.
 
 ## License
 
-This work is released under the Creative Commons Attribution 4.0 International License
-(CC BY 4.0), the same terms as the book it comes from,
-[*From Vibe Coding to Spec Engineering*](https://github.com/rioffe/spec_engineering_primer).
-See [`LICENSE`](LICENSE). © 2026 Robert Ioffe.
+Dual-licensed by kind of content, © 2026 Robert Ioffe:
+
+- **Documents** — `SPEC.md`, the skills under `skills/`, this README, `ARCHITECTURE.md`, and the
+  review and build reports — are released under the Creative Commons Attribution 4.0
+  International License (CC BY 4.0), the same terms as the book they come from,
+  [*From Vibe Coding to Spec Engineering*](https://github.com/rioffe/spec_engineering_primer).
+  See [`LICENSE`](LICENSE).
+- **Code** — the `speccheck` package (`src/`), `tests/`, `fixtures/`, `scripts/`, `tools/`,
+  `spec2pdf.sh`, and `install.sh` — is released under the MIT License, so it can be installed,
+  vendored, and combined with other software without friction. See [`LICENSE-CODE`](LICENSE-CODE).

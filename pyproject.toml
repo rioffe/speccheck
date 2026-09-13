@@ -4,7 +4,8 @@ dynamic = ["version"]
 description = "Specification conformance checker: traceability graph, JUnit results, model-judged test strength"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "CC-BY-4.0"
+license = "MIT"
+license-files = ["LICENSE-CODE"]
 dependencies = []
 
 [project.optional-dependencies]

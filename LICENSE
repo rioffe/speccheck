@@ -1,7 +1,11 @@
 Creative Commons Attribution 4.0 International (CC BY 4.0)
 
-This repository — `speccheck`, its specification, the spec-writing, spec-review,
-and spec-build skills, and the accompanying tooling — is an open-educational resource.
+The written works in this repository — the specification (`SPEC.md`), the
+spec-writing, spec-review, and spec-build skills (`skills/`), the README,
+`ARCHITECTURE.md`, and the review and build reports — are an open-educational
+resource. The software (`src/`, `tests/`, `fixtures/`, `scripts/`, `tools/`,
+`spec2pdf.sh`, `install.sh`) is licensed separately under the MIT License;
+see LICENSE-CODE.
 
 Copyright (c) 2026 Robert Ioffe
 https://github.com/rioffe
