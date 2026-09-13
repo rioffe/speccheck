@@ -43,6 +43,11 @@ EOF
 
 TOC_FLAG=(--toc)
 MERMAID_FLAG=(--filter mermaid-filter)
+# Markdown in, with pandoc's raw_tex extension OFF: a backslash in prose is text, not a TeX
+# command.  Specs never use raw LaTeX outside math ($..$ / $$..$$ are unaffected), and generated
+# documents such as SPEC_CONFORMANCE_REPORT.md quote things like '\n' in judge rationales, which
+# raw_tex would otherwise turn into "! Undefined control sequence".
+READER_FLAG=(--from=markdown-raw_tex)
 MARGIN_VAL="1in"
 CLICK=1
 
@@ -223,17 +228,25 @@ if [[ "$CLICK" -eq 1 ]]; then
   # so the forward links and the TOC resolve.  Blue links come from the -V ops.
   WORK_DIR=$(mktemp -d /tmp/spec2pdf.XXXXXX)
   COLOR_OPS=(-V colorlinks=true -V linkcolor=blue -V urlcolor=red -V toccolor=blue)
-  if pandoc "$TEMP_FILE" "${TOC_FLAG[@]}" "${MERMAID_FLAG[@]}" "${GEOMETRY_FLAG[@]}" \
+  if pandoc "$TEMP_FILE" "${READER_FLAG[@]}" "${TOC_FLAG[@]}" "${MERMAID_FLAG[@]}" "${GEOMETRY_FLAG[@]}" \
     "${COLOR_OPS[@]}" --to=latex -s -o "$WORK_DIR/doc.tex"; then
-    # 3 passes so forward refs + TOC resolve (each pass sees the prior .aux).
-    xelatex -interaction=nonstopmode -output-directory="$WORK_DIR" doc.tex >/dev/null 2>&1
-    xelatex -interaction=nonstopmode -output-directory="$WORK_DIR" doc.tex >/dev/null 2>&1
-    xelatex -interaction=nonstopmode -output-directory="$WORK_DIR" doc.tex >/dev/null 2>&1
+    # 3 passes so forward refs + TOC resolve (each pass sees the prior .aux).  In nonstopmode
+    # xelatex exits non-zero on ANY logged error even when it still writes the PDF, and this
+    # script runs under `set -e`, so each pass is `|| true`: the PDF's existence decides.
+    for _pass in 1 2 3; do
+      xelatex -interaction=nonstopmode -output-directory="$WORK_DIR" doc.tex >/dev/null 2>&1 || true
+    done
+    TEX_ERRORS=$(grep -c '^!' "$WORK_DIR/doc.log" 2>/dev/null || true)
     if [[ -f "$WORK_DIR/doc.pdf" ]]; then
       cp "$WORK_DIR/doc.pdf" "$OUTPUT_FILE"
       echo "Success! Created '$OUTPUT_FILE' (clickable cross-references)."
+      if [[ "${TEX_ERRORS:-0}" -gt 0 ]]; then
+        echo "Warning: xelatex logged $TEX_ERRORS error(s); the PDF may have gaps. First one:" >&2
+        grep -A2 -m1 '^!' "$WORK_DIR/doc.log" >&2 || true
+      fi
     else
-      echo "Error: xelatex did not produce a PDF." >&2
+      echo "Error: xelatex did not produce a PDF. Errors from doc.log:" >&2
+      grep -A2 '^!' "$WORK_DIR/doc.log" 2>/dev/null | head -20 >&2 || true
       rm -f "$TEMP_FILE" "$LINKED_FILE" "$MARGIN_HEADER_FILE"
       rm -rf "$WORK_DIR"
       exit 1
@@ -247,12 +260,12 @@ if [[ "$CLICK" -eq 1 ]]; then
 else
   echo "Converting to PDF via pandoc (using xelatex) with ${TOC_FLAG[*]} ${MERMAID_FLAG[*]} ${GEOMETRY_FLAG[*]}..."
 
-  if pandoc "$TEMP_FILE" "${TOC_FLAG[@]}" "${MERMAID_FLAG[@]}" "${GEOMETRY_FLAG[@]}" --pdf-engine=xelatex -o "$OUTPUT_FILE" -V colorlinks=true -V linkcolor=blue -V urlcolor=red -V toccolor=blue; then
+  if pandoc "$TEMP_FILE" "${READER_FLAG[@]}" "${TOC_FLAG[@]}" "${MERMAID_FLAG[@]}" "${GEOMETRY_FLAG[@]}" --pdf-engine=xelatex -o "$OUTPUT_FILE" -V colorlinks=true -V linkcolor=blue -V urlcolor=red -V toccolor=blue; then
     echo "Success! Created '$OUTPUT_FILE'."
     # Fallback to default engine if xelatex fails
   else
     echo "xelatex failed or not found. Retrying with default engine..."
-    if pandoc "$TEMP_FILE" "${TOC_FLAG[@]}" "${MERMAID_FLAG[@]}" "${GEOMETRY_FLAG[@]}" -o "$OUTPUT_FILE" -V colorlinks=true -V linkcolor=blue -V urlcolor=red -V toccolor=blue; then
+    if pandoc "$TEMP_FILE" "${READER_FLAG[@]}" "${TOC_FLAG[@]}" "${MERMAID_FLAG[@]}" "${GEOMETRY_FLAG[@]}" -o "$OUTPUT_FILE" -V colorlinks=true -V linkcolor=blue -V urlcolor=red -V toccolor=blue; then
       echo "Success! Created '$OUTPUT_FILE' (using default engine)."
     else
       echo "Error: Conversion failed."
