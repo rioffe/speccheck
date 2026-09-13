@@ -12,6 +12,105 @@ its header still cites them as `../skills/...`; here they sit next to it.
 The LLM judge speaks the OpenAI-compatible chat-completions wire format that Ollama serves
 locally, so no cloud account is needed for `--judge llm`.
 
+## Specification engineering — the workflow this tool belongs to
+
+`speccheck` is the last, mechanical step of a way of building software in which a written
+specification, not a conversation, is the source of truth. The idea:
+
+- An agent that builds from a chat prompt fills every gap with a guess, and the guesses are
+  invisible until something breaks. A specification precise enough that **two competent
+  implementers would build materially equivalent systems** — and precise enough that a verifier
+  can check either one — removes the guessing.
+- The specification is written *for* agents: every obligation carries an ID, every ID is
+  observable, and every ID is traceable to a test. That makes conformance a thing a machine can
+  measure instead of a thing a reviewer asserts.
+- The human's job moves up a level: decide what the system must do, ratify the decisions the
+  spec-writer took by default, and read the evidence. The agent's job is to write, review, and
+  build against the document — and to prove it did.
+
+### What a `SPEC.md` looks like
+
+A spec has a fixed shape so that both agents and tools (this one included) know where to look:
+
+| Section | Holds |
+| --- | --- |
+| front matter | a blockquote with status/version, stack, sources, scope, normative-language key, and the one *principle* that settles trade-offs |
+| §0 Intent | why the system exists, non-goals, the boundaries it draws (deterministic ↔ probabilistic, trusted ↔ untrusted) |
+| §1 Actors | who or what initiates and observes behavior |
+| §2 Requirements **R-nn** | observable obligations in MUST/SHOULD/MAY language, each citing its source |
+| §3 Behavior and state | lifecycle, main flow, durable artifacts — diagrams illustrate, rows are normative |
+| §4 Contracts **C-nn** | every externally significant interface or data shape, pinned in a code block |
+| §5 Interfaces | the actual surfaces (CLI, API, files) with operations, errors, defaults, and cross-cutting contracts such as diagnostics |
+| §6 Invariants **I-nnn** | properties every valid implementation keeps (determinism, no partial writes, no network) |
+| §7 Constraints **K-nn** | measurable limits: exit codes, thresholds, sizes, budgets |
+| §8 Edge cases **E-nn** | each failure or boundary with the deterministic outcome it must produce |
+| §9 Tests **T-nn** | acceptance tests with unambiguous pass conditions, each citing the R/C/I/K/E ids it proves |
+| §10 Dependencies | runtime, libraries, environment, how to run the suite |
+| §11 Traceability | one row per R/C/I/K/E id → the component that realizes it → the T ids that verify it |
+| §12 Decisions **D-nn** | every choice the author took on the human's behalf, its alternatives, and a `confirm`/`open`/`confirmed` status |
+
+Three further families appear around a spec: **O-n** optional items (built, but gated), **F-nnn**
+findings from a review, and — in this repository's own `SPEC.md` — **Q-nnn** for findings from a
+second, independent reviewer. IDs are never renumbered once cited; an ID is *retired* by striking
+it through (`~~R-07~~`), never deleted. Formulas are LaTeX (`$..$`), diagrams are mermaid, and
+`spec2pdf.sh` renders the whole thing with clickable cross-references.
+
+### The three skills
+
+The skills under `skills/` (installed for Claude Code, Pi, or Oh My Pi by `install.sh`) encode the
+method. Each is a `SKILL.md` an agent loads on request; none needs this tool to run, and this tool
+needs none of them — they share only the `SPEC.md` conventions above.
+
+| Skill | Invoke when you want | Produces |
+| --- | --- | --- |
+| **spec-writing** | a `SPEC.md` written from a brief, a design doc, or a conversation; or an existing spec updated for a change | `SPEC.md`, with §12 listing every defaulted decision, committed in reviewable slices |
+| **spec-review** | the spec audited before anything is built: completeness, precision, consistency, implementability, verifiability | `SPEC_REVIEW_REPORT.md` — findings `F-nnn` with severity, a 0–5 scorecard, a maturity level 0–4, a P0/P1/P2 remediation plan, and a `READY` / `READY WITH MINOR FIXES` / `NOT READY` verdict |
+| **spec-build** | the spec implemented, test-first, with the README made to match and conformance proven | the code and its §9 suite (every test citing its IDs), an updated `README.md`, `SPEC_BUILD_REPORT.md` with per-ID evidence, and the two `speccheck` gate lines |
+
+`spec-build` runs `speccheck` twice at its gate: first with the deterministic mock judge until every
+ID is `PASSING` with no dangling or stale citations, then with an LLM judge, which can only find
+tests that *execute* the cited behavior without *asserting* it. Both lines go into the build
+report; that is the evidence the human reads.
+
+### How a project goes
+
+```mermaid
+flowchart LR
+    B["brief / design doc / conversation"] -->|"spec-writing"| S["SPEC.md v0.1"]
+    S -->|"spec-review"| R["SPEC_REVIEW_REPORT.md<br/>F-nnn, P0/P1/P2, verdict"]
+    R -->|"fix P0 + P1, bump version"| S2["SPEC.md v0.n"]
+    S2 -->|"re-review until READY"| R
+    S2 -->|"spec-build: TDD, README, audit"| C["code + tests + README<br/>SPEC_BUILD_REPORT.md"]
+    C -->|"speccheck --judge mock --strict"| G1["CONFORMING?"]
+    G1 -->|"speccheck --judge llm --strict"| G2["0 weak?"]
+    G2 -->|"change request"| S
+```
+
+In practice it is a handful of prompts to the agent, with the human reading each artifact
+between them:
+
+1. **Write.** *"Use the spec-writing skill to write SPEC.md for `<the application>`: `<brief>`."*
+   Read §0 (is that the system you meant?) and §12 (those are the decisions it made for you —
+   overturn any you disagree with before going further).
+2. **Review.** *"Use the spec-review skill to review SPEC.md."* Read the executive summary and the
+   remediation plan. The findings are about the *document*, not about you: a spec that reads
+   clearly to a person is routinely Level 2 for an agent, because the agent cannot ask.
+3. **Apply.** *"Apply all P0 and P1 findings to SPEC.md."* (P2 may be deferred; say which.) The
+   agent edits the spec, bumps its version, and records the change in the revision history.
+   Re-review until the verdict is `READY` or `READY WITH MINOR FIXES` — usually one more pass.
+4. **Build.** *"Use the spec-build skill to implement SPEC.md."* The agent works through §9
+   test-first, rewrites the README from what it built, then audits every artifact against the
+   spec and runs the gate. The verdict block at the end tells you what to trust:
+   `Spec coverage`, both `speccheck` summary lines, `Readiness`, `Conformance`.
+5. **Change.** New requirement? *"Use spec-writing to update SPEC.md: `<the change>`."* — then
+   steps 2–4 again. The spec stays the source of truth; the code follows it.
+
+This repository is its own worked example, and the last cycle is in the git history: the
+progress indicator you see under `--judge llm` was requested as one sentence, written into
+`SPEC.md` v1.3 (R-30, C-11, K-13, E-39, E-40, D-15), reviewed (ten findings, six of them at the
+seams with older contracts), folded back as v1.4, and built — where the LLM judge caught five
+tests that proved their IDs only by implication and the tests, not the code, were strengthened.
+
 ## Installation
 
 `install.sh` sets up everything a user of the toolkit needs, per-user and idempotently:
