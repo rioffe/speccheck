@@ -426,10 +426,12 @@ def write_reports(out_dir: Path, json_text: str, md_text: str) -> None:
         renamed.append(final_json)
         _replace(tmp_md, final_md)
         renamed.append(final_md)
-    except OSError as exc:
+    except BaseException as exc:  # E-18 for OSError; E-41 (interrupt) cleans up the same way
         for path in (tmp_json, tmp_md, *renamed):
             try:
                 path.unlink()
             except OSError:
                 pass
-        raise OutError(f"out: {exc.strerror or exc}") from None
+        if isinstance(exc, OSError):
+            raise OutError(f"out: {exc.strerror or exc}") from None
+        raise

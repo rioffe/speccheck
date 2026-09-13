@@ -239,6 +239,9 @@ def test_markdown_layout(tmp_path: Path):
     assert md.startswith(
         "# Specification Conformance Report\n\n**Spec:** `SPEC.md` · **Judge:** mock (available) · **Strict:** on\n"
     )
+    # F-207: the parenthetical is absent when judge_available is null (--judge none)
+    none_run = run_cli(_golden_args("--judge", "none"), target)
+    assert "**Judge:** none · **Strict:** off" in none_run.md.splitlines()[2]
     assert run.stdout.strip() in md
     per_id = md.split("## 3. Per-ID evidence\n\n", 1)[1].split("\n## 4.", 1)[0].splitlines()[2:]
     assert len(per_id) == len(doc["ids"]) == 16

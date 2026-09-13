@@ -56,7 +56,7 @@ def test_self_application_runs_on_this_repository(tmp_path: Path):
         "T-01",
         "T-61",
     } <= ids
-    assert doc["metrics"]["declared"] == 161 and doc["metrics"]["retired"] == 0
+    assert doc["metrics"]["declared"] == 170 and doc["metrics"]["retired"] == 0
     statuses = {r["id"]: r["status"] for r in doc["ids"]}
     # every ID is at least cited by a test in this suite (the outcome depends on junit.xml)
     assert all(s not in ("UNCITED", "UNTESTED") for s in statuses.values()), sorted(

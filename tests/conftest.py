@@ -46,11 +46,22 @@ class Run:
         return self.ids()[ident]["status"]
 
 
-def run_cli(argv: list[str], cwd: Path, env: Mapping[str, str] | None = None) -> Run:
-    """Run `speccheck <argv>` in-process with cwd set and stdout/stderr captured as bytes."""
+class TtyWrapper(io.TextIOWrapper):
+    """A captured stream that claims to be a terminal (T-63: `--progress auto` on a TTY)."""
+
+    def isatty(self) -> bool:
+        return True
+
+
+def run_cli(
+    argv: list[str], cwd: Path, env: Mapping[str, str] | None = None, *, tty: bool = False
+) -> Run:
+    """Run `speccheck <argv>` in-process with cwd set and stdout/stderr captured as bytes;
+    `tty=True` makes the captured stderr report isatty() == True."""
     out_buf, err_buf = io.BytesIO(), io.BytesIO()
     out = io.TextIOWrapper(out_buf, encoding="utf-8", write_through=True)
-    err = io.TextIOWrapper(err_buf, encoding="utf-8", write_through=True)
+    err_cls = TtyWrapper if tty else io.TextIOWrapper
+    err = err_cls(err_buf, encoding="utf-8", write_through=True)
     old_cwd = os.getcwd()
     old_out, old_err = sys.stdout, sys.stderr
     os.chdir(cwd)
@@ -109,7 +120,11 @@ class Project:
     path: Path
 
     def check(
-        self, *flags: str, env: Mapping[str, str] | None = None, results: bool | None = None
+        self,
+        *flags: str,
+        env: Mapping[str, str] | None = None,
+        results: bool | None = None,
+        tty: bool = False,
     ) -> Run:
         argv = ["check", "--spec", "SPEC.md"]
         if (self.path / "src").is_dir():
@@ -121,7 +136,7 @@ class Project:
         if results:
             argv += ["--results", "junit.xml"]
         argv += list(flags)
-        return run_cli(argv, self.path, env)
+        return run_cli(argv, self.path, env, tty=tty)
 
 
 @pytest.fixture

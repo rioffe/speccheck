@@ -701,3 +701,217 @@ def test_version_flag():
         mp.setattr(sys, "stdout", buf)
         assert cli.main(["--version"], environ={}) == 0
     assert buf.getvalue() == f"speccheck {version}\n"
+
+
+# ------------------------------------------------------------------------------------------
+# progress indicator (R-30, C-11, K-13, E-39, E-40) and interrupts (E-41)
+# ------------------------------------------------------------------------------------------
+
+PROGRESS_LINE_RE = re.compile(
+    r"^judge: \[[#-]{20}\] \d+/\d+ edges  \d+:\d{2} elapsed  ~(\d+:\d{2}|\?:\?\?) left$"
+)
+
+
+def _edges_project(project, n: int):
+    tests = "".join(f"def test_{i}():\n    '''R-01'''\n    assert True\n\n" for i in range(n))
+    return project(
+        {
+            "SPEC.md": spec_table([("R-01", "a")]),
+            "tests/test_a.py": tests,
+            "junit.xml": junit([("tests.test_a", f"test_{i}", "passed") for i in range(n)]),
+        }
+    )
+
+
+def _asserting_stub(delay: float):
+    def post(url, headers, body, timeout):
+        if delay:
+            time.sleep(delay)
+        req = json.loads(json.loads(body)["messages"][1]["content"])
+        content = json.dumps(
+            {
+                "verdict": "ASSERTS",
+                "evidence": [{"file": req["file"], "line": req["start"] + 2}],
+                "rationale": "r",
+            }
+        )
+        return 200, json.dumps({"choices": [{"message": {"content": content}}]})
+
+    return post
+
+
+def _segments(stderr: str) -> tuple[list[str], str]:
+    """Split a stderr capture on \\r into (draws, erase): every draw is a padded C-11 line;
+    the erase is the final `\\r` + W spaces + `\\r` (so the capture ends with an empty segment)."""
+    assert "\x1b" not in stderr
+    parts = stderr.split("\r")
+    assert parts[0] == "" and parts[-1] == "", parts
+    erase = parts[-2]
+    draws = parts[1:-2]
+    return draws, erase
+
+
+def test_progress_indicator_format_cadence_and_isolation(project, monkeypatch):
+    """T-62: with --judge llm, --progress always, a six-edge stub sleeping 0.3 s per call and
+    --judge-concurrency 2, the stderr capture splits on \\r into C-11 draws only: the first
+    reads 0/6, 0:00 elapsed, ?:??; <done> is non-decreasing; the last draw is 6/6 with a full
+    bar; the capture ends with the erase; no \\x1b byte; every draw padded to the widest so far;
+    # cells == floor(20 d / 6); a 2.5 s single edge shows >= 2 draws at 0/1 with distinct
+    elapsed (the 1 s tick); 32 instant edges at concurrency 32 draw <= 10 times per second and
+    end at 32/32 (coalescing); with --verbose INFO no INFO line sits between the first draw and
+    the erase; stdout is the summary line and the reports equal a --progress never run.
+    (R-30, C-11, K-13)"""
+    six = _edges_project(project, 6)
+    monkeypatch.setattr(judge_llm, "_httpx_post", _asserting_stub(0.3))
+    run = six.check(
+        "--judge", "llm", "--judge-concurrency", "2", "--progress", "always", env=LLM_ENV
+    )
+    assert (
+        run.code == 0 and SUMMARY_RE.match(run.stdout.rstrip("\n")) and run.stdout.count("\n") == 1
+    )
+    draws, erase = _segments(run.stderr)
+    assert len(draws) >= 2
+    width = 0
+    dones = []
+    for padded in draws:
+        line = padded.rstrip(" ")
+        assert PROGRESS_LINE_RE.match(line), line
+        width = max(width, len(line))
+        assert len(padded) == width, (padded, width)
+        m = re.match(r"^judge: \[([#-]{20})\] (\d+)/6 edges", line)
+        bar, done = m.group(1), int(m.group(2))
+        assert bar == "#" * (20 * done // 6) + "-" * (20 - 20 * done // 6)
+        dones.append(done)
+    assert dones == sorted(dones) and dones[-1] == 6
+    assert draws[0].startswith("judge: [--------------------] 0/6 edges  0:00 elapsed  ~?:?? left")
+    assert erase == " " * width
+    reference = six.check(
+        "--judge", "llm", "--judge-concurrency", "2", "--progress", "never", env=LLM_ENV
+    )
+    assert reference.stderr == "" and reference.json == run.json and reference.md == run.md
+
+    one = _edges_project(project, 1)
+    monkeypatch.setattr(judge_llm, "_httpx_post", _asserting_stub(2.5))
+    run = one.check("--judge", "llm", "--progress", "always", env=LLM_ENV)
+    draws, _ = _segments(run.stderr)
+    idle = {re.search(r"(\d+:\d{2}) elapsed", d).group(1) for d in draws if " 0/1 edges" in d}
+    assert len(idle) >= 2, draws
+
+    many = _edges_project(project, 32)
+    monkeypatch.setattr(judge_llm, "_httpx_post", _asserting_stub(0.0))
+    t0 = time.monotonic()
+    run = many.check(
+        "--judge", "llm", "--judge-concurrency", "32", "--progress", "always", env=LLM_ENV
+    )
+    elapsed = time.monotonic() - t0
+    draws, _ = _segments(run.stderr)
+    assert draws[-1].startswith("judge: [####################] 32/32 edges")
+    assert len(draws) <= 10 * max(1.0, elapsed) + 1, (len(draws), elapsed)
+
+    monkeypatch.setattr(judge_llm, "_httpx_post", _asserting_stub(0.3))
+    run = six.check(
+        "--judge",
+        "llm",
+        "--judge-concurrency",
+        "2",
+        "--progress",
+        "always",
+        "--verbose",
+        "INFO",
+        env=LLM_ENV,
+    )
+    assert run.code == 0
+    first_draw = run.stderr.index("\rjudge: [")
+    erase_end = run.stderr.rindex("\r") + 1
+    assert "INFO" not in run.stderr[first_draw:erase_end]
+    after = run.stderr[erase_end:]
+    assert "INFO judge=llm url=" in after and "INFO stage=judge " in after
+    assert "INFO stage=judge " not in run.stderr[:first_draw]
+
+
+def test_progress_gating_and_interrupt_erase(project, monkeypatch):
+    """T-63: no progress bytes when stderr is not a TTY under --progress auto, under --progress
+    never, under --verbose DEBUG with --progress always, or with --judge mock/none and
+    --progress always; drawn under auto when stderr.isatty() is True; a bad --progress value
+    exits 2; a stub raising KeyboardInterrupt mid-stage leaves the erase as the last stderr
+    bytes before the `interrupted` message (E-41). (R-30, E-39, E-40, K-01)"""
+    six = _edges_project(project, 6)
+    monkeypatch.setattr(judge_llm, "_httpx_post", _asserting_stub(0.0))
+    for flags, env in [
+        (("--judge", "llm"), LLM_ENV),
+        (("--judge", "llm", "--progress", "auto"), LLM_ENV),
+        (("--judge", "llm", "--progress", "never"), LLM_ENV),
+        (("--judge", "mock", "--progress", "always"), None),
+        (("--judge", "none", "--progress", "always"), None),
+    ]:
+        run = six.check(*flags, env=env)
+        assert run.code == 0 and run.stderr == "", (flags, run.stderr)
+    run = six.check("--judge", "llm", "--progress", "always", "--verbose", "DEBUG", env=LLM_ENV)
+    assert run.code == 0 and "\r" not in run.stderr and "judge>" in run.stderr
+    run = six.check("--judge", "llm", "--progress", "sometimes", env=LLM_ENV)
+    assert run.code == 2 and "--progress" in run.stderr and run.stdout == ""
+
+    run = six.check("--judge", "llm", env=LLM_ENV, tty=True)
+    assert run.code == 0 and run.stderr.startswith("\rjudge: [")
+    run = six.check("--judge", "llm", "--verbose", "DEBUG", env=LLM_ENV, tty=True)
+    assert run.code == 0 and "\r" not in run.stderr
+
+    calls = []
+
+    def interrupting(url, headers, body, timeout):
+        calls.append(1)
+        if len(calls) == 3:
+            raise KeyboardInterrupt
+        time.sleep(0.05)
+        return _asserting_stub(0.0)(url, headers, body, timeout)
+
+    monkeypatch.setattr(judge_llm, "_httpx_post", interrupting)
+    run = six.check(
+        "--judge", "llm", "--judge-concurrency", "1", "--progress", "always", env=LLM_ENV
+    )
+    assert run.code == 3 and run.stdout == ""
+    body, _, tail = run.stderr.rpartition("\r")
+    assert tail == "ERROR interrupted\n"
+    draws, erase = _segments(body + "\r")
+    assert erase == " " * len(erase) and len(erase) == len(draws[0]) and draws
+
+
+def test_interrupt_exits_3_and_cleans_up(project, monkeypatch):
+    """T-64: a KeyboardInterrupt from a provider stub mid-judge, and one injected between the
+    JSON rename and the Markdown rename, each exit 3 with stderr exactly `ERROR interrupted`,
+    write nothing to stdout, leave no .tmp and no speccheck.json from this run under --out,
+    and leave a previous run's reports intact. (E-41, K-01, I-001, §3.1)"""
+    six = _edges_project(project, 6)
+    first = six.check("--judge", "none", "--out", "reports")
+    assert first.code == 0
+    old_md = (six.path / "reports" / "SPEC_CONFORMANCE_REPORT.md").read_bytes()
+    old_json = (six.path / "reports" / "speccheck.json").read_bytes()
+
+    def interrupting(url, headers, body, timeout):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(judge_llm, "_httpx_post", interrupting)
+    run = six.check("--judge", "llm", "--out", "reports", env=LLM_ENV)
+    assert run.code == 3 and run.stdout == "" and run.stderr == "ERROR interrupted\n"
+    assert sorted(p.name for p in (six.path / "reports").iterdir()) == [
+        "SPEC_CONFORMANCE_REPORT.md",
+        "speccheck.json",
+    ]
+    assert (six.path / "reports" / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == old_md
+    assert (six.path / "reports" / "speccheck.json").read_bytes() == old_json
+
+    real_replace = report._replace
+
+    def interrupting_replace(src, dst):
+        if dst.name == "SPEC_CONFORMANCE_REPORT.md":
+            raise KeyboardInterrupt
+        real_replace(src, dst)
+
+    monkeypatch.setattr(report, "_replace", interrupting_replace)
+    run = six.check("--judge", "none", "--out", "reports")
+    assert run.code == 3 and run.stdout == "" and run.stderr == "ERROR interrupted\n"
+    names = sorted(p.name for p in (six.path / "reports").iterdir())
+    assert names == ["SPEC_CONFORMANCE_REPORT.md"], names
+    assert (six.path / "reports" / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == old_md
+    run = six.check("--judge", "none", "--out", "reports", "--verbose", "DEBUG")
+    assert run.code == 3 and "\nERROR interrupted\n" in run.stderr and "Traceback" in run.stderr

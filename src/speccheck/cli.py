@@ -1,8 +1,9 @@
 """CLI (§5): the only surface. Parses arguments, wires the §3.1 pipeline, applies the exit-code
 (§5.4), summary-line (§5.1), and diagnostics (§5.3) contracts, and hosts `--self-check`.
 
-Spec IDs realized here (§11): R-14, R-15, R-17, R-18, R-19, R-21, R-23, R-28, R-29, I-001, I-006,
-    I-007, I-009, K-01, K-06, K-10, K-11, K-12, E-01, E-09, E-19, E-21, E-26, E-32, E-36.
+Spec IDs realized here (§11): R-14, R-15, R-17, R-18, R-19, R-21, R-23, R-28, R-29, R-30, I-001,
+    I-006, I-007, I-009, K-01, K-06, K-10, K-11, K-12, E-01, E-09, E-19, E-21, E-26, E-32, E-36,
+    E-39, E-41.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from .extract import (
     to_posix_relative,
 )
 from .graph import apply_verdicts, build_graph, eligible_edges
-from .judge import JudgeRequest, build_request, run_judge
+from .judge import JudgeRequest, ProgressLine, build_request, run_judge
 from .judge_llm import LlmConfig, LlmConfigError
 from .report import (
     JSON_NAME,
@@ -53,6 +54,7 @@ log = logging.getLogger("speccheck")
 
 JUDGE_MODES = ("none", "mock", "llm")
 VERBOSE_LEVELS = ("INFO", "DEBUG")
+PROGRESS_MODES = ("auto", "always", "never")
 SELF_CHECK_FIXTURE = Path(__file__).parent / "_selfcheck"
 
 
@@ -81,6 +83,7 @@ class Config:
     verbose: str | None
     llm: LlmConfig | None
     spec_arg: str
+    progress: str = "auto"
 
 
 @dataclass(frozen=True)
@@ -112,6 +115,7 @@ def build_parser() -> _Parser:
     check.add_argument("--max-unknown", default="0.2")
     check.add_argument("--judge-concurrency", default="4")
     check.add_argument("--judge-budget", default="0")
+    check.add_argument("--progress", default="auto")
     check.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
     return parser
 
@@ -173,6 +177,10 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
         )
     concurrency = _int_in_range("--judge-concurrency", args.judge_concurrency, 1, 32)
     budget = _int_in_range("--judge-budget", args.judge_budget, 0, 86400)
+    if args.progress not in PROGRESS_MODES:
+        raise UsageError(
+            f"--progress: invalid value '{args.progress}' (expected auto, always, or never)"
+        )
 
     root = Path(args.root).resolve()
     if not root.is_dir():
@@ -235,6 +243,7 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
         verbose=verbose,
         llm=llm,
         spec_arg=args.spec,
+        progress=args.progress,
     )
     return Action("check", verbose, config)
 
@@ -326,6 +335,24 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
         provider, concurrency, budget = _make_provider(config)
         if config.judge == "llm":
             prompt_sha = provider.prompt_sha256
+        requests: list[JudgeRequest] = []
+        for rec, edge in eligible_edges(graph):
+            requests.append(
+                build_request(rec.id, rec.spec.text, edge.case, file_lines[edge.case.file])
+            )
+        progress = None
+        if requests and _progress_enabled(config):
+            progress = ProgressLine(sys.stderr, len(requests))
+        # K-13 / F-201: the logger is silent while the indicator is displayed, so every judge
+        # INFO line — including the mode/URL/model line — is emitted after run_judge returns.
+        run = run_judge(
+            provider,
+            requests,
+            concurrency=concurrency,
+            budget_seconds=budget,
+            progress=progress,
+        )
+        if config.judge == "llm":
             log.info(
                 "judge=llm url=%s model=%s timeout=%s",
                 config.llm.url,
@@ -334,12 +361,6 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             )
         else:
             log.info("judge=%s", config.judge)
-        requests: list[JudgeRequest] = []
-        for rec, edge in eligible_edges(graph):
-            requests.append(
-                build_request(rec.id, rec.spec.text, edge.case, file_lines[edge.case.file])
-            )
-        run = run_judge(provider, requests, concurrency=concurrency, budget_seconds=budget)
         apply_verdicts(graph, run.verdicts)
         judge_available = run.available
         notes.extend(run.notes())
@@ -371,6 +392,18 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
 
     _emit_line(summary_line(report), stdout)
     return int(report["exit_code"])
+
+
+def _progress_enabled(config: Config) -> bool:
+    """R-30 / §5.1 / E-39: LLM judge only; never at DEBUG; `auto` means stderr is a TTY."""
+    if config.judge != "llm" or config.verbose == "DEBUG" or config.progress == "never":
+        return False
+    if config.progress == "always":
+        return True
+    try:
+        return bool(sys.stderr.isatty())
+    except (AttributeError, ValueError):
+        return False
 
 
 def _make_provider(config: Config):
@@ -524,6 +557,10 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
     except SystemExit as exc:  # argparse --help / --version
         code = exc.code
         return int(code) if isinstance(code, int) else 0
+    except KeyboardInterrupt:  # E-41: SIGINT is a failure like any other, exit 3
+        log.error("interrupted")
+        log.debug("traceback", exc_info=True)
+        return 3
     except Exception as exc:  # noqa: BLE001 - §5.4: any uncaught exception maps to 3
         log.error("internal error: %s: %s", type(exc).__name__, exc)
         log.debug("traceback", exc_info=True)
