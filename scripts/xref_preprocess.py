@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Self-contained clickable cross-reference preprocessor for md2pdf.sh --click.
 
-Turns KNOWN requirement-id mentions (R-/C-/I-/K-/E-/T-) into pandoc internal
+Turns KNOWN requirement-id mentions (R-/C-/I-/K-/E-/T-/D-) into pandoc internal
 links [ID](#anchor) and adds {#anchor}s to the definitions, so the rendered
 PDF has clickable jump-links -- the canonical, 100%-pandoc way (the render
 engine + hyperref do the rest; NO raw LaTeX in the user's source).
@@ -38,10 +38,12 @@ SECTION_RULES = [
     (re.compile(r"##\s+\d+\.\s+.*?dge\b", re.I), "sec-edgecases"),
     (re.compile(r"##\s+\d+\.\s+.*[\bT]est", re.I), "sec-tests"),
     (re.compile(r"##\s+\d+\.\s+.*?nterface", re.I), "sec-contracts"),
+    (re.compile(r"##\s+\d+\.\s+Open questions", re.I), "sec-decisions"),
 ]
 PREFIX = {
     "R": "sec-requirements", "I": "sec-invariants", "K": "sec-constraints",
     "E": "sec-edgecases", "T": "sec-tests", "C": "sec-contracts",
+    "D": "sec-decisions",
 }
 
 

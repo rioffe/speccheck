@@ -18,7 +18,7 @@ Defaults (all on; each can be switched off):
   --toc            Table of contents.                    (off: --no-toc)
   --mermaid        Render ```mermaid diagrams
                    (needs Chrome/Chromium).              (off: --no-mermaid)
-  --click          Requirement-id mentions (R-/C-/I-/K-/E-/T-) become
+  --click          Requirement-id mentions (R-/C-/I-/K-/E-/T-/D-) become
                    clickable PDF jump-links; implies --toc and runs xelatex
                    a 3rd pass so forward links + the TOC resolve. Links are
                    blue.                                 (off: --no-click)
