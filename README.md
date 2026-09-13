@@ -167,6 +167,44 @@ Any other OpenAI-compatible endpoint works the same way; the request body is pin
 SHA-256 of the instruction text is recorded in `speccheck.json` as `judge_prompt_sha256`. A
 missing variable is a usage error; the key never appears in any output.
 
+### LLM judge via OpenRouter (or any hosted endpoint)
+
+[OpenRouter](https://openrouter.ai) fronts many vendors' models behind the same chat-completions
+shape, so it is the same three variables pointed elsewhere — no local GPU, and real parallelism:
+
+```bash
+export SPECCHECK_JUDGE_URL=https://openrouter.ai/api/v1/chat/completions
+export SPECCHECK_JUDGE_MODEL=openai/gpt-4o-mini   # any id from openrouter.ai/models, passed through verbatim
+export SPECCHECK_JUDGE_API_KEY=sk-or-...           # your OpenRouter key; export it, don't put it on the command line
+export SPECCHECK_JUDGE_TIMEOUT=60                  # optional
+
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml \
+    --judge llm --strict --judge-concurrency 32 --out build/speccheck-openrouter
+```
+
+Practical notes:
+
+- **Concurrency.** A hosted endpoint actually runs requests in parallel, so `--judge-concurrency`
+  `16`–`32` makes a few-hundred-edge run take a minute or two rather than twenty. Against local
+  Ollama the extra concurrency mostly queues inside the server. The reports are byte-identical
+  whatever the concurrency; only timing changes.
+- **Cost.** One request per judged edge: roughly 1–2 k input tokens (the instruction text plus
+  one test's source) and a short JSON reply. `max_tokens` is pinned at 4000 by the spec, which a
+  non-thinking model never approaches; a reasoning model may spend it thinking. `--judge-budget`
+  caps wall-clock, not spend. Self-application on this repository is ~330 edges and cost cents on
+  `gpt-4o-mini`.
+- **Model choice.** The judge needs a model that reliably answers with one bare JSON object.
+  `openai/gpt-4o-mini` did so on every edge of this repository's self-application (332 judged,
+  0 `UNKNOWN`, recorded in `SPEC_BUILD_REPORT.md` §0). Any malformed reply is not a failure of
+  the run: it is recorded as `UNKNOWN` with `coerced: true`, and only `--strict` with
+  `unknown_rate > --max-unknown` turns it into exit `1`.
+- **Reading the result.** `WEAKLY_PASSING` means every passed test citing that ID was judged
+  `EXECUTES_ONLY`/`UNRELATED`; report §8 gives the model's rationale per edge. The fix is to
+  strengthen the test so it asserts the ID's behavior — the judge only ever downgrades, so an
+  `ASSERTS` edge can only come from a test that really asserts.
+- **Watching it.** Run from a terminal and the judge stage shows the progress indicator described
+  above; redirect stderr and it stays silent unless you pass `--progress always`.
+
 Every answer is validated by the kernel: an unknown verdict, an `ASSERTS` without evidence, or
 evidence outside the judged span is coerced to `UNKNOWN` (`coerced: true`), and a provider
 failure yields `UNKNOWN` with `judge: unavailable | timeout | http <code> | malformed response`.
