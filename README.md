@@ -12,7 +12,30 @@ its header still cites them as `../skills/...`; here they sit next to it.
 The LLM judge speaks the OpenAI-compatible chat-completions wire format that Ollama serves
 locally, so no cloud account is needed for `--judge llm`.
 
-## Setup
+## Installation
+
+`install.sh` sets up everything a user of the toolkit needs, per-user and idempotently:
+
+```bash
+./install.sh                    # skills for Claude Code + Pi + Oh My Pi, spec2pdf.sh + its deps, the speccheck CLI
+./install.sh --skills --link    # only the skills, symlinked into this checkout so `git pull` updates them
+./install.sh --agents claude    # pick agents: claude, pi, omp, agents (~/.agents/skills, read by Pi and OMP)
+./install.sh --spec2pdf --no-deps
+./install.sh --uninstall        # removes what it installed; dependencies stay
+./install.sh --dry-run          # show the plan
+```
+
+| What | Where |
+| --- | --- |
+| skills | `~/.claude/skills/`, `~/.pi/agent/skills/`, `~/.omp/agent/skills/` (`<skill>/SKILL.md`) |
+| `spec2pdf.sh` | `~/.local/bin/spec2pdf.sh` → `~/.local/share/speccheck/` (with `scripts/xref_preprocess.py`); `--prefix` to change |
+| its dependencies | `pandoc`, XeLaTeX (`mactex-no-gui`, or `--basic-tex` + `tlmgr`), Node + `mermaid-filter`/`mmdc`, a Chrome/Chromium (puppeteer's if none is found) — via Homebrew on macOS, apt on Debian/Ubuntu, instructions elsewhere |
+| `speccheck` | `uv tool install "speccheck[llm] @ <this checkout>"` → `~/.local/bin/speccheck` (installs `uv` first if missing) |
+
+It ends with a verification pass (`SKILL.md` present per agent, `spec2pdf.sh --help`, the tools on
+PATH, `speccheck --self-check`).
+
+## Setup (development)
 
 - Python 3.12 and [`uv`](https://docs.astral.sh/uv/). A `.python-version` pins 3.12.
 - The kernel has no dependencies beyond the standard library. `httpx` is only pulled in by the
@@ -212,6 +235,7 @@ skills/
   spec-writing/SKILL.md         how a SPEC.md is written (the ID taxonomy speccheck consumes)
   spec-review/SKILL.md          how a spec is reviewed before it is built
   spec-build/SKILL.md           how a spec is built and audited (the process this tool automates)
+install.sh                      per-user installer: skills (Claude/Pi/OMP), spec2pdf.sh + deps, speccheck CLI
 spec2pdf.sh                     renders a spec/doc to PDF: TOC, mermaid, clickable IDs, 1in margins
 scripts/xref_preprocess.py      --click support: rewrites ID mentions into PDF jump-links
 ```

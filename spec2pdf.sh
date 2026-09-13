@@ -164,7 +164,17 @@ if [ "${#MERMAID_FLAG[@]}" -gt 0 ]; then
   fi
 fi
 
-SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)/scripts" # CWD-independent repo /scripts
+# Locate /scripts next to the REAL file: install.sh puts a symlink on PATH
+# (~/.local/bin/spec2pdf.sh), so follow links before taking dirname.
+SELF="$0"
+while [ -L "$SELF" ]; do
+  link_target=$(readlink "$SELF")
+  case $link_target in
+  /*) SELF="$link_target" ;;
+  *) SELF="$(dirname "$SELF")/$link_target" ;;
+  esac
+done
+SCRIPTS_DIR="$(cd "$(dirname "$SELF")" && pwd)/scripts" # CWD-independent /scripts
 OUTPUT_FILE="${INPUT_FILE%.md}.pdf"
 TEMP_FILE=$(mktemp /tmp/spec2pdf.XXXXXX).md
 LINKED_FILE=""
