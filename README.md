@@ -75,7 +75,7 @@ report; that is the evidence the human reads.
 ### How a project goes
 
 ```mermaid
-flowchart LR
+flowchart TD
     B["brief / design doc / conversation"] -->|"spec-writing"| S["SPEC.md v0.1"]
     S -->|"spec-review"| R["SPEC_REVIEW_REPORT.md<br/>F-nnn, P0/P1/P2, verdict"]
     R -->|"fix P0 + P1, bump version"| S2["SPEC.md v0.n"]
