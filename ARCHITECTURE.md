@@ -1,9 +1,11 @@
-# ARCHITECTURE — `speccheck` 1.2.0
+# ARCHITECTURE — `speccheck` 1.4.0
 
 This document describes the system as built, module by module and data flow by data flow. It is
 a companion to `README.md` (how to use it), `SPEC.md` (what it must do), and
 `SPEC_BUILD_REPORT.md` (the evidence that it does). Spec IDs are cited inline so that every
-design element can be traced back to the clause that demanded it.
+design element can be traced back to the clause that demanded it. It describes the build of
+`SPEC.md` v1.4: v1.2 plus the judge-stage progress indicator (v1.3) and the review findings that
+tightened it (v1.4), including the interrupt rule.
 
 ## 1. The one idea
 
@@ -25,7 +27,7 @@ flowchart LR
     end
     subgraph J["Judge — optional, one call per edge, downgrade-only (I-004, I-010)"]
         M[judge_mock]
-        L[judge_llm ⇄ Ollama]
+        L["judge_llm ⇄ any OpenAI-compatible endpoint"]
     end
     G -. "PASSING edges only" .-> J
     J -. "verdicts, validated" .-> G
@@ -41,18 +43,18 @@ The kernel produces every status, count, and metric. The judge, when enabled, se
 
 ```text
 src/speccheck/
-  __init__.py       __version__ = "1.2.0"          (K-10: pyproject reads it back)
+  __init__.py       __version__ = "1.4.0"          (K-10: pyproject reads it back)
   __main__.py       python -m speccheck
-  cli.py            §5 surface; wiring; exit codes; logging; --self-check      436 lines
-  extract.py        C-01 grammar, SPEC.md declarations, tree walk, citations   256
-  attribute.py      C-03 test-case delimitation (ast) and attribution          107
-  results.py        C-04 JUnit parsing and the classname/join_name join        120
-  graph.py          C-05 status algorithm, edge selection, C-07 metrics        206
-  judge.py          C-06 types, validation, concurrency/budget runner, C-11 progress line
-  judge_mock.py     R-22 deterministic provider                                 32
-  judge_llm.py      C-06/C-09 provider (OpenAI-compatible; Ollama)             149
+  cli.py            §5 surface; wiring; exit codes; logging; --progress; E-41; --self-check   571 lines
+  extract.py        C-01 grammar, SPEC.md declarations, tree walk, citations              349
+  attribute.py      C-03 test-case delimitation (ast) and attribution                     140
+  results.py        C-04 JUnit parsing and the classname/join_name join                   152
+  graph.py          C-05 status algorithm, edge selection, C-07 metrics                   249
+  judge.py          C-06 types, validation, concurrency/budget runner, C-11 ProgressLine   338
+  judge_mock.py     R-22 deterministic provider                                            46
+  judge_llm.py      C-06/C-09 provider (any OpenAI-compatible endpoint)                    196
   judge_prompt.md   C-10 instruction text (package data, hashed into reports)
-  report.py         C-07 JSON, C-08 Markdown, §5.1 line, §5.4 rule, §3.1 writer 346
+  report.py         C-07 JSON, C-08 Markdown, §5.1 line, §5.4 rule, §3.1 writer            437
   _selfcheck/       byte-identical copy of fixtures/target/ (package data)
 ```
 
@@ -154,7 +156,7 @@ stage's output; there is no cache, no persistent state, and no partial output mo
 
 ```mermaid
 flowchart TB
-    argv[/argv + env/] --> parse["parse_config → Config<br/>(paths resolved once, all inside --root; E-09)"]
+    argv[/argv + env/] --> parse["parse_config → Config<br/>(paths resolved once, all inside --root; E-09;<br/>--progress auto|always|never validated)"]
     parse -->|exit 2 on any usage error| X2([exit 2])
     parse --> spec["extract-spec<br/>parse_spec(SPEC.md) → SpecIndex"]
     spec -->|E-01 / E-02 / E-03| X3a([exit 3])
@@ -166,7 +168,8 @@ flowchart TB
     res --> gr["graph + status<br/>build_graph → IdRecord[] with C-05 steps 1–4,<br/>dangling, stale"]
     gr --> q{--judge?}
     q -->|none| rep
-    q -->|mock / llm| judge["judge<br/>eligible_edges → build_request → run_judge → apply_verdicts (step 5)"]
+    q -->|mock / llm| judge["judge<br/>eligible_edges → build_request → run_judge → apply_verdicts (step 5)<br/>llm on a TTY: ProgressLine on stderr for the duration (R-30, C-11)"]
+    judge -->|"Ctrl-C at any stage (E-41)"| X3d(["exit 3, interrupted"])
     judge --> rep["report<br/>build_report → dumps / render_markdown → write_reports"]
     rep -->|E-18| X3c([exit 3])
     rep --> line["summary line → stdout (R-21, R-29)"]
@@ -422,7 +425,8 @@ sequenceDiagram
     participant R as judge.run_judge
     participant E as judge.judge_edge
     participant P as provider
-    G->>R: requests (one per eligible edge), concurrency, budget
+    G->>R: requests (one per eligible edge), concurrency, budget, progress?
+    R->>R: enter ProgressLine (first draw, d = 0) when given (R-30)
     loop pool.map over requests (at most `concurrency` in flight)
         R->>R: deadline check — at/after start+budget?<br/>→ UNKNOWN "judge: budget", call_made=False (K-12)
         R->>E: judge_edge(provider, req)
@@ -436,7 +440,9 @@ sequenceDiagram
             E->>E: UNKNOWN "judge: timeout | http N | malformed response | unavailable" (E-14)
         end
         E-->>R: JudgedVerdict (coerced?, call_failed?, call_made?)
+        R->>R: progress.advance() — one more edge determined
     end
+    R->>R: exit ProgressLine (final draw, then erase — erase only on exception, E-40)
     R-->>G: {(TestCase, id) → JudgedVerdict}, available, budget_unjudged
 ```
 
@@ -468,7 +474,7 @@ spaces + `\r`. The line is written to the raw stderr stream, never through the l
 those lines as evidence or `EXECUTES_ONLY` with none (R-22). It has no configuration and no I/O,
 which is what makes `--judge mock` byte-deterministic and usable in `--self-check`.
 
-### 10.3 The LLM provider and Ollama
+### 10.3 The LLM provider: Ollama, OpenRouter, or any OpenAI-compatible endpoint
 
 `LlmJudge` implements C-06's wire format against any OpenAI-compatible `chat/completions`
 endpoint. The reference deployment is a local **Ollama** server, which serves that shape at
@@ -506,6 +512,11 @@ Design points:
 - **The instruction text is data, not code.** `judge_prompt.md` is package data, read through
   `importlib.resources`, sent verbatim as the system message, and its SHA-256 lands in the report
   as `judge_prompt_sha256` (R-26). T-54 asserts the file equals the C-10 block in `SPEC.md`.
+- **The endpoint is a URL, nothing more.** The provider has no vendor branches: the same code
+  talked to local Ollama for the recorded T-49 runs and to OpenRouter (`openai/gpt-4o-mini`,
+  `--judge-concurrency 32`) for the v1.4 Phase B gate, and would talk to Anthropic's
+  OpenAI-compatible endpoint the same way. Only the three `SPECCHECK_JUDGE_*` variables change
+  (README, *LLM judge via OpenRouter*).
 - **Thinking models** (Ollama returns their reasoning in `message.reasoning`) exhausted the
   v1.1 pin of `max_tokens: 400` before emitting the verdict; v1.2 pins 4000 (D-07, README
   *Thinking models and `max_tokens`*). The provider does not special-case this: an empty or
@@ -550,16 +561,28 @@ renames and observe the nonce.
 - **Parsing** — an `argparse` parser whose `error()` raises `UsageError` instead of exiting, so
   every usage problem funnels through one `except` that logs at `ERROR` and returns `2`.
   Manual validation covers what argparse cannot express with the spec's exact messages:
-  `--judge` values, `--verbose` levels, `--max-unknown` as a Decimal in `[0, 1]`, integer ranges,
-  the `path outside --root:` rule (E-09) after a single `resolve()` per path.
+  `--judge` values, `--verbose` levels, `--progress` modes, `--max-unknown` as a Decimal in
+  `[0, 1]`, integer ranges, the `path outside --root:` rule (E-09) after a single `resolve()` per
+  path.
 - **`Config`** — a frozen record of resolved paths and validated options; `Action` says whether
   argv asked for a check or a self-check. T-43 records the `Config` the self-check builds.
 - **Wiring** — `execute()` is the §3 pipeline above; providers are constructed by
-  `_make_provider`, which is the seam T-31 uses to count judge calls.
+  `_make_provider`, which is the seam T-31 uses to count judge calls. `_progress_enabled()`
+  decides whether the judge stage gets a `ProgressLine` (R-30, E-39): LLM judge only, never at
+  `DEBUG`, `auto` means `sys.stderr.isatty()`, `always` overrides only the TTY test. Because the
+  indicator owns stderr while displayed, the judge stage's own INFO lines — mode, URL and model,
+  the stage summary — are logged only after `run_judge` returns (K-13, F-201).
 - **Diagnostics** — one `logging.StreamHandler` on stderr, logger `speccheck`, format
   `%(levelname)s %(message)s`, level `ERROR` unless `--verbose`; handlers are reset on every
   `main()` call so the in-process test runner never accumulates them. Notes are logged at `INFO`;
-  nothing is logged at `WARNING` (F-014).
+  nothing is logged at `WARNING` (F-014). The progress indicator bypasses the logger entirely: it
+  is written to the raw `sys.stderr` stream and erased before anything else is logged.
+- **Interrupts** — `main()` catches `KeyboardInterrupt` explicitly (it is a `BaseException`, so
+  the generic `except Exception` would let it escape with Python's exit 130): it logs
+  `ERROR interrupted`, a traceback only at `DEBUG`, and returns `3` — keeping K-01's closed set of
+  exit codes (E-41, D-16). Cleanup happens where the state lives: `write_reports` removes its
+  temporaries and any already-renamed report on any `BaseException`, and `ProgressLine.__exit__`
+  erases the line, so an interrupt leaves neither a half-written report nor a half-drawn bar.
 - **The summary line** — written as UTF-8 bytes to `stdout.buffer` when one exists, so the
   ASCII line is identical under a C locale or a `cp1252` stdout (R-29; T-44 runs both).
 - **`--self-check`** — copies `_selfcheck/` to a fresh temp dir, installs the socket guard,
@@ -582,6 +605,7 @@ never letting anything volatile into the data:
 | floating point | `decimal` with fixed quantization; JSON numbers via the `_Num` sentinel |
 | judge completion order | `pool.map` preserves request order; results are keyed, not appended |
 | the temp-file nonce | never written into either report |
+| the progress indicator | stderr only, drawn on a TTY (or `--progress always`) and erased; nothing about it reaches stdout or either report (T-62 compares against a `--progress never` run) |
 | time, host, version | not emitted at all — only `schema_version` |
 
 It is then verified three ways: T-36 (same fixture, different absolute paths, `--src .`, planted
@@ -606,19 +630,24 @@ hand labels for the T-49 evaluation.
 
 ## 15. Test architecture
 
-The suite (`tests/`, 70 tests) mirrors the spec's §9 groups one file per group. Each test
+The suite (`tests/`, 73 tests) mirrors the spec's §9 groups one file per group. Each test
 function's docstring starts with the `T-nn` it realizes and ends with the R/C/I/K/E ids it
-proves — that is what makes self-application (T-48) report every one of the 161 IDs as
+proves — that is what makes self-application (T-48) report every one of the 170 IDs as
 `PASSING`, and it is why the literal ignore-marker strings are confined to `tests/data/markers/`
 (F-109: a marker in a test module would make the checker ignore the test's own citation, which
 happened once during the build and was caught by self-application).
 
-Two helpers in `conftest.py` carry most of the weight: `run_cli(argv, cwd, env)` runs
+Two helpers in `conftest.py` carry most of the weight: `run_cli(argv, cwd, env, tty=False)` runs
 `cli.main` in-process with `stdout`/`stderr` replaced by byte buffers, so exit codes, the summary
-line's bytes, and stderr silence are all observable without a subprocess; and `project({...})`
+line's bytes, and stderr silence are all observable without a subprocess (`tty=True` swaps in a
+`TtyWrapper` whose `isatty()` is true, which is how T-63 exercises `--progress auto`; the
+`\r`-separated capture is what T-62 parses for the C-11 draws and erase); and `project({...})`
 materializes a throwaway project from a file mapping in an isolated directory per call. The
 judge tests use stub providers and a recording HTTP stub with a concurrency counter; nothing in
-the gating suite touches the network.
+the gating suite touches the network. The LLM judge itself did touch the suite in one way: the
+v1.4 Phase B gate (`gpt-4o-mini` via OpenRouter) judged five tests as proving their IDs only by
+implication (R-20, K-02, K-03, K-08, E-29), and each was strengthened to assert the behavior
+outright — the judge's downgrade-only rule working as intended on this repository's own tests.
 
 ### 15.1 Tools (`tools/`)
 
@@ -641,6 +670,10 @@ hand, so that a change to the goldens is always a deliberate, reviewable diff.
 Per the spec's non-goals and O-2/O-3: no semantic analysis of code, no test execution, no
 spec-quality review, no remediation, no multi-spec runs, no daemon/watch/IDE/web surface, and no
 language adapters beyond Python (other languages get file-level attribution, which the join
-still supports by suffix). The decisions the spec's own §12 leaves open (D-01..D-14) are inherited
-unchanged; the build's findings against them are in `SPEC_BUILD_REPORT.md`, and the one it
-resolved — D-07's `max_tokens` — became SPEC v1.2.
+still supports by suffix). The decisions the spec's own §12 leaves open (D-01..D-16) are inherited
+unchanged; the build's findings against them are in `SPEC_BUILD_REPORT.md`. Two have data behind
+them now: D-07's `max_tokens` became SPEC v1.2, and D-16 (exit `3` on interrupt rather than the
+shell's `130`) is what E-41 and this build implement, awaiting confirmation. Also deliberately
+absent: a `--exclude` for scan roots — self-application therefore cites the packaged fixture
+copy under `src/speccheck/_selfcheck/` as source evidence, which inflates R-01's evidence list but
+never a status.
