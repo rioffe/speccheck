@@ -439,3 +439,10 @@ built behind the `--judge llm` flag and the `[llm]` extra. Additional language a
 non-CLI surfaces (O-3) are, as the spec states, not part of v1.4: non-Python test files get
 file-level attribution. Interpretations the build had to make where the spec was silent or
 inconsistent are listed in `SPEC_BUILD_REPORT.md` §3.
+
+## License
+
+This work is released under the Creative Commons Attribution 4.0 International License
+(CC BY 4.0), the same terms as the book it comes from,
+[*From Vibe Coding to Spec Engineering*](https://github.com/rioffe/spec_engineering_primer).
+See [`LICENSE`](LICENSE). © 2026 Robert Ioffe.
