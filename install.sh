@@ -36,6 +36,8 @@ JUDGE_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/speccheck/judge.env"
 RC_FILE=""
 DRY=0
 UNINSTALL=0
+INTERACTIVE=0
+COMPONENTS_GIVEN=0
 
 usage() {
   cat <<'EOF'
@@ -69,6 +71,9 @@ Options:
   --uninstall          remove what this script installed (skills, spec2pdf.sh,
                        the speccheck tool, judge.env); dependencies are left alone
   --dry-run            print what would be done without doing it
+  -i, --interactive    ask about every choice above (components, agents,
+                       copy/link, prefix, deps, judge model, shell rc) with
+                       sensible defaults, show the plan, then confirm
   -h, --help           this help
 
 Where things go:
@@ -87,6 +92,7 @@ Examples:
   ./install.sh --spec2pdf --no-deps    # just the script, deps already present
   ./install.sh --speccheck --judge-model gemma4:latest --rc ~/.zshrc
   ./install.sh --uninstall
+  ./install.sh -i                      # guided
 EOF
 }
 
@@ -131,6 +137,7 @@ while [[ $# -gt 0 ]]; do
   --rc=*) RC_FILE="${1#--rc=}" ;;
   --uninstall) UNINSTALL=1 ;;
   --dry-run) DRY=1 ;;
+  -i | --interactive) INTERACTIVE=1 ;;
   -h | --help) usage; exit 0 ;;
   *) echo "Error: unknown argument '$1'." >&2; usage >&2; exit 2 ;;
   esac
@@ -140,8 +147,9 @@ done
 # No component named -> all of them.
 if [[ $DO_SKILLS -eq 0 && $DO_SPEC2PDF -eq 0 && $DO_SPECCHECK -eq 0 ]]; then
   DO_SKILLS=1; DO_SPEC2PDF=1; DO_SPECCHECK=1
+else
+  COMPONENTS_GIVEN=1
 fi
-[[ -n "$AGENTS" ]] || AGENTS="claude,pi,omp"
 
 # ----------------------------------------------------------------- helpers --
 say()  { printf '%s\n' "$*"; }
@@ -479,9 +487,202 @@ verify() {
   fi
 }
 
+# ------------------------------------------------------------- interactive --
+# Prompts read from the terminal directly so the wizard works even when stdout
+# is piped. Every question has a default; Enter accepts it.
+ask() { # ask VAR "prompt" "default"
+  local var="$1" prompt="$2" def="$3" reply
+  printf '%s [%s]: ' "$prompt" "$def" >/dev/tty
+  IFS= read -r reply </dev/tty
+  printf -v "$var" '%s' "${reply:-$def}"
+}
+ask_yn() { # ask_yn "prompt" y|n  -> returns 0 for yes
+  local prompt="$1" def="$2" reply hint="y/N"
+  [[ $def == y ]] && hint="Y/n"
+  while true; do
+    printf '%s [%s]: ' "$prompt" "$hint" >/dev/tty
+    IFS= read -r reply </dev/tty
+    reply="${reply:-$def}"
+    case $reply in
+    [Yy]*) return 0 ;;
+    [Nn]*) return 1 ;;
+    *) say "  please answer y or n" >/dev/tty ;;
+    esac
+  done
+}
+ask_choice() { # ask_choice VAR "prompt" "default" opt1 opt2 ...
+  local var="$1" prompt="$2" def="$3" reply o
+  shift 3
+  while true; do
+    printf '%s (%s) [%s]: ' "$prompt" "$*" "$def" >/dev/tty
+    IFS= read -r reply </dev/tty
+    reply="${reply:-$def}"
+    for o in "$@"; do
+      if [[ "$reply" == "$o" ]]; then printf -v "$var" '%s' "$reply"; return 0; fi
+    done
+    say "  choose one of: $*" >/dev/tty
+  done
+}
+
+# Which agents look installed here? Used as the interactive default.
+detect_agents() {
+  local found=()
+  { have claude || [[ -d "$HOME/.claude" ]]; } && found+=(claude)
+  { have pi || [[ -d "$HOME/.pi/agent" ]]; } && found+=(pi)
+  { have omp || [[ -d "$HOME/.omp/agent" ]]; } && found+=(omp)
+  local IFS=','
+  echo "${found[*]}"
+}
+
+# The rc file for the user's login shell.
+default_rc() {
+  case "$(basename "${SHELL:-/bin/sh}")" in
+  zsh) echo "$HOME/.zshrc" ;;
+  bash) if [[ "$OS" == "Darwin" ]]; then echo "$HOME/.bash_profile"; else echo "$HOME/.bashrc"; fi ;;
+  fish) echo "$HOME/.config/fish/config.fish" ;;
+  *) echo "$HOME/.profile" ;;
+  esac
+}
+
+interactive() {
+  [[ -r /dev/tty && -w /dev/tty ]] || { echo "Error: --interactive needs a terminal." >&2; exit 2; }
+  say ""
+  say "Guided install — Enter accepts the default shown in brackets."
+  say ""
+
+  # 1. components (flags on the command line pre-select; otherwise all on)
+  local d_sk=y d_pdf=y d_sc=y
+  if [[ $COMPONENTS_GIVEN -eq 1 ]]; then
+    [[ $DO_SKILLS -eq 1 ]] || d_sk=n
+    [[ $DO_SPEC2PDF -eq 1 ]] || d_pdf=n
+    [[ $DO_SPECCHECK -eq 1 ]] || d_sc=n
+  fi
+  ask_yn "Install the skills (spec-writing, spec-review, spec-build)?" "$d_sk" && DO_SKILLS=1 || DO_SKILLS=0
+  ask_yn "Install spec2pdf.sh (Markdown -> PDF with math, mermaid, clickable ids)?" "$d_pdf" && DO_SPEC2PDF=1 || DO_SPEC2PDF=0
+  ask_yn "Install the speccheck CLI (the spec-build conformance gate)?" "$d_sc" && DO_SPECCHECK=1 || DO_SPECCHECK=0
+  if [[ $DO_SKILLS -eq 0 && $DO_SPEC2PDF -eq 0 && $DO_SPECCHECK -eq 0 ]]; then
+    say "Nothing selected; exiting."
+    exit 0
+  fi
+
+  # 2. skills: agents + copy/link
+  if [[ $DO_SKILLS -eq 1 ]]; then
+    local detected
+    detected="$(detect_agents)"
+    [[ -n "$detected" ]] || detected="claude,pi,omp"
+    say ""
+    say "Agents: claude (~/.claude/skills), pi (~/.pi/agent/skills), omp (~/.omp/agent/skills),"
+    say "        agents (~/.agents/skills, a shared directory both pi and omp read)."
+    [[ -n "$AGENTS" ]] && detected="$AGENTS"
+    while true; do
+      ask AGENTS "Install skills for (comma-separated)" "$detected"
+      local ok=1 a
+      IFS=',' read -r -a agent_list <<<"$AGENTS"
+      for a in "${agent_list[@]}"; do
+        case $a in claude | pi | omp | agents) ;; *) say "  unknown agent '$a'"; ok=0 ;; esac
+      done
+      [[ $ok -eq 1 && ${#agent_list[@]} -gt 0 ]] && break
+    done
+  fi
+  if [[ $DO_SKILLS -eq 1 || $DO_SPEC2PDF -eq 1 ]]; then
+    say ""
+    say "copy = a snapshot of this checkout; link = symlinks into it, so 'git pull' updates in place."
+    ask_choice MODE "Install skills / spec2pdf.sh as" "$MODE" copy link
+  fi
+
+  # 3. spec2pdf: prefix, deps, tex flavour
+  if [[ $DO_SPEC2PDF -eq 1 ]]; then
+    say ""
+    ask PREFIX "Prefix for spec2pdf.sh (bin/ and share/ go under it)" "$PREFIX"
+    PREFIX="${PREFIX/#\~/$HOME}"
+    local d_deps=y
+    [[ $DO_DEPS -eq 1 ]] || d_deps=n
+    ask_yn "Install rendering dependencies (pandoc, XeLaTeX, mermaid-filter, a browser) if missing?" "$d_deps" && DO_DEPS=1 || DO_DEPS=0
+    if [[ $DO_DEPS -eq 1 && "$PKG" == "brew" ]] && ! have xelatex && [[ ! -x /Library/TeX/texbin/xelatex ]]; then
+      say "  full  = MacTeX without GUI apps (~5 GB, everything works)"
+      say "  basic = BasicTeX (~100 MB) plus the packages pandoc needs via tlmgr (asks for sudo)"
+      ask_choice TEX "TeX distribution" "$TEX" full basic
+    fi
+  fi
+
+  # 4. speccheck: judge
+  if [[ $DO_SPECCHECK -eq 1 ]]; then
+    say ""
+    local d_judge=y
+    [[ $DO_JUDGE -eq 1 ]] || d_judge=n
+    if ask_yn "Set up the LLM judge (Ollama + model + SPECCHECK_JUDGE_* env) for --judge llm?" "$d_judge"; then
+      DO_JUDGE=1
+      ask JUDGE_URL "Chat-completions endpoint" "$JUDGE_URL"
+      local tags_url="${JUDGE_URL%/v1/chat/completions}/api/tags" models=""
+      case $JUDGE_URL in
+      http://localhost:* | http://127.0.0.1:*)
+        models="$(curl -fsS -m 3 "$tags_url" 2>/dev/null | tr ',' '\n' | sed -n 's/.*"name":"\([^"]*\)".*/\1/p' | tr '\n' ' ')"
+        [[ -n "$models" ]] && say "  models already pulled locally: $models"
+        ;;
+      esac
+      ask JUDGE_MODEL "Judge model (pulled if missing)" "$JUDGE_MODEL"
+      local rc_default
+      rc_default="$(default_rc)"
+      if ask_yn "Append 'source judge.env' to your shell rc so the variables are always set?" y; then
+        ask RC_FILE "Shell rc file" "${RC_FILE:-$rc_default}"
+        RC_FILE="${RC_FILE/#\~/$HOME}"
+      else
+        RC_FILE=""
+      fi
+    else
+      DO_JUDGE=0
+    fi
+  fi
+
+  # 5. plan + confirm
+  say ""
+  say "Plan:"
+  [[ $DO_SKILLS -eq 1 ]] && say "  skills      $MODE -> ${AGENTS//,/, }"
+  if [[ $DO_SPEC2PDF -eq 1 ]]; then
+    say "  spec2pdf.sh $MODE -> $PREFIX/bin/spec2pdf.sh$([[ $DO_DEPS -eq 1 ]] && printf ', with dependencies (tex: %s)' "$TEX" || printf ', no dependencies')"
+  fi
+  if [[ $DO_SPECCHECK -eq 1 ]]; then
+    say "  speccheck   uv tool install speccheck[llm] from $REPO"
+    if [[ $DO_JUDGE -eq 1 ]]; then
+      say "  judge       $JUDGE_MODEL @ $JUDGE_URL -> $JUDGE_ENV$([[ -n "$RC_FILE" ]] && printf ', sourced from %s' "$RC_FILE")"
+    fi
+  fi
+  say ""
+  if ! ask_yn "Proceed?" y; then
+    say "Aborted; nothing changed. Equivalent non-interactive command:"
+    say "  $(equivalent_command)"
+    exit 0
+  fi
+  say "Equivalent non-interactive command:  $(equivalent_command)"
+}
+
+# The flags that reproduce the interactive choices (printed for the record).
+equivalent_command() {
+  local cmd="./install.sh"
+  [[ $DO_SKILLS -eq 1 ]] && cmd+=" --skills --agents $AGENTS"
+  [[ $DO_SPEC2PDF -eq 1 ]] && cmd+=" --spec2pdf --prefix $PREFIX"
+  [[ $DO_SPEC2PDF -eq 1 && $DO_DEPS -eq 0 ]] && cmd+=" --no-deps"
+  [[ $DO_SPEC2PDF -eq 1 && $TEX == basic ]] && cmd+=" --basic-tex"
+  [[ $DO_SPECCHECK -eq 1 ]] && cmd+=" --speccheck"
+  if [[ $DO_SPECCHECK -eq 1 ]]; then
+    if [[ $DO_JUDGE -eq 1 ]]; then
+      cmd+=" --judge-model $JUDGE_MODEL --judge-url $JUDGE_URL"
+      [[ -n "$RC_FILE" ]] && cmd+=" --rc $RC_FILE"
+    else
+      cmd+=" --no-judge"
+    fi
+  fi
+  [[ $MODE == link ]] && cmd+=" --link"
+  [[ $DRY -eq 1 ]] && cmd+=" --dry-run"
+  echo "$cmd"
+}
+
 # -------------------------------------------------------------------- main --
 say "speccheck toolkit installer — $REPO"
 [[ $DRY -eq 1 ]] && say "(dry run: nothing will be changed)"
+
+if [[ $INTERACTIVE -eq 1 && $UNINSTALL -eq 0 ]]; then interactive; fi
+[[ -n "$AGENTS" ]] || AGENTS="claude,pi,omp"
 
 if [[ $UNINSTALL -eq 1 ]]; then
   [[ $DO_SKILLS -eq 1 ]] && uninstall_skills

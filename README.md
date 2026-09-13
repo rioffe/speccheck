@@ -18,6 +18,7 @@ locally, so no cloud account is needed for `--judge llm`.
 
 ```bash
 ./install.sh                    # skills for Claude Code + Pi + Oh My Pi, spec2pdf.sh + its deps, the speccheck CLI
+./install.sh -i                 # guided: asks each choice with defaults (detected agents, local Ollama models, your shell rc), shows the plan, confirms
 ./install.sh --skills --link    # only the skills, symlinked into this checkout so `git pull` updates them
 ./install.sh --agents claude    # pick agents: claude, pi, omp, agents (~/.agents/skills, read by Pi and OMP)
 ./install.sh --spec2pdf --no-deps
