@@ -1,6 +1,6 @@
 ---
 name: spec-build
-description: Implement a SPEC.md (the source of truth for a system) in any language or stack using test-driven development, then make README.md reflect the built reality, then re-read SPEC.md and audit every produced artifact for conformance, writing SPEC_BUILD_REPORT.md. Use when asked to "build the spec", "implement SPEC.md", "make this spec real", or after spec-writing/spec-review produce a Level-2/3 spec. Pairs with spec-writing (authoring the spec) and spec-review (auditing it, yielding SPEC_REVIEW_REPORT.md + F-nnn findings and a P0/P1/P2 remediation plan). Encodes the red-green-refactor loop over the spec's §9 test groups, the "implement everything unless told otherwise" default, the speccheck gate (every spec ID mechanically traced to a passing test, no dangling or stale citations), README-sync, and the final spec-conformance pass.
+description: Implement a SPEC.md (the source of truth for a system) in any language or stack using test-driven development, then make README.md reflect the built reality, then re-read SPEC.md and audit every produced artifact for conformance, writing SPEC_BUILD_REPORT.md. Use when asked to "build the spec", "implement SPEC.md", "make this spec real", or after spec-writing/spec-review produce a Level-2/3 spec. Pairs with spec-writing (authoring the spec) and spec-review (auditing it, yielding SPEC_REVIEW_REPORT.md + F-nnn findings and a P0/P1/P2 remediation plan). Encodes the red-green-refactor loop over the spec's §9 test groups, the "implement everything unless told otherwise" default, the two-phase speccheck gate for Python projects (--judge mock until clean, then --judge llm: every spec ID mechanically traced to a passing, asserting test, no dangling or stale citations), README-sync, and the final spec-conformance pass.
 license: MIT
 ---
 
@@ -69,7 +69,7 @@ Define, once, the commands you will use throughout and put them in the README:
 <run all tests>     # the full §9 acceptance suite, emitting JUnit XML (see "The speccheck gate")
 <lint / typecheck>  # whatever the project's CI runs
 <self-check>        # only if the spec pins a boundary/self-check command (e.g. a §6 "no network" invariant)
-<speccheck>         # the conformance gate, see below; exit 0 is the bar
+<speccheck>         # the conformance gate (Python projects), see below; two phases, exit 0 on both is the bar
 ```
 
 ## The speccheck gate
@@ -79,20 +79,37 @@ finds where the source and test trees cite it, joins the citations to a JUnit XM
 and assigns each ID exactly one status backed by a file and line. It is what turns "every T-nn
 cites its spec ID" from a convention into a gate. Install it from its repository
 (`uv tool install <path-or-url of the speccheck checkout>`, or `uv run --project <checkout>
-speccheck …`); it is a standard-library Python tool and is indifferent to the language of the
-project it scans.
+speccheck …`).
+
+**Scope: Python projects.** speccheck currently understands `pytest` test cases (it splits test
+files with `ast` and joins them to pytest's JUnit XML); on other stacks it cannot attribute
+citations to test cases, so the gate is Python-only for now. For a non-Python project use the
+`grep` walk at the end of this section and say so in `SPEC_BUILD_REPORT.md`.
+
+**The gate has two phases, in order.** Phase A uses the deterministic mock judge; Phase B uses
+the LLM judge and is run only once Phase A is clean. Both must exit `0`.
 
 ```bash
-<run all tests> --junitxml=junit.xml          # pytest; go-junit-report, cargo2junit, jest-junit,
-                                              # `dotnet test --logger junit`, surefire etc. for other stacks
-speccheck check --spec SPEC.md --src <src tree> --tests <test tree> \
+uv run python -m pytest tests -q --junitxml=junit.xml           # fresh results every time
+
+# Phase A — mock judge: citation / result join, deterministic, offline
+speccheck check --spec SPEC.md --src src --tests tests \
     --results junit.xml --judge mock --strict --out build/speccheck
 # speccheck: CONFORMING - 61/61 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+
+# Phase B — LLM judge: does each passing test actually ASSERT the ID it cites?
+export SPECCHECK_JUDGE_URL=http://localhost:11434/v1/chat/completions   # Ollama, or any OpenAI-compatible endpoint
+export SPECCHECK_JUDGE_MODEL=qwen3:8b
+export SPECCHECK_JUDGE_API_KEY=ollama
+speccheck check --spec SPEC.md --src src --tests tests \
+    --results junit.xml --judge llm --strict --out build/speccheck-llm
+# speccheck: CONFORMING - 61/61 passing (100.0%), ..., 0 weak, ...; 0 dangling, 0 stale; judge=llm
 ```
 
 `--strict` exits `0` only when **every in-scope ID is `PASSING` and there are no dangling or
-stale citations** — which is exactly the "§11 matrix fully traced" condition of Phase 3. Each
-non-passing status names the fix:
+stale citations** — which is exactly the "§11 matrix fully traced" condition of Phase 3. Under
+`--judge llm` it additionally requires the judge to have been reachable and
+`unknown_rate` $\leq$ `--max-unknown` (default `0.2`). Each non-passing status names the fix:
 
 | Status | Meaning | What you do |
 | --- | --- | --- |
@@ -100,7 +117,8 @@ non-passing status names the fix:
 | `UNTESTED` | source cites it, no test does | write the T-nn test that proves it |
 | `UNVERIFIED` | a test cites it but no result was joined | the test did not run, or the results file is stale / the classname join failed — rerun, then check the JUnit `classname`/`name` |
 | `FAILING` / `SKIPPED` | joined result is red / skipped | fix the code; a skipped T-nn is not done |
-| `WEAKLY_PASSING` | judge found the test *executes* the behavior but never asserts on it | add the assertion; the judge only ever downgrades, never upgrades |
+| `WEAKLY_PASSING` | the judge found the test *executes* the behavior but never asserts on it | strengthen the test so it asserts the specified outcome; the judge only ever downgrades, never upgrades, so a mock-clean run can still be red here |
+| `UNKNOWN` edges (Phase B) | the model gave no usable verdict for a (test, ID) edge | read `build/speccheck-llm/SPEC_CONFORMANCE_REPORT.md` §8 for the rationale; a thinking model that truncates needs a different model, not a higher `--max-unknown` |
 | dangling | a citation of an ID the spec does not declare | a typo in a citation, or an ID the spec deleted outright (spec-writing retires with a strike-through instead) — fix the citation or the spec |
 | stale | a citation of a retired ID | remove or re-point the citation |
 
@@ -113,18 +131,24 @@ Rules of the road:
   lines of a file that must not be scanned at all.
 - **A `T-nn` is judged by test citations alone** — citing it from source changes nothing. Cite
   R/C/I/K/E ids from both the code that realizes them and the test that proves them.
-- **`--judge mock`** (deterministic: assertion tokens inside the test span) is the gate.
-  **`--judge llm`** (an OpenAI-compatible endpoint such as Ollama; see the speccheck README for
-  the three environment variables) is the optional stronger pass that catches tests which run
-  the code but assert nothing; run it once before the final report when a model is available
-  and record its `unknown_rate`.
+- **Phase A before Phase B, always.** The mock judge is deterministic and offline (assertion
+  tokens inside the test span); run it after every group and at every gate. The LLM judge is
+  slower and probabilistic, so it is run only on a mock-clean tree, where the only thing it can
+  find is `WEAKLY_PASSING` — a test that runs the code but never asserts the cited behavior.
+  Fix every `WEAKLY_PASSING` by strengthening the test, then re-run **both** phases.
+- **Phase B needs a reachable judge** (a local Ollama serving `SPECCHECK_JUDGE_MODEL`, or any
+  OpenAI-compatible chat-completions endpoint) and the three `SPECCHECK_JUDGE_*` variables. If
+  none is available, do not quietly skip it: ask the user, and if they defer it, record
+  "Phase B not run: <reason>" in `SPEC_BUILD_REPORT.md` and the verdict block.
+- **Record both summary lines** and, for Phase B, the model name and `unknown_rate` from
+  `speccheck.json`, so the evidence is reproducible.
 - **Keep `--out` inside `--root`** and out of the scan roots; the tool never scans the spec, the
   results file, or its own reports.
 - **Exit `2`/`3` is not a red gate — it is a broken invocation or a broken spec** (missing
   `--spec`, a path outside `--root`, an ID declared twice, malformed JUnit XML). Fix the cause;
   a duplicate or ambiguous declaration is a spec defect handled per Phase 3.3.
 
-If `speccheck` genuinely cannot be installed, fall back to
+For a non-Python project (or if `speccheck` genuinely cannot be installed), fall back to
 `grep -rnE '\b[RCIKET]-[0-9]{2,3}\b' <test tree>` and walk §11 by hand — and say so in
 `SPEC_BUILD_REPORT.md`.
 
@@ -257,7 +281,7 @@ Do not proceed until, all true:
 <run all tests>     # green, no skipped T-nn, no warnings; junit.xml regenerated
 <lint / typecheck>  # clean
 <self-check>        # if the spec pins one
-<speccheck>         # --strict, --judge mock: CONFORMING, 0 dangling, 0 stale, exit 0
+<speccheck>         # Phase A (--judge mock --strict): CONFORMING, 0 dangling, 0 stale, exit 0
 ```
 
 The speccheck summary line is the proof that every §9 test group has a green test citing its
@@ -311,15 +335,17 @@ with fresh eyes, and write `SPEC_BUILD_REPORT.md` so the work is auditable.
 Run the gate first, on a fresh test run:
 
 ```bash
-<run all tests> --junitxml=junit.xml
-speccheck check --spec SPEC.md --src <src> --tests <tests> --results junit.xml --judge mock --strict --out build/speccheck
-speccheck check … --judge llm --strict --out build/speccheck-llm    # optional, when a judge endpoint is available
+uv run python -m pytest tests -q --junitxml=junit.xml
+speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # Phase A
+speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # Phase B, only once A is clean
 ```
 
 `build/speccheck/SPEC_CONFORMANCE_REPORT.md` is the per-ID evidence table (§3 of that report:
 ID → status → citing files and lines → joined test result); `speccheck.json` is the same data
-for filling the §11 matrix. Anything not `PASSING`, and every dangling or stale row, is a
-conformance defect to open as `F-nnn` before you go further.
+for filling the §11 matrix. Anything not `PASSING` in either phase, and every dangling or stale
+row, is a conformance defect to open as `F-nnn` before you go further. A `WEAKLY_PASSING` from
+Phase B is fixed in the test (make it assert the specified outcome), after which both phases
+are re-run.
 
 Then re-read the spec *whole again* — as if grading someone else's build — for what the gate
 cannot see: that a cited contract actually has the pinned shape, that a §5 table matches the
@@ -392,9 +418,10 @@ naming the ids it depicts.
    R/C/I/K/E/T realized or explicitly deferral-recorded.
 2. **Documented:** `README.md` (and any rendered copy) describes the running system,
    command-verified.
-3. **Conforming:** `speccheck … --judge mock --strict` exits `0` (`CONFORMING`, 0 dangling,
-   0 stale) on the final test run — or every non-passing ID is a user-approved deferral named in
-   the report; the §11 matrix is fully traced; the §3.2 artifact cross-check found no open
+3. **Conforming:** on the final test run `speccheck … --judge mock --strict` exits `0`
+   (`CONFORMING`, 0 dangling, 0 stale) and then `speccheck … --judge llm --strict` exits `0`
+   (0 weak, judge available, `unknown_rate` within bound) — or every exception is a
+   user-approved deferral named in the report; the §11 matrix is fully traced; the §3.2 artifact cross-check found no open
    (unapproved) defect; `SPEC_BUILD_REPORT.md` records the per-ID evidence, the summary line, and
    the final verdict.
 
@@ -402,7 +429,8 @@ Report the verdict in one line, then stop:
 
 ```text
 Spec coverage: <NN>/<NN> IDs realized (<k> deferred: <ids + why>)
-speccheck: <the summary line, verbatim, from the final --strict run>
+speccheck (mock): <summary line, verbatim, from the final --judge mock --strict run>
+speccheck (llm):  <summary line, verbatim, + model name; or "not run: <reason>">
 Readiness: BUILT / BUILT WITH DEFERRALS / INCOMPLETE
 Conformance: PASS / PASS WITH NOTES / FAIL
 ```
@@ -425,9 +453,10 @@ Conformance: PASS / PASS WITH NOTES / FAIL
 - [ ] `README.md` rewritten from the built system; its commands all run as written; any rendered
       copy regenerated in the same commit
 - [ ] Every T-nn cites its spec ID literally so `speccheck` can see it
-- [ ] `speccheck … --judge mock --strict` run on the **final** test results: `CONFORMING`, 0
-      dangling, 0 stale, exit `0` (or every exception is a named, user-approved deferral); the
-      summary line pasted into `SPEC_BUILD_REPORT.md`
+- [ ] Phase A `speccheck … --judge mock --strict` on the **final** test results: `CONFORMING`,
+      0 dangling, 0 stale, exit `0`; then Phase B `--judge llm --strict`: 0 weak, exit `0` (or
+      every exception is a named, user-approved deferral); both summary lines pasted into
+      `SPEC_BUILD_REPORT.md`
 - [ ] Re-read `SPEC.md`; §11 matrix fully traced from `speccheck.json` (no dangling
       `ID → component → test` edge)
 - [ ] Cross-checked **all** artifacts (source, tests, schemas, manifest, data, README) against the
