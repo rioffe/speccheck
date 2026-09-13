@@ -6,8 +6,10 @@
 #      directories of the coding agents you use: Claude Code, Pi, and Oh My Pi;
 #   2. spec2pdf.sh (+ scripts/xref_preprocess.py) onto your PATH, together with
 #      its rendering dependencies (pandoc, XeLaTeX, mermaid-filter, a browser);
-#   3. the speccheck CLI itself, as a uv tool with the [llm] extra so the
-#      spec-build gate's Phase B (--judge llm) works out of the box.
+#   3. the speccheck CLI itself, as a uv tool with the [llm] extra, plus the
+#      LLM judge environment (Ollama + a model + the SPECCHECK_JUDGE_* variables
+#      in ~/.config/speccheck/judge.env) so the spec-build gate's Phase B
+#      (--judge llm) works out of the box.
 #
 # Everything is per-user (nothing under /usr); the only sudo is the one Homebrew
 # / apt / tlmgr may ask for themselves. Re-running is safe: files are replaced,
@@ -27,6 +29,11 @@ AGENTS=""
 MODE="copy"     # copy | link
 PREFIX="${SPECCHECK_PREFIX:-$HOME/.local}"
 TEX="full"      # full | basic
+DO_JUDGE=1
+JUDGE_MODEL="${SPECCHECK_JUDGE_MODEL:-qwen3:8b}"
+JUDGE_URL="${SPECCHECK_JUDGE_URL:-http://localhost:11434/v1/chat/completions}"
+JUDGE_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/speccheck/judge.env"
+RC_FILE=""
 DRY=0
 UNINSTALL=0
 
@@ -38,6 +45,8 @@ Components (default: all three):
   --skills             install skills/{spec-writing,spec-review,spec-build}
   --spec2pdf           install spec2pdf.sh + scripts/ and its dependencies
   --speccheck          install the speccheck CLI (uv tool, with the [llm] extra)
+                       and the LLM judge environment: Ollama, the judge model,
+                       and SPECCHECK_JUDGE_* in ~/.config/speccheck/judge.env
 
 Options:
   --agents LIST        comma-separated agents to install skills for
@@ -50,8 +59,15 @@ Options:
   --no-deps            do not install pandoc / TeX / mermaid-filter / browser
   --basic-tex          macOS: install BasicTeX + the needed packages via tlmgr
                        instead of the full MacTeX (no GUI) distribution
+  --judge-model M      Ollama model for --judge llm (default: qwen3:8b, or
+                       $SPECCHECK_JUDGE_MODEL if set); pulled if missing
+  --judge-url URL      chat-completions endpoint (default: local Ollama, or
+                       $SPECCHECK_JUDGE_URL if set)
+  --no-judge           skip Ollama / model / judge.env
+  --rc FILE            append `source judge.env` to this shell rc file (e.g.
+                       ~/.zshrc); by default the line is only printed
   --uninstall          remove what this script installed (skills, spec2pdf.sh,
-                       the speccheck tool); dependencies are left alone
+                       the speccheck tool, judge.env); dependencies are left alone
   --dry-run            print what would be done without doing it
   -h, --help           this help
 
@@ -62,12 +78,14 @@ Where things go:
   (agents)      ~/.agents/skills/<skill>/SKILL.md
   spec2pdf.sh   <prefix>/bin/spec2pdf.sh -> <prefix>/share/speccheck/spec2pdf.sh
   speccheck     ~/.local/bin/speccheck (uv tool install)
+  judge env     ~/.config/speccheck/judge.env (SPECCHECK_JUDGE_URL / _MODEL / _API_KEY / _TIMEOUT)
 
 Examples:
   ./install.sh                         # everything, for claude + pi + omp
   ./install.sh --skills --link         # only the skills, as symlinks
   ./install.sh --agents claude --skills
   ./install.sh --spec2pdf --no-deps    # just the script, deps already present
+  ./install.sh --speccheck --judge-model gemma4:latest --rc ~/.zshrc
   ./install.sh --uninstall
 EOF
 }
@@ -92,6 +110,25 @@ while [[ $# -gt 0 ]]; do
   --prefix=*) PREFIX="${1#--prefix=}" ;;
   --no-deps) DO_DEPS=0 ;;
   --basic-tex) TEX="basic" ;;
+  --judge-model)
+    shift
+    [[ $# -gt 0 && "$1" != -* ]] || { echo "Error: --judge-model needs a model name." >&2; exit 2; }
+    JUDGE_MODEL="$1"
+    ;;
+  --judge-model=*) JUDGE_MODEL="${1#--judge-model=}" ;;
+  --judge-url)
+    shift
+    [[ $# -gt 0 && "$1" != -* ]] || { echo "Error: --judge-url needs a URL." >&2; exit 2; }
+    JUDGE_URL="$1"
+    ;;
+  --judge-url=*) JUDGE_URL="${1#--judge-url=}" ;;
+  --no-judge) DO_JUDGE=0 ;;
+  --rc)
+    shift
+    [[ $# -gt 0 && "$1" != -* ]] || { echo "Error: --rc needs a file (e.g. ~/.zshrc)." >&2; exit 2; }
+    RC_FILE="$1"
+    ;;
+  --rc=*) RC_FILE="${1#--rc=}" ;;
   --uninstall) UNINSTALL=1 ;;
   --dry-run) DRY=1 ;;
   -h | --help) usage; exit 0 ;;
@@ -324,9 +361,78 @@ install_speccheck() {
   fi
 }
 
+# The LLM judge (spec-build gate, Phase B) needs an OpenAI-compatible endpoint
+# and three variables; a local Ollama is the zero-account way to get one.
+install_judge() {
+  step "LLM judge: Ollama + $JUDGE_MODEL + $JUDGE_ENV"
+  local local_ollama=0
+  case $JUDGE_URL in
+  http://localhost:*|http://127.0.0.1:*) local_ollama=1 ;;
+  esac
+
+  if [[ $local_ollama -eq 1 ]]; then
+    if ! have ollama; then
+      case $PKG in
+      brew) run brew install ollama ;;
+      apt | "") run sh -c 'curl -fsSL https://ollama.com/install.sh | sh' ;;
+      esac
+    fi
+    local tags_url="${JUDGE_URL%/v1/chat/completions}/api/tags"
+    if curl -fsS -m 3 "$tags_url" >/dev/null 2>&1; then
+      if curl -fsS -m 3 "$tags_url" | grep -q "\"name\":\"$JUDGE_MODEL\""; then
+        say "    model $JUDGE_MODEL already pulled"
+      else
+        run ollama pull "$JUDGE_MODEL"
+      fi
+    else
+      warn "Ollama is not serving at ${tags_url%/api/tags}; start it (\`ollama serve\`, or the Ollama app) and run  ollama pull $JUDGE_MODEL"
+    fi
+  else
+    say "    remote endpoint; not managing a server or model. Set SPECCHECK_JUDGE_API_KEY in $JUDGE_ENV."
+  fi
+
+  run mkdir -p "$(dirname "$JUDGE_ENV")"
+  if [[ $DRY -eq 1 ]]; then
+    say "    would write $JUDGE_ENV"
+  else
+    # Keep an API key the user already put in the file (a remote endpoint).
+    local key="ollama"
+    if [[ -f "$JUDGE_ENV" ]]; then
+      local old
+      old="$(sed -n 's/^export SPECCHECK_JUDGE_API_KEY=//p' "$JUDGE_ENV" | tr -d '"' | tail -1)"
+      [[ -n "$old" ]] && key="$old"
+    fi
+    cat >"$JUDGE_ENV" <<EOF
+# speccheck --judge llm configuration (written by install.sh; edit freely).
+# Source this from your shell rc:  source "$JUDGE_ENV"
+export SPECCHECK_JUDGE_URL="$JUDGE_URL"
+export SPECCHECK_JUDGE_MODEL="$JUDGE_MODEL"
+export SPECCHECK_JUDGE_API_KEY="$key"      # any value for Ollama; the real key for a hosted endpoint
+export SPECCHECK_JUDGE_TIMEOUT=120         # seconds, 1..300; thinking models need more than the default 30
+EOF
+    chmod 600 "$JUDGE_ENV"
+    say "    wrote $JUDGE_ENV"
+  fi
+
+  local line="[ -f \"$JUDGE_ENV\" ] && source \"$JUDGE_ENV\"  # speccheck judge"
+  if [[ -n "$RC_FILE" ]]; then
+    if [[ -f "$RC_FILE" ]] && grep -qF "$JUDGE_ENV" "$RC_FILE"; then
+      say "    $RC_FILE already sources it"
+    else
+      say "    appending to $RC_FILE"
+      [[ $DRY -eq 1 ]] || printf '\n%s\n' "$line" >>"$RC_FILE"
+    fi
+  else
+    say "    add to your shell rc (or pass --rc ~/.zshrc):"
+    say "      $line"
+  fi
+}
+
 uninstall_speccheck() {
   step "Removing the speccheck tool"
   if have uv; then run uv tool uninstall speccheck || true; fi
+  remove_path "$JUDGE_ENV"
+  say "    (a 'source $JUDGE_ENV' line in your shell rc, if you added one, is left for you to remove)"
 }
 
 # ----------------------------------------------------------------- summary --
@@ -356,6 +462,14 @@ verify() {
     else
       say "    speccheck not on PATH yet (see the PATH warning above)"
     fi
+    if [[ $DO_JUDGE -eq 1 ]]; then
+      if [[ -f "$JUDGE_ENV" ]]; then say "    ok   $JUDGE_ENV"; else say "    MISSING $JUDGE_ENV"; ok=0; fi
+      if [[ "${SPECCHECK_JUDGE_MODEL:-}" == "$JUDGE_MODEL" && "${SPECCHECK_JUDGE_URL:-}" == "$JUDGE_URL" ]]; then
+        say "    ok   SPECCHECK_JUDGE_* set in this shell"
+      else
+        say "    note SPECCHECK_JUDGE_* not in this shell yet: source \"$JUDGE_ENV\" (or open a new shell)"
+      fi
+    fi
   fi
   if [[ $ok -eq 1 ]]; then
     say "Done."
@@ -380,4 +494,5 @@ fi
 [[ $DO_SKILLS -eq 1 ]] && install_skills
 [[ $DO_SPEC2PDF -eq 1 ]] && install_spec2pdf
 [[ $DO_SPECCHECK -eq 1 ]] && install_speccheck
+[[ $DO_SPECCHECK -eq 1 && $DO_JUDGE -eq 1 ]] && install_judge
 [[ $DRY -eq 1 ]] || verify

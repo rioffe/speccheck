@@ -31,6 +31,7 @@ locally, so no cloud account is needed for `--judge llm`.
 | `spec2pdf.sh` | `~/.local/bin/spec2pdf.sh` → `~/.local/share/speccheck/` (with `scripts/xref_preprocess.py`); `--prefix` to change |
 | its dependencies | `pandoc`, XeLaTeX (`mactex-no-gui`, or `--basic-tex` + `tlmgr`), Node + `mermaid-filter`/`mmdc`, a Chrome/Chromium (puppeteer's if none is found) — via Homebrew on macOS, apt on Debian/Ubuntu, instructions elsewhere |
 | `speccheck` | `uv tool install "speccheck[llm] @ <this checkout>"` → `~/.local/bin/speccheck` (installs `uv` first if missing) |
+| LLM judge env | Ollama (installed if missing), the judge model pulled if missing (`--judge-model`, default `qwen3:8b`), and `~/.config/speccheck/judge.env` with `SPECCHECK_JUDGE_URL/_MODEL/_API_KEY/_TIMEOUT`; `--rc ~/.zshrc` appends the `source` line, otherwise it is printed; `--no-judge` skips |
 
 It ends with a verification pass (`SKILL.md` present per agent, `spec2pdf.sh --help`, the tools on
 PATH, `speccheck --self-check`).
