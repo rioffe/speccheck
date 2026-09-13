@@ -1,0 +1,11 @@
+{
+  "R-01 tests/test_core.py::test_add": "ASSERTS",
+  "R-02 tests/test_core.py::test_subtract": "ASSERTS",
+  "C-01 tests/test_core.py::test_divide_by_zero": "ASSERTS",
+  "I-001 tests/test_core.py::test_add_commutes": "ASSERTS",
+  "I-002 tests/test_core.py::test_scale_runs": "EXECUTES_ONLY",
+  "K-02 tests/test_core.py::test_version_string": "UNRELATED",
+  "E-02 tests/test_core.py::test_scale_empty": "ASSERTS",
+  "T-01 tests/test_core.py::test_add": "ASSERTS",
+  "T-02 tests/test_core.py::test_divide_by_zero": "ASSERTS"
+}

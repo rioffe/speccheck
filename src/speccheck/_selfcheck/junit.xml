@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="pytest" tests="11" failures="1" errors="0" skipped="1">
+    <testcase classname="tests.test_core" name="test_add[1-2-3]" />
+    <testcase classname="tests.test_core" name="test_add[0.1-0.2-0.3]" />
+    <testcase classname="tests.test_core" name="test_add_commutes" />
+    <testcase classname="tests.test_core" name="test_subtract" />
+    <testcase classname="tests.test_core" name="test_subtract_precision">
+      <failure message="assert 1.0 == 1.01">AssertionError</failure>
+    </testcase>
+    <testcase classname="tests.test_core" name="test_divide_by_zero" />
+    <testcase classname="tests.test_core" name="test_divide_fast">
+      <skipped message="timing test not run in CI" />
+    </testcase>
+    <testcase classname="tests.test_core" name="test_scale_runs" />
+    <testcase classname="tests.test_core" name="test_scale_empty" />
+    <testcase classname="tests.test_core" name="test_version_string" />
+    <testcase classname="tests.test_gone" name="test_vanished" />
+  </testsuite>
+</testsuites>

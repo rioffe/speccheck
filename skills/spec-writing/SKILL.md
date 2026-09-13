@@ -1,0 +1,264 @@
+---
+name: spec-writing
+description: Author a Level-3 (implementation-grade) SPEC.md for any software system, in any language, stack, or domain. Use when asked to "write a spec", "create SPEC.md", "specify this system/interface/pipeline", or turn requirements, a design doc, or a conversation into a specification an agent can implement and verify. Encodes the 13-section template (intent, actors, requirements, behavior/state, contracts, interfaces, invariants, constraints, edge cases, tests, dependencies, traceability, open questions and decisions to confirm), normative-language discipline (MUST/MUST NOT/SHALL/SHOULD/MAY), the front-matter blockquote, the ID taxonomy (R-nn requirements, C-nn contracts, I-nn invariants, K-nn constraints, E-nn edges, T-nn tests, O-n optional items, F-nnn review findings), progressive commit conventions, and the spec-review -> uplift workflow. Pairs with spec-review (auditing the spec) and spec-build (implementing it).
+license: MIT
+---
+
+# spec-writing
+
+Write a `SPEC.md` that is the **source of truth** for a system: precise enough that an
+implementer can build it, a verifier can test it, and two competent implementers would build
+materially equivalent systems. Every requirement is observable, every contract is pinned, every
+ID is traceable to a test.
+
+This skill is stack-, language-, and domain-agnostic. It does not assume a directory layout, a
+package manager, a test framework, a UI toolkit, or an AI/LLM architecture. Where the examples
+below mention one (a CLI, a dataclass, exit codes), substitute the equivalent for your system.
+
+## When to use
+
+- "write the spec for <system / feature / interface / pipeline>"
+- "create SPEC.md" for a new project, module, or service
+- "turn these requirements / this design doc / this conversation into a spec"
+- a project exists without a spec and someone needs one before an agent builds or rewrites it
+
+Pair with `spec-review` for an audit pass (it produces `SPEC_REVIEW_REPORT.md` with `F-nnn`
+findings and a P0/P1/P2 remediation plan) and with `spec-build` to implement the result.
+
+## Before writing: gather the inputs
+
+Collect, and cite in the front matter, every source of intent the spec is derived from:
+
+- requirements documents, tickets, PRDs, design docs, RFCs, ADRs;
+- an existing implementation being re-specified (read it; the spec must not silently contradict it);
+- prior specs in the same repository (match their conventions — house style beats this template);
+- conversations with the requester (record decisions as normative statements, not as quotes).
+
+Resolve the material decisions **before** writing normative rows. If a decision is genuinely
+open, write it as an explicit `MAY` with the allowed choices, or list it in §12 (Open questions
+and decisions to confirm) — never bury it in prose.
+
+**Decisions you make on the human's behalf are not resolved; they are defaulted.** When the
+source of intent does not settle something and you pick a default so the spec can proceed — a
+stack, a threshold, a limit, a format, which of two readings to adopt — the default goes in the
+normative row *and* the choice is listed in §12 with `(confirm)`, the alternatives you rejected,
+and why you chose as you did. A reviewer checks precision; only the human can ratify a choice.
+A spec whose §12 says "none" for a system of any size was written by someone who decided
+everything alone.
+
+## The 13-section template
+
+Section order is fixed. Section *contents* scale with the system: a small library may have a
+three-row state model; a service may need several pages. Omit a subsection only when it
+genuinely does not apply, and say so in one line rather than leaving it out silently.
+
+```markdown
+# SPECIFICATION — <System Name> (<domain keywords>, <primary surface>, <stack>)
+
+> - **Status:** v0.1 — draft for implementation review
+> - **Language / stack:** <language + version> | <key frameworks/libraries> | <surfaces: CLI/GUI/API/library>
+> - **Sources:** <requirements doc, design doc, ticket ids, prior spec, existing code — with section refs where they exist>
+> - **Scope of this document:** what this spec owns and what it explicitly does not
+> - **Normative language:** MUST/MUST NOT/SHALL/SHALL NOT = normative; SHOULD = strong recommendation; MAY = optional.
+> - **Principle:** <the one named invariant or design thesis that governs trade-offs>
+
+---
+
+## 0. Intent and purpose
+
+Why the system exists; the problem it solves; the context an implementer should not have to
+re-derive. State **non-goals** explicitly. If the system has a deterministic <-> probabilistic
+(or trusted <-> untrusted, or online <-> offline) boundary, say where it sits and who owns each side.
+If the spec extends or replaces a prior system, add a **Relationship to <prior>** paragraph.
+
+## 1. Actors and goals
+
+| Actor | Goals |
+| ----- | ----- |
+| **Name** (`component`) | One-sentence behavior contract; note trust level / principal where relevant |
+
+Actors include humans, roles, external services, models/agents, background workers, and
+scheduled processes — anything that initiates or observes behavior.
+
+## 2. Requirements (intent, high level)
+
+| ID | Statement |
+| -- | --------- |
+| **R-01** | Observable behavior, in normative language |
+
+Each requirement answers: what must happen, under what conditions, to what input, with what
+result, and what happens when the condition cannot be met. Cite the source (§ of a design doc,
+ticket id) each requirement derives from. Cross-cutting concerns the system has — diagnostics /
+logging, configuration, error reporting, security, compatibility — each get at least one
+requirement here so they are traced like everything else.
+
+## 3. Behavior and state model
+
+3.1 lifecycle / state machine (initial, valid, terminal, failure states; transitions and their
+triggers; cancellation, retry, resume where they apply); 3.2 the executable flow (an ASCII
+`+ - |` box diagram of the main path); 3.3 durable artifacts and their pipeline, if any.
+
+## 4. Interfaces / contracts
+
+### C-01 … ### C-NN
+
+One contract per externally significant interface, data shape, or module boundary. Each carries
+a fenced code block pinning the **behavioral** shape — a type/dataclass/struct, a JSON/schema
+shape, a function signature, a wire format, a file layout — with required/optional fields,
+types, valid ranges, defaults, ordering, idempotency, and versioning where relevant. Pin only
+what conformance depends on; leave internal structure free.
+
+## 5. Interface specification
+
+One subsection per user-facing surface the system actually has (CLI, GUI, HTTP/RPC API, library
+API, message/queue interface, file formats). For each: the operations, their inputs, outputs,
+error responses / exit codes, and defaults, in a table. Then any **cross-cutting interface
+contract** shared by all surfaces — e.g. a diagnostics/verbosity contract (what is quiet by
+default, what each level shows, which stream/sink it goes to, what is never logged such as
+secrets and raw payloads), a consistent error-code scheme, or a configuration-precedence rule.
+Give every such contract its own R/C/I/E/T ids so it is traced.
+
+## 6. Invariants (must hold in every valid implementation)
+
+| ID | Invariant |
+| -- | --------- |
+| **I-001** | A global property: determinism given identical inputs, no-partial-writes, monotonic ids, bounds that always hold, boundaries never crossed (e.g. "module X has no network access") |
+
+## 7. Constraints (precise and measurable)
+
+| ID | Constraint |
+| -- | ---------- |
+| **K-01** | A numeric or categorical limit: latency budget, size limit, exit-code mapping, supported versions, resource ceilings |
+
+## 8. Edge cases and failure semantics
+
+| ID | Case | Semantics |
+| -- | ---- | --------- |
+| **E-01** | <empty / missing / malformed / duplicate / oversized input; timeout; unavailable dependency; cancellation; partial failure> | <deterministic outcome the implementer must produce> |
+
+## 9. Acceptance criteria, tests, and evals
+
+### 9.N <group: unit / integration / property / statistical / manual smoke>
+| ID | Test |
+| -- | ---- |
+| **T-01** | A concrete, reproducible check with an unambiguous pass condition; cite the R/C/I/K/E ids it proves |
+
+Group tests by how they run (fast deterministic, integration, probabilistic evals with
+tolerances, manual/recorded). Every I, K, and E id has at least one T id.
+
+## 10. Dependencies and environment
+
+Language/runtime version, libraries (with version pins where behavior depends on them),
+optional dependency groups, host prerequisites, environment variables, and how to install and
+run the test suite. Anything the implementer must provision belongs here.
+
+## 11. Traceability matrix (id → where realized)
+
+| Spec id | Where realized (component / module) | Verified by (tests / evidence) |
+| ------- | ----------------------------------- | ------------------------------ |
+One row per R/C/I/K/E id. Until the build exists, "where realized" names the component the §4
+contract assigns; `spec-build` fills in the real modules and tests.
+
+## 12. Open questions and decisions to confirm
+
+| ID | Decision | Default taken | Alternatives | Affects | Owner / status |
+| ----- | -------------- | ---------------- | ------------------ | ---------- | ------------ |
+| D-01 | <the choice the sources did not settle> | <what the spec assumes now> | <what else was reasonable> | <ids> | <who confirms> / open, confirm, confirmed v0.n |
+Mandatory. Every decision the author made by default on the human's behalf is a row, marked
+`confirm`; every genuinely open question is a row marked `open` with the interim default the
+normative rows assume. When a row is ratified, its status becomes `confirmed v0.n` and it stays.
+"None" is a legitimate value only for a spec whose every decision came from a cited source.
+```
+
+## The ID taxonomy (fixed alphabet)
+
+| Prefix | Meaning | Example |
+| ------ | ------- | ------- |
+| **R-nn** | Requirement | R-14 |
+| **C-nn** | Contract (interface / data shape / module boundary) | C-08 |
+| **I-nnn** | Invariant | I-005 |
+| **K-nn** | Constraint | K-03 |
+| **E-nn** | Edge case / failure semantics | E-12 |
+| **T-nn** | Test / acceptance criterion | T-09 |
+| **O-n** | Optional item (a `MAY` feature, gated path, or alternate surface) | O-1 |
+| **D-nn** | Decision to confirm / open question (§12) — a default the author took, or a question still open | D-03 |
+| **F-nnn** | Spec-review finding (only after `spec-review` has run) | F-012 |
+
+IDs are unique within their family and are **never renumbered** once a review or an
+implementation cites them — append new ids, retire old ones with a strike-through note. Do not
+create `T-08a`/`T-08b` suffix collisions; allocate fresh numbers.
+
+## Normative language discipline
+
+- `MUST` / `MUST NOT` / `SHALL` / `SHALL NOT` — the normative verbs. A violation is a defect.
+- `SHOULD` / `SHOULD NOT` — strong recommendation; a deviation needs a documented reason.
+- `MAY` — optional behavior; if gated, name the gate (flag, config key, feature toggle).
+- Do not use `WILL`, `CAN`, `SHOULD BE ABLE TO`, or bare present tense ("the system validates…")
+  in normative rows — they read as description, not obligation.
+- Requirements are **observable**: not "the parser is robust" but "given input E-03 the parser
+  exits `2` and prints `<message>` to stderr".
+
+## Precision rules that separate Level 2 from Level 3
+
+- **Pin the boundary, free the interior.** Specify observable behavior, contracts, and
+  invariants exactly; leave class names, private helpers, and algorithms free unless a
+  requirement depends on them (ordering, tie-breaking, rounding, and numeric fallbacks are
+  requirements — write them down).
+- **Every metric has a formula, units, population, denominator, and a zero-denominator rule.**
+- **Every failure has an outcome.** For each operation: what can fail, how it is detected, what
+  state results, whether it retries/resumes, and what the caller observes.
+- **Nondeterministic components get a contract around them:** what is guaranteed despite
+  nondeterminism, how outputs are validated, and how they are evaluated (tolerances, seeds,
+  golden fixtures).
+- **Examples agree with definitions.** Any worked example must satisfy the formal shape in §4.
+- **Optional ≠ unspecified.** An `O-n` item is specified to the same depth as required items;
+  only its activation is optional.
+
+## Progressive-commit convention
+
+Commit the spec in reviewable slices rather than one drop. Use the repository's existing commit
+style; absent one, prefix with `docs(<scope>):` where `<scope>` is the project/module name:
+
+```bash
+git add SPEC.md && git commit -m "docs(<scope>): SPEC.md front matter + §0 intent + §1 actors"
+git add SPEC.md && git commit -m "docs(<scope>): SPEC.md §2 requirements R-01..R-NN"
+git add SPEC.md && git commit -m "docs(<scope>): SPEC.md §3 state model + §4 contracts"
+git add SPEC.md && git commit -m "docs(<scope>): SPEC.md §5 interfaces + §6 invariants + §7 constraints + §8 edges"
+git add SPEC.md && git commit -m "docs(<scope>): SPEC.md §9 tests + §10 deps + §11 traceability"
+```
+
+Review-cycle commits: `review(<scope>):` for a `SPEC_REVIEW_REPORT.md`, `fix(<scope>):` for
+findings folded back into the spec, with the version header bumped (`v0.1 → v0.2`) and a
+one-line changelog entry in the front matter or a `## Revision history` at the end.
+
+## Review-and-uplift workflow
+
+After the first complete draft, run `spec-review`. Then:
+
+1. Resolve every **P0** (blocking) finding in the spec.
+2. Resolve **P1** (important) findings, or record an explicit deferral with the reason.
+3. **P2** (improvement) findings MAY be deferred; list the deferred ids.
+4. Bump the version and commit:
+   `docs(<scope>): bump SPEC.md v0.1->v0.2 (P0/P1 resolved: F-001, F-004…; P2 deferred: F-007…)`.
+5. Re-run `spec-review` if any P0 was structural. Hand off to `spec-build` once the verdict is
+   `READY` or `READY WITH MINOR FIXES`.
+
+## Pre-publish checklist
+
+- [ ] Front-matter blockquote present, exactly once, all six fields filled
+- [ ] Section order 0–12 preserved; skipped subsections say why in one line
+- [ ] §12 lists every defaulted decision with `(confirm)`, or says "none" and can defend it
+- [ ] Every ID unique within its family; no suffix collisions; no gaps that look like deletions
+- [ ] Every normative row uses `MUST/MUST NOT/SHALL/SHOULD/MAY`; no `WILL`/`CAN`
+- [ ] Every requirement is observable and cites its source
+- [ ] Every §4 contract has a pinned shape in a code block
+- [ ] Every surface in §5 has its operations, errors, and defaults tabulated
+- [ ] Cross-cutting contracts (diagnostics, errors, config) have R/C/I/E/T ids
+- [ ] Every metric has formula, units, denominator, and degenerate-case rule
+- [ ] Every I/K/E id has at least one T id; every T id has an unambiguous pass condition
+- [ ] §11 has one row per R/C/I/K/E id naming a component and a test id
+- [ ] Every referenced source section, file, or ticket actually exists
+- [ ] No implementation detail pinned that a requirement does not depend on
+
+> **A spec is done when an implementer knows what to build, a verifier knows how to prove it was
+> built, and neither has to rely on undocumented intent.**

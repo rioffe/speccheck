@@ -1,0 +1,642 @@
+{
+  "schema_version": "1.0",
+  "spec": "SPEC.md",
+  "judge": "mock",
+  "judge_available": true,
+  "strict": true,
+  "max_unknown": 0.2000,
+  "strict_judge_failure": null,
+  "ids": [
+    {
+      "id": "R-01",
+      "family": "R",
+      "statement": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
+      "line": 15,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            10
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add",
+          "classname": "tests.test_core",
+          "lines": [
+            15
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add[0.1-0.2-0.3]",
+              "param": "0.1-0.2-0.3",
+              "outcome": "passed"
+            },
+            {
+              "name": "test_add[1-2-3]",
+              "param": "1-2-3",
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 16
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "R-02",
+      "family": "R",
+      "statement": "`subtract(a, b)` MUST return `a - b`.",
+      "line": 16,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            15
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_subtract",
+          "classname": "tests.test_core",
+          "lines": [
+            25
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_subtract",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 26
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "R-03",
+      "family": "R",
+      "statement": "`multiply(a, b)` MUST return the product of `a` and `b`.",
+      "line": 17,
+      "status": "UNCITED",
+      "src": [],
+      "tests": [],
+      "unrun": []
+    },
+    {
+      "id": "R-04",
+      "family": "R",
+      "statement": "`modulo(a, b)` MUST return `a % b`. (retired: dropped from the brief)",
+      "line": 18,
+      "status": "RETIRED",
+      "src": [],
+      "tests": [],
+      "unrun": []
+    },
+    {
+      "id": "C-01",
+      "family": "C",
+      "statement": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0`",
+      "line": 22,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            20
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_divide_by_zero",
+          "classname": "tests.test_core",
+          "lines": [
+            35
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_divide_by_zero",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 36
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "C-02",
+      "family": "C",
+      "statement": "`scale(values, factor)` returns a new list and never mutates its input",
+      "line": 26,
+      "status": "UNTESTED",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            27
+          ]
+        }
+      ],
+      "tests": [],
+      "unrun": []
+    },
+    {
+      "id": "C-03",
+      "family": "C",
+      "statement": "`average(values)` returns the arithmetic mean (retired)",
+      "line": 28,
+      "status": "RETIRED",
+      "src": [],
+      "tests": [],
+      "unrun": []
+    },
+    {
+      "id": "I-001",
+      "family": "I",
+      "statement": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
+      "line": 34,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            10
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add_commutes",
+          "classname": "tests.test_core",
+          "lines": [
+            20
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add_commutes",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 21
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "I-002",
+      "family": "I",
+      "statement": "`scale` preserves the length of its input list.",
+      "line": 35,
+      "status": "WEAKLY_PASSING",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            27
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_scale_runs",
+          "classname": "tests.test_core",
+          "lines": [
+            47
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_scale_runs",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "EXECUTES_ONLY",
+            "evidence": [],
+            "rationale": "mock: no assertion token",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "K-01",
+      "family": "K",
+      "statement": "`divide` completes in under 1 ms for inputs below 10^6.",
+      "line": 41,
+      "status": "SKIPPED",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            20
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_divide_fast",
+          "classname": "tests.test_core",
+          "lines": [
+            42
+          ],
+          "outcome": "skipped",
+          "results": [
+            {
+              "name": "test_divide_fast",
+              "param": null,
+              "outcome": "skipped"
+            }
+          ],
+          "verdict": null
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "K-02",
+      "family": "K",
+      "statement": "Every result is rounded to two decimal places with `round(x, 2)`.",
+      "line": 42,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            1,
+            5
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_version_string",
+          "classname": "tests.test_core",
+          "lines": [
+            62
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_version_string",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 65
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "E-01",
+      "family": "E",
+      "statement": "Negative inputs to `scale`",
+      "line": 48,
+      "status": "UNVERIFIED",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            29
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_scale_negative",
+          "classname": "tests.test_core",
+          "lines": [
+            52
+          ],
+          "outcome": null,
+          "results": [],
+          "verdict": null
+        }
+      ],
+      "unrun": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_scale_negative"
+        }
+      ]
+    },
+    {
+      "id": "E-02",
+      "family": "E",
+      "statement": "Empty list passed to `scale`",
+      "line": 49,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "src/calc/core.py",
+          "lines": [
+            29
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "",
+          "classname": "tests.test_core",
+          "lines": [
+            1
+          ],
+          "outcome": null,
+          "results": [],
+          "verdict": null
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_scale_empty",
+          "classname": "tests.test_core",
+          "lines": [
+            57
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_scale_empty",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 58
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": [
+        {
+          "file": "tests/test_core.py",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "id": "T-01",
+      "family": "T",
+      "statement": "`add` returns the sum for integers and floats. (R-01)",
+      "line": 55,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add",
+          "classname": "tests.test_core",
+          "lines": [
+            15
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add[0.1-0.2-0.3]",
+              "param": "0.1-0.2-0.3",
+              "outcome": "passed"
+            },
+            {
+              "name": "test_add[1-2-3]",
+              "param": "1-2-3",
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 16
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-02",
+      "family": "T",
+      "statement": "`divide` by zero raises with the dividend in the message. (C-01)",
+      "line": 56,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_divide_by_zero",
+          "classname": "tests.test_core",
+          "lines": [
+            35
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_divide_by_zero",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 36
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-03",
+      "family": "T",
+      "statement": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
+      "line": 57,
+      "status": "FAILING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_subtract_precision",
+          "classname": "tests.test_core",
+          "lines": [
+            30
+          ],
+          "outcome": "failed",
+          "results": [
+            {
+              "name": "test_subtract_precision",
+              "param": null,
+              "outcome": "failed"
+            }
+          ],
+          "verdict": null
+        }
+      ],
+      "unrun": []
+    }
+  ],
+  "dangling": [
+    {
+      "id": "R-09",
+      "file": "src/calc/core.py",
+      "line": 30
+    }
+  ],
+  "stale": [
+    {
+      "id": "R-04",
+      "file": "src/calc/legacy.py",
+      "line": 5
+    }
+  ],
+  "unattributed_results": [
+    {
+      "classname": "tests.test_gone",
+      "name": "test_vanished",
+      "outcome": "passed"
+    }
+  ],
+  "notes": [],
+  "metrics": {
+    "declared": 16,
+    "retired": 2,
+    "in_scope": 14,
+    "by_status": {
+      "PASSING": 8,
+      "WEAKLY_PASSING": 1,
+      "FAILING": 1,
+      "SKIPPED": 1,
+      "UNVERIFIED": 1,
+      "UNTESTED": 1,
+      "UNCITED": 1
+    },
+    "conformance_ratio": "8/14",
+    "conformance": 0.5714,
+    "by_family": {
+      "R": {
+        "in_scope": 3,
+        "passing": 2,
+        "ratio": 0.6667
+      },
+      "C": {
+        "in_scope": 2,
+        "passing": 1,
+        "ratio": 0.5000
+      },
+      "I": {
+        "in_scope": 2,
+        "passing": 1,
+        "ratio": 0.5000
+      },
+      "K": {
+        "in_scope": 2,
+        "passing": 1,
+        "ratio": 0.5000
+      },
+      "E": {
+        "in_scope": 2,
+        "passing": 1,
+        "ratio": 0.5000
+      },
+      "T": {
+        "in_scope": 3,
+        "passing": 2,
+        "ratio": 0.6667
+      }
+    },
+    "judge_strength_ratio": "8/9",
+    "judge_strength": 0.8889,
+    "unknown_rate": 0.0000
+  },
+  "exit_code": 1
+}

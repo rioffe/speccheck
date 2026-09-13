@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+dist/
+build/
+.coverage
+# reports of a run at the repository root only; fixtures/target/golden/ and _selfcheck/ are tracked
+/junit.xml
+/speccheck.json
+/SPEC_CONFORMANCE_REPORT.md
+/.speccheck.json.*.tmp
+/.SPEC_CONFORMANCE_REPORT.md.*.tmp
+# mermaid-filter writes per-run diagnostics next to the output
+*.err
