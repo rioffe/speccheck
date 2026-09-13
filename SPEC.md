@@ -1,6 +1,6 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.3 — v1.2 plus a judge-stage progress indicator for `--judge llm` (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15): the LLM judge takes minutes, and an operator at a terminal MUST be able to see how far along it is without turning on `--verbose`. v1.2 was v1.1 with D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 (C-06, T-33) so thinking models can finish the verdict JSON inside the budget; the remaining §12 rows marked `confirm` are still decisions the build inherits from the author, not the requester
+> - **Status:** v1.4 — v1.3 with every finding of the v1.3 `spec-review` applied (`SPEC_REVIEW_REPORT.md`, F-201..F-210): the progress indicator now owns stderr while displayed, has one clock, a coalesced cadence, portable byte sequences, and an interrupt rule (E-41, exit `3`); the C-07 example matches its rules; T-46/T-60 are in §11. v1.3 was v1.2 plus a judge-stage progress indicator for `--judge llm` (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15): the LLM judge takes minutes, and an operator at a terminal MUST be able to see how far along it is without turning on `--verbose`. v1.2 was v1.1 with D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 (C-06, T-33) so thinking models can finish the verdict JSON inside the budget; the remaining §12 rows marked `confirm` are still decisions the build inherits from the author, not the requester
 > - **Language / stack:** Python 3.12 | standard library for the deterministic kernel (`re`, `ast`, `xml.etree`, `json`, `argparse`, `pathlib`) | CLI only; optional model-backed judge behind an `[llm]` extra
 > - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (review of v0.1; F-001..F-017 below point at it); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision)
 > - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code.
@@ -93,7 +93,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 
 ### 3.1 Lifecycle
 
-A run is a single, stateless pipeline. There is no persistent state between runs, no cache, and no partial-output mode: either both report files are written or neither is. The Reporter guarantees this by rendering both documents in memory, then, in this order (F-106): (1) delete any leftover `<out>/.speccheck.json.*.tmp` and `<out>/.SPEC_CONFORMANCE_REPORT.md.*.tmp` from earlier runs; (2) write `.speccheck.json.<nonce>.tmp` and `.SPEC_CONFORMANCE_REPORT.md.<nonce>.tmp`, where `<nonce>` is 8 random hex digits chosen per run (F-103); (3) rename the JSON temporary to `speccheck.json`; (4) rename the Markdown temporary to `SPEC_CONFORMANCE_REPORT.md`. If any step fails, every temporary and any file this run already renamed is removed before exit `3` (F-015). The nonce never appears in either report, so I-002 is unaffected.
+A run is a single, stateless pipeline. There is no persistent state between runs, no cache, and no partial-output mode: either both report files are written or neither is. The Reporter guarantees this by rendering both documents in memory, then, in this order (F-106): (1) delete any leftover `<out>/.speccheck.json.*.tmp` and `<out>/.SPEC_CONFORMANCE_REPORT.md.*.tmp` from earlier runs; (2) write `.speccheck.json.<nonce>.tmp` and `.SPEC_CONFORMANCE_REPORT.md.<nonce>.tmp`, where `<nonce>` is 8 random hex digits chosen per run (F-103); (3) rename the JSON temporary to `speccheck.json`; (4) rename the Markdown temporary to `SPEC_CONFORMANCE_REPORT.md`. If any step fails — an interrupt (E-41) included — every temporary and any file this run already renamed is removed before exit `3` (F-015). The nonce never appears in either report, so I-002 is unaffected.
 
 | Stage | Owner | Input | Output | Fails with |
 | ----- | ----- | ----- | ------ | ---------- |
@@ -428,7 +428,7 @@ Mock provider (judge_mock.py):
   "judge_available": null,
   "judge_prompt_sha256": "<64 hex chars; present only when judge == llm>",
   "strict": false,
-  "max_unknown": 0.2,
+  "max_unknown": 0.2000,
   "strict_judge_failure": null,
   "ids": [
     {
@@ -461,7 +461,7 @@ Mock provider (judge_mock.py):
     "conformance_ratio": "50/59",   "conformance": 0.8475,
     "by_family": { "R": {"in_scope": 24, "passing": 22, "ratio": 0.9167}, "C": {"…": "…"}, "I": {"in_scope": 0, "passing": 0, "ratio": null}, "K": {"…": "…"}, "E": {"…": "…"}, "T": {"…": "…"} },
     "judge_strength_ratio": "50/53", "judge_strength": 0.9434,
-    "unknown_rate": 0.0
+    "unknown_rate": 0.0000
   },
   "exit_code": 1
 }
@@ -489,6 +489,8 @@ Numbers (Q-009): every ratio is computed as Decimal(numerator) / Decimal(denomin
   with exactly four decimal places (0.9000, not 0.9), so the JSON text is byte-determined without
   reference to binary floating point. K-11 compares these quantized values. `<pct>` in the summary
   line is the quantized `conformance` times 100, quantized to 1 place with ROUND_HALF_EVEN.
+  `max_unknown` is not a ratio but is emitted the same way: the K-11 Decimal quantized to 4 places
+  (0.2000), matching the summary-line suffix (F-206).
 Metrics:
   conformance        = |PASSING| / in_scope                       (WEAKLY_PASSING is NOT passing)
   by_family[f].ratio = |PASSING in f| / |in_scope in f|
@@ -511,6 +513,7 @@ Shape rules (F-016): `by_family` ALWAYS has exactly the six keys R, C, I, K, E, 
 # Specification Conformance Report
 
 **Spec:** `SPEC.md` · **Judge:** none|mock|llm (available|unavailable) · **Strict:** on|off
+# the parenthetical is omitted (with its leading space) when `judge_available` is null, i.e. under --judge none (F-207)
 
 ## 1. Verdict
 <one line: the §5.1 summary line, verbatim>
@@ -589,11 +592,15 @@ Rules:
 
 The indicator is one physical line on stderr, redrawn in place. It is written directly to the
 stderr stream, **not** through the `speccheck` logger, so the §5.3 logging level is unaffected
-and the line never carries a level prefix. Every write is one of the two byte sequences below:
+and the line never carries a level prefix. While it is displayed — from the first draw to the
+erase — the indicator owns stderr: nothing else is written to that stream (F-201). Every write
+is one of the two byte sequences below, each issued as a single atomic write (F-203, F-205); no
+terminal escape sequence is ever used, so the indicator renders on any console that honours a
+carriage return:
 
 ```text
-draw:   "\r" + <line> + "\x1b[K"          # carriage return, the line, erase to end of line
-erase:  "\r" + "\x1b[K"                   # what remains on stderr after the judge stage is nothing
+draw:   "\r" + <line> + " " * (W - len(<line>))     # W = length of the longest <line> drawn so far in this run
+erase:  "\r" + " " * W + "\r"                          # what remains on stderr after the judge stage is nothing
 
 <line> ::= "judge: [" <bar> "] " <done> "/" <total> " edges  " <elapsed> " elapsed  ~" <left> " left"
 <bar>     exactly 20 cells: k times "#" followed by (20 - k) times "-"
@@ -602,13 +609,16 @@ erase:  "\r" + "\x1b[K"                   # what remains on stderr after the jud
 <elapsed> M:SS  (minutes without upper bound, seconds zero-padded to two digits)
 <left>    M:SS, or "?:??" while done == 0
 
-Regex <line> MUST match (T-62):
+Regex <line> MUST match (T-62), before padding:
 ^judge: \[[#-]{20}\] \d+/\d+ edges  \d+:\d{2} elapsed  ~(\d+:\d{2}|\?:\?\?) left$
 ```
 
+The padding exists because `<left>` can shrink (`~12:00 left` → `~9:59 left`); padding every
+draw to the widest line so far means a plain `\r` never leaves residue, and the erase needs no
+erase-to-end-of-line escape (F-205).
+
 With $n$ the number of eligible edges, $d$ the number determined so far, and $t$ the wall-clock
-seconds since the judge stage started (the same origin as K-12: the moment the first request is
-issued), the filled cell count and the estimate of time remaining are
+seconds since $t_0$, the filled cell count and the estimate of time remaining are
 
 $$
 \begin{aligned}
@@ -617,12 +627,15 @@ k &= \left\lfloor \frac{20\,d}{n} \right\rfloor \\
 \end{aligned}
 $$
 
-`left` is undefined (rendered `?:??`) while $d = 0$; the line is never drawn when $n = 0$
-(E-36: no request is sent). Both durations are floored to whole seconds before rendering, with
+$t_0$ is the instant of the first draw — the start of the judge stage, immediately before the
+first request is issued — so the first draw shows `0:00 elapsed`. K-12's budget deadline keeps
+its own origin, the moment the first request is issued, which is $\geq t_0$ (F-202). `left` is
+undefined (rendered `?:??`) while $d = 0$; the line is never drawn when $n = 0$ (E-36: no
+request is sent). Both durations are floored to whole seconds before rendering, with
 $M = \lfloor s / 60 \rfloor$ and $\mathrm{SS} = s \bmod 60$. The line is pure ASCII (the cells are
 `#` and `-`, never Unicode block characters) so it renders under any locale (R-29 rationale). It
-carries no file name, statement text, prompt, response, or key (I-007). When $d = n$ the last
-draw shows a full bar, and the erase follows immediately.
+carries no file name, statement text, prompt, response, or key (I-007). The final state
+($d = n$, a full bar) is always drawn before the erase.
 
 ---
 
@@ -689,7 +702,7 @@ None. This system has no graphical surface, and O-3 explicitly leaves one out of
 - **Syntax.** `--verbose` alone $\equiv$ `--verbose INFO`; `--verbose INFO` and `--verbose DEBUG` are accepted; any other value is a usage error (exit `2`).
 - **INFO** (stderr): one line per pipeline stage with counts and elapsed milliseconds (files scanned, IDs declared, citations found, test cases attributed, results joined, edges judged), the judge mode, and for the LLM judge the URL and model. INFO MUST NOT include file contents, statement text, judge prompts, judge responses, or the API key.
 - **DEBUG** (stderr): INFO plus, per judged edge, the full `JudgeRequest` JSON as sent and the raw provider response as received, each prefixed `judge>` / `judge<` on its own line. The API key is redacted. DEBUG MUST NOT change stdout or either report file. Because these lines are emitted *during* the judge stage, the progress indicator is not drawn at DEBUG regardless of `--progress` (E-39); the per-edge lines are the progress record at that level.
-- **Mechanism.** Python `logging` with a single stderr `StreamHandler`; logger name `speccheck`; format `%(levelname)s %(message)s`. Level is `ERROR` by default and `INFO`/`DEBUG` per flag, so nothing below ERROR reaches stderr without `--verbose` (F-014). The E-10..E-13 and E-27..E-30 Notes are logged at `INFO` (they are always in the report's Notes regardless of level); nothing is ever logged at `WARNING`; the exit-2/3 message is logged at `ERROR`.
+- **Mechanism.** Python `logging` with a single stderr `StreamHandler`; logger name `speccheck`; format `%(levelname)s %(message)s`. Level is `ERROR` by default and `INFO`/`DEBUG` per flag, so nothing below ERROR reaches stderr without `--verbose` (F-014). The E-10..E-13 and E-27..E-30 Notes are logged at `INFO` (they are always in the report's Notes regardless of level); nothing is ever logged at `WARNING`; the exit-2/3 message is logged at `ERROR`. While the C-11 indicator is displayed, the logger emits nothing: the judge stage's INFO lines (judge mode, URL and model, the stage summary) are written after the erase (K-13; F-201).
 
 ### 5.4 Exit codes
 
@@ -700,7 +713,7 @@ None. This system has no graphical surface, and O-3 explicitly leaves one out of
 | `2` | Usage error (bad flag/value, missing required, path outside root, missing judge env) | no |
 | `3` | Input contract violation (E-01, E-02, E-03, E-05, E-18) | no |
 
-Any uncaught exception MUST also map to `3` with a one-line message; a traceback is printed only under `--verbose DEBUG`.
+Any uncaught exception MUST also map to `3` with a one-line message; a traceback is printed only under `--verbose DEBUG`. `KeyboardInterrupt` is treated the same way, with the message `interrupted` (E-41).
 
 ---
 
@@ -712,7 +725,7 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **I-002** | **Determinism.** For `--judge none` and `--judge mock`, identical inputs (bytes of every file read, argv, env) produce byte-identical report files and summary line, on any OS. |
 | **I-003** | **Exactly-once reporting.** Every declared ID (retired included) appears exactly once in `ids` and exactly once in the Markdown per-ID table; no undeclared ID ever appears there. |
 | **I-004** | **Downgrade-only judge.** For every ID, `status_with_judge` $\in$ `{status_without_judge}` $\cup$ (`{WEAKLY_PASSING}` iff `status_without_judge == PASSING`). Disabling the judge never changes any status except `WEAKLY_PASSING` → `PASSING`. |
-| **I-005** | **Grounded verdicts.** Every non-`UNKNOWN` verdict in a report carries $\geq$ 0 evidence entries, every `ASSERTS` carries $\geq$ 1, and every evidence entry points to a line inside the judged test case's span in the judged file. |
+| **I-005** | **Grounded verdicts.** Every verdict in a report carries an `evidence` list (possibly empty), every `ASSERTS` carries $\geq$ 1 entry, and every evidence entry points to a line inside the judged test case's span in the judged file. |
 | **I-006** | **Network boundary.** With `--judge none`/`mock`, no socket is opened for the lifetime of the process. |
 | **I-007** | **Secret and payload hygiene.** The API key never appears in stdout, stderr, or either report. INFO never contains file contents, statements, prompts, or responses. |
 | **I-008** | **Total metrics.** Every ratio is either a number in `[0, 1]` or `null`/`n/a`; no run raises on a zero denominator. |
@@ -733,7 +746,7 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **K-05** | LLM judge timeout is `SPECCHECK_JUDGE_TIMEOUT` seconds (default 30) per edge, wall-clock, measured from the moment the request is issued to the moment the full response body has been received, and covering every phase in between — DNS resolution, TCP connect, TLS handshake, request send, response receive (Q-010). |
 | **K-06** | Exactly one HTTP request per judged edge; no retries, no batching. Requests MAY be issued concurrently, at most `--judge-concurrency` at a time (default `4`, integer `1..32`); output order is fixed by C-07 and MUST NOT depend on completion order (F-110). |
 | **K-12** | `--judge-budget SECONDS` (default `0` = unlimited; integer `0..86400`) bounds the wall-clock spent in the judge stage, measured from the first request issued. The deadline is `start + budget`. A request is *started* when it is issued; no request is issued at or after the deadline; requests in flight at the deadline are allowed to complete (each still bounded by K-05) and their verdicts count. Every edge not started before the deadline receives `UNKNOWN` with rationale `judge: budget` and `coerced: true`, and one Note records how many (F-110, Q-010). |
-| **K-13** | The progress indicator (C-11) is drawn once when the judge stage starts (with $d = 0$), redrawn after every determined verdict, and redrawn at least once per second of wall-clock while any request is in flight so that `elapsed` and `left` keep moving; it SHOULD NOT be redrawn more than 10 times per second. The bar has exactly 20 cells. The indicator is erased exactly once, when the judge stage ends, before the `report` stage begins and before any INFO stage line, Note, error message, or the summary line is written. |
+| **K-13** | The progress indicator (C-11) is drawn once when the judge stage starts (with $d = 0$, `0:00 elapsed`); every determined verdict is reflected by a draw within 100 ms of its determination (a burst of verdicts MAY be coalesced into one draw); it is redrawn at least once per second of wall-clock while any request is in flight so that `elapsed` and `left` keep moving; and it is never drawn more than 10 times per second. Each draw and the erase is one atomic write, serialized across threads. The bar has exactly 20 cells. From the first draw to the erase nothing else is written to stderr (F-201). The indicator is erased exactly once, when the judge stage ends, after the final state has been drawn and before the `report` stage begins — before any INFO stage line, Note, error message, or the summary line is written. |
 | **K-07** | `rationale` $\leq$ 280 characters after truncation; single line (newlines replaced by spaces). |
 | **K-08** | Kernel performance, measured on the reference machine named in `SPEC_BUILD_REPORT.md` (CPU model, RAM, OS, Python build, run in isolation): `check --judge mock` on the §9.8 golden fixture completes in $\leq$ 2 s wall-clock, and a generated 10,000-file tree with 100 declared IDs in $\leq$ 60 s. Both bounds are recorded, not CI-gated (F-017). |
 | **K-09** | JSON output is UTF-8, `indent=2`, `ensure_ascii=False`, sorted per C-07 (not alphabetically), trailing newline; Markdown output is UTF-8 with `\n` line endings. |
@@ -785,7 +798,8 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **E-37** | A `tests[]` entry whose case was not judged: judge disabled, or the ID not `PASSING` after C-05 step 4, or the outcome not `passed` | JSON `verdict` is `null` (key present); Markdown renders an em dash in the verdict position; the entry never appears in report §8 (Q-001). |
 | **E-38** | Two or more Notes are produced in one run | Emitted in ascending Unicode code-point order of their full text, in both reports (Q-002). |
 | **E-39** | `--judge llm` with stderr not a TTY (CI log, redirected file, pipe) under `--progress auto`; or `--verbose DEBUG` under any `--progress` value; or `--progress never`; or `--judge none\|mock` under any `--progress` value | No progress bytes (neither draw nor erase) are written to stderr; the run is otherwise identical. `--progress always` overrides only the TTY test, never the DEBUG or judge-mode suppression (R-30). |
-| **E-40** | The judge stage is cut short while the indicator is displayed: a provider raises out of the stage (should not happen — E-14..E-16 coerce), an uncaught exception, or `KeyboardInterrupt` | The erase sequence is written before the exit-`3` message (§5.4) or the interrupt propagates; no partially drawn line remains on stderr. The erase MUST happen in a `finally`-equivalent path so it cannot be skipped (R-30, K-13). |
+| **E-40** | The judge stage is cut short while the indicator is displayed: a provider raises out of the stage (should not happen — E-14..E-16 coerce), an uncaught exception, or an interrupt (E-41) | The erase sequence is written before the exit-`3` message (§5.4, E-41); no partially drawn line remains on stderr. The erase MUST happen in a `finally`-equivalent path so it cannot be skipped (R-30, K-13). |
+| **E-41** | `SIGINT` / `KeyboardInterrupt` at any stage | Exit `3` with the one-line message `interrupted`; the indicator, if displayed, is erased first (E-40); every §3.1 temporary of this run is removed and no report file from this run remains (a report file already renamed is removed, per §3.1's failure rule); requests in flight are not awaited beyond the K-05 timeout. No other exit code is produced (K-01); a traceback is printed only under `--verbose DEBUG` (F-204, D-16). |
 
 ---
 
@@ -863,7 +877,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | ID | Test |
 | -- | ---- |
 | **T-34** | `speccheck.json` validates against the C-07 shape: key order, sort orders, rounding, no absolute paths, no timestamps; `by_family` has all six keys and `by_status` all seven in-scope statuses on every fixture including single-family ones; `judge_available` is `null` for `none`, `true` for `mock`, `true` for `llm` with zero eligible edges, `false` for `llm` when every call fails; every `tests[]` entry carries the `verdict` key, `null` on a `FAILING` ID, on a skipped-outcome edge of a `PASSING` ID, and everywhere under `--judge none`; `tests[].name` is `""` for a file-level case; a fixture producing five Notes emits them in code-point order in both reports; every ratio has exactly four decimal places and a hand-picked tie value (e.g. 1/8 = 0.125 at 3 places, 0.00005 at 4) rounds half-even to the quantized Decimal, not to `round()`'s binary result. (R-13, R-20, K-09, C-07, E-37, E-38) |
-| **T-35** | `SPEC_CONFORMANCE_REPORT.md` has the nine C-08 sections in order, one per-ID row per declared ID, retired rows with exactly the ID cell struck through, an em dash in the verdict position for every unjudged case and `(file)` for every file-level case, and every `file:line` in it also present in the JSON. (R-12, I-003, E-37, Q-011) |
+| **T-35** | `SPEC_CONFORMANCE_REPORT.md` has the nine C-08 sections in order, the header's judge parenthetical reading `(available)`/`(unavailable)` for mock/llm and absent for none, one per-ID row per declared ID, retired rows with exactly the ID cell struck through, an em dash in the verdict position for every unjudged case and `(file)` for every file-level case, and every `file:line` in it also present in the JSON. (R-12, I-003, E-37, Q-011) |
 | **T-36** | Two runs on the golden fixture with `--judge mock` produce byte-identical reports and summary lines; the same holds after copying the fixture to a different absolute path, and with `--src .` and `--out` inside the source root (the previous run's reports and the spec itself produce no citations), and with a planted `.speccheck.json.deadbeef.tmp` and `.SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp` under `--out` before the run (never scanned, deleted by the run). (R-16, I-002, E-23, E-34) |
 | **T-37** | Every metric in the report is recomputable from the report's own evidence table plus the results file (the test recomputes them independently). (R-24) |
 | **T-38** | Only the two report files are created; input trees are byte-identical before and after (hash comparison). (R-19, I-001) |
@@ -881,8 +895,9 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-44** | Summary line matches the §5.1 regex exactly, is pure ASCII, ends in a single `\n`, is emitted correctly under a C/POSIX locale and a `cp1252` stdout, carries all seven in-scope status counts including `skipped`, and its numbers equal the JSON metrics. (R-21, R-29, Q-005) |
 | **T-59** | Under `--strict --judge llm` with a provider stub that fails every call — so that `judge_available` is `false` *and* `unknown_rate` is `1.0000 > max_unknown` — exit is `1`, `strict_judge_failure` is `"unavailable"` (not `"unknown_rate"`), and the summary line ends `judge=llm (unavailable)` (Q-004); with a stub yielding 3 `UNKNOWN` of 10 edges and `--max-unknown 0.2`, exit is `1` with `"unknown_rate"` and the numeric suffix; with `--max-unknown 0.3` exit is `0`; without `--strict` neither affects exit; with a fixture that has zero eligible edges, no request is sent, `unknown_rate` is `null`, and `--strict` exits `0`. (R-28, K-11, E-32, E-36) |
 | **T-61** | With `--judge-budget 1`, `--judge-concurrency 2`, and a provider stub that sleeps 2 s per call over six edges, exactly the two requests issued before the deadline complete and are judged (in-flight requests are not cancelled); the remaining four are `UNKNOWN` with rationale `judge: budget` and `coerced: true`; the Note reports 4; `unknown_rate` includes them; with `--judge-budget 0` all six are judged. (K-12, E-35, Q-010) |
-| **T-62** | With `--judge llm`, `--progress always`, a provider stub over six edges that sleeps 0.3 s per call, `--judge-concurrency 2`, and stderr captured: splitting the capture on `\r` yields only C-11 draw and erase sequences; the first draw reads `0/6 edges` with `?:??`, every draw matches the C-11 regex, `<done>` is non-decreasing across draws, a draw with `6/6` and a full 20-`#` bar exists, the capture ends with the erase sequence, and the number of `#` in each draw equals $\lfloor 20 d / 6 \rfloor$ for its `<done>`; with a stub that sleeps 2.5 s on a single edge, at least two draws show `0/1` with distinct `elapsed` values (the 1 s tick); stdout is the single summary line and both report files are byte-identical to a `--progress never` run over the same stub. (R-30, C-11, K-13) |
-| **T-63** | No progress bytes reach stderr when: stderr is not a TTY under `--progress auto` (the default in a subprocess capture); `--progress never`; `--verbose DEBUG` with `--progress always`; `--judge mock` or `--judge none` with `--progress always`. With `--progress auto` and a stderr whose `isatty()` returns `True`, the indicator is drawn. `--progress` with any other value exits `2`. Under `--progress always` a stub that raises `KeyboardInterrupt` mid-stage leaves the erase sequence as the last stderr bytes before the interrupt propagates. (R-30, E-39, E-40, K-01) |
+| **T-62** | With `--judge llm`, `--progress always`, a provider stub over six edges that sleeps 0.3 s per call, `--judge-concurrency 2`, and stderr captured: splitting the capture on `\r` yields only C-11 draw and erase sequences (after stripping each segment's trailing space padding, every draw matches the C-11 regex); the first draw reads `0/6 edges`, `0:00 elapsed`, `?:??`; `<done>` is non-decreasing across draws; a draw with `6/6` and a full 20-`#` bar exists and is the last draw; the capture ends with the erase sequence (`\r`, $W$ spaces, `\r`) and no `\x1b` byte appears anywhere; every draw is padded to the width of the widest draw so far; the number of `#` in each draw equals $\lfloor 20 d / 6 \rfloor$ for its `<done>`; with a stub that sleeps 2.5 s on a single edge, at least two draws show `0/1` with distinct `elapsed` values (the 1 s tick); with 32 edges answered instantly at `--judge-concurrency 32`, no more than 10 draws occur in any one second and the final draw still shows `32/32` (coalescing); with `--verbose INFO` added, no `INFO` line occurs between the first draw and the erase and the judge stage's `INFO` lines follow the erase; stdout is the single summary line and both report files are byte-identical to a `--progress never` run over the same stub. (R-30, C-11, K-13) |
+| **T-63** | No progress bytes reach stderr when: stderr is not a TTY under `--progress auto` (the default in a subprocess capture); `--progress never`; `--verbose DEBUG` with `--progress always`; `--judge mock` or `--judge none` with `--progress always`. With `--progress auto` and a stderr whose `isatty()` returns `True`, the indicator is drawn. `--progress` with any other value exits `2`. Under `--progress always` a stub that raises `KeyboardInterrupt` mid-stage leaves the erase sequence as the last stderr bytes before the `interrupted` message (E-41). (R-30, E-39, E-40, K-01) |
+| **T-64** | A `KeyboardInterrupt` raised by a provider stub mid-judge, and one injected between §3.1 steps 3 and 4 (after the JSON rename, before the Markdown rename), each exit `3` with stderr exactly `ERROR interrupted` (plus a traceback only under `--verbose DEBUG`), write nothing to stdout, leave no `.tmp` and no `speccheck.json` from this run under `--out`, and leave a previous run's reports intact; the JSON `exit_code` is never consulted (no report exists). (E-41, K-01, I-001, §3.1) |
 | **T-45** | Unwritable `--out` exits `3` with nothing written; a failure injected after the JSON rename and before the Markdown rename exits `3` with no `.tmp` left, no `speccheck.json`, and the previous run's `SPEC_CONFORMANCE_REPORT.md` intact (the one stale combination E-18 permits); leftover temporaries from an earlier run are deleted first; on success no `.tmp` remains and the two temporaries used carried the same 8-hex-digit nonce. (E-18, I-001, §3.1) |
 | **T-50** | `speccheck --version` prints `speccheck <version>` where `<version>` is PEP 440 and equals `importlib.metadata.version("speccheck")`. (K-10) |
 
@@ -909,7 +924,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 
 | ID | Test |
 | -- | ---- |
-| **T-49** | On the golden fixture's judged edges (each hand-labeled `ASSERTS`/`EXECUTES_ONLY`/`UNRELATED`), the LLM judge's non-`UNKNOWN` verdicts agree with labels at $\geq$ 0.90 accuracy and `unknown_rate` $\leq$ 0.10 in **each** of three independent runs (no pooling; one failing run fails T-49); all three per-run figures are recorded with model name, date, and `judge_prompt_sha256`. (R-10, R-26) |
+| **T-49** | On the golden fixture's judged edges (each hand-labeled `ASSERTS`/`EXECUTES_ONLY`/`UNRELATED`), the LLM judge's non-`UNKNOWN` verdicts agree with labels at $\geq$ 0.90 accuracy and `unknown_rate` $\leq$ 0.10 in **each** of three independent runs (no pooling; one failing run fails T-49); all three per-run figures are recorded with model name, date, and `judge_prompt_sha256`. The labels live in `fixtures/target/golden/judge_labels.json`, a JSON object mapping `"<ID> <file>::<name>"` (the judged edge) to its label; the runner is `tools/eval_judge.py` (not collected by pytest), which runs the check three times and scores each run against the labels (F-210). (R-10, R-26) |
 
 ---
 
@@ -946,24 +961,24 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 
 | Spec id | Where realized (component / module) | Verified by |
 | ------- | ----------------------------------- | ----------- |
-| R-01 | `extract.py` (declaration scan, UTF-8 replace) | T-01, T-05 |
-| R-02 | `extract.py` (retired flag), `graph.py` (denominators) | T-04, T-25 |
-| R-03 | `extract.py` (source scan, C-03 exclusions, binary/symlink filters) | T-08, T-13, T-36 |
-| R-04 | `attribute.py` (Python adapter, fallback, C-03 exclusions) | T-09, T-10, T-11, T-12, T-36, T-56 |
-| R-05 | `results.py` | T-15, T-16, T-52, T-58 |
-| R-06 | `graph.py` (C-05 steps 1–4) | T-20, T-21, T-47 |
-| R-07 | `graph.py` (dangling) | T-23 |
-| R-08 | `graph.py` (stale) | T-23 |
-| R-09 | `graph.py` (metrics) | T-24 |
-| R-10 | `judge.py`, `judge_mock.py`, `judge_llm.py` (passed-outcome edges only) | T-26, T-31, T-33, T-49 |
-| R-11 | `graph.py` (C-05 step 5) | T-27, T-28 |
-| R-12 | `report.py` (Markdown) | T-35 |
-| R-13 | `report.py` (JSON) | T-34 |
-| R-14 | `cli.py` (exit mapping) | T-39 |
-| R-15 | `cli.py` (`--strict`, status-only) | T-39, T-27 |
+| R-01 | `extract.py` (declaration scan, UTF-8 replace) | T-01, T-05, T-46 |
+| R-02 | `extract.py` (retired flag), `graph.py` (denominators) | T-04, T-25, T-46 |
+| R-03 | `extract.py` (source scan, C-03 exclusions, binary/symlink filters) | T-08, T-13, T-36, T-46 |
+| R-04 | `attribute.py` (Python adapter, fallback, C-03 exclusions) | T-09, T-10, T-11, T-12, T-36, T-56, T-46 |
+| R-05 | `results.py` | T-15, T-16, T-52, T-58, T-46 |
+| R-06 | `graph.py` (C-05 steps 1–4) | T-20, T-21, T-47, T-46 |
+| R-07 | `graph.py` (dangling) | T-23, T-46 |
+| R-08 | `graph.py` (stale) | T-23, T-46 |
+| R-09 | `graph.py` (metrics) | T-24, T-46 |
+| R-10 | `judge.py`, `judge_mock.py`, `judge_llm.py` (passed-outcome edges only) | T-26, T-31, T-33, T-49, T-46 |
+| R-11 | `graph.py` (C-05 step 5) | T-27, T-28, T-46 |
+| R-12 | `report.py` (Markdown) | T-35, T-46 |
+| R-13 | `report.py` (JSON) | T-34, T-46 |
+| R-14 | `cli.py` (exit mapping) | T-39, T-46 |
+| R-15 | `cli.py` (`--strict`, status-only) | T-39, T-27, T-46 |
 | R-16 | all kernel modules (sorted, no volatile fields) | T-36 |
 | R-17 | `cli.py` (logging setup, level `ERROR` default) | T-41, T-42 |
-| R-18 | `cli.py` (`--self-check`, pinned in-process invocation), `speccheck/_selfcheck/`, `judge_llm.py` import isolation | T-43 |
+| R-18 | `cli.py` (`--self-check`, pinned in-process invocation), `speccheck/_selfcheck/`, `judge_llm.py` import isolation | T-43, T-60 |
 | R-19 | `report.py` (only writer, temp-and-rename), `cli.py` | T-38, T-43, T-45 |
 | R-20 | `extract.py`, `report.py` (path normalization) | T-34, T-36 |
 | R-21 | `cli.py` (summary line) | T-44, T-59 |
@@ -987,7 +1002,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
 | C-10 | `speccheck/judge_prompt.md`, `judge_llm.py` (system message) | T-33, T-54 |
 | C-11 | `judge.py` (progress line rendering, draw/erase sequences) | T-62 |
-| I-001 | `report.py` (temp-and-rename), `cli.py` | T-07, T-38, T-43, T-45 |
+| I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
 | I-003 | `report.py` | T-25, T-35 |
 | I-004 | `graph.py` | T-27, T-28 |
@@ -998,7 +1013,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | I-009 | `cli.py`, `report.py` | T-39 |
 | I-010 | `graph.py` (edge selection), `judge.py` | T-31 |
 | I-011 | `extract.py` (normalization) | T-02 |
-| K-01 | `cli.py` | T-39, T-40, T-19 |
+| K-01 | `cli.py` | T-39, T-40, T-19, T-64 |
 | K-02 | `extract.py` (file filters, binary rule) | T-13 |
 | K-03 | `extract.py` (walker, no symlinks) | T-13 |
 | K-04 | `extract.py` (`ID_RE`) | T-03 |
@@ -1051,6 +1066,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-38 | `report.py` (Note ordering) | T-34 |
 | E-39 | `cli.py` (`--progress` gating) | T-63 |
 | E-40 | `judge.py` (erase in `finally`) | T-63 |
+| E-41 | `cli.py` (`KeyboardInterrupt` → exit 3), `report.py` (cleanup), `judge.py` (erase) | T-63, T-64 |
 
 ---
 
@@ -1074,7 +1090,8 @@ Every row below is a decision the specification's author made on the requester's
 | D-12 | Report file names and location | `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json` under `--out`, default `.` | a `reports/` directory; a single JSON with Markdown derived by a separate renderer | §3.3, C-07, C-08, E-18 | requester / confirm |
 | D-13 | Python test-case delimitation | `def test_*` at module level; `test*` methods in `Test*` classes and `*TestCase` subclasses; nested classes excluded | honor `pytest.ini` `python_functions` / `python_classes`; collect via pytest itself (rejected: runs code) | C-03, E-28, T-56 | requester / confirm (F-007, F-102) |
 | D-14 | Reference machine for K-08 | named in `SPEC_BUILD_REPORT.md` at build time | a CI runner with a generous bound; no performance constraint at all | K-08, T-51 | build owner / open |
-| D-15 | Progress indicator shape and gating | a single in-place ASCII line on stderr (`#`/`-` bar of 20 cells, done/total, elapsed, ETA per C-11), on by default only when stderr is a TTY and not at DEBUG, erased when the judge stage ends, `--progress auto\|always\|never` to override; LLM judge only | leaving the final line on screen (rejected: §5.3 quiet-by-default would then have a visible exception at exit); a per-edge log line instead of a bar (rejected: that is what `--verbose DEBUG` already is); Unicode block characters (rejected: R-29 locale reasoning); a bar for `--judge mock` too (rejected: mock is sub-second, K-08); a spinner without ETA (rejected: the requester's complaint is duration, so ETA is the useful number) | R-30, C-11, K-13, E-39, E-40, §5.1, §5.3 | requester / confirm (the *existence* of the bar is the requester's ask of 2026-09-13; its shape is the author's default) |
+| D-15 | Progress indicator shape and gating | a single in-place ASCII line on stderr (`#`/`-` bar of 20 cells, done/total, elapsed, ETA per C-11), padded with spaces and redrawn with a bare `\r` (no terminal escapes; v1.4, F-205), on by default only when stderr is a TTY and not at DEBUG, erased when the judge stage ends, `--progress auto\|always\|never` to override; LLM judge only | leaving the final line on screen (rejected: §5.3 quiet-by-default would then have a visible exception at exit); a per-edge log line instead of a bar (rejected: that is what `--verbose DEBUG` already is); Unicode block characters (rejected: R-29 locale reasoning); a bar for `--judge mock` too (rejected: mock is sub-second, K-08); a spinner without ETA (rejected: the requester's complaint is duration, so ETA is the useful number) | R-30, C-11, K-13, E-39, E-40, §5.1, §5.3 | requester / confirm (the *existence* of the bar is the requester's ask of 2026-09-13; its shape is the author's default) |
+| D-16 | Exit code on interrupt | `SIGINT`/`KeyboardInterrupt` exits `3` with message `interrupted`, keeping K-01's closed set `{0,1,2,3}`; temporaries and any already-renamed report removed | the shell convention `130` (rejected by default: it widens K-01 and every CI wrapper that switches on the code; easy to adopt if the requester prefers it); leaving Python's default (rejected: traceback, exit `1`, indistinguishable from `NOT CONFORMING`) | E-41, E-40, §5.4, K-01, I-001, T-64 | requester / confirm (F-204) |
 
 None of the first fourteen was raised as a question before v1.1; each was decided and reviewed for precision only. That is the defect this section corrects: a specification can be implementation-grade and still not be what was asked for.
 
@@ -1091,3 +1108,4 @@ None of the first fourteen was raised as a question before v1.1; each was decide
 | v1.1 | Added §12, *Open questions and decisions to confirm*: fourteen decisions the author took by default on the requester's behalf (stack, results contract, citation rule, T-family option, mixed-verdict strict rule, judge question and parameters, instruction text, input limits, endpoint shape, fixture layout, report names, test delimitation, reference machine), each with its default, the alternatives rejected, the IDs it affects, and a `confirm` / `open` status. No normative row changed. The `spec-writing` skill now requires this section. |
 | v1.2 | D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 in the judge request body (C-06), the wire-format test updated to match (T-33), and the D-07 row records the evidence. Thinking models truncated at 400 before emitting the verdict JSON; at 4000 `qwen3:8b` and `gemma4:latest` pass T-49 three runs out of three. No other normative row changed. |
 | v1.3 | Judge-stage progress indicator, requested on 2026-09-13 because `--judge llm` runs take minutes: R-30 (requirement), C-11 (the one-line ASCII format, draw/erase byte sequences, regex, $k$ and ETA formulas), K-13 (redraw cadence, 20 cells, single erase before the report stage), E-39 (no bytes when not a TTY, at DEBUG, under `--progress never`, or with `--judge none\|mock`), E-40 (erase on interrupt or failure), `--progress auto\|always\|never` in §5.1, the §5.3 quiet-by-default exception, T-62/T-63, §11 rows, D-15. The indicator is written to the raw stderr stream, not the logger, and is erased at the end of the stage, so stdout, both reports, the exit code, and what remains on stderr at exit are unchanged. |
+| v1.4 | All ten findings of the v1.3 `SPEC_REVIEW_REPORT.md` applied. P1: F-201 the logger is silent while the indicator is displayed (C-11, K-13, §5.3, T-62); F-202 one clock origin $t_0$ = first draw, K-12 keeps its own (C-11, K-13, T-62); F-203 coalesced cadence — within 100 ms, $\geq$ 1/s in flight, $\leq$ 10/s — and atomic serialized writes (K-13, T-62); F-204 E-41 interrupt rule: exit `3`, message `interrupted`, temporaries and renamed reports removed (E-40, E-41, §3.1, §5.4, T-63, T-64, §11, D-16); F-206 C-07 example uses `0.2000`/`0.0000` and `max_unknown` is emitted quantized (C-07). P2: F-205 no terminal escapes — draws padded to the widest line so far, erase is `\r` + spaces + `\r` (C-11, T-62, D-15); F-207 C-08 header parenthetical omitted when `judge_available` is null (C-08, T-35); F-208 T-46 cited by R-01..R-15 and T-60 by R-18/I-001 in §11; F-209 I-005 vacuous clause replaced; F-210 T-49 names `fixtures/target/golden/judge_labels.json` and `tools/eval_judge.py`. |

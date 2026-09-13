@@ -4,6 +4,7 @@
 > - **Review date:** 2026-09-13
 > - **Method:** `spec-review` four-pass method (comprehension, local precision, cross-consistency, implementation simulation) over all 20 dimensions, plus a mechanical cross-check of ID declarations, §9 coverage, and §11 rows.
 > - **Finding IDs:** `F-201..F-210`. `F-001..F-017` (v0.1 review), `F-101..F-110` (v0.4 review) and `Q-001..Q-011` (v0.5 review) are already cited inside `SPEC.md` and are not reused.
+> - **Disposition:** all ten findings applied in `SPEC.md` v1.4 (see its revision history); F-204's default (exit `3`, message `interrupted`) is recorded as D-16 for the requester to confirm.
 > - **Focus:** v1.0 was cleared by three prior reviews with no findings open. This pass re-reads the whole document but concentrates on what changed since: the v1.3 judge-stage progress indicator (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15) and its interaction with the pre-existing diagnostics, exit-code, and portability contracts.
 
 ---
@@ -43,7 +44,7 @@ None blocks implementation. All six MEDIUM findings are one-row edits.
 | F-202 | MEDIUM | C-11, K-13, K-12 | Two origins for the elapsed clock $t$: "first request issued" vs. the $d = 0$ draw that precedes it |
 | F-203 | MEDIUM | K-13 | Per-verdict MUST-redraw conflicts with the 10 Hz SHOULD-NOT at high concurrency; write atomicity implied by T-62 but not stated |
 | F-204 | MEDIUM | E-40, §5.4, K-01, I-001 | `KeyboardInterrupt` "propagates" — an exit code outside K-01's closed set; interrupt semantics undefined |
-| F-205 | MEDIUM | C-11, R-29 | `\x1b[K` is not interpreted by a legacy Windows console; a portable erase exists and the line never shrinks |
+| F-205 | MEDIUM | C-11, R-29 | `\x1b[K` is not interpreted by a legacy Windows console; a portable padded-`\r` form exists |
 | F-206 | MEDIUM | C-07 | Example disagrees with the four-decimal rule (`unknown_rate: 0.0`, `max_unknown: 0.2`); `max_unknown` emission format unstated |
 | F-207 | LOW | C-08 | Header `(available\|unavailable)` has no rendering for `judge_available == null` |
 | F-208 | LOW | §11, T-46, T-60 | T-46 and T-60 are cited by no §11 row |
@@ -158,7 +159,7 @@ Add E-41: "`SIGINT` / `KeyboardInterrupt` at any stage → the progress indicato
 
 **Observation**
 
-C-11 pins `\x1b[K` (erase-to-end-of-line) in every draw and in the erase. A legacy Windows console (conhost without `ENABLE_VIRTUAL_TERMINAL_PROCESSING`, still the default for `cmd.exe` on some hosts) prints the sequence literally as `←[K`. The spec elsewhere spends effort on exactly this class of host (R-29's "regardless of locale", T-44's `cp1252` stdout), so Windows terminals are evidently in scope. The sequence is also unnecessary for the draws: every field of `<line>` is non-decreasing in width (`<done>` and `<elapsed>` grow; `~?:?? left` and `~M:SS left` have equal width for $M < 10$ and the field only grows thereafter), so a `\r`-redraw never leaves residue. It is needed only for the final erase.
+C-11 pins `\x1b[K` (erase-to-end-of-line) in every draw and in the erase. A legacy Windows console (conhost without `ENABLE_VIRTUAL_TERMINAL_PROCESSING`, still the default for `cmd.exe` on some hosts) prints the sequence literally as `←[K`. The spec elsewhere spends effort on exactly this class of host (R-29's "regardless of locale", T-44's `cp1252` stdout), so Windows terminals are evidently in scope. The sequence is avoidable: `<done>` and `<elapsed>` only grow, and although `<left>` can shrink (`~12:00 left` → `~9:59 left`), padding each draw with spaces to the width of the widest line drawn so far makes a bare `\r` redraw residue-free, and the erase becomes `\r` + spaces + `\r`.
 
 **Why it matters**
 
@@ -170,7 +171,7 @@ Garbled stderr on legacy Windows consoles; `← [K` residue after the run.
 
 **Recommended resolution**
 
-Replace the sequences with the portable forms: `draw := "\r" + <line>` and `erase := "\r" + " " * len(<last line drawn>) + "\r"`, and state the non-shrinking property as the reason no erase-to-EOL is needed. Alternatively keep ANSI and add a K-row: "on Windows the process enables VT processing on the stderr console handle before the first draw; if that fails, the indicator is not drawn." Update T-62's sequence check accordingly.
+Replace the sequences with the portable forms: `draw := "\r" + <line> + " " * (W - len(<line>))` and `erase := "\r" + " " * W + "\r"`, where $W$ is the width of the widest line drawn so far in the run, and state why the padding is needed. Alternatively keep ANSI and add a K-row: "on Windows the process enables VT processing on the stderr console handle before the first draw; if that fails, the indicator is not drawn." Update T-62's sequence check accordingly.
 
 ---
 
