@@ -37,7 +37,7 @@ SECTION_RULES = [
     (re.compile(r"##\s+\d+\.\s+.*?Constraint", re.I), "sec-constraints"),
     (re.compile(r"##\s+\d+\.\s+.*?dge\b", re.I), "sec-edgecases"),
     (re.compile(r"##\s+\d+\.\s+.*[\bT]est", re.I), "sec-tests"),
-    (re.compile(r"##\s+\d+\.\s+.*?nterface", re.I), "sec-contracts"),
+    (re.compile(r"##\s+\d+\.\s+Interfaces\s*/\s*contracts", re.I), "sec-contracts"),
     (re.compile(r"##\s+\d+\.\s+Open questions", re.I), "sec-decisions"),
 ]
 PREFIX = {
