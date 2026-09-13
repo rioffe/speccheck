@@ -1,16 +1,21 @@
 # speccheck — Specification Conformance Checker
 
-For every ID a `SPEC.md` declares (R-nn, C-nn, I-nnn, K-nn, E-nn, T-nn), `speccheck` finds where
-the source and test trees cite it, joins those citations to a JUnit XML results file, and writes a
-conformance report in which every ID has exactly one status and every status points at a file and
-line. An optional model-backed *judge* — off by default — can only ever downgrade a `PASSING` ID
-to `WEAKLY_PASSING`, with cited evidence; it can never upgrade anything.
+Software built by agents is only as trustworthy as the evidence that it does what was specified.
+`speccheck` produces that evidence. Given a `SPEC.md` written in a fixed, ID-tagged shape and a
+code base with its tests, it reports — for every requirement, contract, invariant, constraint,
+edge case, and acceptance test the spec declares — exactly one status, backed by the file and line
+that cite it and the test result that proves it. Nothing in the report is a judgment call: it is
+computed from `grep`-able citations and a JUnit results file, and two runs over the same inputs
+produce byte-identical output. An optional model-backed *judge* can then read each passing test
+and downgrade the verdict when the test merely runs the behavior without asserting it; it can
+never upgrade anything.
 
-This repository implements `SPEC.md` (v1.4) in full. The specification was written and reviewed
-in the `spec_engineering_primer` repository with the three skills under `skills/`, which is why
-its header still cites them as `../skills/...`; here they sit next to it.
-The LLM judge speaks the OpenAI-compatible chat-completions wire format that Ollama serves
-locally, so no cloud account is needed for `--judge llm`.
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.4) in full, and
+so is the worked example of the method it serves — together with the three agent skills that
+write, review, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
+clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
+to the tool: what specification engineering is and how a project runs through it, then
+installation, usage, the reports it writes, and how to verify the build.
 
 ## Specification engineering — the workflow this tool belongs to
 
@@ -353,7 +358,8 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.4; the source of truth)
+SPEC.md                         the specification (v1.4; the source of truth; written in the
+                                spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
   __init__.py                   __version__ (1.4.0, mirrors the spec version)
