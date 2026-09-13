@@ -357,7 +357,12 @@ verify() {
       say "    speccheck not on PATH yet (see the PATH warning above)"
     fi
   fi
-  [[ $ok -eq 1 ]] && say "Done." || { say "Done, with problems (see above)."; return 1; }
+  if [[ $ok -eq 1 ]]; then
+    say "Done."
+  else
+    say "Done, with problems (see above)."
+    return 1
+  fi
 }
 
 # -------------------------------------------------------------------- main --
