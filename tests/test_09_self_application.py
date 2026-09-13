@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import importlib.util
 import json
 import shutil
 from pathlib import Path
@@ -65,15 +66,21 @@ def test_self_application_runs_on_this_repository(tmp_path: Path):
     (tmp_path / "self_application.json").write_text(json.dumps(doc["metrics"]))
 
 
-def test_benchmark_script_exists_and_parses():
+def test_benchmark_script_exists_and_golden_bound_holds():
     """T-51: tools/bench.py (not collected by pytest) exists, parses, and exposes the K-08
-    benchmark entry points; its medians are recorded in SPEC_BUILD_REPORT.md, not asserted here.
-    (K-08)"""
+    benchmark entry points; the golden-fixture half of K-08 — `check --judge mock` on the
+    fixture in <= 2 s wall-clock — is asserted here by running that benchmark once; the
+    10,000-file median is recorded in SPEC_BUILD_REPORT.md, not asserted. (K-08)"""
     source = (ROOT / "tools" / "bench.py").read_text(encoding="utf-8")
     tree = ast.parse(source)
     names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
     assert {"bench_golden", "bench_generated", "main"} <= names
     assert "K-08" in source and "10000" in source or "10_000" in source
+    spec = importlib.util.spec_from_file_location("speccheck_bench", ROOT / "tools" / "bench.py")
+    bench = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bench)
+    golden_seconds = bench.bench_golden(runs=1)
+    assert 0.0 <= golden_seconds <= 2.0, golden_seconds  # K-08 golden-fixture bound
 
 
 def test_llm_eval_labels_cover_every_judged_edge():

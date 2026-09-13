@@ -48,7 +48,7 @@ src/speccheck/
   attribute.py      C-03 test-case delimitation (ast) and attribution          107
   results.py        C-04 JUnit parsing and the classname/join_name join        120
   graph.py          C-05 status algorithm, edge selection, C-07 metrics        206
-  judge.py          C-06 types, validation, concurrency/budget runner          152
+  judge.py          C-06 types, validation, concurrency/budget runner, C-11 progress line
   judge_mock.py     R-22 deterministic provider                                 32
   judge_llm.py      C-06/C-09 provider (OpenAI-compatible; Ollama)             149
   judge_prompt.md   C-10 instruction text (package data, hashed into reports)
@@ -175,7 +175,8 @@ flowchart TB
 
 Stage timings and counts are logged at `INFO` (`stage=<name> … ms=<n>`), never file contents,
 statements, or prompts (I-007). Exit codes are total: usage → `2`, input contract → `3`, any
-uncaught exception → `3` with a one-line message (traceback only at `DEBUG`), and everything
+uncaught exception → `3` with a one-line message (traceback only at `DEBUG`), a `KeyboardInterrupt`
+→ `3` with the message `interrupted` after the same cleanup (E-41), and everything
 else is the report's own `exit_code`.
 
 ## 4. Data model
@@ -445,6 +446,21 @@ vacuously available (E-36). The budget deadline is set by the first worker to is
 and checked by every worker *before* it issues, so in-flight requests always complete and their
 verdicts count (Q-010; T-61).
 
+### 10.1a The progress indicator (R-30, C-11, K-13)
+
+With `--judge llm` the judge stage is the only slow part of a run, so `run_judge` accepts a
+`ProgressLine` (created in `cli.py` when `--progress` resolves to on: `auto` means stderr is a
+TTY and verbosity is not `DEBUG`). It is a context manager around the whole stage: the first
+draw (`0/n`, `0:00 elapsed`, `?:??`) happens on entry, before the first request; every worker
+calls `advance()` once its verdict is determined; a daemon thread coalesces those into at most
+one draw per 100 ms and adds a 1 s tick so `elapsed` and the ETA keep moving; `__exit__` draws
+the final state (unless an exception is propagating) and then erases. Each draw is one write
+of `\r` + line + padding to the widest line so far — no terminal escapes, so a shrinking ETA
+leaves no residue on any console that honours a carriage return — and the erase is `\r` +
+spaces + `\r`. The line is written to the raw stderr stream, never through the logger, and
+`cli.py` defers the judge stage's INFO lines (mode, URL, model, stage summary) until after
+`run_judge` returns, so the logger is silent while the line is displayed.
+
 ### 10.2 The mock provider
 
 `MockJudge` reads the line-numbered `source` in the request, flags every line matching
@@ -521,7 +537,7 @@ sequenceDiagram
     W->>FS: write out/.SPEC_CONFORMANCE_REPORT.md.<nonce>.tmp
     W->>FS: rename → out/speccheck.json
     W->>FS: rename → out/SPEC_CONFORMANCE_REPORT.md
-    Note over W,FS: on any OSError: unlink both temporaries and anything<br/>already renamed this run, raise OutError → exit 3 (E-18).<br/>JSON-then-Markdown order means the only stale pair an operator<br/>can ever find is an old Markdown with no JSON (F-106).
+    Note over W,FS: on any OSError: unlink both temporaries and anything<br/>already renamed this run, raise OutError → exit 3 (E-18) —<br/>the same cleanup runs for an interrupt, which is re-raised (E-41).<br/>JSON-then-Markdown order means the only stale pair an operator<br/>can ever find is an old Markdown with no JSON (F-106).
 ```
 
 `_replace` and `_make_nonce` are module-level so T-45 can inject a failure between the two

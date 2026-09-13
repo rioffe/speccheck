@@ -122,6 +122,19 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
     ]
     assert raw.endswith("}\n") and raw.startswith('{\n  "schema_version": "1.0",\n')
     assert str(target) not in raw and "\\" not in raw.replace("\\n", "").replace('\\"', "")
+    # R-20: every path in the report is relative to --root and uses "/" regardless of host OS
+    paths = [rec["spec"] for rec in [doc]]
+    for rec in doc["ids"]:
+        paths += [s["file"] for s in rec["src"]] + [t["file"] for t in rec["tests"]]
+        paths += [u["file"] for u in rec["unrun"]]
+    paths += [e["file"] for e in doc["dangling"] + doc["stale"]]
+    assert paths and all(
+        not p.startswith(("/", "\\")) and "\\" not in p and not re.match(r"^[A-Za-z]:", p)
+        for p in paths
+    ), paths
+    assert (
+        "src/calc/core.py" in paths and "tests/test_core.py" in paths and doc["spec"] == "SPEC.md"
+    )
     assert not re.search(r"20\d\d-\d\d-\d\d", raw)
     assert re.findall(
         r'"(?:conformance|ratio|judge_strength|unknown_rate|max_unknown)": (\S+?),?\n', raw

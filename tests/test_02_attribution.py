@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 from pathlib import Path
@@ -127,8 +128,9 @@ def test_non_python_test_files_get_file_level_attribution(project):
 
 
 def test_excluded_dirs_oversized_nonutf8_binary_and_symlinks(project):
-    """T-13: excluded directories, oversized / non-UTF-8 / binary files, and symlinks are skipped
-    or decoded exactly as specified; a symlink cycle terminates. (E-10, E-11, E-29, E-30)"""
+    """T-13: excluded directories (K-03), oversized / non-UTF-8 / binary files (K-02), and symlinks
+    are skipped or decoded exactly as specified; a symlink cycle terminates.
+    (K-02, K-03, E-10, E-11, E-29, E-30)"""
     files = {
         "SPEC.md": spec_table([("R-01", "a"), ("C-01", "b"), ("K-01", "c"), ("E-01", "d")]),
         "src/ok.py": "# R-01\n",
@@ -156,6 +158,11 @@ def test_excluded_dirs_oversized_nonutf8_binary_and_symlinks(project):
     assert run.status("C-01") == "UNCITED"
     assert _src_lines(run, "K-01") == [("src/latin1.py", 1)]
     assert _src_lines(run, "E-01") == [("src/late_nul.txt", 1)]
+    # E-29: src/blob.bin has a 0x00 byte within its first 8192 bytes -> skipped silently: it
+    # yields no citation anywhere in the report, no test case, and no Note; src/late_nul.txt,
+    # whose only NUL is past byte 8192, is text and its citation above was kept.
+    raw = json.dumps(run.json)
+    assert "blob.bin" not in raw
     assert run.json["notes"] == [
         "invalid UTF-8 decoded with replacement: src/latin1.py",
         "skipped 1 file over 2 MiB: src/big.txt",

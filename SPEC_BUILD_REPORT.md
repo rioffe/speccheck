@@ -1,10 +1,66 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.1.0 against `SPEC.md` (v1.1)
+# SPEC_BUILD_REPORT — `speccheck` v1.4.0 against `SPEC.md` (v1.4)
 
-> - **Built:** 2026-09-11, from `../SPEC_v1.1.md` (copied verbatim to `SPEC.md`), Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
 
-## 1. Phase 1 exit gate — evidence
+## 0. v1.4 increment (2026-09-13)
+
+`SPEC.md` v1.3 added the judge-stage progress indicator (R-30, C-11, K-13, E-39, E-40, T-62,
+T-63, D-15) and v1.4 folded in the ten findings of its `spec-review` (`SPEC_REVIEW_REPORT.md`,
+F-201..F-210), among them the interrupt rule (E-41, T-64, D-16). The build was brought up to
+date test-first: T-62/T-63/T-64 were written from §9, watched fail (`--progress` unrecognized;
+a `KeyboardInterrupt` from the provider stub escaped `main()` and killed the pytest process —
+exactly the E-41 gap), then realized:
+
+| Spec id | Realized in | Notes |
+| --- | --- | --- |
+| R-30, C-11, K-13 | `judge.py` `ProgressLine`, `progress_line()`; `cli.py` `_progress_enabled()`, `--progress` | one in-place stderr line; padded redraws with a bare `\r`, no escapes; 100 ms coalescing, 1 s tick, $\leq$ 10 draws/s; atomic writes under a lock; drawn on entry, final state + erase on exit, erase-only on exception |
+| E-39 | `cli.py` `_progress_enabled()` | LLM judge only; never at `DEBUG`; `auto` = `sys.stderr.isatty()`; `always` overrides the TTY test only |
+| E-40 | `judge.py` `ProgressLine.__exit__` | erase runs in the context manager's exit path, exception or not |
+| E-41 | `cli.py` `main()` (`except KeyboardInterrupt` → `ERROR interrupted`, exit 3, traceback at DEBUG); `report.py` `write_reports` (cleanup on any `BaseException`, re-raise) | D-16 default: exit `3`, keeping K-01's closed set |
+| F-201 | `cli.py` | the judge stage's INFO lines (mode/URL/model, stage summary) are emitted after `run_judge` returns, so nothing reaches stderr through the logger while the line is displayed |
+| F-206, F-207 | — | already realized in v1.2 (`max_unknown` echoed quantized, B-04; header parenthetical omitted for `--judge none`); T-35 now asserts the latter |
+| T-48 | `tests/test_09_self_application.py` | declared count 161 → 170 |
+
+Phase 1 exit gate on the v1.4 tree (fresh run):
+
+```text
+$ uv run python -m pytest tests -q --junitxml=junit.xml
+73 passed in 11.69s
+
+$ uv run ruff check src tests
+All checks passed!
+
+$ uv run speccheck --self-check
+self-check: ok
+
+$ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck
+speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+```
+
+Phase B (LLM judge, `openai/gpt-4o-mini` via OpenRouter, `--judge-concurrency 32`; run by the
+requester from a terminal, where the C-11 indicator was visible). The first pass over the
+v1.4 tree returned `4 weak` — R-20, K-02, K-03, K-08 — and a second pass `1 weak` (E-29); each
+was a test that proved its ID only by implication, and each was strengthened in the test, never
+in the code: T-13 now cites K-02/K-03 and asserts E-29's silent skip explicitly, T-34 asserts
+R-20's relative-POSIX paths over every path in the report, and T-51 runs the golden benchmark
+once and asserts the K-08 2 s bound. Third pass, on the final tree:
+
+```text
+$ speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --strict --judge-concurrency 32 --out build/speccheck-openrouter
+speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
+# SPECCHECK_JUDGE_URL=https://openrouter.ai/api/v1/chat/completions, SPECCHECK_JUDGE_MODEL=openai/gpt-4o-mini,
+# judge_available true, unknown_rate 0.0000, judge_strength 170/170, judge_prompt_sha256 21ec78498043f92be89766967dce235a8a989dbb3357f91123abcd411177fdf7
+```
+
+The README's commands were re-run as written after the update (quick start on a fixture copy,
+`sync_selfcheck.py --check`, the single-test command, `--version` → `speccheck 1.4.0`).
+`ARCHITECTURE.md` §10 gained a subsection on the indicator and §5.4's exit-code note covers the
+interrupt. Sections 1–6 below are the v1.1 record and remain accurate except where §0 supersedes
+them (counts 161 → 170, 70 → 73 tests; `max_tokens` 400 → 4000 since v1.2).
+
+## 1. Phase 1 exit gate — evidence (v1.1 record)
 
 ```text
 $ uv run python -m pytest tests -q --junitxml=junit.xml
@@ -142,7 +198,7 @@ No `SPEC.md` row was edited. The two clauses that disagree (B-01, B-02) are cand
 | `src/speccheck/attribute.py` `TestCase`/`Citation` | C-03 | Same fields; `classname` rule for Python and fallback; `kind` ∈ {src, test} |
 | `src/speccheck/judge.py` `JudgeRequest`/`Evidence`/`Verdict`/`Judge` | C-06 | Same fields; `source` is line-numbered with TAB (F-109); validation is in `judge.py`, not in the providers |
 | `src/speccheck/judge_prompt.md` | C-10 | Byte-equal to the fenced text in `SPEC.md` (T-54 asserts it; SHA-256 `21ec7849…77fdf7`) |
-| `src/speccheck/judge_llm.py` request body | C-06 | `{"model","temperature":0,"max_tokens":400,"messages":[system,user]}` in that key order, `ensure_ascii=False`; user content is the K-09-formatted request JSON; T-33 compares the bytes |
+| `src/speccheck/judge_llm.py` request body | C-06 | `{"model","temperature":0,"max_tokens":4000,"messages":[system,user]}` (4000 since SPEC v1.2 / D-07) in that key order, `ensure_ascii=False`; user content is the K-09-formatted request JSON; T-33 compares the bytes |
 | `speccheck.json` | C-07 | Key order, seven statuses, six families, four-decimal Decimals via the `_Num` sentinel, `verdict` key always present, notes sorted by code point, no volatile fields (T-34) |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections in order; retired ID cell struck; `(file)` and `—` renderings (T-35) |
 | `speccheck` CLI | §5.1 | Every flag, default, range, and exit code in the table; `--self-check` runs the pinned argv in-process (T-43 records the `Config`) |
@@ -187,7 +243,7 @@ id. "Self-app" is the status from the T-48 run.
 | R-15 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-27 `test_05_judge::test_step_5_downgrade_rules` | PASSING |
 | R-16 | `attribute.py`, `extract.py`, `graph.py`, `report.py`, `results.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | R-17 | `cli.py` | T-41 `test_07_cli::test_verbosity_levels`; T-42 `test_07_cli::test_notes_quiet_by_default_and_once_at_info` | PASSING |
-| R-18 | `cli.py`, `judge_llm.py` | T-43 `test_07_cli::test_no_sockets_and_self_check` | PASSING |
+| R-18 | `cli.py`, `judge_llm.py` | T-43 `test_07_cli::test_no_sockets_and_self_check`; T-60 `test_07_cli::test_selfcheck_fixture_is_byte_identical_to_golden_fixture` | PASSING |
 | R-19 | `cli.py`, `report.py` | T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename` | PASSING |
 | R-20 | `extract.py`, `report.py` | T-34 `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys`; T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | R-21 | `cli.py` | T-44 `test_07_cli::test_summary_line_format_encoding_and_numbers`; T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
@@ -199,6 +255,7 @@ id. "Self-app" is the status from the T-48 run.
 | R-27 | `extract.py` | T-57 `test_02_attribution::test_ignore_markers` | PASSING |
 | R-28 | `cli.py`, `report.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | R-29 | `cli.py` | T-44 `test_07_cli::test_summary_line_format_encoding_and_numbers` | PASSING |
+| R-30 | `cli.py`, `judge.py` | T-62 `test_07_cli::test_progress_indicator_format_cadence_and_isolation`; T-63 `test_07_cli::test_progress_gating_and_interrupt_erase` | PASSING |
 | C-01 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-02 `test_01_extraction::test_numbers_normalize_within_family`; T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids`; T-04 `test_01_extraction::test_strikethrough_is_retired_and_mixed_redeclaration_exits_3`; T-05 `test_01_extraction::test_fenced_code_blocks_are_ignored`; T-55 `test_01_extraction::test_row_and_heading_grammar_edge_cases`; T-57 `test_02_attribution::test_ignore_markers` | PASSING |
 | C-02 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-06 `test_01_extraction::test_duplicate_declaration_exits_3_naming_both_lines` | PASSING |
 | C-03 | `attribute.py`, `extract.py` | T-09 `test_02_attribution::test_python_test_citations_attributed_to_enclosing_case`; T-10 `test_02_attribution::test_module_docstring_and_helper_citations_are_file_level`; T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks`; T-14 `test_02_attribution::test_several_citations_in_one_case_yield_one_edge`; T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; T-56 `test_02_attribution::test_class_recognition_and_async_and_undelimited` | PASSING |
@@ -209,7 +266,8 @@ id. "Self-app" is the status from the T-48 run.
 | C-08 | `report.py` | T-35 `test_06_reports::test_markdown_layout` | PASSING |
 | C-09 | `judge_llm.py` | T-33 `test_05_judge::test_llm_provider_wire_format_timeout_and_concurrency`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak` | PASSING |
 | C-10 | `judge_llm.py` | T-33 `test_05_judge::test_llm_provider_wire_format_timeout_and_concurrency`; T-54 `test_05_judge::test_llm_response_path_fences_and_prompt_hash` | PASSING |
-| I-001 | `cli.py`, `report.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing`; T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename` | PASSING |
+| C-11 | `judge.py` | T-62 `test_07_cli::test_progress_indicator_format_cadence_and_isolation` | PASSING |
+| I-001 | `cli.py`, `report.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing`; T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | I-002 | `attribute.py`, `extract.py`, `graph.py`, `report.py`, `results.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | I-003 | `report.py` | T-25 `test_04_status::test_retired_ids_excluded_from_denominators_but_listed_once`; T-35 `test_06_reports::test_markdown_layout` | PASSING |
 | I-004 | `graph.py` | T-27 `test_05_judge::test_step_5_downgrade_rules`; T-28 `test_05_judge::test_disabling_the_judge_only_restores_weakly_passing` | PASSING |
@@ -220,7 +278,7 @@ id. "Self-app" is the status from the T-48 run.
 | I-009 | `cli.py`, `report.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons` | PASSING |
 | I-010 | `graph.py`, `judge.py` | T-31 `test_05_judge::test_judge_called_once_per_eligible_edge_only` | PASSING |
 | I-011 | `extract.py` | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
-| K-01 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak`; T-19 `test_03_results::test_malformed_xml_and_nameless_testcase_exit_3` | PASSING |
+| K-01 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak`; T-19 `test_03_results::test_malformed_xml_and_nameless_testcase_exit_3`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | K-02 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
 | K-03 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
 | K-04 | `extract.py` | T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids` | PASSING |
@@ -232,6 +290,7 @@ id. "Self-app" is the status from the T-48 run.
 | K-10 | `cli.py` | T-50 `test_07_cli::test_version_flag` | PASSING |
 | K-11 | `cli.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | K-12 | `cli.py`, `judge.py` | T-61 `test_07_cli::test_judge_budget` | PASSING |
+| K-13 | `judge.py` | T-62 `test_07_cli::test_progress_indicator_format_cadence_and_isolation` | PASSING |
 | E-01 | `cli.py`, `extract.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing` | PASSING |
 | E-02 | `extract.py` | T-06 `test_01_extraction::test_duplicate_declaration_exits_3_naming_both_lines` | PASSING |
 | E-03 | `extract.py` | T-04 `test_01_extraction::test_strikethrough_is_retired_and_mixed_redeclaration_exits_3` | PASSING |
@@ -270,6 +329,9 @@ id. "Self-app" is the status from the T-48 run.
 | E-36 | `cli.py`, `judge.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | E-37 | `report.py` | T-34 `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys`; T-35 `test_06_reports::test_markdown_layout` | PASSING |
 | E-38 | `report.py` | T-34 `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys` | PASSING |
+| E-39 | `cli.py` | T-63 `test_07_cli::test_progress_gating_and_interrupt_erase` | PASSING |
+| E-40 | `judge.py` | T-63 `test_07_cli::test_progress_gating_and_interrupt_erase` | PASSING |
+| E-41 | `cli.py`, `report.py`, `judge.py` | T-63 `test_07_cli::test_progress_gating_and_interrupt_erase`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | T-01 | — | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement` | PASSING |
 | T-02 | — | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
 | T-03 | — | T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids` | PASSING |
@@ -331,18 +393,21 @@ id. "Self-app" is the status from the T-48 run.
 | T-59 | — | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | T-60 | — | T-60 `test_07_cli::test_selfcheck_fixture_is_byte_identical_to_golden_fixture` | PASSING |
 | T-61 | — | T-61 `test_07_cli::test_judge_budget` | PASSING |
+| T-62 | — | T-62 `test_07_cli::test_progress_indicator_format_cadence_and_isolation` | PASSING |
+| T-63 | — | T-63 `test_07_cli::test_progress_gating_and_interrupt_erase` | PASSING |
+| T-64 | — | T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 161/161 IDs realized (0 deferred)
+Spec coverage: 170/170 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [openai/gpt-4o-mini via OpenRouter, unknown_rate 0.0000]
 Readiness: BUILT
 Conformance: PASS WITH NOTES
 ```
 
-The notes are §3 (B-01..B-15: interpretations for the spec owner to ratify) and §2's T-49
-result — the LLM judge is built exactly to C-06/C-09/C-10 and behaves correctly on every
-failure mode observed, but no locally available model meets the T-49 bar with the pinned
-`max_tokens: 400`; with 4000 two of them meet it three times out of three. That is a decision for
-D-07, not a defect in the build. Nothing in the specification was scoped out; O-1 is built
+The notes are §3 (B-01..B-15: interpretations for the spec owner to ratify), §0's D-16 default
+(exit `3` on interrupt, awaiting the requester), and §2's T-49 history — with the v1.2
+`max_tokens: 4000` both `qwen3:8b` and `gemma4:latest` meet the T-49 bar three runs out of three. Nothing in the specification was scoped out; O-1 is built
 behind its flag and extra, O-2/O-3 are absent by the spec's own statement.

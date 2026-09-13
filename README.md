@@ -6,7 +6,7 @@ conformance report in which every ID has exactly one status and every status poi
 line. An optional model-backed *judge* — off by default — can only ever downgrade a `PASSING` ID
 to `WEAKLY_PASSING`, with cited evidence; it can never upgrade anything.
 
-This repository implements `SPEC.md` (v1.2) in full. The specification was written and reviewed
+This repository implements `SPEC.md` (v1.4) in full. The specification was written and reviewed
 in the `spec_engineering_primer` repository with the three skills under `skills/`, which is why
 its header still cites them as `../skills/...`; here they sit next to it.
 The LLM judge speaks the OpenAI-compatible chat-completions wire format that Ollama serves
@@ -71,7 +71,7 @@ same check on this repository itself:
 ```bash
 uv run python -m pytest tests -q --junitxml=junit.xml
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out build/selfapp
-# speccheck: CONFORMING - 161/161 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
+# speccheck: CONFORMING - 170/170 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
 ```
 
 ## Usage
@@ -80,7 +80,7 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
 speccheck check --spec SPEC.md [--src DIR]... [--tests DIR]... [--results junit.xml]
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--max-unknown FRACTION] [--judge-concurrency N] [--judge-budget SECONDS]
-                [--verbose [INFO|DEBUG]]
+                [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
 speccheck --version
 speccheck --help
@@ -99,7 +99,8 @@ speccheck --help
 | `--max-unknown` | Decimal in `[0, 1]`, default `0.2`; only consulted under `--strict --judge llm`. |
 | `--judge-concurrency N` | `1..32`, default `4`; LLM requests in flight at once. |
 | `--judge-budget SECONDS` | `0..86400`, default `0` (unlimited); wall-clock bound on the judge stage. Edges not started before the deadline become `UNKNOWN` (`judge: budget`). |
-| `--verbose [LEVEL]` | Diagnostics to stderr. Bare = `INFO` (stage counts, timings, judge URL/model, notes). `DEBUG` adds every judge request (`judge>`) and raw response (`judge<`) with the API key redacted. Nothing is written to stderr otherwise. |
+| `--progress MODE` | Progress indicator for the judge stage, LLM judge only. `auto` (default): shown when stderr is a terminal and verbosity is not `DEBUG`; `always`: shown even when stderr is redirected (still not at `DEBUG`); `never`. See below. |
+| `--verbose [LEVEL]` | Diagnostics to stderr. Bare = `INFO` (stage counts, timings, judge URL/model, notes). `DEBUG` adds every judge request (`judge>`) and raw response (`judge<`) with the API key redacted. Nothing else is written to stderr, except the progress indicator while it is displayed. |
 | `--self-check` | Copies the packaged fixture to a temporary directory, installs a socket guard, runs the pinned `check` in-process, compares the output byte-for-byte with the packaged goldens, removes the directory, and prints `self-check: ok`. |
 
 **Statuses** (one per declared ID): `RETIRED` (struck-through declaration; excluded from
@@ -107,10 +108,28 @@ denominators), `UNCITED`, `UNTESTED` (source citations only), `UNVERIFIED` (test
 result), `FAILING`, `SKIPPED`, `PASSING`, and — judge only — `WEAKLY_PASSING`. A `T-nn` ID is
 judged by test citations alone; source citations of it are recorded but never change its status.
 
+**Progress indicator.** An LLM-judged run over a real project takes minutes, so with `--judge llm`
+the judge stage shows one line on stderr, redrawn in place:
+
+```text
+judge: [########------------] 132/331 edges  2:14 elapsed  ~3:23 left
+```
+
+`done/total` counts edges whose verdict is determined (received, coerced to `UNKNOWN`, or skipped
+by `--judge-budget`); the bar has 20 cells; `left` is `elapsed / done × (total − done)` and reads
+`?:??` until the first verdict. It is drawn with a bare carriage return and space padding (no
+terminal escape sequences), refreshed at least once a second and at most ten times a second, and
+erased when the stage ends — so nothing of it remains on stderr, and the `INFO` lines for the judge
+stage follow the erase. It goes to stderr only; stdout, both reports, and the exit code are
+unaffected. It is never shown with `--judge none|mock`, at `--verbose DEBUG` (the `judge>`/`judge<`
+lines are the progress record there), or when stderr is not a terminal unless `--progress always`.
+
 **Exit codes:** `0` conforming, `1` not conforming, `2` usage error (bad flag or value, missing
 `--spec`, a path outside `--root`, missing judge environment), `3` input-contract violation
 (no in-scope IDs, an ID declared twice or both retired and kept, malformed JUnit XML, unwritable
-`--out`). On exit `2`/`3` no report is written. On exit `0`/`1` exactly one summary line goes to
+`--out`) — and an interrupt: Ctrl-C at any stage exits `3` with the message `interrupted`, after
+erasing the progress indicator and removing every temporary and any report file this run had
+already renamed, so a previous run's reports are left intact. On exit `2`/`3` no report is written. On exit `0`/`1` exactly one summary line goes to
 stdout:
 
 ```text
@@ -197,17 +216,17 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.2; the source of truth)
+SPEC.md                         the specification (v1.4; the source of truth)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.2.0, mirrors the spec version)
+  __init__.py                   __version__ (1.4.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
   attribute.py                  test-case delimitation (Python `ast`, fallback) and citation attribution
   results.py                    JUnit XML parsing and the classname/join_name join
   graph.py                      status algorithm (C-05), edge selection for the judge, metrics (C-07)
-  judge.py                      JudgeRequest/Verdict types, validation, concurrency + budget runner
+  judge.py                      JudgeRequest/Verdict types, validation, concurrency + budget runner, progress indicator
   judge_mock.py                 deterministic assertion-token judge
   judge_llm.py                  OpenAI-compatible/Ollama provider, env config, response parsing
   judge_prompt.md               the normative C-10 instruction text (package data)
@@ -258,10 +277,11 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (70 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (73 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out build/selfapp
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # gate, phase B (needs Ollama + SPECCHECK_JUDGE_*)
 uv run python tools/bench.py                               # K-08 (recorded)
 uv run python tools/eval_judge.py --model qwen3:8b         # T-49 (opt-in, needs Ollama)
 uv run python tools/sync_selfcheck.py --check              # _selfcheck/ still equals fixtures/target/
@@ -273,6 +293,6 @@ Run one test with `uv run python -m pytest tests/test_04_status.py::test_family_
 
 The full specification is implemented; nothing was scoped out. The optional LLM judge (O-1) is
 built behind the `--judge llm` flag and the `[llm]` extra. Additional language adapters (O-2) and
-non-CLI surfaces (O-3) are, as the spec states, not part of v1.2: non-Python test files get
+non-CLI surfaces (O-3) are, as the spec states, not part of v1.4: non-Python test files get
 file-level attribution. Interpretations the build had to make where the spec was silent or
 inconsistent are listed in `SPEC_BUILD_REPORT.md` §3.
