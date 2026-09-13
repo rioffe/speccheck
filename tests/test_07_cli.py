@@ -915,3 +915,36 @@ def test_interrupt_exits_3_and_cleans_up(project, monkeypatch):
     assert (six.path / "reports" / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == old_md
     run = six.check("--judge", "none", "--out", "reports", "--verbose", "DEBUG")
     assert run.code == 3 and "\nERROR interrupted\n" in run.stderr and "Traceback" in run.stderr
+
+
+def test_interrupt_abandons_in_flight_requests(project, monkeypatch):
+    """T-64 (E-41, in-flight requests): a SIGINT delivered to the main thread while several
+    slow LLM requests are in flight ends the run promptly — queued edges are never started,
+    in-flight ones are abandoned rather than awaited — with exit 3, `ERROR interrupted`, the
+    progress line erased, and no report written. (E-41, E-40, K-05)"""
+    import _thread
+
+    six = _edges_project(project, 6)
+    started = []
+    lock = threading.Lock()
+
+    def slow(url, headers, body, timeout):
+        with lock:
+            started.append(1)
+        time.sleep(5.0)
+        return _asserting_stub(0.0)(url, headers, body, timeout)
+
+    monkeypatch.setattr(judge_llm, "_httpx_post", slow)
+    threading.Timer(0.5, _thread.interrupt_main).start()
+    t0 = time.monotonic()
+    run = six.check(
+        "--judge", "llm", "--judge-concurrency", "2", "--progress", "always", env=LLM_ENV
+    )
+    elapsed = time.monotonic() - t0
+    assert run.code == 3 and run.stdout == "", run.stderr
+    assert elapsed < 2.0, elapsed  # not the 5 s the in-flight stubs would take
+    assert len(started) <= 3
+    assert run.stderr.endswith("\rERROR interrupted\n") or run.stderr.endswith(
+        "\r" + " " * (len(run.stderr.split("\r")[-2])) + "\rERROR interrupted\n"
+    )
+    assert not (six.path / "speccheck.json").exists()

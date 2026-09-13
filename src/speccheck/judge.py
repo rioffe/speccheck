@@ -15,7 +15,7 @@ import math
 import threading
 import time
 from collections.abc import Callable, Iterable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from typing import Protocol, TextIO
 
@@ -25,6 +25,7 @@ log = logging.getLogger("speccheck")
 
 VERDICTS = ("ASSERTS", "EXECUTES_ONLY", "UNRELATED", "UNKNOWN")
 RATIONALE_MAX = 280  # K-07
+POLL_INTERVAL = 0.25  # seconds; timed waits keep the main thread interruptible (E-41)
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,11 @@ class JudgeHttpError(Exception):
 
 class JudgeMalformed(Exception):
     """Provider returned non-JSON or JSON lacking `verdict` (E-15)."""
+
+
+class JudgeInterrupted(Exception):
+    """The run was interrupted while this request was in flight (E-41); its verdict is never
+    recorded, so the class only needs to unwind the worker promptly."""
 
 
 def numbered_source(lines: Iterable[str], start: int, end: int) -> str:
@@ -316,12 +322,34 @@ def run_judge(
         return req, verdict
 
     results: list[tuple[JudgeRequest, JudgedVerdict]]
+    abort = getattr(provider, "abort", None)  # E-41: LlmJudge exposes a threading.Event
     with progress if progress is not None else _NoProgress():
         if concurrency <= 1:
             results = [work(r) for r in requests]
         else:
-            with ThreadPoolExecutor(max_workers=concurrency) as pool:
-                results = list(pool.map(work, requests))
+            pool = ThreadPoolExecutor(max_workers=concurrency)
+            try:
+                # Poll with a timeout rather than block on each result: an untimed lock wait is
+                # not interruptible by SIGINT on every platform (macOS CPython), so a bare
+                # pool.map() would only notice Ctrl-C once a request happened to finish.
+                futures = [pool.submit(work, r) for r in requests]
+                pending = set(futures)
+                while pending:
+                    done, pending = wait(pending, timeout=POLL_INTERVAL)
+                    for f in done:
+                        exc = f.exception()
+                        if exc is not None:
+                            raise exc
+                results = [f.result() for f in futures]
+            except BaseException:
+                # E-41: an interrupt (or any failure) in the main thread must not wait for the
+                # in-flight requests — tell every waiting worker to give up, drop the queued
+                # edges, and only then join the pool, which now returns within one poll.
+                if abort is not None:
+                    abort.set()
+                pool.shutdown(wait=True, cancel_futures=True)
+                raise
+            pool.shutdown(wait=True)
 
     calls_made = 0
     calls_ok = 0

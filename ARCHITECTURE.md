@@ -1,11 +1,11 @@
-# ARCHITECTURE — `speccheck` 1.4.0
+# ARCHITECTURE — `speccheck` 1.5.0
 
 This document describes the system as built, module by module and data flow by data flow. It is
 a companion to `README.md` (how to use it), `SPEC.md` (what it must do), and
 `SPEC_BUILD_REPORT.md` (the evidence that it does). Spec IDs are cited inline so that every
 design element can be traced back to the clause that demanded it. It describes the build of
-`SPEC.md` v1.4: v1.2 plus the judge-stage progress indicator (v1.3) and the review findings that
-tightened it (v1.4), including the interrupt rule.
+`SPEC.md` v1.5: v1.2 plus the judge-stage progress indicator (v1.3), the review findings that
+tightened it (v1.4), and the interrupt rule made prompt (v1.5).
 
 ## 1. The one idea
 
@@ -43,7 +43,7 @@ The kernel produces every status, count, and metric. The judge, when enabled, se
 
 ```text
 src/speccheck/
-  __init__.py       __version__ = "1.4.0"          (K-10: pyproject reads it back)
+  __init__.py       __version__ = "1.5.0"          (K-10: pyproject reads it back)
   __main__.py       python -m speccheck
   cli.py            §5 surface; wiring; exit codes; logging; --progress; E-41; --self-check   571 lines
   extract.py        C-01 grammar, SPEC.md declarations, tree walk, citations              349
@@ -583,6 +583,14 @@ renames and observe the nonce.
   exit codes (E-41, D-16). Cleanup happens where the state lives: `write_reports` removes its
   temporaries and any already-renamed report on any `BaseException`, and `ProgressLine.__exit__`
   erases the line, so an interrupt leaves neither a half-written report nor a half-drawn bar.
+  Two details make the interrupt *prompt* (v1.5, E-41): `run_judge` never blocks on an untimed
+  future wait — it polls `concurrent.futures.wait(..., timeout=0.25)`, because an untimed lock
+  wait is not SIGINT-interruptible on macOS CPython, so a bare `pool.map()` only noticed Ctrl-C
+  once a request happened to finish — and `LlmJudge` runs the transport in a daemon thread and
+  waits on it in 0.25 s polls that also watch an `abort` event. On interrupt `run_judge` sets
+  the event, cancels queued futures, and joins the pool, which returns within one poll; the
+  abandoned HTTP requests die with the daemon threads. Measured: one SIGINT against a stub
+  server holding requests for 15 s ends the run in 0.2 s (it was 15 s).
 - **The summary line** — written as UTF-8 bytes to `stdout.buffer` when one exists, so the
   ASCII line is identical under a C locale or a `cp1252` stdout (R-29; T-44 runs both).
 - **`--self-check`** — copies `_selfcheck/` to a fresh temp dir, installs the socket guard,
@@ -630,7 +638,7 @@ hand labels for the T-49 evaluation.
 
 ## 15. Test architecture
 
-The suite (`tests/`, 73 tests) mirrors the spec's §9 groups one file per group. Each test
+The suite (`tests/`, 74 tests) mirrors the spec's §9 groups one file per group. Each test
 function's docstring starts with the `T-nn` it realizes and ends with the R/C/I/K/E ids it
 proves — that is what makes self-application (T-48) report every one of the 170 IDs as
 `PASSING`, and it is why the literal ignore-marker strings are confined to `tests/data/markers/`

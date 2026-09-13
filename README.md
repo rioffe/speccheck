@@ -10,7 +10,7 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.4) in full, and
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.5) in full, and
 so is the worked example of the method it serves — together with the three agent skills that
 write, review, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
@@ -233,7 +233,7 @@ lines are the progress record there), or when stderr is not a terminal unless `-
 (no in-scope IDs, an ID declared twice or both retired and kept, malformed JUnit XML, unwritable
 `--out`) — and an interrupt: Ctrl-C at any stage exits `3` with the message `interrupted`, after
 erasing the progress indicator and removing every temporary and any report file this run had
-already renamed, so a previous run's reports are left intact. On exit `2`/`3` no report is written. On exit `0`/`1` exactly one summary line goes to
+already renamed, so a previous run's reports are left intact; judge requests still in flight are abandoned, not awaited, so one Ctrl-C ends an LLM run within a second even when a local model is mid-answer. On exit `2`/`3` no report is written. On exit `0`/`1` exactly one summary line goes to
 stdout:
 
 ```text
@@ -358,11 +358,11 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.4; the source of truth; written in the
+SPEC.md                         the specification (v1.5; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.4.0, mirrors the spec version)
+  __init__.py                   __version__ (1.5.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
@@ -420,7 +420,7 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (73 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (74 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
@@ -436,7 +436,7 @@ Run one test with `uv run python -m pytest tests/test_04_status.py::test_family_
 
 The full specification is implemented; nothing was scoped out. The optional LLM judge (O-1) is
 built behind the `--judge llm` flag and the `[llm]` extra. Additional language adapters (O-2) and
-non-CLI surfaces (O-3) are, as the spec states, not part of v1.4: non-Python test files get
+non-CLI surfaces (O-3) are, as the spec states, not part of v1.5: non-Python test files get
 file-level attribution. Interpretations the build had to make where the spec was silent or
 inconsistent are listed in `SPEC_BUILD_REPORT.md` §3.
 

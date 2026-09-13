@@ -1,8 +1,30 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.4.0 against `SPEC.md` (v1.4)
+# SPEC_BUILD_REPORT — `speccheck` v1.5.0 against `SPEC.md` (v1.5)
 
 > - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0a. v1.5 increment (2026-09-13, later the same day)
+
+The first Ctrl-C against a real `--judge llm` run on a local model looked ignored. Two causes,
+found with a stub server holding requests for 15 s and a Python driver sending a real SIGINT:
+the main thread sat in an untimed `Future.result()` wait, which is not SIGINT-interruptible on
+macOS CPython, so `pool.map()` only noticed the signal once a request finished; and the pool
+exit then awaited the in-flight requests, which E-41 (v1.4) permitted up to K-05. Fixed
+test-first — T-64 gained a timing case (interrupt at 0.5 s with six 5 s edges at concurrency 2
+→ exit 3 in under 2 s, at most three requests ever started) that failed at 10.1 s, then 5.0 s,
+then passed:
+
+| Change | Where |
+| --- | --- |
+| futures polled with `wait(timeout=0.25)`, exceptions from workers re-raised at once, queued futures cancelled and the `abort` event set before the pool is joined | `judge.py` `run_judge` |
+| transport runs in a daemon thread; `judge()` waits in 0.25 s polls that enforce the K-05 deadline and watch `abort` (`JudgeInterrupted`) | `judge_llm.py` `_post_with_deadline`; `_httpx_post` is now a plain synchronous POST |
+| E-41 tightened: in-flight requests abandoned, exit within 1 s; §11 row names the mechanism | `SPEC.md` v1.5 |
+
+Measured with the 15 s stub server: one SIGINT → exit 3 `interrupted` after 0.2 s (was 15.2 s).
+Gate on the v1.5 tree: 74 passed; `speccheck --judge mock --strict` → `CONFORMING - 170/170`.
+Phase B was not re-run for this increment: no judged test changed except T-64's added case,
+whose assertions are of the same kind the judge already accepted.
 
 ## 0. v1.4 increment (2026-09-13)
 

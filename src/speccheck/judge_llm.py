@@ -17,6 +17,7 @@ import json
 import logging
 import queue
 import threading
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from importlib import resources
@@ -24,6 +25,7 @@ from importlib import resources
 from .judge import (
     Evidence,
     JudgeHttpError,
+    JudgeInterrupted,
     JudgeMalformed,
     JudgeRequest,
     JudgeTimeout,
@@ -85,31 +87,22 @@ def prompt_sha256(text: str) -> str:
 def _httpx_post(
     url: str, headers: Mapping[str, str], body: bytes, timeout: float
 ) -> tuple[int, str]:
-    """Default transport. K-05: one wall-clock deadline from issue to full body received."""
+    """Default transport: one synchronous POST. `timeout` is passed to httpx per phase; the K-05
+    wall-clock deadline over the whole exchange is enforced by `LlmJudge.judge`, which runs this
+    in a daemon thread."""
     import httpx  # [llm] extra; lazy so the kernel never imports it
 
-    out: queue.Queue[tuple[str, object]] = queue.Queue(maxsize=1)
-
-    def run() -> None:
-        try:
-            with httpx.Client(timeout=timeout) as client:
-                resp = client.post(url, content=body, headers=dict(headers))
-            out.put(("ok", (resp.status_code, resp.text)))
-        except httpx.TimeoutException as exc:
-            out.put(("timeout", exc))
-        except Exception as exc:  # noqa: BLE001
-            out.put(("error", exc))
-
-    threading.Thread(target=run, daemon=True).start()
     try:
-        kind, payload = out.get(timeout=timeout)
-    except queue.Empty:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.post(url, content=body, headers=dict(headers))
+    except httpx.TimeoutException:
         raise JudgeTimeout() from None
-    if kind == "timeout":
-        raise JudgeTimeout()
-    if kind == "error":
-        raise JudgeUnavailable(str(payload.__class__.__name__))
-    return payload  # type: ignore[return-value]
+    except Exception as exc:  # noqa: BLE001
+        raise JudgeUnavailable(exc.__class__.__name__) from None
+    return resp.status_code, resp.text
+
+
+POLL_INTERVAL = 0.25  # seconds between checks of the deadline and the abort flag (E-41)
 
 
 def strip_fence(text: str) -> str:
@@ -160,6 +153,9 @@ class LlmJudge:
         self.prompt = prompt if prompt is not None else load_prompt()
         self.prompt_sha256 = prompt_sha256(self.prompt)
         self._post = post or _httpx_post
+        # E-41: set by run_judge when the run is interrupted; every waiting judge() call returns
+        # at the next poll instead of sitting out the rest of its request.
+        self.abort = threading.Event()
 
     def body(self, req: JudgeRequest) -> bytes:
         payload = {
@@ -179,10 +175,39 @@ class LlmJudge:
             "Authorization": f"Bearer {self.config.api_key}",
         }
 
+    def _post_with_deadline(self, req: JudgeRequest) -> tuple[int, str]:
+        """K-05: the transport runs in a daemon thread; this thread waits at most `timeout`
+        seconds wall-clock, polling so that a SIGINT in the main thread (timed waits are
+        interruptible) or the abort flag (E-41) ends the wait without awaiting the request."""
+        timeout = float(self.config.timeout)
+        out: queue.Queue[tuple[str, object]] = queue.Queue(maxsize=1)
+        args = (self.config.url, self.headers(), self.body(req), timeout)
+
+        def run() -> None:
+            try:
+                out.put(("ok", self._post(*args)))
+            except BaseException as exc:  # noqa: BLE001 - re-raised in the calling thread
+                out.put(("exc", exc))
+
+        threading.Thread(target=run, daemon=True).start()
+        deadline = time.monotonic() + timeout
+        while True:
+            if self.abort.is_set():
+                raise JudgeInterrupted()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise JudgeTimeout()
+            try:
+                kind, payload = out.get(timeout=min(POLL_INTERVAL, remaining))
+                break
+            except queue.Empty:
+                continue
+        if kind == "exc":
+            raise payload  # type: ignore[misc]
+        return payload  # type: ignore[return-value]
+
     def judge(self, req: JudgeRequest) -> Verdict:
-        status, text = self._post(
-            self.config.url, self.headers(), self.body(req), float(self.config.timeout)
-        )
+        status, text = self._post_with_deadline(req)
         log.debug("judge< status=%s %s", status, text.replace(self.config.api_key, REDACTED))
         if status != 200:
             raise JudgeHttpError(status)
