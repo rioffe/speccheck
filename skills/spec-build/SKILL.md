@@ -84,6 +84,13 @@ read its **Remediation Plan** (P0/P1/P2), **Final Verdict**, and detailed findin
 with severity). If the verdict is `NOT READY`, stop and route through `spec-review` /
 `spec-writing` first.
 
+Read the spec's notation the way it was written: **mermaid / ASCII diagrams are illustrative;
+the R/C/I/K/E rows and §3.1 transition entries are normative.** Build from the rows. If a
+diagram shows a transition or branch no row backs (or omits one a row requires), that is a
+spec defect — record it as `F-nnn` and resolve it per Phase 3.3 before implementing either
+version; never implement the picture. **LaTeX formulas (`$..$`, `$$..$$`) are normative**: the
+symbols, the denominator, and the stated degenerate-case value are the contract you implement.
+
 ### 0.2 Extract the build list from the spec's own IDs
 
 The spec already numbers everything. Turn it into a checklist so nothing is silently dropped.
@@ -168,6 +175,12 @@ Repeat until the §9 suite (and every I/K/E in §6/§7/§8) is green.
 - **Edge semantics.** Implement the §8 E-nn outcomes as written (documented fallbacks, specific
   exit codes / error types, partial-work rules) — don't let them surface as unhandled
   exceptions or undefined behavior.
+- **Formulas and metrics.** Compute every `$..$` / `$$..$$` formula exactly as written — same
+  population, same denominator, same rounding — and give its zero-denominator / empty-population
+  rule its own test (`test_unknown_rate_is_zero_when_no_judged_edges  # K-06`). Name the code's
+  variables after the spec's symbols (`tp`, `fp`, `unknown_rate`) so a grader can read the
+  formula off the implementation. If a symbol is undefined or a denominator unstated, stop and
+  treat it as a spec defect (Phase 3.3), not as freedom to choose.
 
 ### When a bug shows up mid-build
 
@@ -209,7 +222,9 @@ follow it; otherwise cover:
    library entry points, GUI screens), with the real flags/parameters and the real error
    codes / responses. Mark optional surfaces exactly as the code gates them.
 5. **Artifacts and schemas** — the files/formats the implementation reads and writes, with
-   versions, mirroring the §4 contracts.
+   versions, mirroring the §4 contracts. Where the README explains a metric or a flow, reuse the
+   spec's formula (`$..$` / `$$..$$`) or `mermaid` diagram verbatim rather than paraphrasing it
+   in prose — one source, no drift.
 6. **Project layout** — a tree of the real source, test, and schema directories (each module's
    one-line role), generated from what exists, not from the spec's plan.
 7. **Verification** — the exact commands from the Phase 1 exit gate, so the reader reproduces green.
@@ -263,6 +278,11 @@ Review *every* produced artifact — not just the source tree — for adherence:
 - **Data artifacts** the build writes are schema-valid and the shape §4/§10 pins.
 - **Determinism:** where required, re-run the deterministic path with identical inputs →
   identical result; the invariant test holds.
+- **Formulas:** each spec formula is computed as written (symbols, denominator, rounding,
+  degenerate case) and its worked examples in the spec reproduce from the implementation.
+- **Diagrams:** the built state machine / flow has exactly the transitions the normative rows
+  specify; where the spec's diagram disagreed with its rows, the `F-nnn` and the `fix(<scope>):`
+  that reconciled them are recorded.
 - **README (Phase 2)** describes what the code *does*, verified command-by-command (run the
   README's commands; every one works as written).
 - **No silent omissions:** diff the Phase 0 checklist against reality — every in-scope box is
@@ -275,6 +295,12 @@ For every defect found (`F-nnn`: location, what's off, why it matters, resolutio
 edit `SPEC.md` (`fix(<scope>): ...`, bump its version header) when the spec itself was
 ambiguous or wrong — and say so in the report. After fixes, re-run the Phase 1 exit gate and
 re-walk §3.1 until the walk is clean. Paste the real (truncated) run output as evidence.
+
+Write `SPEC_BUILD_REPORT.md` in the spec's notation: cite formulas in `$..$` / `$$..$$` and keep
+requirement ids outside math and mermaid blocks (the report is rendered with the same
+`spec2pdf.sh` pipeline, whose clickable-id pass rewrites ids inside inline math and skips fenced
+blocks). Any mermaid diagram in the report (e.g. the realized module graph) carries a caption
+naming the ids it depicts.
 
 ### Done when — all three hold
 
@@ -302,6 +328,8 @@ Conformance: PASS / PASS WITH NOTES / FAIL
 - [ ] Implemented **every** in-scope spec item; nothing silently dropped
 - [ ] Optional items implemented to spec depth (**gated**, not omitted)
 - [ ] §8 edge cases + §6 invariants have tests that assert the outcome, not just run the code
+- [ ] Every spec formula is implemented as written, with a test for its degenerate case; every
+      diagram/row disagreement went through `F-nnn` + `fix(<scope>):`, not a silent choice
 - [ ] §5 surfaces (operations, parameters, error codes / responses) match the spec exactly
 - [ ] Cross-cutting §5 contracts (diagnostics, errors, config) built + tested, including their
       "must not" clauses

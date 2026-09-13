@@ -216,6 +216,15 @@ Check:
 
 Flag states or transitions that are implied but not defined.
 
+If the specification includes a state or flow diagram (mermaid or ASCII), treat it as
+**illustrative**, not normative. Reconstruct the state machine from the normative rows first,
+then diff it against the diagram:
+
+* a transition drawn but backed by no requirement, edge case, or transition row is a finding
+  (the diagram is the only place that behavior is specified);
+* a transition specified in a row but absent from the diagram is a consistency finding;
+* a diagram with no caption naming the ids it depicts is a LOW traceability finding.
+
 ---
 
 ## 3.8 Algorithms and deterministic behavior
@@ -420,6 +429,13 @@ For every metric determine:
 
 A metric should be independently reproducible from specified evidence whenever possible.
 
+A formula is precise only when it is written as an expression (LaTeX `$..$` or a `$$..$$`
+block), every symbol in it is defined before use, and the degenerate cases (zero denominator,
+empty population) have a stated value. A metric described only in prose ("the fraction of judged
+edges that were unknown") or in ASCII arithmetic (`unknown / total`) leaves population and
+denominator to inference — report it. Check that worked examples and table rows that cite the
+formula produce the value the formula gives.
+
 Be especially suspicious of metrics that are directly supplied by the component being evaluated.
 
 ---
@@ -465,9 +481,15 @@ Look for contradictions involving:
 * configuration;
 * architecture;
 * tests;
-* metrics.
+* metrics;
+* diagrams versus the tables and rows they depict;
+* formulas versus the prose, examples, and thresholds that cite them.
 
 Later sections do not automatically override earlier ones.
+
+Diagrams and formulas are frequent sources of silent drift: a diagram edited after its table, a
+threshold changed in a K-nn row but not in the `$$..$$` block that computes it. Cross-check
+every diagram edge and every formula symbol against the normative text that owns it.
 
 If the document contains conflicting normative statements, report the conflict.
 
@@ -510,6 +532,27 @@ Questions whose answers could materially change implementation behavior.
 Questions where a reasonable implementation choice can safely be made.
 
 Only blocking questions should materially affect the readiness verdict.
+
+---
+
+## Notation checks (LOW unless they change meaning)
+
+Specifications written with `spec-writing` use LaTeX math (`$..$` inline, `$$..$$` display) for
+every symbol and formula, and `mermaid` blocks for diagrams; they are rendered with
+`spec2pdf.sh`. Report as **LOW** editorial findings, batched into one finding per kind:
+
+* mathematical symbols or comparisons written as `<=`, `>=`, `!=`, `pi`, `x_i`, `n^2`, or
+  Unicode `≤`/`≥`/`∈` in normative rows (code in backticks or fences is exempt);
+* several related formulas written inline where a `$$..$$` block with aligned definitions would
+  remove ambiguity about which symbol belongs to which formula;
+* a `$$..$$` block inside a table cell (it does not render there);
+* raw LaTeX outside math (`\newpage`, `\textbf{}`), or mermaid labels with unquoted
+  parentheses, brackets, or pipes (the diagram fails to render).
+
+Raise the severity when notation changes meaning: a requirement id inside inline `$..$` is
+**MEDIUM** (the clickable-link preprocessor rewrites it and breaks the math, and id-based tooling
+does not see it); an ambiguous expression such as `a / b + c` with no grouping, or a formula
+whose symbols are never defined, is **HIGH** because two implementers compute different values.
 
 ---
 
@@ -586,6 +629,12 @@ Tests comparing ordered results may pass for one implementation and fail for ano
 
 Define a deterministic secondary ordering key.
 ```
+
+Write the report in the same notation the specification is expected to use: a recommended
+formula goes in `$..$` or a `$$..$$` block with its symbols defined, and a recommended state
+machine or flow MAY be given as a `mermaid` block that the author can paste into `SPEC.md`.
+The report is rendered with the same `spec2pdf.sh` pipeline as the spec, so the same rules
+about `$$` in table cells, unquoted mermaid labels, and ids inside inline math apply.
 
 ---
 

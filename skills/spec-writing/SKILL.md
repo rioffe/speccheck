@@ -1,6 +1,6 @@
 ---
 name: spec-writing
-description: Author a Level-3 (implementation-grade) SPEC.md for any software system, in any language, stack, or domain. Use when asked to "write a spec", "create SPEC.md", "specify this system/interface/pipeline", or turn requirements, a design doc, or a conversation into a specification an agent can implement and verify. Encodes the 13-section template (intent, actors, requirements, behavior/state, contracts, interfaces, invariants, constraints, edge cases, tests, dependencies, traceability, open questions and decisions to confirm), normative-language discipline (MUST/MUST NOT/SHALL/SHOULD/MAY), the front-matter blockquote, the ID taxonomy (R-nn requirements, C-nn contracts, I-nn invariants, K-nn constraints, E-nn edges, T-nn tests, O-n optional items, F-nnn review findings), progressive commit conventions, and the spec-review -> uplift workflow. Pairs with spec-review (auditing the spec) and spec-build (implementing it).
+description: Author a Level-3 (implementation-grade) SPEC.md for any software system, in any language, stack, or domain. Use when asked to "write a spec", "create SPEC.md", "specify this system/interface/pipeline", or turn requirements, a design doc, or a conversation into a specification an agent can implement and verify. Encodes the 13-section template (intent, actors, requirements, behavior/state, contracts, interfaces, invariants, constraints, edge cases, tests, dependencies, traceability, open questions and decisions to confirm), normative-language discipline (MUST/MUST NOT/SHALL/SHOULD/MAY), the front-matter blockquote, LaTeX math notation ($..$ inline, $$..$$ display) and mermaid diagrams where they clarify, the ID taxonomy (R-nn requirements, C-nn contracts, I-nn invariants, K-nn constraints, E-nn edges, T-nn tests, O-n optional items, F-nnn review findings), progressive commit conventions, and the spec-review -> uplift workflow. Pairs with spec-review (auditing the spec) and spec-build (implementing it).
 license: MIT
 ---
 
@@ -95,8 +95,10 @@ requirement here so they are traced like everything else.
 ## 3. Behavior and state model
 
 3.1 lifecycle / state machine (initial, valid, terminal, failure states; transitions and their
-triggers; cancellation, retry, resume where they apply); 3.2 the executable flow (an ASCII
-`+ - |` box diagram of the main path); 3.3 durable artifacts and their pipeline, if any.
+triggers; cancellation, retry, resume where they apply) — a `mermaid` `stateDiagram-v2` when
+there are more than a handful of states; 3.2 the executable flow (a `mermaid` `flowchart` or
+`sequenceDiagram` of the main path, or an ASCII `+ - |` box diagram when the flow is trivial);
+3.3 durable artifacts and their pipeline, if any. See *Notation: math and diagrams* below.
 
 ## 4. Interfaces / contracts
 
@@ -205,6 +207,7 @@ create `T-08a`/`T-08b` suffix collisions; allocate fresh numbers.
   requirement depends on them (ordering, tie-breaking, rounding, and numeric fallbacks are
   requirements — write them down).
 - **Every metric has a formula, units, population, denominator, and a zero-denominator rule.**
+  The formula is written in LaTeX math (`$..$` / `$$..$$`), not in prose or ASCII arithmetic.
 - **Every failure has an outcome.** For each operation: what can fail, how it is detected, what
   state results, whether it retries/resumes, and what the caller observes.
 - **Nondeterministic components get a contract around them:** what is guaranteed despite
@@ -213,6 +216,109 @@ create `T-08a`/`T-08b` suffix collisions; allocate fresh numbers.
 - **Examples agree with definitions.** Any worked example must satisfy the formal shape in §4.
 - **Optional ≠ unspecified.** An `O-n` item is specified to the same depth as required items;
   only its activation is optional.
+
+## Notation: math and diagrams
+
+Specs are rendered to PDF with `spec2pdf.sh` (pandoc + XeLaTeX, mermaid via `mermaid-filter`),
+so LaTeX math and mermaid diagrams are first-class — use them instead of ad-hoc ASCII.
+
+### Math: LaTeX `$..$` and `$$..$$`
+
+- **Every mathematical symbol, comparison, set expression, or inline formula uses inline LaTeX
+  `$..$`** — including the ones that look harmless in plain text: `$\pi$`, `$\leq$`, `$\geq$`,
+  `$\neq$`, `$\equiv$`, `$\in$`, `$\cup$`, `$\infty$`, `$\Delta t$`, `$O(n \log n)$`,
+  `$0 \leq p \leq 1$`, `$x_{i+1}$`, `$2^{32}-1$`. Never write `<=`, `>=`, `!=`, `pi`, `inf`,
+  `x_i`, `n^2`, or a Unicode `≤`/`≥`/`∈` in a normative row when it is doing mathematical work.
+  (`<=` inside a fenced code block or in backticked code such as `` `a <= b` `` is code, not
+  math, and stays as code.)
+- **Multiple related formulas, a derivation, a definition with cases, or anything with a
+  fraction, sum, or alignment goes in a display block** delimited by `$$` on their own lines:
+
+  ```markdown
+  Precision and recall over the judged edge set $J$, with $\mathrm{TP}$, $\mathrm{FP}$,
+  $\mathrm{FN}$ counted per K-05:
+
+  $$
+  \begin{aligned}
+  \mathrm{precision} &= \frac{\mathrm{TP}}{\mathrm{TP} + \mathrm{FP}} \\
+  \mathrm{recall}    &= \frac{\mathrm{TP}}{\mathrm{TP} + \mathrm{FN}} \\
+  \mathrm{unknown\_rate} &= \frac{|\{\,e \in J : v(e) = \mathrm{UNKNOWN}\,\}|}{|J|}
+  \end{aligned}
+  $$
+
+  Each ratio is $0$ when its denominator is $0$ (K-06).
+  ```
+
+  Every display block is preceded by the definition of every symbol it uses and followed (or
+  preceded) by the degenerate-case rule — a formula is not a metric until both exist.
+- **Inside a table cell use inline `$..$` only.** Display `$$` blocks do not render inside a
+  Markdown table; if a row needs a display formula, put the formula in prose directly above or
+  below the table and have the row cite it ("per the formula in §7.2").
+- Use `\mathrm{}` for multi-letter names (`$\mathrm{TP}$`, not `$TP$`, which typesets as
+  $T \cdot P$), `\text{}` for words inside math, `\_` for underscores in identifiers inside
+  math, and `\ldots` / `\cdots` for ellipses. Prefer `\leq`/`\geq` over `\le`/`\ge` for
+  consistency with existing specs.
+- Requirement ids stay **outside** math: write `$\leq$ 2 s (K-08)`, not `$\leq 2\,s\ (K\text{-}08)$`.
+  `spec2pdf.sh --click` leaves `$$` blocks verbatim (no link) and rewrites an id inside inline
+  `$..$` into a Markdown link, which breaks the math when it is typeset.
+- Do not write raw LaTeX outside math (`\begin{table}`, `\newpage`, `\textbf{}`) — the source
+  must stay valid Markdown that reads correctly without rendering.
+
+### Diagrams: mermaid where it clarifies
+
+A diagram earns its place when the reader would otherwise have to reconstruct structure from
+several rows of prose or a table — state machines, control flow with branches, sequences across
+actors, component boundaries, artifact pipelines, dependency graphs. Use a fenced
+` ```mermaid ` block:
+
+| Structure | Diagram type | Typical home |
+| --------- | ------------ | ------------ |
+| Lifecycle / state machine (4 or more states, or any retry/cancel path) | `stateDiagram-v2` | §3.1 |
+| Main executable flow, branching pipeline | `flowchart LR` / `flowchart TD` | §3.2, §3.3 |
+| Interaction across actors / services / model calls | `sequenceDiagram` | §3.2, §5 |
+| Module or trust boundary (deterministic ↔ probabilistic, trusted ↔ untrusted) | `flowchart` with `subgraph` | §0, §3, §4 |
+| Data shapes and their relationships (when > 3 related shapes) | `classDiagram` / `erDiagram` | §4 |
+| Dependency graph between components | `flowchart` / `graph` | §10 |
+
+Rules:
+
+- **Diagrams illustrate; tables and rows are normative.** Every transition, branch, and edge in a
+  diagram must correspond to an R/C/I/K/E row or a §3.1 transition entry, and the diagram caption
+  names the ids it depicts (`Figure 3.1 — lifecycle per R-04..R-07, E-02`). A diagram is never
+  the only place a behavior is specified.
+- **Label nodes and edges with the spec's own vocabulary** — state names, component names, and
+  ids exactly as they appear in the tables — so a reader can grep from picture to row.
+  Requirement ids inside a mermaid block are left verbatim by `spec2pdf.sh --click` (no links),
+  so cite them in the caption as well.
+- **Keep each diagram to one concern** and roughly 15 nodes at most; split rather than crowd. A
+  diagram that needs a legend to be read has too much in it.
+- **Quote labels that contain punctuation** (`A["extract (C-01)"]`, `"--strict"`) — bare
+  parentheses, brackets, and pipes are mermaid syntax. Avoid `$..$` math inside mermaid labels;
+  it is not rendered there.
+- An ASCII `+ - |` box diagram remains acceptable for a trivial linear flow of at most 4 boxes or
+  where the spec's house style already uses them; do not mix the two styles for the same kind of
+  structure within one spec.
+- Do not use mermaid for lists, tables, or anything a table row already expresses.
+
+Minimal example, §3.1:
+
+````markdown
+```mermaid
+stateDiagram-v2
+    [*] --> PENDING
+    PENDING --> RUNNING : start (R-04)
+    RUNNING --> DONE : all checks pass (R-05)
+    RUNNING --> FAILED : any check fails (R-06)
+    RUNNING --> CANCELLED : SIGINT (E-02)
+    FAILED --> RUNNING : retry, at most K-03 times
+    DONE --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
+```
+
+*Figure 3.1 — job lifecycle per R-04..R-06, K-03, E-02. Transitions are normative in the table
+below; the diagram is illustrative.*
+````
 
 ## Progressive-commit convention
 
@@ -255,6 +361,8 @@ After the first complete draft, run `spec-review`. Then:
 - [ ] Every surface in §5 has its operations, errors, and defaults tabulated
 - [ ] Cross-cutting contracts (diagnostics, errors, config) have R/C/I/E/T ids
 - [ ] Every metric has formula, units, denominator, and degenerate-case rule
+- [ ] All math symbols and inline formulas use LaTeX `$..$`; multi-formula material uses `$$..$$` blocks; no `<=`/`>=`/`pi`/Unicode math in normative prose; no `$$` inside table cells
+- [ ] Every mermaid diagram has a caption citing the ids it depicts, and every edge in it is backed by a normative row; ASCII and mermaid are not mixed for the same kind of structure
 - [ ] Every I/K/E id has at least one T id; every T id has an unambiguous pass condition
 - [ ] §11 has one row per R/C/I/K/E id naming a component and a test id
 - [ ] Every referenced source section, file, or ticket actually exists
