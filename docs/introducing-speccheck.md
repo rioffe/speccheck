@@ -190,7 +190,7 @@ plan, and the gate line. That is a job a person can actually do at the speed age
 
 Everything is in one repository, MIT for the code and CC BY 4.0 for the documents:
 
-**https://github.com/rioffe/speccheck**
+**[github.com/rioffe/speccheck](https://github.com/rioffe/speccheck)**
 
 ```bash
 git clone https://github.com/rioffe/speccheck && cd speccheck
