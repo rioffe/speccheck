@@ -125,7 +125,8 @@ Given a `SPEC.md`, a source tree, a test tree, and a JUnit XML results file, it:
 - writes a Markdown report and a JSON report, byte-identical across runs, and prints one line:
 
 ```text
-speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
+           0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
 ```
 
 With `--strict`, that line is a CI gate: exit `0` only when every ID is `PASSING` and nothing is
@@ -164,7 +165,8 @@ speccheck check --spec SPEC.md --src src --tests tests --results junit.xml \
     --judge mock --strict --out build/speccheck
 
 # Phase B — LLM judge, only once A is clean
-export SPECCHECK_JUDGE_URL=http://localhost:11434/v1/chat/completions   # Ollama, or any compatible endpoint
+# Ollama, or any compatible endpoint
+export SPECCHECK_JUDGE_URL=http://localhost:11434/v1/chat/completions
 export SPECCHECK_JUDGE_MODEL=qwen3:8b
 export SPECCHECK_JUDGE_API_KEY=ollama
 speccheck check --spec SPEC.md --src src --tests tests --results junit.xml \
@@ -190,14 +192,9 @@ Everything is in one repository, MIT for the code and CC BY 4.0 for the document
 
 ```bash
 git clone https://github.com/rioffe/speccheck && cd speccheck
-./install.sh          # skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh, the speccheck CLI, a local judge
+# skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh, the speccheck CLI, a local judge
+./install.sh --interactive         
 speccheck --self-check
-```
-
-or just the checker:
-
-```bash
-uv tool install "speccheck[llm] @ https://github.com/rioffe/speccheck/releases/download/v1.5.0/speccheck-1.5.0-py3-none-any.whl"
 ```
 
 Then pick something you were about to vibe-code anyway and say: *"Use the spec-writing skill to
