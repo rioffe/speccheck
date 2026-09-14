@@ -15,3 +15,5 @@ build/
 /.SPEC_CONFORMANCE_REPORT.md.*.tmp
 # mermaid-filter writes per-run diagnostics next to the output
 *.err
+docs/*.pdf
+mermaid-filter.err

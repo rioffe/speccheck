@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.11" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Introducing speccheck: From Vibe Coding to Specification
+Engineering</title>
+  <style>
+
+html {
+color: #1a1a1a;
+background-color: #fdfdfd;
+}
+body {
+margin: 0 auto;
+max-width: 36em;
+padding-left: 50px;
+padding-right: 50px;
+padding-top: 50px;
+padding-bottom: 50px;
+hyphens: auto;
+overflow-wrap: break-word;
+text-rendering: optimizeLegibility;
+font-kerning: normal;
+}
+@media (max-width: 600px) {
+body {
+font-size: 0.9em;
+padding: 12px;
+}
+h1 {
+font-size: 1.8em;
+}
+}
+@media print {
+html {
+background-color: white;
+}
+body {
+background-color: transparent;
+color: black;
+}
+p, h2, h3 {
+orphans: 3;
+widows: 3;
+}
+h2, h3, h4 {
+page-break-after: avoid;
+}
+}
+p {
+margin: 1em 0;
+}
+a {
+color: #1a1a1a;
+}
+a:visited {
+color: #1a1a1a;
+}
+img {
+max-width: 100%;
+}
+svg {
+height: auto;
+max-width: 100%;
+}
+h1, h2, h3, h4, h5, h6 {
+margin-top: 1.4em;
+}
+h5, h6 {
+font-size: 1em;
+font-style: italic;
+}
+h6 {
+font-weight: normal;
+}
+ol, ul {
+padding-left: 1.7em;
+margin-top: 1em;
+}
+li > ol, li > ul {
+margin-top: 0;
+}
+blockquote {
+margin: 1em 0 1em 1.7em;
+padding-left: 1em;
+border-left: 2px solid #e6e6e6;
+color: #606060;
+}
+code {
+white-space: pre-wrap;
+font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+font-size: 85%;
+margin: 0;
+hyphens: manual;
+}
+pre {
+margin: 1em 0;
+overflow: auto;
+}
+pre code {
+padding: 0;
+overflow: visible;
+overflow-wrap: normal;
+}
+.sourceCode {
+background-color: transparent;
+overflow: visible;
+}
+hr {
+border: none;
+border-top: 1px solid #1a1a1a;
+height: 1px;
+margin: 1em 0;
+}
+table {
+margin: 1em 0;
+border-collapse: collapse;
+width: 100%;
+overflow-x: auto;
+display: block;
+font-variant-numeric: lining-nums tabular-nums;
+}
+table caption {
+margin-bottom: 0.75em;
+}
+tbody {
+margin-top: 0.5em;
+border-top: 1px solid #1a1a1a;
+border-bottom: 1px solid #1a1a1a;
+}
+th {
+border-top: 1px solid #1a1a1a;
+padding: 0.25em 0.5em 0.25em 0.5em;
+}
+td {
+padding: 0.125em 0.5em 0.25em 0.5em;
+}
+header {
+margin-bottom: 4em;
+text-align: center;
+}
+#TOC li {
+list-style: none;
+}
+#TOC ul {
+padding-left: 1.3em;
+}
+#TOC > ul {
+padding-left: 0;
+}
+#TOC a:not(:hover) {
+text-decoration: none;
+}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+
+ul.task-list[class]{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+font-size: inherit;
+width: 0.8em;
+margin: 0 0.8em 0.2em -1.6em;
+vertical-align: middle;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+  <style>
+
+:root {
+--page-max: 46rem;
+--ink: #1a1a1a;
+--muted: #555;
+--link: #0057b8;
+--rule: #e2e2e2;
+--code-bg: #f5f5f5;
+--quote: #f7f7f7;
+}
+html {
+font-family: Georgia, "Times New Roman", serif;
+font-size: 1.06rem;
+line-height: 1.55;
+color: var(--ink);
+background: #ffffff;
+}
+body {
+max-width: var(--page-max);
+margin: 0 auto;
+padding: 2rem 1.25rem 4rem;
+}
+h1, h2, h3, h4 {
+font-family: "Helvetica Neue", Arial, sans-serif;
+line-height: 1.3;
+color: var(--ink);
+}
+h1 { font-size: 1.9rem; margin-top: 1.2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--rule); }
+h2 { font-size: 1.3rem; margin-top: 1.8rem; }
+h3 { font-size: 1.12rem; margin-top: 1.4rem; }
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 2rem 0; }
+blockquote {
+margin: 1.2rem 0;
+padding: 0.6rem 1rem;
+background: var(--quote);
+border-left: 4px solid var(--rule);
+color: var(--ink);
+}
+blockquote p { margin: 0.3rem 0; }
+code {
+font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+font-size: 0.9em;
+background: var(--code-bg);
+padding: 0 0.2em;
+border-radius: 3px;
+}
+pre {
+background: var(--code-bg);
+padding: 0.85rem 1rem;
+overflow-x: auto;
+border-radius: 6px;
+line-height: 1.4;
+}
+pre code { background: none; padding: 0; }
+
+.mermaid, figure img, p > img { max-width: 100%; height: auto; }
+figure { margin: 1.5rem 0; text-align: center; }
+figcaption { font-size: 0.85rem; color: var(--muted); margin-top: 0.35rem; }
+ol > li, ul > li { margin: 0.35rem 0; }
+@media print {
+html { font-size: 11pt; }
+body { max-width: none; padding: 0; }
+a { color: inherit; }
+}
+</style>
+</head>
+<body>
+<h1 id="introducing-speccheck-from-vibe-coding-to-specification-engineering">Introducing
+speccheck: From Vibe Coding to Specification Engineering</h1>
+<p><em>A real tool you can run today, and the method it belongs to. The
+long version is the book, <a href="https://github.com/rioffe/spec_engineering_primer">From Vibe
+Coding to Spec Engineering</a>; this is the short one.</em></p>
+<hr />
+<h2 id="the-problem-with-vibe-coding">The problem with vibe coding</h2>
+<p>Coding agents are good enough now that the bottleneck has moved. It
+is no longer “can the agent write this?” — it is “did the agent write
+what I meant, and how would I know?”</p>
+<p>When you build from a chat prompt, every gap in the prompt gets
+filled with a guess. The agent picks an exit code, a rounding rule, a
+default, an error message, a thing to do when the input is empty. Most
+guesses are fine. Some are wrong. All of them are invisible: they live
+in the code, not in anything you can read, and you meet them one at a
+time, later, as bugs. When you ask the agent whether the code does what
+you asked, it reads its own code and tells you yes. That answer costs
+nothing to produce and proves nothing.</p>
+<p>The pattern gets a name here because it is a pattern, not a personal
+failing: <strong>vibe coding</strong> is building against intent that
+was never written down, and then trusting an account of the result that
+was written by the thing being evaluated.</p>
+<h2 id="specification-engineering">Specification engineering</h2>
+<p>The alternative is old and unglamorous: write the specification
+first, and make it the source of truth. What is new is <em>who</em> the
+specification is for. It is written for an agent to build from and for a
+verifier — human or machine — to check against. That changes what
+“precise enough” means. The bar we use:</p>
+<blockquote>
+<p>A specification is precise enough when two competent implementers
+would build materially equivalent systems from it, and a verifier could
+tell whether either one conforms.</p>
+</blockquote>
+<p>Everything in the method follows from that bar:</p>
+<ul>
+<li><strong>Every obligation carries an ID.</strong> Requirements are
+<code>R-nn</code>, contracts <code>C-nn</code>, invariants
+<code>I-nnn</code>, constraints <code>K-nn</code>, edge cases
+<code>E-nn</code>, acceptance tests <code>T-nn</code>. An ID is the
+handle that lets code, tests, reviews, and reports point at the same
+sentence.</li>
+<li><strong>Every obligation is observable.</strong> Not “the parser is
+robust” but “given input E-03 the parser exits <code>2</code> and prints
+<code>&lt;message&gt;</code> to stderr”. If you cannot write the test,
+you have not written the requirement.</li>
+<li><strong>Every ID traces to a test.</strong> A traceability matrix
+(§11 of the spec) has one row per ID: the component that realizes it,
+the tests that prove it. Empty cells are the work remaining.</li>
+<li><strong>Decisions the author made for you are listed, not
+buried.</strong> A spec-writing agent will resolve dozens of small
+questions to keep moving. §12 of the spec is where each one sits with
+its default, its alternatives, and a <code>confirm</code> status,
+waiting for the human.</li>
+</ul>
+<p>The human’s job moves up a level. You decide what the system must do,
+you ratify or overturn the defaulted decisions, and you read evidence.
+The agent writes, reviews, and builds against the document — and proves
+it did.</p>
+<h2 id="how-to-do-it-with-agents">How to do it with agents</h2>
+<p>The method is encoded as three skills — small instruction files an
+agent loads on request — and the whole loop is a handful of prompts:</p>
+<p><img role="img" aria-label src="data:image/svg+xml;base64,PHN2ZyBpZD0ibXktc3ZnIiB3aWR0aD0iMTAwJSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayIgc3R5bGU9Im1heC13aWR0aDogNDk2LjEyOXB4OyBiYWNrZ3JvdW5kLWNvbG9yOiB3aGl0ZTsiIHZpZXdCb3g9Ii04IC04IDQ5Ni4xMjg5MDYyNSA3MDYiIHJvbGU9ImdyYXBoaWNzLWRvY3VtZW50IGRvY3VtZW50IiBhcmlhLXJvbGVkZXNjcmlwdGlvbj0iZmxvd2NoYXJ0LXYyIj48c3R5bGU+I215LXN2Z3tmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjE2cHg7ZmlsbDojMzMzO30jbXktc3ZnIC5lcnJvci1pY29ue2ZpbGw6IzU1MjIyMjt9I215LXN2ZyAuZXJyb3ItdGV4dHtmaWxsOiM1NTIyMjI7c3Ryb2tlOiM1NTIyMjI7fSNteS1zdmcgLmVkZ2UtdGhpY2tuZXNzLW5vcm1hbHtzdHJva2Utd2lkdGg6MnB4O30jbXktc3ZnIC5lZGdlLXRoaWNrbmVzcy10aGlja3tzdHJva2Utd2lkdGg6My41cHg7fSNteS1zdmcgLmVkZ2UtcGF0dGVybi1zb2xpZHtzdHJva2UtZGFzaGFycmF5OjA7fSNteS1zdmcgLmVkZ2UtcGF0dGVybi1kYXNoZWR7c3Ryb2tlLWRhc2hhcnJheTozO30jbXktc3ZnIC5lZGdlLXBhdHRlcm4tZG90dGVke3N0cm9rZS1kYXNoYXJyYXk6Mjt9I215LXN2ZyAubWFya2Vye2ZpbGw6IzMzMzMzMztzdHJva2U6IzMzMzMzMzt9I215LXN2ZyAubWFya2VyLmNyb3Nze3N0cm9rZTojMzMzMzMzO30jbXktc3ZnIHN2Z3tmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjE2cHg7fSNteS1zdmcgLmxhYmVse2ZvbnQtZmFtaWx5OiJ0cmVidWNoZXQgbXMiLHZlcmRhbmEsYXJpYWwsc2Fucy1zZXJpZjtjb2xvcjojMzMzO30jbXktc3ZnIC5jbHVzdGVyLWxhYmVsIHRleHR7ZmlsbDojMzMzO30jbXktc3ZnIC5jbHVzdGVyLWxhYmVsIHNwYW4sI215LXN2ZyBwe2NvbG9yOiMzMzM7fSNteS1zdmcgLmxhYmVsIHRleHQsI215LXN2ZyBzcGFuLCNteS1zdmcgcHtmaWxsOiMzMzM7Y29sb3I6IzMzMzt9I215LXN2ZyAubm9kZSByZWN0LCNteS1zdmcgLm5vZGUgY2lyY2xlLCNteS1zdmcgLm5vZGUgZWxsaXBzZSwjbXktc3ZnIC5ub2RlIHBvbHlnb24sI215LXN2ZyAubm9kZSBwYXRoe2ZpbGw6I0VDRUNGRjtzdHJva2U6IzkzNzBEQjtzdHJva2Utd2lkdGg6MXB4O30jbXktc3ZnIC5mbG93Y2hhcnQtbGFiZWwgdGV4dHt0ZXh0LWFuY2hvcjptaWRkbGU7fSNteS1zdmcgLm5vZGUgLmthdGV4IHBhdGh7ZmlsbDojMDAwO3N0cm9rZTojMDAwO3N0cm9rZS13aWR0aDoxcHg7fSNteS1zdmcgLm5vZGUgLmxhYmVse3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5ub2RlLmNsaWNrYWJsZXtjdXJzb3I6cG9pbnRlcjt9I215LXN2ZyAuYXJyb3doZWFkUGF0aHtmaWxsOiMzMzMzMzM7fSNteS1zdmcgLmVkZ2VQYXRoIC5wYXRoe3N0cm9rZTojMzMzMzMzO3N0cm9rZS13aWR0aDoyLjBweDt9I215LXN2ZyAuZmxvd2NoYXJ0LWxpbmt7c3Ryb2tlOiMzMzMzMzM7ZmlsbDpub25lO30jbXktc3ZnIC5lZGdlTGFiZWx7YmFja2dyb3VuZC1jb2xvcjojZThlOGU4O3RleHQtYWxpZ246Y2VudGVyO30jbXktc3ZnIC5lZGdlTGFiZWwgcmVjdHtvcGFjaXR5OjAuNTtiYWNrZ3JvdW5kLWNvbG9yOiNlOGU4ZTg7ZmlsbDojZThlOGU4O30jbXktc3ZnIC5sYWJlbEJrZ3tiYWNrZ3JvdW5kLWNvbG9yOnJnYmEoMjMyLCAyMzIsIDIzMiwgMC41KTt9I215LXN2ZyAuY2x1c3RlciByZWN0e2ZpbGw6I2ZmZmZkZTtzdHJva2U6I2FhYWEzMztzdHJva2Utd2lkdGg6MXB4O30jbXktc3ZnIC5jbHVzdGVyIHRleHR7ZmlsbDojMzMzO30jbXktc3ZnIC5jbHVzdGVyIHNwYW4sI215LXN2ZyBwe2NvbG9yOiMzMzM7fSNteS1zdmcgZGl2Lm1lcm1haWRUb29sdGlwe3Bvc2l0aW9uOmFic29sdXRlO3RleHQtYWxpZ246Y2VudGVyO21heC13aWR0aDoyMDBweDtwYWRkaW5nOjJweDtmb250LWZhbWlseToidHJlYnVjaGV0IG1zIix2ZXJkYW5hLGFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjEycHg7YmFja2dyb3VuZDpoc2woODAsIDEwMCUsIDk2LjI3NDUwOTgwMzklKTtib3JkZXI6MXB4IHNvbGlkICNhYWFhMzM7Ym9yZGVyLXJhZGl1czoycHg7cG9pbnRlci1ldmVudHM6bm9uZTt6LWluZGV4OjEwMDt9I215LXN2ZyAuZmxvd2NoYXJ0VGl0bGVUZXh0e3RleHQtYW5jaG9yOm1pZGRsZTtmb250LXNpemU6MThweDtmaWxsOiMzMzM7fSNteS1zdmcgOnJvb3R7LS1tZXJtYWlkLWZvbnQtZmFtaWx5OiJ0cmVidWNoZXQgbXMiLHZlcmRhbmEsYXJpYWwsc2Fucy1zZXJpZjt9PC9zdHlsZT48Zz48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LXBvaW50RW5kIiBjbGFzcz0ibWFya2VyIGZsb3djaGFydCIgdmlld0JveD0iMCAwIDEwIDEwIiByZWZYPSI2IiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMiIgbWFya2VySGVpZ2h0PSIxMiIgb3JpZW50PSJhdXRvIj48cGF0aCBkPSJNIDAgMCBMIDEwIDUgTCAwIDEwIHoiIGNsYXNzPSJhcnJvd01hcmtlclBhdGgiIHN0eWxlPSJzdHJva2Utd2lkdGg6IDE7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PG1hcmtlciBpZD0ibXktc3ZnX2Zsb3djaGFydC1wb2ludFN0YXJ0IiBjbGFzcz0ibWFya2VyIGZsb3djaGFydCIgdmlld0JveD0iMCAwIDEwIDEwIiByZWZYPSI0LjUiIHJlZlk9IjUiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjEyIiBtYXJrZXJIZWlnaHQ9IjEyIiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMCA1IEwgMTAgMTAgTCAxMCAwIHoiIGNsYXNzPSJhcnJvd01hcmtlclBhdGgiIHN0eWxlPSJzdHJva2Utd2lkdGg6IDE7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PG1hcmtlciBpZD0ibXktc3ZnX2Zsb3djaGFydC1jaXJjbGVFbmQiIGNsYXNzPSJtYXJrZXIgZmxvd2NoYXJ0IiB2aWV3Qm94PSIwIDAgMTAgMTAiIHJlZlg9IjExIiByZWZZPSI1IiBtYXJrZXJVbml0cz0idXNlclNwYWNlT25Vc2UiIG1hcmtlcldpZHRoPSIxMSIgbWFya2VySGVpZ2h0PSIxMSIgb3JpZW50PSJhdXRvIj48Y2lyY2xlIGN4PSI1IiBjeT0iNSIgcj0iNSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMTsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LWNpcmNsZVN0YXJ0IiBjbGFzcz0ibWFya2VyIGZsb3djaGFydCIgdmlld0JveD0iMCAwIDEwIDEwIiByZWZYPSItMSIgcmVmWT0iNSIgbWFya2VyVW5pdHM9InVzZXJTcGFjZU9uVXNlIiBtYXJrZXJXaWR0aD0iMTEiIG1hcmtlckhlaWdodD0iMTEiIG9yaWVudD0iYXV0byI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjUiIGNsYXNzPSJhcnJvd01hcmtlclBhdGgiIHN0eWxlPSJzdHJva2Utd2lkdGg6IDE7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PG1hcmtlciBpZD0ibXktc3ZnX2Zsb3djaGFydC1jcm9zc0VuZCIgY2xhc3M9Im1hcmtlciBjcm9zcyBmbG93Y2hhcnQiIHZpZXdCb3g9IjAgMCAxMSAxMSIgcmVmWD0iMTIiIHJlZlk9IjUuMiIgbWFya2VyVW5pdHM9InVzZXJTcGFjZU9uVXNlIiBtYXJrZXJXaWR0aD0iMTEiIG1hcmtlckhlaWdodD0iMTEiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTSAxLDEgbCA5LDkgTSAxMCwxIGwgLTksOSIgY2xhc3M9ImFycm93TWFya2VyUGF0aCIgc3R5bGU9InN0cm9rZS13aWR0aDogMjsgc3Ryb2tlLWRhc2hhcnJheTogMSwgMDsiLz48L21hcmtlcj48bWFya2VyIGlkPSJteS1zdmdfZmxvd2NoYXJ0LWNyb3NzU3RhcnQiIGNsYXNzPSJtYXJrZXIgY3Jvc3MgZmxvd2NoYXJ0IiB2aWV3Qm94PSIwIDAgMTEgMTEiIHJlZlg9Ii0xIiByZWZZPSI1LjIiIG1hcmtlclVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgbWFya2VyV2lkdGg9IjExIiBtYXJrZXJIZWlnaHQ9IjExIiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0gMSwxIGwgOSw5IE0gMTAsMSBsIC05LDkiIGNsYXNzPSJhcnJvd01hcmtlclBhdGgiIHN0eWxlPSJzdHJva2Utd2lkdGg6IDI7IHN0cm9rZS1kYXNoYXJyYXk6IDEsIDA7Ii8+PC9tYXJrZXI+PGcgY2xhc3M9InJvb3QiPjxnIGNsYXNzPSJjbHVzdGVycyIvPjxnIGNsYXNzPSJlZGdlUGF0aHMiPjxwYXRoIGQ9Ik0yODAuODI4LDM0TDI4MC44MjgsMzkuNzVDMjgwLjgyOCw0NS41LDI4MC44MjgsNTcsMjgwLjgyOCw2Ny42MTdDMjgwLjgyOCw3OC4yMzMsMjgwLjgyOCw4Ny45NjcsMjgwLjgyOCw5Mi44MzNMMjgwLjgyOCw5Ny43IiBpZD0iTC1CLVMtMCIgY2xhc3M9ImVkZ2UtdGhpY2tuZXNzLW5vcm1hbCBlZGdlLXBhdHRlcm4tc29saWQgZmxvd2NoYXJ0LWxpbmsgTFMtQiBMRS1TIiBzdHlsZT0iZmlsbDpub25lOyIgbWFya2VyLWVuZD0idXJsKCNteS1zdmdfZmxvd2NoYXJ0LXBvaW50RW5kKSIvPjxwYXRoIGQ9Ik0yNDkuNjMsMTM3TDIzOS4wNzgsMTQyLjc1QzIyOC41MjYsMTQ4LjUsMjA3LjQyMSwxNjAsMTk2Ljg2OSwxNzAuNjE3QzE4Ni4zMTYsMTgxLjIzMywxODYuMzE2LDE5MC45NjcsMTg2LjMxNiwxOTUuODMzTDE4Ni4zMTYsMjAwLjciIGlkPSJMLVMtUi0wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBmbG93Y2hhcnQtbGluayBMUy1TIExFLVIiIHN0eWxlPSJmaWxsOm5vbmU7IiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtcG9pbnRFbmQpIi8+PHBhdGggZD0iTTE0NS4wMTQsMjU5TDEzNi4wNTIsMjY0Ljc1QzEyNy4wOSwyNzAuNSwxMDkuMTY2LDI4MiwxMTAuMDQyLDI5My4wNzlDMTEwLjkxOSwzMDQuMTU5LDEzMC41OTYsMzE0LjgxNywxNDAuNDM0LDMyMC4xNDZMMTUwLjI3MiwzMjUuNDc2IiBpZD0iTC1SLVMyLTAiIGNsYXNzPSJlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIExTLVIgTEUtUzIiIHN0eWxlPSJmaWxsOm5vbmU7IiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtcG9pbnRFbmQpIi8+PHBhdGggZD0iTTIxNy43LDMyOEwyMjguMzE1LDMyMi4yNUMyMzguOTMsMzE2LjUsMjYwLjE2LDMwNSwyNjIuNTU3LDI5My45NzdDMjY0Ljk1NCwyODIuOTU0LDI0OC41MTcsMjcyLjQwOCwyNDAuMjk4LDI2Ny4xMzVMMjMyLjA4LDI2MS44NjIiIGlkPSJMLVMyLVItMCIgY2xhc3M9ImVkZ2UtdGhpY2tuZXNzLW5vcm1hbCBlZGdlLXBhdHRlcm4tc29saWQgZmxvd2NoYXJ0LWxpbmsgTFMtUzIgTEUtUiIgc3R5bGU9ImZpbGw6bm9uZTsiIG1hcmtlci1lbmQ9InVybCgjbXktc3ZnX2Zsb3djaGFydC1wb2ludEVuZCkiLz48cGF0aCBkPSJNMTg2LjMxNiwzNjJMMTg2LjMxNiwzNjcuNzVDMTg2LjMxNiwzNzMuNSwxODYuMzE2LDM4NSwxODYuMzE2LDM5NS42MTdDMTg2LjMxNiw0MDYuMjMzLDE4Ni4zMTYsNDE1Ljk2NywxODYuMzE2LDQyMC44MzNMMTg2LjMxNiw0MjUuNyIgaWQ9IkwtUzItQy0wIiBjbGFzcz0iZWRnZS10aGlja25lc3Mtbm9ybWFsIGVkZ2UtcGF0dGVybi1zb2xpZCBmbG93Y2hhcnQtbGluayBMUy1TMiBMRS1DIiBzdHlsZT0iZmlsbDpub25lOyIgbWFya2VyLWVuZD0idXJsKCNteS1zdmdfZmxvd2NoYXJ0LXBvaW50RW5kKSIvPjxwYXRoIGQ9Ik0xODYuMzE2LDQ4NEwxODYuMzE2LDQ4OS43NUMxODYuMzE2LDQ5NS41LDE4Ni4zMTYsNTA3LDE4Ni4zMTYsNTE3LjYxN0MxODYuMzE2LDUyOC4yMzMsMTg2LjMxNiw1MzcuOTY3LDE4Ni4zMTYsNTQyLjgzM0wxODYuMzE2LDU0Ny43IiBpZD0iTC1DLUcxLTAiIGNsYXNzPSJlZGdlLXRoaWNrbmVzcy1ub3JtYWwgZWRnZS1wYXR0ZXJuLXNvbGlkIGZsb3djaGFydC1saW5rIExTLUMgTEUtRzEiIHN0eWxlPSJmaWxsOm5vbmU7IiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtcG9pbnRFbmQpIi8+PHBhdGggZD0iTTE4Ni4zMTYsNTg3TDE4Ni4zMTYsNTkyLjc1QzE4Ni4zMTYsNTk4LjUsMTg2LjMxNiw2MTAsMTk2LjA5Myw2MjEuMDc3QzIwNS44Nyw2MzIuMTU1LDIyNS40MjMsNjQyLjgwOSwyMzUuMiw2NDguMTM3TDI0NC45NzYsNjUzLjQ2NCIgaWQ9IkwtRzEtRzItMCIgY2xhc3M9ImVkZ2UtdGhpY2tuZXNzLW5vcm1hbCBlZGdlLXBhdHRlcm4tc29saWQgZmxvd2NoYXJ0LWxpbmsgTFMtRzEgTEUtRzIiIHN0eWxlPSJmaWxsOm5vbmU7IiBtYXJrZXItZW5kPSJ1cmwoI215LXN2Z19mbG93Y2hhcnQtcG9pbnRFbmQpIi8+PHBhdGggZD0iTTMxNi40Myw2NjAuMzE0TDMzNC41ODQsNjUzLjg0NUMzNTIuNzM4LDY0Ny4zNzYsMzg5LjA0Nyw2MzQuNDM4LDQwNy4yMDEsNjE5LjM4NkM0MjUuMzU1LDYwNC4zMzMsNDI1LjM1NSw1ODcuMTY3LDQyNS4zNTUsNTcwQzQyNS4zNTUsNTUyLjgzMyw0MjUuMzU1LDUzNS42NjcsNDI1LjM1NSw1MTYuOTE3QzQyNS4zNTUsNDk4LjE2Nyw0MjUuMzU1LDQ3Ny44MzMsNDI1LjM1NSw0NTcuNUM0MjUuMzU1LDQzNy4xNjcsNDI1LjM1NSw0MTYuODMzLDQyNS4zNTUsMzk4LjA4M0M0MjUuMzU1LDM3OS4zMzMsNDI1LjM1NSwzNjIuMTY3LDQyNS4zNTUsMzQ1QzQyNS4zNTUsMzI3LjgzMyw0MjUuMzU1LDMxMC42NjcsNDI1LjM1NSwyOTEuOTE3QzQyNS4zNTUsMjczLjE2Nyw0MjUuMzU1LDI1Mi44MzMsNDI1LjM1NSwyMzIuNUM0MjUuMzU1LDIxMi4xNjcsNDI1LjM1NSwxOTEuODMzLDQxMC4wNTEsMTc2LjIxM0MzOTQuNzQ3LDE2MC41OTMsMzY0LjEzOCwxNDkuNjg2LDM0OC44MzMsMTQ0LjIzM0wzMzMuNTI5LDEzOC43NzkiIGlkPSJMLUcyLVMtMCIgY2xhc3M9ImVkZ2UtdGhpY2tuZXNzLW5vcm1hbCBlZGdlLXBhdHRlcm4tc29saWQgZmxvd2NoYXJ0LWxpbmsgTFMtRzIgTEUtUyIgc3R5bGU9ImZpbGw6bm9uZTsiIG1hcmtlci1lbmQ9InVybCgjbXktc3ZnX2Zsb3djaGFydC1wb2ludEVuZCkiLz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbHMiPjxnIGNsYXNzPSJlZGdlTGFiZWwiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDI4MC44MjgxMjUsIDY4LjUpIj48ZyBjbGFzcz0ibGFiZWwiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC00NC4xNDA2MjUsIC05LjUpIj48Zm9yZWlnbk9iamVjdCB3aWR0aD0iODguMjgxMjUiIGhlaWdodD0iMTkiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIHN0eWxlPSJkaXNwbGF5OiBpbmxpbmUtYmxvY2s7IHdoaXRlLXNwYWNlOiBub3dyYXA7Ij48c3BhbiBjbGFzcz0iZWRnZUxhYmVsIj5zcGVjLXdyaXRpbmc8L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTg2LjMxNjQwNjI1LCAxNzEuNSkiPjxnIGNsYXNzPSJsYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTQyLjk0NTMxMjUsIC05LjUpIj48Zm9yZWlnbk9iamVjdCB3aWR0aD0iODUuODkwNjI1IiBoZWlnaHQ9IjE5Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogaW5saW5lLWJsb2NrOyB3aGl0ZS1zcGFjZTogbm93cmFwOyI+PHNwYW4gY2xhc3M9ImVkZ2VMYWJlbCI+c3BlYy1yZXZpZXc8L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoOTEuMjQyMTg3NSwgMjkzLjUpIj48ZyBjbGFzcz0ibGFiZWwiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC05MS4yNDIxODc1LCAtOS41KSI+PGZvcmVpZ25PYmplY3Qgd2lkdGg9IjE4Mi40ODQzNzUiIGhlaWdodD0iMTkiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIHN0eWxlPSJkaXNwbGF5OiBpbmxpbmUtYmxvY2s7IHdoaXRlLXNwYWNlOiBub3dyYXA7Ij48c3BhbiBjbGFzcz0iZWRnZUxhYmVsIj5maXggUDAgKyBQMSwgYnVtcCB2ZXJzaW9uPC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjxnIGNsYXNzPSJlZGdlTGFiZWwiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDI4MS4zOTA2MjUsIDI5My41KSI+PGcgY2xhc3M9ImxhYmVsIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtNzguOTA2MjUsIC05LjUpIj48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMTU3LjgxMjUiIGhlaWdodD0iMTkiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIHN0eWxlPSJkaXNwbGF5OiBpbmxpbmUtYmxvY2s7IHdoaXRlLXNwYWNlOiBub3dyYXA7Ij48c3BhbiBjbGFzcz0iZWRnZUxhYmVsIj5yZS1yZXZpZXcgdW50aWwgUkVBRFk8L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTg2LjMxNjQwNjI1LCAzOTYuNSkiPjxnIGNsYXNzPSJsYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTExNC4yNSwgLTkuNSkiPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIyMjguNSIgaGVpZ2h0PSIxOSI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IGlubGluZS1ibG9jazsgd2hpdGUtc3BhY2U6IG5vd3JhcDsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPnNwZWMtYnVpbGQ6IFRERCwgUkVBRE1FLCBhdWRpdDwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0iZWRnZUxhYmVsIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxODYuMzE2NDA2MjUsIDUxOC41KSI+PGcgY2xhc3M9ImxhYmVsIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTEzLjY5NTMxMjUsIC05LjUpIj48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMjI3LjM5MDYyNSIgaGVpZ2h0PSIxOSI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IGlubGluZS1ibG9jazsgd2hpdGUtc3BhY2U6IG5vd3JhcDsiPjxzcGFuIGNsYXNzPSJlZGdlTGFiZWwiPnNwZWNjaGVjayAtLWp1ZGdlIG1vY2sgLS1zdHJpY3Q8L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9ImVkZ2VMYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTg2LjMxNjQwNjI1LCA2MjEuNSkiPjxnIGNsYXNzPSJsYWJlbCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTEwNi4xMjUsIC05LjUpIj48Zm9yZWlnbk9iamVjdCB3aWR0aD0iMjEyLjI1IiBoZWlnaHQ9IjE5Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogaW5saW5lLWJsb2NrOyB3aGl0ZS1zcGFjZTogbm93cmFwOyI+PHNwYW4gY2xhc3M9ImVkZ2VMYWJlbCI+c3BlY2NoZWNrIC0tanVkZ2UgbGxtIC0tc3RyaWN0PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjxnIGNsYXNzPSJlZGdlTGFiZWwiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDQyNS4zNTU0Njg3NSwgMzk2LjUpIj48ZyBjbGFzcz0ibGFiZWwiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC01NC43NzM0Mzc1LCAtOS41KSI+PGZvcmVpZ25PYmplY3Qgd2lkdGg9IjEwOS41NDY4NzUiIGhlaWdodD0iMTkiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIHN0eWxlPSJkaXNwbGF5OiBpbmxpbmUtYmxvY2s7IHdoaXRlLXNwYWNlOiBub3dyYXA7Ij48c3BhbiBjbGFzcz0iZWRnZUxhYmVsIj5jaGFuZ2UgcmVxdWVzdDwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48L2c+PGcgY2xhc3M9Im5vZGVzIj48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IGRlZmF1bHQgZmxvd2NoYXJ0LWxhYmVsIiBpZD0iZmxvd2NoYXJ0LUItMCIgZGF0YS1ub2RlPSJ0cnVlIiBkYXRhLWlkPSJCIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgyODAuODI4MTI1LCAxNykiPjxyZWN0IGNsYXNzPSJiYXNpYyBsYWJlbC1jb250YWluZXIiIHN0eWxlPSIiIHJ4PSIwIiByeT0iMCIgeD0iLTEyNi4xMjUiIHk9Ii0xNyIgd2lkdGg9IjI1Mi4yNSIgaGVpZ2h0PSIzNCIvPjxnIGNsYXNzPSJsYWJlbCIgc3R5bGU9IiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTExOC42MjUsIC05LjUpIj48cmVjdC8+PGZvcmVpZ25PYmplY3Qgd2lkdGg9IjIzNy4yNSIgaGVpZ2h0PSIxOSI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IGlubGluZS1ibG9jazsgd2hpdGUtc3BhY2U6IG5vd3JhcDsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPmJyaWVmIC8gZGVzaWduIGRvYyAvIGNvbnZlcnNhdGlvbjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IGRlZmF1bHQgZmxvd2NoYXJ0LWxhYmVsIiBpZD0iZmxvd2NoYXJ0LVMtMSIgZGF0YS1ub2RlPSJ0cnVlIiBkYXRhLWlkPSJTIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgyODAuODI4MTI1LCAxMjApIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiByeD0iMCIgcnk9IjAiIHg9Ii01Ni41NzAzMTI1IiB5PSItMTciIHdpZHRoPSIxMTMuMTQwNjI1IiBoZWlnaHQ9IjM0Ii8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtNDkuMDcwMzEyNSwgLTkuNSkiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iOTguMTQwNjI1IiBoZWlnaHQ9IjE5Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogaW5saW5lLWJsb2NrOyB3aGl0ZS1zcGFjZTogbm93cmFwOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+U1BFQy5tZCB2MC4xPC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjxnIGNsYXNzPSJub2RlIGRlZmF1bHQgZGVmYXVsdCBmbG93Y2hhcnQtbGFiZWwiIGlkPSJmbG93Y2hhcnQtUi0zIiBkYXRhLW5vZGU9InRydWUiIGRhdGEtaWQ9IlIiIHRyYW5zZm9ybT0idHJhbnNsYXRlKDE4Ni4zMTY0MDYyNSwgMjMyLjUpIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiByeD0iMCIgcnk9IjAiIHg9Ii0xMDAuNzEwOTM3NSIgeT0iLTI2LjUiIHdpZHRoPSIyMDEuNDIxODc1IiBoZWlnaHQ9IjUzIi8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtOTMuMjEwOTM3NSwgLTE5KSI+PHJlY3QvPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxODYuNDIxODc1IiBoZWlnaHQ9IjM4Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogaW5saW5lLWJsb2NrOyB3aGl0ZS1zcGFjZTogbm93cmFwOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+U1BFQ19SRVZJRVdfUkVQT1JULm1kPGJyIC8+Ri1ubm4sIFAwL1AxL1AyLCB2ZXJkaWN0PC9zcGFuPjwvZGl2PjwvZm9yZWlnbk9iamVjdD48L2c+PC9nPjxnIGNsYXNzPSJub2RlIGRlZmF1bHQgZGVmYXVsdCBmbG93Y2hhcnQtbGFiZWwiIGlkPSJmbG93Y2hhcnQtUzItNSIgZGF0YS1ub2RlPSJ0cnVlIiBkYXRhLWlkPSJTMiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMTg2LjMxNjQwNjI1LCAzNDUpIj48cmVjdCBjbGFzcz0iYmFzaWMgbGFiZWwtY29udGFpbmVyIiBzdHlsZT0iIiByeD0iMCIgcnk9IjAiIHg9Ii01Ni43NSIgeT0iLTE3IiB3aWR0aD0iMTEzLjUiIGhlaWdodD0iMzQiLz48ZyBjbGFzcz0ibGFiZWwiIHN0eWxlPSIiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC00OS4yNSwgLTkuNSkiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iOTguNSIgaGVpZ2h0PSIxOSI+PGRpdiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94aHRtbCIgc3R5bGU9ImRpc3BsYXk6IGlubGluZS1ibG9jazsgd2hpdGUtc3BhY2U6IG5vd3JhcDsiPjxzcGFuIGNsYXNzPSJub2RlTGFiZWwiPlNQRUMubWQgdjAubjwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IGRlZmF1bHQgZmxvd2NoYXJ0LWxhYmVsIiBpZD0iZmxvd2NoYXJ0LUMtOSIgZGF0YS1ub2RlPSJ0cnVlIiBkYXRhLWlkPSJDIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxODYuMzE2NDA2MjUsIDQ1Ny41KSI+PHJlY3QgY2xhc3M9ImJhc2ljIGxhYmVsLWNvbnRhaW5lciIgc3R5bGU9IiIgcng9IjAiIHJ5PSIwIiB4PSItOTQuNjQwNjI1IiB5PSItMjYuNSIgd2lkdGg9IjE4OS4yODEyNSIgaGVpZ2h0PSI1MyIvPjxnIGNsYXNzPSJsYWJlbCIgc3R5bGU9IiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTg3LjE0MDYyNSwgLTE5KSI+PHJlY3QvPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxNzQuMjgxMjUiIGhlaWdodD0iMzgiPjxkaXYgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiIHN0eWxlPSJkaXNwbGF5OiBpbmxpbmUtYmxvY2s7IHdoaXRlLXNwYWNlOiBub3dyYXA7Ij48c3BhbiBjbGFzcz0ibm9kZUxhYmVsIj5jb2RlICsgdGVzdHMgKyBSRUFETUU8YnIgLz5TUEVDX0JVSUxEX1JFUE9SVC5tZDwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48ZyBjbGFzcz0ibm9kZSBkZWZhdWx0IGRlZmF1bHQgZmxvd2NoYXJ0LWxhYmVsIiBpZD0iZmxvd2NoYXJ0LUcxLTExIiBkYXRhLW5vZGU9InRydWUiIGRhdGEtaWQ9IkcxIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgxODYuMzE2NDA2MjUsIDU3MCkiPjxyZWN0IGNsYXNzPSJiYXNpYyBsYWJlbC1jb250YWluZXIiIHN0eWxlPSIiIHJ4PSIwIiByeT0iMCIgeD0iLTU4LjM4MjgxMjUiIHk9Ii0xNyIgd2lkdGg9IjExNi43NjU2MjUiIGhlaWdodD0iMzQiLz48ZyBjbGFzcz0ibGFiZWwiIHN0eWxlPSIiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC01MC44ODI4MTI1LCAtOS41KSI+PHJlY3QvPjxmb3JlaWduT2JqZWN0IHdpZHRoPSIxMDEuNzY1NjI1IiBoZWlnaHQ9IjE5Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogaW5saW5lLWJsb2NrOyB3aGl0ZS1zcGFjZTogbm93cmFwOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+Q09ORk9STUlORz88L3NwYW4+PC9kaXY+PC9mb3JlaWduT2JqZWN0PjwvZz48L2c+PGcgY2xhc3M9Im5vZGUgZGVmYXVsdCBkZWZhdWx0IGZsb3djaGFydC1sYWJlbCIgaWQ9ImZsb3djaGFydC1HMi0xMyIgZGF0YS1ub2RlPSJ0cnVlIiBkYXRhLWlkPSJHMiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjgwLjgyODEyNSwgNjczKSI+PHJlY3QgY2xhc3M9ImJhc2ljIGxhYmVsLWNvbnRhaW5lciIgc3R5bGU9IiIgcng9IjAiIHJ5PSIwIiB4PSItMzUuNjAxNTYyNSIgeT0iLTE3IiB3aWR0aD0iNzEuMjAzMTI1IiBoZWlnaHQ9IjM0Ii8+PGcgY2xhc3M9ImxhYmVsIiBzdHlsZT0iIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMjguMTAxNTYyNSwgLTkuNSkiPjxyZWN0Lz48Zm9yZWlnbk9iamVjdCB3aWR0aD0iNTYuMjAzMTI1IiBoZWlnaHQ9IjE5Ij48ZGl2IHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hodG1sIiBzdHlsZT0iZGlzcGxheTogaW5saW5lLWJsb2NrOyB3aGl0ZS1zcGFjZTogbm93cmFwOyI+PHNwYW4gY2xhc3M9Im5vZGVMYWJlbCI+MCB3ZWFrPzwvc3Bhbj48L2Rpdj48L2ZvcmVpZ25PYmplY3Q+PC9nPjwvZz48L2c+PC9nPjwvZz48L3N2Zz4=" alt /></p>
+<ol type="1">
+<li><strong>Write.</strong> <em>“Use the spec-writing skill to write
+SPEC.md for <code>&lt;the application&gt;</code>:
+<code>&lt;brief&gt;</code>.”</em> Read §0 — is that the system you
+meant? — and §12, the decisions it made on your behalf.</li>
+<li><strong>Review.</strong> <em>“Use the spec-review skill to review
+SPEC.md.”</em> The review is of the document, not of you. It grades
+twenty dimensions, assigns each finding a severity, sorts them into
+P0/P1/P2, and ends with a maturity level and a <code>READY</code> /
+<code>NOT READY</code> verdict. A spec that reads clearly to a person is
+routinely Level 2 for an agent, because the agent cannot ask.</li>
+<li><strong>Apply.</strong> <em>“Apply all P0 and P1 findings to
+SPEC.md.”</em> Re-review until it is <code>READY</code>. Usually one
+more pass.</li>
+<li><strong>Build.</strong> <em>“Use the spec-build skill to implement
+SPEC.md.”</em> Test-first through the spec’s §9, then a README rewritten
+from what was built, then an audit of every artifact against the spec —
+and the gate, which is where the tool comes in.</li>
+<li><strong>Change.</strong> <em>“Use spec-writing to update SPEC.md:
+<code>&lt;the change&gt;</code>.”</em> Then 2–4 again. The spec stays
+the source of truth; the code follows it.</li>
+</ol>
+<h2 id="what-a-spec.md-looks-like">What a SPEC.md looks like</h2>
+<p>Thirteen fixed sections, so that agents and tools know where to look:
+intent and non-goals, actors, requirements, behavior and state,
+contracts, interfaces, invariants, constraints, edge cases, tests,
+dependencies, the traceability matrix, and the decisions to confirm.
+Formulas are LaTeX, diagrams are mermaid, and the rows are normative
+while the pictures illustrate. A row from speccheck’s own
+specification:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **R-11** <span class="pp">|</span> A judge verdict MUST only ever lower an ID&#39;s status (<span class="in">`PASSING`</span> → <span class="in">`WEAKLY_PASSING`</span>);</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>the judge MUST NOT change any status other than <span class="in">`PASSING`</span> and MUST NOT create, remove, or</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>re-attribute citations. | §0 principle |</span></code></pre></div>
+<p>and the edge case that pins what happens when a model misbehaves:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **E-16** <span class="pp">|</span> Judge returns <span class="in">`ASSERTS`</span> with no evidence, or evidence outside the span / in</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>another file | <span class="in">`UNKNOWN`</span>, <span class="in">`coerced: true`</span>, rationale <span class="in">`judge: ungrounded`</span>. The raw answer is</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>available only at DEBUG. |</span></code></pre></div>
+<p>Both are checkable. Both are cited — by the code that realizes them
+and the tests that prove them — and that is the whole trick.</p>
+<h2 id="introducing-speccheck">Introducing speccheck</h2>
+<p>Phase three of building from a spec is the audit: re-read the
+specification and, for every ID, point at the evidence that the
+implementation realizes it. Humans doing that are slow and get tired.
+Agents doing it are fast and confabulate. <strong>speccheck</strong>
+makes it mechanical.</p>
+<p>Given a <code>SPEC.md</code>, a source tree, a test tree, and a JUnit
+XML results file, it:</p>
+<ul>
+<li>extracts every declared ID from the spec (and knows a struck-through
+<code>~~R-07~~</code> is retired);</li>
+<li>finds every literal citation of an ID in source and test files,
+attributing test citations to the enclosing test function;</li>
+<li>joins those test cases to their results;</li>
+<li>assigns each ID <strong>exactly one status</strong> by a fixed
+algorithm — <code>UNCITED</code>, <code>UNTESTED</code>,
+<code>UNVERIFIED</code>, <code>FAILING</code>, <code>SKIPPED</code>, or
+<code>PASSING</code> — every one backed by a <code>file:line</code> you
+can <code>grep</code>;</li>
+<li>lists dangling citations (an ID nobody declared) and stale ones (an
+ID that was retired);</li>
+<li>writes a Markdown report and a JSON report, byte-identical across
+runs, and prints one line:</li>
+</ul>
+<pre class="text"><code>speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
+           0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock</code></pre>
+<p>With <code>--strict</code>, that line is a CI gate: exit
+<code>0</code> only when every ID is <code>PASSING</code> and nothing is
+dangling or stale.</p>
+<p>Then there is the judge. A test can cite <code>R-11</code>, run the
+code, and never assert anything about it — and the deterministic kernel
+cannot tell. So <code>--judge llm</code> sends each passing (test, ID)
+pair to a model with one question: <em>does this test assert the
+behavior this ID describes, or does it merely execute code near it?</em>
+The design rule is the one the whole tool is built on:</p>
+<blockquote>
+<p><strong>The model may only ever make the news worse.</strong> Every
+status is computed deterministically from evidence you can grep; the
+judge is permitted to downgrade a <code>PASSING</code> to
+<code>WEAKLY_PASSING</code> with cited line numbers, never to upgrade
+anything.</p>
+</blockquote>
+<p>A verdict without valid evidence is discarded as
+<code>UNKNOWN</code>. A green report is therefore exactly as trustworthy
+as <code>grep</code> plus your test runner, and a yellow one carries a
+reason you can click on. The judge speaks the OpenAI-compatible
+<code>chat/completions</code> shape, so it runs against a local Ollama
+model for free, or against OpenRouter, Anthropic’s compatibility
+endpoint, or anything similar for cents.</p>
+<p>speccheck is written to its own <code>SPEC.md</code>, and it is the
+worked example of the method. The numbers in the summary line above are
+its self-application: 170 IDs, 74 tests, every one <code>PASSING</code>,
+and — this is the part I find most convincing — when the LLM judge was
+first pointed at the tool’s own suite, it found five tests that proved
+their IDs only by implication. The tests were strengthened; the code was
+not touched. That is the judge doing precisely its job.</p>
+<h2 id="using-it-to-build-a-product">Using it to build a product</h2>
+<p>The gate slots into the loop at step 4 and runs twice, in order:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run python <span class="at">-m</span> pytest tests <span class="at">-q</span> <span class="at">--junitxml</span><span class="op">=</span>junit.xml</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Phase A — deterministic, offline</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="ex">speccheck</span> check <span class="at">--spec</span> SPEC.md <span class="at">--src</span> src <span class="at">--tests</span> tests <span class="at">--results</span> junit.xml <span class="dt">\</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">--judge</span> mock <span class="at">--strict</span> <span class="at">--out</span> build/speccheck</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="co"># Phase B — LLM judge, only once A is clean</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Ollama, or any compatible endpoint</span></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">SPECCHECK_JUDGE_URL</span><span class="op">=</span>http://localhost:11434/v1/chat/completions</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">SPECCHECK_JUDGE_MODEL</span><span class="op">=</span>qwen3:8b</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">SPECCHECK_JUDGE_API_KEY</span><span class="op">=</span>ollama</span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="ex">speccheck</span> check <span class="at">--spec</span> SPEC.md <span class="at">--src</span> src <span class="at">--tests</span> tests <span class="at">--results</span> junit.xml <span class="dt">\</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">--judge</span> llm <span class="at">--strict</span> <span class="at">--out</span> build/speccheck-llm</span></code></pre></div>
+<p>Each non-passing status names the fix. <code>UNCITED</code> means the
+agent silently dropped a requirement — go build it, test-first.
+<code>UNTESTED</code> means the code is there and no test proves it.
+<code>UNVERIFIED</code> means the test never ran.
+<code>WEAKLY_PASSING</code> means the test runs the behavior without
+asserting it, and the report’s §8 has the model’s rationale, line by
+line. The spec-build skill knows all of this and will not call the work
+done until both phases exit <code>0</code> — and it records both summary
+lines in the build report, so the evidence travels with the code.</p>
+<p>On a real project the rhythm is: spec, review, fix, build, gate; then
+for every change, spec first, gate last. The agent does the typing. You
+read <code>SPEC.md</code> §12, the review’s remediation plan, and the
+gate line. That is a job a person can actually do at the speed agents
+now work.</p>
+<h2 id="try-it">Try it</h2>
+<p>Everything is in one repository, MIT for the code and CC BY 4.0 for
+the documents:</p>
+<p><strong>https://github.com/rioffe/speccheck</strong></p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/rioffe/speccheck <span class="kw">&amp;&amp;</span> <span class="bu">cd</span> speccheck</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh, the speccheck CLI, a local judge</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./install.sh</span> <span class="at">--interactive</span>         </span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">speccheck</span> <span class="at">--self-check</span></span></code></pre></div>
+<p>Then pick something you were about to vibe-code anyway and say:
+<em>“Use the spec-writing skill to write SPEC.md for …”</em> Read §12.
+Review it. Build it. Run the gate. If the tool tells you something your
+agent didn’t — and it will — open an issue and tell me what.</p>
+<p>The book goes into the why and the how in depth: the review
+dimensions, the status algorithm, the judge contract, the failure modes
+we hit building this and what they taught us. For now the point is
+simpler: the tool exists, it checks itself, and you can run it this
+afternoon.</p>
+</body>
+</html>
