@@ -2,7 +2,8 @@
 #
 #   make article     -> docs/introducing-speccheck.html: the article as ONE self-contained
 #                       page (CSS inlined, the mermaid diagram rendered to an embedded SVG),
-#                       so it opens offline and serves from GitHub Pages at any sub-path.
+#                       so it opens offline and serves from GitHub Pages at any sub-path;
+#                       a floating table of contents sits left of the text on wide screens.
 #                       docs/index.html points at it.
 #   make pdf         -> the four rendered PDFs (SPEC, ARCHITECTURE, README, the article)
 #                       via spec2pdf.sh.
@@ -14,7 +15,6 @@
 ARTICLE_MD   := docs/introducing-speccheck.md
 ARTICLE_HTML := docs/introducing-speccheck.html
 ARTICLE_CSS  := docs/article.css
-ARTICLE_TITLE := Introducing speccheck: From Vibe Coding to Specification Engineering
 
 # mermaid-filter: crisp, embeddable SVG; find a browser for puppeteer the way spec2pdf.sh does.
 export MERMAID_FILTER_FORMAT ?= svg
@@ -30,11 +30,11 @@ MERMAID_FLAG := $(if $(shell command -v mermaid-filter 2>/dev/null),--filter mer
 
 article: $(ARTICLE_HTML)
 
-$(ARTICLE_HTML): $(ARTICLE_MD) $(ARTICLE_CSS) Makefile
+$(ARTICLE_HTML): $(ARTICLE_MD) $(ARTICLE_CSS) docs/title-from-h1.lua Makefile
 	@echo "article: building $@ (self-contained; mermaid: $(if $(MERMAID_FLAG),svg inlined,filter not found -- diagram left as code))"
 	@printf '<style>\n' > $@.style.tmp; cat $(ARTICLE_CSS) >> $@.style.tmp; printf '</style>\n' >> $@.style.tmp
 	pandoc $(ARTICLE_MD) --from=markdown-raw_tex --to=html5 --standalone \
-	    --metadata "pagetitle=$(ARTICLE_TITLE)" \
+	    --lua-filter=docs/title-from-h1.lua --toc --toc-depth=2 --metadata "toc-title=Contents" \
 	    --include-in-header=$@.style.tmp \
 	    --embed-resources $(MERMAID_FLAG) --output $@
 	@rm -f $@.style.tmp mermaid-filter.err

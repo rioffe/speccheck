@@ -1,5 +1,7 @@
 # Introducing speccheck: From Vibe Coding to Specification Engineering
 
+**By Robert Ioffe**
+
 *A real tool you can run today, and the method it belongs to. The long version is the book,
 [From Vibe Coding to Spec Engineering](https://github.com/rioffe/spec_engineering_primer); this
 is the short one.*

@@ -77,3 +77,56 @@ ol > li, ul > li { margin: 0.35rem 0; }
    body { max-width: none; padding: 0; }
    a { color: inherit; }
 }
+
+/* ---- Floating table of contents: a rail to the left of the reading column on wide screens
+ * (pandoc --toc emits <nav id="TOC"> before the body), stacked above it on narrow ones. ---- */
+:root {
+   --rail: 16rem;
+   --gutter: 2.5rem;
+}
+header#title-block-header h1.title {
+   font-size: 1.9rem;
+   margin-top: 1.2rem;
+   padding-bottom: 0.3rem;
+   border-bottom: 1px solid var(--rule);
+}
+nav#TOC {
+   font-family: "Helvetica Neue", Arial, sans-serif;
+   font-size: 0.88rem;
+   line-height: 1.4;
+   background: #fafafa;
+   border: 1px solid #dcdcdc;
+   border-radius: 6px;
+   padding: 0.75rem 1rem;
+   margin: 1.5rem 0;
+}
+nav#TOC #toc-title {
+   font-size: 0.8rem;
+   letter-spacing: 0.08em;
+   text-transform: uppercase;
+   color: var(--muted);
+   margin: 0 0 0.5rem;
+   border: 0;
+}
+nav#TOC ul { list-style: none; margin: 0; padding: 0; }
+nav#TOC ul ul { padding-left: 0.9rem; }
+nav#TOC li { margin: 0.25rem 0; }
+nav#TOC a { color: var(--ink); }
+nav#TOC a:hover { color: var(--link); }
+
+/* Wide screens: pin the rail to the viewport, just left of the centered column, and let it
+ * scroll on its own if it is taller than the window. */
+@media (min-width: 86rem) {
+   nav#TOC {
+      position: fixed;
+      top: 2rem;
+      left: calc(50vw - var(--page-max) / 2 - var(--gutter) - var(--rail));
+      width: var(--rail);
+      max-height: calc(100vh - 4rem);
+      overflow-y: auto;
+      margin: 0;
+   }
+}
+@media print {
+   nav#TOC { display: none; }
+}

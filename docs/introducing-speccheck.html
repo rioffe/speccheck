@@ -4,8 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc 3.11" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Introducing speccheck: From Vibe Coding to Specification
-Engineering</title>
+  <title>Introducing speccheck: From Vibe Coding to Specification Engineering</title>
   <style>
 
 html {
@@ -302,11 +301,80 @@ html { font-size: 11pt; }
 body { max-width: none; padding: 0; }
 a { color: inherit; }
 }
-</style>
+/* ---- Floating table of contents: a rail to the left of the reading column on wide screens
+* (pandoc --toc emits <nav id="TOC"> before the body), stacked above it on narrow ones. ---- */
+  :root {
+     --rail: 16rem;
+     --gutter: 2.5rem;
+  }
+  header#title-block-header h1.title {
+     font-size: 1.9rem;
+     margin-top: 1.2rem;
+     padding-bottom: 0.3rem;
+     border-bottom: 1px solid var(--rule);
+  }
+  nav#TOC {
+     font-family: "Helvetica Neue", Arial, sans-serif;
+     font-size: 0.88rem;
+     line-height: 1.4;
+     background: #fafafa;
+     border: 1px solid #dcdcdc;
+     border-radius: 6px;
+     padding: 0.75rem 1rem;
+     margin: 1.5rem 0;
+  }
+  nav#TOC #toc-title {
+     font-size: 0.8rem;
+     letter-spacing: 0.08em;
+     text-transform: uppercase;
+     color: var(--muted);
+     margin: 0 0 0.5rem;
+     border: 0;
+  }
+  nav#TOC ul { list-style: none; margin: 0; padding: 0; }
+  nav#TOC ul ul { padding-left: 0.9rem; }
+  nav#TOC li { margin: 0.25rem 0; }
+  nav#TOC a { color: var(--ink); }
+  nav#TOC a:hover { color: var(--link); }
+
+  /* Wide screens: pin the rail to the viewport, just left of the centered column, and let it
+   * scroll on its own if it is taller than the window. */
+  @media (min-width: 86rem) {
+     nav#TOC {
+        position: fixed;
+        top: 2rem;
+        left: calc(50vw - var(--page-max) / 2 - var(--gutter) - var(--rail));
+        width: var(--rail);
+        max-height: calc(100vh - 4rem);
+        overflow-y: auto;
+        margin: 0;
+     }
+  }
+  @media print {
+     nav#TOC { display: none; }
+  }
+  </style>
 </head>
 <body>
-<h1 id="introducing-speccheck-from-vibe-coding-to-specification-engineering">Introducing
-speccheck: From Vibe Coding to Specification Engineering</h1>
+<header id="title-block-header">
+<h1 class="title">Introducing speccheck: From Vibe Coding to
+Specification Engineering</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<h2 id="toc-title">Contents</h2>
+<ul>
+<li><a href="#the-problem-with-vibe-coding" id="toc-the-problem-with-vibe-coding">The problem with vibe
+coding</a></li>
+<li><a href="#specification-engineering" id="toc-specification-engineering">Specification engineering</a></li>
+<li><a href="#how-to-do-it-with-agents" id="toc-how-to-do-it-with-agents">How to do it with agents</a></li>
+<li><a href="#what-a-spec.md-looks-like" id="toc-what-a-spec.md-looks-like">What a SPEC.md looks like</a></li>
+<li><a href="#introducing-speccheck" id="toc-introducing-speccheck">Introducing speccheck</a></li>
+<li><a href="#using-it-to-build-a-product" id="toc-using-it-to-build-a-product">Using it to build a
+product</a></li>
+<li><a href="#try-it" id="toc-try-it">Try it</a></li>
+</ul>
+</nav>
+<p><strong>By Robert Ioffe</strong></p>
 <p><em>A real tool you can run today, and the method it belongs to. The
 long version is the book, <a href="https://github.com/rioffe/spec_engineering_primer">From Vibe
 Coding to Spec Engineering</a>; this is the short one.</em></p>
