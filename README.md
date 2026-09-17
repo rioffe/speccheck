@@ -11,8 +11,8 @@ and downgrade the verdict when the test merely runs the behavior without asserti
 never upgrade anything.
 
 This repository holds the checker itself — which implements its own `SPEC.md` (v1.5) in full, and
-so is the worked example of the method it serves — together with the three agent skills that
-write, review, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
+so is the worked example of the method it serves — together with the four agent skills that
+write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
 installation, usage, the reports it writes, and how to verify the build.
@@ -60,7 +60,7 @@ second, independent reviewer. IDs are never renumbered once cited; an ID is *ret
 it through (`~~R-07~~`), never deleted. Formulas are LaTeX (`$..$`), diagrams are mermaid, and
 `spec2pdf.sh` renders the whole thing with clickable cross-references.
 
-### The three skills
+### The four skills
 
 The skills under `skills/` (installed for Claude Code, Pi, or Oh My Pi by `install.sh`) encode the
 method. Each is a `SKILL.md` an agent loads on request; none needs this tool to run, and this tool
@@ -70,6 +70,7 @@ needs none of them — they share only the `SPEC.md` conventions above.
 | --- | --- | --- |
 | **spec-writing** | a `SPEC.md` written from a brief, a design doc, or a conversation; or an existing spec updated for a change | `SPEC.md`, with §12 listing every defaulted decision, committed in reviewable slices |
 | **spec-review** | the spec audited before anything is built: completeness, precision, consistency, implementability, verifiability | `SPEC_REVIEW_REPORT.md` — findings `F-nnn` with severity, a 0–5 scorecard, a maturity level 0–4, a P0/P1/P2 remediation plan, and a `READY` / `READY WITH MINOR FIXES` / `NOT READY` verdict |
+| **spec-plan** | the order the spec gets built in: the shape, the dependency waves and their gates, the slice budgets, the rules that prevent this system's known failure modes, and the one fork to settle first | `IMPLEMENTATION_PLAN.md` — verdict, evidence from prior builds, target shape, wave order with a gate per wave, LOC budget with anchors, failure→rule table, and one fork plus a next action; optionally one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (deliverables file-by-file, work items test-first, gate commands, traceability, handoff contract) |
 | **spec-build** | the spec implemented, test-first, with the README made to match and conformance proven | the code and its §9 suite (every test citing its IDs), an updated `README.md`, `SPEC_BUILD_REPORT.md` with per-ID evidence, and the two `speccheck` gate lines |
 
 `spec-build` runs `speccheck` twice at its gate: first with the deterministic mock judge until every
@@ -85,7 +86,8 @@ flowchart TD
     S -->|"spec-review"| R["SPEC_REVIEW_REPORT.md<br/>F-nnn, P0/P1/P2, verdict"]
     R -->|"fix P0 + P1, bump version"| S2["SPEC.md v0.n"]
     S2 -->|"re-review until READY"| R
-    S2 -->|"spec-build: TDD, README, audit"| C["code + tests + README<br/>SPEC_BUILD_REPORT.md"]
+    S2 -->|"spec-plan: waves, budgets, gates"| P["IMPLEMENTATION_PLAN.md<br/>+ DETAILED_IMPLEMENTATION_PLAN_W&lt;n&gt;.md"]
+    P -->|"spec-build: TDD, README, audit"| C["code + tests + README<br/>SPEC_BUILD_REPORT.md"]
     C -->|"speccheck --judge mock --strict"| G1["CONFORMING?"]
     G1 -->|"speccheck --judge llm --strict"| G2["0 weak?"]
     G2 -->|"change request"| S
@@ -103,12 +105,15 @@ between them:
 3. **Apply.** *"Apply all P0 and P1 findings to SPEC.md."* (P2 may be deferred; say which.) The
    agent edits the spec, bumps its version, and records the change in the revision history.
    Re-review until the verdict is `READY` or `READY WITH MINOR FIXES` — usually one more pass.
-4. **Build.** *"Use the spec-build skill to implement SPEC.md."* The agent works through §9
+4. **Plan.** *"Use the spec-plan skill to plan the implementation of SPEC.md."* Read §1 (the
+   verdict and the shape it commits to), §4 (the wave order and each wave's gate) and §7 (the one
+   fork it wants you to settle). The plan is what the build agent executes, wave by wave.
+5. **Build.** *"Use the spec-build skill to implement SPEC.md."* The agent works through §9
    test-first, rewrites the README from what it built, then audits every artifact against the
    spec and runs the gate. The verdict block at the end tells you what to trust:
    `Spec coverage`, both `speccheck` summary lines, `Readiness`, `Conformance`.
-5. **Change.** New requirement? *"Use spec-writing to update SPEC.md: `<the change>`."* — then
-   steps 2–4 again. The spec stays the source of truth; the code follows it.
+6. **Change.** New requirement? *"Use spec-writing to update SPEC.md: `<the change>`."* — then
+   steps 2–5 again. The spec stays the source of truth; the code follows it.
 
 This repository is its own worked example, and the last cycle is in the git history: the
 progress indicator you see under `--judge llm` was requested as one sentence, written into
@@ -398,6 +403,7 @@ ARCHITECTURE.md                 module-by-module design with data-flow, data-mod
 skills/
   spec-writing/SKILL.md         how a SPEC.md is written (the ID taxonomy speccheck consumes)
   spec-review/SKILL.md          how a spec is reviewed before it is built
+  spec-plan/SKILL.md            how a spec is turned into a wave-by-wave implementation plan
   spec-build/SKILL.md           how a spec is built and audited (the process this tool automates)
 install.sh                      per-user installer: skills (Claude/Pi/OMP), spec2pdf.sh + deps, speccheck CLI
 spec2pdf.sh                     renders a spec/doc to PDF: TOC, mermaid, clickable IDs, 1in margins
