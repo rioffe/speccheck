@@ -1,6 +1,6 @@
 ---
 name: spec-build
-description: Implement a SPEC.md (the source of truth for a system) in any language or stack using test-driven development, then make README.md reflect the built reality, then re-read SPEC.md and audit every produced artifact for conformance, writing SPEC_BUILD_REPORT.md. Use when asked to "build the spec", "implement SPEC.md", "make this spec real", or after spec-writing/spec-review produce a Level-2/3 spec. Pairs with spec-writing (authoring the spec) and spec-review (auditing it, yielding SPEC_REVIEW_REPORT.md + F-nnn findings and a P0/P1/P2 remediation plan). Encodes the red-green-refactor loop over the spec's §9 test groups, the "implement everything unless told otherwise" default, the two-phase speccheck gate for Python projects (--judge mock until clean, then --judge llm, every spec ID mechanically traced to a passing, asserting test, no dangling or stale citations), README-sync, and the final spec-conformance pass.
+description: Implement a SPEC.md (the source of truth for a system) in any language or stack using test-driven development **executed wave by wave against an implementation plan this skill produces first**, then make README.md reflect the built reality, then re-read SPEC.md and audit every produced artifact for conformance, writing SPEC_BUILD_REPORT.md. Phase 0 runs spec-plan to write IMPLEMENTATION_PLAN.md and one DETAILED_IMPLEMENTATION_PLAN_W<n>.md per wave; each later wave is implemented test-first, gated with the wave's own commands, and committed before the next begins. Use when asked to "build the spec", "implement SPEC.md", "make this spec real", or after spec-writing/spec-review/spec-plan produce a Level-2/3 spec and its plan. Pairs with spec-plan (the order this skill executes), spec-writing (authoring the spec) and spec-review (auditing it, yielding SPEC_REVIEW_REPORT.md + F-nnn findings and a P0/P1/P2 remediation plan).
 license: MIT
 ---
 
@@ -16,15 +16,23 @@ things: a way to run **one** test, a way to run **all** tests, and a way to lint
 Wherever a command appears below, substitute the project's own — and if the project already has
 a task runner, CI config, or contributing guide, use its commands rather than inventing new ones.
 
-The build has three phases and you do not skip any:
+The build has four phases and you do not skip any — and the first one writes a plan the
+other three execute:
 
-1. **Build (TDD).** Implement the spec test-first — write the failing test from §9, watch it
-   fail for the right reason, write the minimal code, watch it pass, refactor. Commit
-   intermediate work.
-2. **Document.** When the suite is green, make `README.md` reflect the implemented system
-   (not the intended one).
-3. **Prove conformance.** Re-read `SPEC.md`, then review *every* produced artifact against it
-   and write a conformance report. Do not call the work done until this pass is clean.
+1. **Plan (Phase 0).** Read the spec, then produce the implementation plan: the shape, the
+   dependency waves and each wave's gate, the slice budgets, and the one fork the user must
+   settle — `IMPLEMENTATION_PLAN.md`, plus one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave.
+   Planning is `spec-plan`'s job; run it (or invoke that skill) rather than improvising an order
+   in your head, and do not write production code before the plan exists.
+2. **Build (Phase 1, TDD).** Implement the spec test-first, **one wave at a time, in the plan's
+   order** — write the failing test from §9, watch it fail for the right reason, write the
+   minimal code, watch it pass, refactor — then run the wave's gate and **commit the wave**
+   before starting the next one.
+3. **Document (Phase 2).** When the suite is green, make `README.md` reflect the implemented
+   system (not the intended one).
+4. **Prove conformance (Phase 3).** Re-read `SPEC.md`, then review *every* produced artifact
+   against it and write a conformance report. Do not call the work done until this pass is
+   clean.
 
 **The default is to implement everything in the spec.** Every requirement, contract, invariant,
 constraint, edge case, and acceptance test in the spec gets realized — unless the user explicitly
@@ -37,7 +45,8 @@ user's approval first.
 
 - "implement SPEC.md" / "build the <X> spec" / "make `<SPEC.md>` real"
 - a project has a `SPEC.md` but no implementation, or only a partial one
-- after `spec-review` returns `READY` (or `READY WITH MINOR FIXES`) — start building
+- after `spec-review` returns `READY` (or `READY WITH MINOR FIXES`) — then `spec-plan`
+  writes the plan, then this skill executes it wave by wave
 - "finish this project" where the spec is written but the code isn't
 
 Do **not** start building while `spec-review` returned `NOT READY` or left unresolved **P0**
@@ -53,6 +62,8 @@ present and in sync regardless of stack:
 | Artifact | Purpose | Must track |
 | --- | --- | --- |
 | `SPEC.md` | Source of truth | unchanged during build; only a `fix(<scope>):` after a found defect |
+| `IMPLEMENTATION_PLAN.md` | the order the spec is built in (Phase 0) | the §4 waves, their gates, the §5 budgets; amended only by re-planning, never used as a results log |
+| `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` | one wave's executable brief | that wave's files, work items, tests, gate and handoff contract |
 | source tree | the implementation | every §2 requirement, §4 contract, §6 invariant, §7 constraint |
 | test tree | the §9 acceptance suite | every T-nn id, one group per §9 subsection |
 | schemas / fixtures / sample data | artifacts the spec pins | the §4 contract shapes, §10 data |
@@ -156,7 +167,9 @@ For a non-Python project (or if `speccheck` genuinely cannot be installed), fall
 
 # Phase 0 — Commit to the spec before writing a line
 
-Do this once, up front. It is the plan that keeps TDD honest.
+Do this once, up front. It is the plan that keeps TDD honest — Phase 0 ends with a wave
+plan on disk (`IMPLEMENTATION_PLAN.md` + its `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` files),
+and Phase 1 executes it.
 
 ### 0.1 Read the spec fully, end to end
 
@@ -174,7 +187,42 @@ spec defect — record it as `F-nnn` and resolve it per Phase 3.3 before impleme
 version; never implement the picture. **LaTeX formulas (`$..$`, `$$..$$`) are normative**: the
 symbols, the denominator, and the stated degenerate-case value are the contract you implement.
 
-### 0.2 Extract the build list from the spec's own IDs
+### 0.2 Plan the waves — run `spec-plan`
+
+Do not start implementing until the order exists as a document. Invoke the **`spec-plan`** skill on
+this `SPEC.md` (and `SPEC_REVIEW_REPORT.md` if present); if that skill is unavailable in your
+environment, follow its template yourself. It produces:
+
+- **`IMPLEMENTATION_PLAN.md`** — the 7-section plan: the verdict (the shape and the ordering it
+  commits to), the evidence (measured facts about any prior builds and the starting tree, and the
+  systemic failure modes this system must not repeat), the target shape (the module/target graph,
+  literal filenames from §11, any purity/headless rule, the one-way layer direction), **the order**
+  (waves `W0…W<n>`, each ending at a gate with named commands and spec IDs), the LOC budget per
+  slice with anchors, the failure→structural-rule table that makes the observed failures
+  impossible, and **one fork** for the user to settle plus the next concrete action;
+- **`DETAILED_IMPLEMENTATION_PLAN_W<n>.md`**, one per wave — the executable brief: §1 the ids it
+  discharges, §2 entry preconditions, §3 deliverables file by file with signatures, §4 work items
+  `W<n>-01…` (test first, then the delta, then the evidence), §5 the test plan, §6 the gate as
+  copy-pasteable commands with expected results, §7 traceability including the §11 status rows it
+  closes, §8 the traps specific to the slice, §9 the exit criteria and the handoff contract.
+
+Rules for Phase 0.2:
+
+- **The plan is an argument from evidence, not a greenfield guess.** If prior builds exist, measure
+  them (production LOC, file count, shape, what ended them) before choosing the shape or the
+  budgets. Never cite a digest, tag or version you did not compute.
+- **Order by dependency and by apparatus.** Verification apparatus (harnesses, goldens, fixtures,
+  metric/oracle functions) lands before the feature it guards; the spec's own formulas are code and
+  belong in the first pure wave; any trust boundary (input ceilings, sanitizers, network isolation)
+  precedes the parsers it bounds; the first wave leaves a runnable artifact end to end.
+- **Name the slice that prior attempts failed to start.** It gets its own wave, its own gate and, if
+  it is only observable through the product, live verification.
+- **Present the plan's §7 fork to the user and get their answer** before implementing. If they are
+  unavailable and the fork is reversible, take the plan's recommendation, say so, and record it in
+  the report. A fork left open is a decision the implementation will make silently.
+- **The plan is a plan.** No wave, budget, gate or claim in it may say that something was executed.
+
+### 0.3 Extract the build list from the spec's own IDs
 
 The spec already numbers everything. Turn it into a checklist so nothing is silently dropped.
 For each family collect the open items:
@@ -190,10 +238,11 @@ For each family collect the open items:
   for every ID by the end.
 
 Record this list as a task list — one entry per §9 test group (or per R/C cluster) — as your
-implementation order. This checklist *is* your proof that "everything got implemented": every
+implementation order. The plan's waves, not the §9 order, are the *execution* order: group each wave's test
+groups under its wave id so a wave's commit closes a whole line of the checklist. This checklist *is* your proof that "everything got implemented": every
 box closes on a green test that cites its spec ID.
 
-### 0.3 Seed the skeleton (if empty)
+### 0.4 Seed the skeleton (if empty)
 
 Create the layout from the table above: source modules named after the §4 contract headers, an
 empty test tree with one file per §9 group, schema/fixture directories, and the package/build
@@ -213,7 +262,39 @@ NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
 If your environment provides a dedicated TDD skill or workflow, use it; the loop is the same.
-For each T-nn group, run red-green-refactor:
+
+### The wave loop — one wave at a time, each ending at a gate and a commit
+
+`IMPLEMENTATION_PLAN.md` §4 fixes the order, and each wave's `DETAILED_IMPLEMENTATION_PLAN_W<n>.md`
+is the brief you execute. A wave is the unit of verification *and* of history:
+
+1. **Read the wave document first** — §2 (preconditions) and §3 (deliverables) before editing
+   anything. A missing precondition is the previous wave's defect: fix it where it belongs, or
+   record why it could not be met, rather than working around it in this wave's files.
+2. **Execute its §4 work items in order**, each with the red-green-refactor loop below. The work
+   item names the test written first and the evidence that closes it — that order is the item.
+3. **Run the wave's §6 gate exactly as written**, plus `<lint / typecheck>`. A wave is done when
+   its gate's commands reach their expected results, not when its files exist.
+4. **Commit the wave** — one commit per wave, before the next wave starts, e.g.
+   `feat(<scope>): W<n> — <the wave's title from the plan>`, with the wave id and the spec ids it
+   discharges in the body. Include the code, its tests, and any fixture/corpus the wave owns.
+   Inside a large wave, commit per test group too; the rule is that **no wave is left
+   uncommitted**, so the history and the plan read in the same order.
+5. **Record the wave's ledger row** — wave id, the gate command, its real exit code, the commit
+   sha — for the conformance report to collect in Phase 3. If a gate cannot be run as written
+   (no signing identity, no tag, no service, no device), record the stand-in and the reason;
+   never record a gate as passed that you did not run.
+6. **Leave the plan alone unless it is wrong.** A plan document is never a results log: the
+   commits and the report carry the evidence. If the plan *is* wrong — a slice is misordered, a
+   wave is too large, a file belongs to another wave — amend the plan document and say so in the
+   commit body. Re-plan explicitly instead of drifting.
+
+If a wave's gate reveals a defect in an earlier wave, fix it there and say so; do not paper over
+it in the later wave's commit.
+
+### The inner loop — red-green-refactor, one test group at a time
+
+For each T-nn group inside the wave, run red-green-refactor:
 
 1. **RED — write the failing test first.** Translate the §9 T-nn line (+ the §8 E-nn edge it
    depends on, + the §6 I-nnn it guards) into a concrete test. Name it after the behavior and
@@ -234,7 +315,8 @@ For each T-nn group, run red-green-refactor:
 5. **REFACTOR — clean up while green.** Remove duplication, name things, extract helpers.
    Keep every test green; add no behavior.
 6. **Commit.** `feat(<scope>): <what the T-nn group realized>` — one commit per group or per
-   cohesive slice. **Commit intermediate work; do not batch.**
+   cohesive slice, and at minimum one per wave (*The wave loop*). **Commit intermediate
+   work; never leave a finished wave uncommitted.**
 
 Repeat until the §9 suite (and every I/K/E in §6/§7/§8) is green.
 
@@ -274,6 +356,9 @@ land together. Do not edit a *passing* test to make a *real* failure go away; fi
 if the test itself was wrong, explain which and why. If the spec is what was wrong, see Phase 3.3.
 
 ### Phase 1 exit gate (run before Phase 2)
+
+This is the last wave's gate plus the whole-suite run, and it closes Phase 1 only when **every
+wave in the plan** has been executed, gated and committed — the wave ledger is the evidence.
 
 Do not proceed until, all true:
 
@@ -394,6 +479,9 @@ Review *every* produced artifact — not just the source tree — for adherence:
   that reconciled them are recorded.
 - **README (Phase 2)** describes what the code *does*, verified command-by-command (run the
   README's commands; every one works as written).
+- **Every wave closed:** each wave in `IMPLEMENTATION_PLAN.md` §4 has its gate command, its
+  real exit code and its commit sha in the ledger; a wave with no gate run is not built, and a
+  wave with no commit is not reviewable.
 - **No silent omissions:** diff the Phase 0 checklist against reality — every in-scope box is
   closed, or its deferral is explicitly recorded with user approval.
 
@@ -412,8 +500,11 @@ requirement ids outside math and mermaid blocks (the report is rendered with the
 blocks). Any mermaid diagram in the report (e.g. the realized module graph) carries a caption
 naming the ids it depicts.
 
-### Done when — all three hold
+### Done when — all four hold
 
+0. **Planned:** the plan exists (`IMPLEMENTATION_PLAN.md` and one detail document per wave),
+   its §7 fork was answered by the user, and every wave in it is closed with a gate run and a
+   commit.
 1. **Built:** §9 suite green (no skipped T-nn), lint clean, self-check (if pinned) passes; every
    R/C/I/K/E/T realized or explicitly deferral-recorded.
 2. **Documented:** `README.md` (and any rendered copy) describes the running system,
@@ -439,6 +530,10 @@ Conformance: PASS / PASS WITH NOTES / FAIL
 
 # Anti-rationalization checklist (stop and correct before "done")
 
+- [ ] The plan existed **before** the first line of production code: `IMPLEMENTATION_PLAN.md`
+      plus one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave, with the §7 fork answered
+- [ ] Implemented **wave by wave in the plan's order**, each wave ending at its §6 gate with the
+      real commands and exit codes, and **committed before the next wave began**
 - [ ] Wrote the failing **test first** for each T-nn and *watched it fail for the right reason*
       (no production code ahead of its test)
 - [ ] Implemented **every** in-scope spec item; nothing silently dropped

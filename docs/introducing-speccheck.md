@@ -64,7 +64,7 @@ flowchart TD
     R -->|"fix P0 + P1, bump version"| S2["SPEC.md v0.n"]
     S2 -->|"re-review until READY"| R
     S2 -->|"spec-plan: waves, budgets, gates"| P["IMPLEMENTATION_PLAN.md<br/>+ DETAILED_IMPLEMENTATION_PLAN_Wn.md"]
-    P -->|"spec-build: TDD, README, audit"| C["code + tests + README<br/>SPEC_BUILD_REPORT.md"]
+    P -->|"spec-build: waves, gate+commit, audit"| C["code + tests + README<br/>SPEC_BUILD_REPORT.md"]
     C -->|"speccheck --judge mock --strict"| G1["CONFORMING?"]
     G1 -->|"speccheck --judge llm --strict"| G2["0 weak?"]
     G2 -->|"change request"| S
@@ -81,9 +81,10 @@ flowchart TD
 4. **Plan.** *"Use the spec-plan skill to plan the implementation of SPEC.md."* The shape, the
    wave order and each wave's gate, the slice budgets, and one fork for you to settle. This is
    what the build agent executes.
-5. **Build.** *"Use the spec-build skill to implement SPEC.md."* Test-first through the spec's
-   §9, then a README rewritten from what was built, then an audit of every artifact against the
-   spec — and the gate, which is where the tool comes in.
+5. **Build.** *"Use the spec-build skill to implement SPEC.md."* It executes the plan wave by
+   wave — test-first through the spec's §9, one gate and one commit per wave — then rewrites the
+   README from what was built, audits every artifact against the spec, and runs the gate, which
+   is where the tool comes in.
 6. **Change.** *"Use spec-writing to update SPEC.md: `<the change>`."* Then 2–5 again. The spec
    stays the source of truth; the code follows it.
 
