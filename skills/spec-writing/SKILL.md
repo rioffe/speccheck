@@ -1,6 +1,6 @@
 ---
 name: spec-writing
-description: Author a Level-3 (implementation-grade) SPEC.md for any software system, in any language, stack, or domain. Use when asked to "write a spec", "create SPEC.md", "specify this system/interface/pipeline", or turn requirements, a design doc, or a conversation into a specification an agent can implement and verify. Encodes the 13-section template (intent, actors, requirements, behavior/state, contracts, interfaces, invariants, constraints, edge cases, tests, dependencies, traceability, open questions and decisions to confirm), normative-language discipline (MUST/MUST NOT/SHALL/SHOULD/MAY), the front-matter blockquote, LaTeX math notation ($..$ inline, $$..$$ display) and mermaid diagrams where they clarify, the ID taxonomy (R-nn requirements, C-nn contracts, I-nn invariants, K-nn constraints, E-nn edges, T-nn tests, O-n optional items, F-nnn review findings), progressive commit conventions, and the spec-review -> uplift workflow. Pairs with spec-review (auditing the spec) and spec-build (implementing it).
+description: Author a Level-3 (implementation-grade) SPEC.md for any software system, in any language, stack, or domain. Use when asked to "write a spec", "create SPEC.md", "specify this system/interface/pipeline", or turn requirements, a design doc, or a conversation into a specification an agent can implement and verify. Encodes the 13-section template (intent, actors, requirements, behavior/state, contracts, interfaces, invariants, constraints, edge cases, tests, dependencies, traceability, open questions and decisions to confirm), normative-language discipline (MUST/MUST NOT/SHALL/SHOULD/MAY), the front-matter blockquote, LaTeX math notation ($..$ inline, $$..$$ display) and mermaid diagrams where they clarify, the ID taxonomy (R-nn requirements, C-nn contracts, I-nn invariants, K-nn constraints, E-nn edges, T-nn tests, O-n optional items, F-nnn review findings), reference screenshots normative for structure and an observed test group for any rendered surface, progressive commit conventions, and the spec-review -> uplift workflow. Pairs with spec-review (auditing the spec) and spec-build (implementing it).
 license: MIT
 ---
 
@@ -30,7 +30,11 @@ findings and a P0/P1/P2 remediation plan) and with `spec-build` to implement the
 Collect, and cite in the front matter, every source of intent the spec is derived from:
 
 - requirements documents, tickets, PRDs, design docs, RFCs, ADRs;
-- an existing implementation being re-specified (read it; the spec must not silently contradict it);
+- an existing implementation being re-specified (read it; the spec must not silently contradict it — and
+  if it has a visual surface, **run it and screenshot every pane and state**, check the images in under
+  `reference/`, cite them here, and treat them as normative for structure per *Reference images* below.
+  A spec written from code alone captures what the product *does* and loses what it *looks like*; two
+  independent rebuilds from such a spec have reproduced every behaviour row and none of the chrome);
 - prior specs in the same repository (match their conventions — house style beats this template);
 - conversations with the requester (record decisions as normative statements, not as quotes).
 
@@ -57,7 +61,7 @@ genuinely does not apply, and say so in one line rather than leaving it out sile
 
 > - **Status:** v0.1 — draft for implementation review
 > - **Language / stack:** <language + version> | <key frameworks/libraries> | <surfaces: CLI/GUI/API/library>
-> - **Sources:** <requirements doc, design doc, ticket ids, prior spec, existing code — with section refs where they exist>
+> - **Sources:** <requirements doc, design doc, ticket ids, prior spec, existing code — with section refs where they exist; for a visual surface, the `reference/*.png` images and what each shows>
 > - **Scope of this document:** what this spec owns and what it explicitly does not
 > - **Normative language:** MUST/MUST NOT/SHALL/SHALL NOT = normative; SHOULD = strong recommendation; MAY = optional.
 > - **Principle:** <the one named invariant or design thesis that governs trade-offs>
@@ -120,6 +124,27 @@ default, what each level shows, which stream/sink it goes to, what is never logg
 secrets and raw payloads), a consistent error-code scheme, or a configuration-precedence rule.
 Give every such contract its own R/C/I/E/T ids so it is traced.
 
+**A GUI surface gets more than an operations table.** For every window, pane, panel, bar or
+region the product shows, add a subsection (or one `C-nn` per region) that pins:
+
+- the **regions** and how they are arranged (title bar, toolbar, sidebar, content, inspector …)
+  and what each is titled;
+- the **element inventory** per region — headers, rows, buttons, badges, fields, indicators —
+  with each row's anatomy (glyph · primary line · secondary line · trailing badge) and what
+  each line shows (a file *name* over a *head-truncated `~`-abbreviated path* is a different
+  product from a name over a relative time);
+- the **states** of each element: empty, hovered, selected, current, disabled, missing,
+  collapsed — and which of them are visible at once;
+- **which values are structural** (present under every theme) and **which come from the
+  theme / typography document** (colour, face, size, spacing) — and, when a second document
+  owns the visual values, exactly what that document does *not* cover, so nothing falls between
+  the two;
+- **visibility of every feature that has a state**: if a keystroke sets something (a
+  bookmark, a placeholder, a filter), a row says *where the reader sees it*; a spec that pins
+  the keystroke and not the affordance licenses a build where the feature exists and cannot be
+  seen;
+- a **reference image** per region or window (see *Reference images*), cited by the rows.
+
 ## 6. Invariants (must hold in every valid implementation)
 
 | ID | Invariant |
@@ -146,7 +171,17 @@ Give every such contract its own R/C/I/E/T ids so it is traced.
 | **T-01** | A concrete, reproducible check with an unambiguous pass condition; cite the R/C/I/K/E ids it proves |
 
 Group tests by how they run (fast deterministic, integration, probabilistic evals with
-tolerances, manual/recorded). Every I, K, and E id has at least one T id.
+tolerances, manual/recorded, **observed**). Every I, K, and E id has at least one T id.
+
+A product with a rendered surface has an **observed** group: tests whose pass condition is a
+person looking at the running product (or at a screenshot that person has opened) and comparing
+it, region by region, with the reference images and the typography/design document. Write them
+as concretely as any other T-nn — which document to open, which theme, which panes, what to
+look for. State the rule that goes with them: a conformance report MUST carry the observed
+outcome of every test in this group; a build whose automated groups are green but whose observed
+group was not run is *verification pending*, not conforming. Where a rendered property can be
+measured (a gap in points, a centred bounding box), add the measured form as a scripted T-nn
+too, so the observation has a numeric companion — but the measurement does not replace the look.
 
 ## 10. Dependencies and environment
 
@@ -205,7 +240,12 @@ create `T-08a`/`T-08b` suffix collisions; allocate fresh numbers.
 - **Pin the boundary, free the interior.** Specify observable behavior, contracts, and
   invariants exactly; leave class names, private helpers, and algorithms free unless a
   requirement depends on them (ordering, tie-breaking, rounding, and numeric fallbacks are
-  requirements — write them down).
+  requirements — write them down). **For a product whose output is a rendered surface, the
+  surface is the boundary**: what the panes contain, what a row shows, what is highlighted when,
+  are observable behaviour and are pinned; only the drawing code beneath them is interior.
+- **Every feature that has a state has a visible affordance row.** "⌘⇧0 sets a placeholder,
+  ⌘0 returns to it" is complete as behaviour and silent on whether the placeholder is ever shown;
+  two conforming builds differed on exactly that. Pin where the reader sees it.
 - **Every metric has a formula, units, population, denominator, and a zero-denominator rule.**
   The formula is written in LaTeX math (`$..$` / `$$..$$`), not in prose or ASCII arithmetic.
 - **Every failure has an outcome.** For each operation: what can fail, how it is detected, what
@@ -263,6 +303,29 @@ so LaTeX math and mermaid diagrams are first-class — use them instead of ad-ho
   `$..$` into a Markdown link, which breaks the math when it is typeset.
 - Do not write raw LaTeX outside math (`\begin{table}`, `\newpage`, `\textbf{}`) — the source
   must stay valid Markdown that reads correctly without rendering.
+
+### Reference images: screenshots and mockups, normative for structure
+
+When the system has a visual surface, the spec ships reference images — screenshots of the
+implementation being re-specified, or mockups when there is none — under `reference/`, embedded
+with `![caption](reference/<name>.png)` next to the rows they illustrate and listed in the
+front-matter Sources.
+
+- **Normative for structure, never for pixels.** An image fixes which elements exist, where they
+  sit, what a row contains and what is highlighted in that state. Colours, faces, sizes and
+  spacing come from the typography/design document and the theme contract; a build is not
+  measured against the image's pixels (theme and font rendering make that brittle), it is
+  measured against the image's *inventory*.
+- **The caption names the ids the image depicts and the state it shows** (`Sevilla theme, a
+  placeholder and four bookmarks set; C-18.3, C-18.8, C-18.9`), the way a diagram caption does.
+- **Rows stay normative.** As with diagrams, an image is never the only place an element is
+  specified; every element visible in it has a row, and every row about appearance points at an
+  image.
+- **Failure examples may be checked in too**, clearly labelled (`RECREATION-<build>.png`): a
+  screenshot of a build that got it wrong, with a caption saying what is wrong, is the cheapest
+  way to make the next implementer see the gap.
+- Keep images at a size the rendered spec can carry; one per window or pane state, not one per
+  pixel-level variant.
 
 ### Diagrams: mermaid where it clarifies
 
@@ -359,11 +422,15 @@ After the first complete draft, run `spec-review`. Then:
 - [ ] Every requirement is observable and cites its source
 - [ ] Every §4 contract has a pinned shape in a code block
 - [ ] Every surface in §5 has its operations, errors, and defaults tabulated
+- [ ] Every GUI surface in §5 has a region layout, an element inventory with row anatomy, a state table, and a reference image; where a second document owns visual values, the spec says what that document does not cover
+- [ ] Every feature with a state (set / toggled / selected) has a row saying where it is visible, not only a row saying the input works
+- [ ] Every reference image has a caption naming its ids and state; every appearance row cites an image; no image is the only place an element is specified
 - [ ] Cross-cutting contracts (diagnostics, errors, config) have R/C/I/E/T ids
 - [ ] Every metric has formula, units, denominator, and degenerate-case rule
 - [ ] All math symbols and inline formulas use LaTeX `$..$`; multi-formula material uses `$$..$$` blocks; no `<=`/`>=`/`pi`/Unicode math in normative prose; no `$$` inside table cells
 - [ ] Every mermaid diagram has a caption citing the ids it depicts, and every edge in it is backed by a normative row; ASCII and mermaid are not mixed for the same kind of structure
 - [ ] Every I/K/E id has at least one T id; every T id has an unambiguous pass condition
+- [ ] A product with a rendered surface has an *observed* test group, and §9 states that a report without its outcome is *verification pending*
 - [ ] §11 has one row per R/C/I/K/E id naming a component and a test id
 - [ ] Every referenced source section, file, or ticket actually exists
 - [ ] No implementation detail pinned that a requirement does not depend on

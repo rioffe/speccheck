@@ -54,6 +54,15 @@ matter, everything you can measure:
 3. **Prior builds of the same spec**, if any exist — sibling repositories, branches, a comparison
    document, the git history. For each: measured production LOC and file count, its shape in one
    phrase, and *what ended it*. Without this section the plan is a guess wearing a table.
+   **Measure the same thing every time**: production *code* lines (`cloc`, comments and blanks
+   excluded), over the hand-written source tree only — generated parsers, vendored libraries,
+   fixtures and build output excluded, tests counted separately. A raw line count over a
+   repository with a vendored grammar reads as millions of lines and says nothing; two builds
+   of one spec have differed by 650 k raw lines on the strength of one vendored parser's
+   revision. State the command. And record the **smallest complete build** of the spec — the
+   one that passed the most of §9 in the fewest lines — because it is the anchor §5 needs.
+   **Look at prior builds, not only at their trees.** A build's screenshots against the spec's
+   reference images tell you which surface it got wrong; its test count does not.
 4. **The environment**: toolchain and version, whether the package manager and any vendoring can
    reach their sources, the assets that must be vendored (fonts, grammars, a vendored library),
    the platform limits (a window server? a signing identity? a tag?). Plans fail at these seams.
@@ -117,6 +126,10 @@ flowchart LR
   bundle, screen, user defaults, network — and what is injected instead>.
 - **Layer direction:** <the one-way dependency order, e.g. contracts → pipelines → services →
   session → views. No cycles.>
+- **Visual oracle**, if the spec has a rendered surface: <the reference images the spec ships,
+  the typography/design document, and the measured checks (a gap in points, a centred box) that
+  stand in for them in the harness — named here so the apparatus wave carries them, and the UI
+  wave is gated on them rather than on its own goldens.>
 
 ## 4. Order (waves; each ends at a gate, not at a file count)
 
@@ -136,9 +149,12 @@ N. **W<n> Prove it** — the live pass (below), the README rewrite, the §11 wal
 | Tests (separate; not "the program") | <n–n> | <lo>–<hi> |
 | <build scripts / launcher / manifests> | — | <lo>–<hi> |
 
-<Anchors: the measured sizes of prior builds or of the closest comparable modules, which set the
-floor and the ceiling. Then the rule: if the estimate approaches the ceiling, decompose the
-expensive slice — never drop a subsystem to fit the number.>
+<Anchors: the measured sizes of prior builds or of the closest comparable modules. The
+**smallest complete build** of this spec, if one exists, is the primary anchor; a slice budgeted
+at more than about twice its counterpart there is adding structure, and the row says which
+structure and why it is worth it. Then the two rules: if the estimate approaches the ceiling,
+decompose the expensive slice — never drop a subsystem to fit the number; and **the budget is an
+estimate, never a floor** — a build that lands under it has not lost anything unless §11 says so.>
 
 ## 6. Rules that make the observed failures impossible
 
@@ -148,7 +164,18 @@ expensive slice — never drop a subsystem to fit the number.>
 
 **Live verification (the last wave).** <Name the surface that can only be verified by driving the
 running product, the exact commands, and the artifacts to inspect. Any manual test is not "done"
-until that pass.>
+until that pass.> Then the three things a live pass has failed without:
+
+- **Prerequisites, named now.** An unlocked console, screen-recording permission, a window
+  server, a signing identity — whatever the drive needs — listed here with how to check for each
+  before the wave starts, not discovered when `screencapture` refuses.
+- **A stand-in for each prerequisite.** When the product cannot be driven on screen: hosted-window
+  snapshots written to disk *and opened by a person*, the harness's document renders compared to
+  the spec's reference images, the store read after a quit. Name which observed T-nn each
+  stand-in covers and which it cannot.
+- **The downgrade rule.** What the stand-ins cannot reach stays *verification pending* in the
+  report and blocks a PASS verdict. A plan that lets the harness's own goldens substitute for the
+  look has planned a self-certification.
 
 ## 7. One fork, then action
 
@@ -168,7 +195,10 @@ failures they prevent are the ones the evidence section names.
 
 - **Verification apparatus before the feature it guards.** A harness, a golden set, a metrics
   function or a fixture lands in an earlier wave than the code it measures. This is what lets the
-  later waves assert anything at all instead of asserting that a table has the right names.
+  later waves assert anything at all instead of asserting that a table has the right names. For a
+  rendered surface the apparatus includes the **visual oracle** — the spec's reference images, the
+  design document's numbers turned into measured checks, and the observed-test checklist — and a
+  golden the pipeline produces about itself is not apparatus; it is a regression guard.
 - **The spec's own formulas and metrics are code, and they are the first pure wave.** If §7 or a
   contract defines a metric, a tolerance, a width, a score or a budget, it is an oracle. Write it,
   test it with synthetic inputs, and let every later wave measure itself against it.
@@ -187,6 +217,14 @@ failures they prevent are the ones the evidence section names.
 - **Wave size is a session, not a subsystem.** A wave should be executable by one agent in one
   sitting, with its plan document as the brief. When a wave is larger than that, split it (and
   give each part its own detail document) rather than writing a wave nobody can execute.
+- **One agent per wave, in sequence.** Plan for a single executor per wave, not a fan-out.
+  Parallel agents on one spec have cost continuation runs, in-package scratch files that broke
+  peer builds, and a commit that claimed green over a failing test. If parallelism is required,
+  the ownership table is the contract, scratch files outside the package are the rule, and the
+  orchestrator re-runs every gate before a commit message may say it passed.
+- **The wave-document set is a brief, not a second spec.** If the documents together approach
+  the size of the spec they implement, they are repeating it; an executor re-derives context from
+  the spec anyway. Keep each to its preconditions, deliverables, work items, gate and handoff.
 - **Partial coverage is declared, not implied.** When a wave only half-proves a `T-nn`, write
   which clauses it proves now and which wave proves the rest — in the plan and in the wave doc.
 
@@ -287,6 +325,10 @@ Two rules keep a set of wave documents coherent, and both were learned the hard 
 | Two waves owning one file | merge conflicts, drift, a build no one can repair | one ownership table; cross-wave requests via the owner |
 | The plan claims results | self-certification; the human trusts a document instead of a run | commands plus expected results, always |
 | The plan's fork section is a menu | work starts on all branches at once | one decision, one recommendation, one cost |
+| The budget as a target | slices are padded with structure until the number is met; the build is twice the size of a complete one | anchor on the smallest complete build; a lower landing is not a loss |
+| Self-generated goldens as the oracle | the UI wave certifies its own output; visible defects ship under CONFORMING | reference images, measured checks, a person; goldens guard regressions only |
+| A live pass with no fallback | the environment refuses a screenshot, the report substitutes tests, the verdict says PASS | prerequisites named, stand-ins named, the downgrade rule written into §6 |
+| Waves executed by parallel agents without an ownership contract | continuation runs, scratch files in the package, false-green commits | one agent per wave; if not, ownership table + orchestrator re-runs the gate |
 
 ## Done bar
 
@@ -325,13 +367,41 @@ What the plan got right, and should be copied:
 
 What the plan got wrong, and should be corrected by the next one:
 
-- **The budget was ~30–100 % low.** Planned 8.45k–11.35k production lines and 2.2k–3.2k test
-  lines; measured 14.2k production across 47 files and 10.6k tests across 30. The anchors were
-  transcription-level (a prior build's file sizes) rather than shape-level (the repair layers, the
-  theme catalogue, the block chrome, two test targets). **Anchor on the shape's branches, not on
-  another build's total.**
+- **The budget steered the build instead of measuring it.** Planned 8.45k–11.35k production
+  lines and 2.2k–3.2k test lines "never dropping a subsystem"; the build landed at 10.0k
+  production *code* lines (14.2k raw, with comments and blanks) across 46 files and 8.3k test
+  code lines (10.6k raw) across 30 — inside the window, and every wave was told to stay inside
+  it. A second, independent build of the **same spec**, made without a plan, passed the same §9
+  suite complete at **5.4k production code lines across 41 files with 2.6k test lines** — half
+  the budgeted floor. The extra half was structure the plan's rules and budget invited (a
+  private domain model over a library's types, injectable configuration for seven constants,
+  1,700 spec-id citations in source), not requirements. **Anchor on the smallest complete build
+  and treat the budget as a ceiling; a slice more than about twice its counterpart there is a
+  choice, and the plan names it as one.** (The earlier version of this example read the same
+  numbers as "the budget was 30–100 % low" — it was comparing raw lines to a code-line budget and
+  had no smaller complete build to compare with. Measure code lines, and measure every build.)
+- **The live pass had no fallback, and the verdict did not downgrade.** §6 mandated driving the
+  running app and capturing the screen; on the day, the console was locked and `screencapture`
+  refused, the report recorded that honestly — and still certified conformance from unit tests
+  and 23 goldens the pipeline had generated about itself. The build shipped with every heading
+  drawn flush against the preceding paragraph and single-line display math left-aligned at body
+  size, both plainly visible in any window, both contradicting the spec's typography document.
+  The plan-less build of the same spec caught both defects in its audit because the auditor
+  rendered two documents and looked at them. **Name the live pass's prerequisites and stand-ins
+  in §6, and write the rule that an unobserved surface is *pending*, not *pass*.**
+- **The spec itself had no visual oracle, and the plan did not notice.** The typography document
+  was "cited only through the theme contract"; no reference image existed; both builds produced
+  panes that looked nothing like the product (no section headers, no active states, no badges,
+  a labelled picker where the product has a glyph). A plan should say when the spec cannot be
+  verified visually and route that to `spec-writing` before the UI wave, not after.
 - **It cited hashes nobody computed.** The plan repeated two digests from its source documents;
   measured, neither matched. Verify every digest, and put the measurement in the plan.
 - **It assumed the wave documents would be read once.** The first agent of each wave re-derived
   context it needed anyway; a wave doc earns its keep when it names the *preconditions*, the
-  *frozen interfaces* and the *gate commands*, which is exactly what §2, §9 and §6 are for.
+  *frozen interfaces* and the *gate commands*, which is exactly what §2, §9 and §6 are for. The
+  eleven documents together came to ≈680 KB — five times the spec — which is the smell named
+  under *Wave design rules*.
+- **It fanned agents out.** Five waves needed a continuation agent after the first died mid-run;
+  two scratch test files left in the package broke peer builds twice; one wave commit's message
+  said "green" over a suite with one failure, corrected only by the proof wave. One agent per
+  wave, in sequence, with the orchestrator re-running the gate, is the rule that follows.

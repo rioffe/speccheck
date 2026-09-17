@@ -70,6 +70,14 @@ A missing decision that could cause materially different behavior between confor
 
 Only the latter is normally a defect.
 
+**Appearance is behavior when the product is a surface.** For a viewer, an editor, a dashboard,
+a CLI whose output is read by people — anything whose deliverable is what the user sees — the
+structure of that surface (which regions exist, what a row contains, what is highlighted when,
+what a feature looks like once it is set) is externally observable behavior, not implementation
+freedom. A spec that pins every keystroke and state transition and leaves the panes to the
+implementer will be satisfied by builds that look nothing like each other and nothing like the
+product it describes. Review it as a gap, not as freedom.
+
 ---
 
 # 3. Review dimensions
@@ -172,6 +180,25 @@ For every externally or internally significant interface, check:
 * compatibility expectations.
 
 An interface should not depend on undocumented assumptions.
+
+**For a GUI surface**, additionally check, per window / pane / region:
+
+* the regions and their arrangement, and what each is titled;
+* the element inventory — headers, rows, buttons, badges, fields, indicators — and each
+  row's anatomy (what the primary and secondary lines show, what trails);
+* the states of each element (empty, hovered, selected, current, disabled, missing,
+  collapsed) and which are visible together;
+* **the visibility test**: for every feature the spec lets the user set, toggle or select —
+  where does the user *see* it? A row that pins the keystroke and not the affordance is a
+  gap (a placeholder that can be set and jumped to but appears nowhere is the canonical
+  case);
+* which values are structural and which are delegated to a theme / typography / design
+  document — and whether that document actually covers what was delegated (a spec that says
+  "visual values live in D" while D says "the sidebar is not restyled" has specified nothing
+  about the sidebar);
+* a reference image (screenshot or mockup) per region, cited by the rows, normative for
+  structure. Its absence for a product with a visual surface is a finding — HIGH when the
+  surface is the deliverable, MEDIUM otherwise.
 
 ---
 
@@ -410,7 +437,17 @@ Check:
 * failure cases;
 * integration behavior;
 * invariant tests;
-* performance tests where applicable.
+* performance tests where applicable;
+* **observed tests** where the product has a rendered surface — tests whose pass condition is
+  a person looking at the running product against the reference images, with the rule that a
+  conformance report without their outcome is *verification pending*.
+
+**Oracle independence.** For every test on a rendered or generated output, ask what defines
+the expected result. If the answer is "the output the implementation produced last time" (a
+self-generated golden), the test proves stability, not correctness — it will pass a build that
+is consistently wrong. Flag a §9 whose only oracle for a visual surface is its own goldens;
+the expected result must come from a reference image, a measured quantity the spec states, or
+a person.
 
 ---
 
@@ -652,6 +689,10 @@ Do NOT flag the absence of:
 
 unless the missing detail affects a stated requirement or externally observable behavior.
 
+This list is about the *interior*. It does not cover the visible surface of a product whose
+deliverable is that surface: the inventory of a pane, the anatomy of a row, the states an
+element shows, are not "internal data structures" and their absence is flagged under §3.5.
+
 The goal is:
 
 > **precise behavior with appropriate implementation freedom.**
@@ -696,6 +737,11 @@ Pretend you are implementing the system.
 
 Record every **blocking semantic question** that arises.
 
+If the system has a visual surface, also **sketch each window or pane from the spec alone** —
+boxes, rows, badges, headers, states — without looking at any reference image. Every element
+you had to invent, and every element the reference image shows that your sketch does not, is a
+finding. If the spec has no reference image to compare against, that is the finding.
+
 The final findings should primarily emerge from these four passes.
 
 ---
@@ -736,6 +782,14 @@ Use these questions repeatedly:
 
 > Is this missing detail actually important, or is it legitimate implementation freedom?
 
+### The two-implementer test, visually
+
+> Would two conforming builds of this spec *look* materially different to the user? Would either look like the product the spec describes?
+
+### The oracle test
+
+> For this test, what defines the expected result — the spec, a reference, a measurement, a person — or the implementation's own previous output?
+
 ---
 
 # 9. Quality dimensions
@@ -748,6 +802,7 @@ After the detailed review, score the specification from 0–5 in each dimension:
 | Terminology                 |       |
 | Requirement precision       |       |
 | Interface completeness      |       |
+| Visual-surface completeness (n/a when no rendered surface) |       |
 | Data-contract completeness  |       |
 | State/lifecycle definition  |       |
 | Algorithm precision         |       |
@@ -897,7 +952,11 @@ Summarize:
 * schema precision;
 * input/output ambiguity;
 * serialization issues;
-* compatibility concerns.
+* compatibility concerns;
+* for a rendered surface: whether each window / pane has a region layout, an element
+  inventory, a state table and a reference image, and whether every settable feature has a
+  visible affordance row (§3.5) — score it in the *Visual-surface completeness* row of the
+  scorecard, or mark that row n/a.
 
 ---
 

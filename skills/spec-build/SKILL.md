@@ -1,6 +1,6 @@
 ---
 name: spec-build
-description: Implement a SPEC.md (the source of truth for a system) in any language or stack using test-driven development **executed wave by wave against an implementation plan this skill produces first**, then make README.md reflect the built reality, then re-read SPEC.md and audit every produced artifact for conformance, writing SPEC_BUILD_REPORT.md. Phase 0 runs spec-plan to write IMPLEMENTATION_PLAN.md and one DETAILED_IMPLEMENTATION_PLAN_W<n>.md per wave; each later wave is implemented test-first, gated with the wave's own commands, and committed before the next begins. Use when asked to "build the spec", "implement SPEC.md", "make this spec real", or after spec-writing/spec-review/spec-plan produce a Level-2/3 spec and its plan. Pairs with spec-plan (the order this skill executes), spec-writing (authoring the spec) and spec-review (auditing it, yielding SPEC_REVIEW_REPORT.md + F-nnn findings and a P0/P1/P2 remediation plan).
+description: Implement a SPEC.md (the source of truth for a system) in any language or stack using test-driven development **executed wave by wave against an implementation plan this skill produces first**, then make README.md reflect the built reality, then re-read SPEC.md, audit every produced artifact for conformance, and run and **look at** the product against the spec's reference images (or report VERIFICATION PENDING), writing SPEC_BUILD_REPORT.md. Phase 0 runs spec-plan to write IMPLEMENTATION_PLAN.md and one DETAILED_IMPLEMENTATION_PLAN_W<n>.md per wave; each later wave is implemented test-first, gated with the wave's own commands, and committed before the next begins. Use when asked to "build the spec", "implement SPEC.md", "make this spec real", or after spec-writing/spec-review/spec-plan produce a Level-2/3 spec and its plan. Pairs with spec-plan (the order this skill executes), spec-writing (authoring the spec) and spec-review (auditing it, yielding SPEC_REVIEW_REPORT.md + F-nnn findings and a P0/P1/P2 remediation plan).
 license: MIT
 ---
 
@@ -282,8 +282,10 @@ is the brief you execute. A wave is the unit of verification *and* of history:
    uncommitted**, so the history and the plan read in the same order.
 5. **Record the wave's ledger row** — wave id, the gate command, its real exit code, the commit
    sha — for the conformance report to collect in Phase 3. If a gate cannot be run as written
-   (no signing identity, no tag, no service, no device), record the stand-in and the reason;
-   never record a gate as passed that you did not run.
+   (no signing identity, no tag, no service, no device, no window server), record the stand-in
+   and the reason; never record a gate as passed that you did not run. The T-nn that gate
+   covers are **pending**, and Phase 3 cannot report PASS while a pending T-nn covers a
+   user-visible surface.
 6. **Leave the plan alone unless it is wrong.** A plan document is never a results log: the
    commits and the report carry the evidence. If the plan *is* wrong — a slice is misordered, a
    wave is too large, a file belongs to another wave — amend the plan document and say so in the
@@ -291,6 +293,22 @@ is the brief you execute. A wave is the unit of verification *and* of history:
 
 If a wave's gate reveals a defect in an earlier wave, fix it there and say so; do not paper over
 it in the later wave's commit.
+
+**How a wave is executed.** One agent, one wave, one sitting — the wave document is its brief.
+Fanning several agents out across one wave, or across several waves at once, has been measured
+to cost more than it returns: continuation agents re-deriving context after a peer died mid-run,
+scratch test files left inside the package that broke every other agent's build, and a commit
+whose message claimed green while one test failed. If parallelism is unavoidable, the plan's
+ownership table decides who touches which file, **no scratch or probe files are written inside
+the package tree**, and the orchestrator re-runs the wave's gate itself before any commit message
+says "green". A wave document written for one reader is also cheaper to write: name the
+preconditions, the frozen interfaces and the gate commands (its §2, §9, §6), and stop.
+
+**The plan's budget is an estimate, not a floor.** `IMPLEMENTATION_PLAN.md` §5 exists so a
+subsystem is not silently dropped to fit a number; it is not a target to fill. "Never drop a
+subsystem" and "never be smaller than the budget" are different rules, and only the first is
+one. If the same spec has a smaller complete build, that build is the anchor, and code above it
+is structure you chose to add — name it in the report.
 
 ### The inner loop — red-green-refactor, one test group at a time
 
@@ -477,6 +495,10 @@ Review *every* produced artifact — not just the source tree — for adherence:
 - **Diagrams:** the built state machine / flow has exactly the transitions the normative rows
   specify; where the spec's diagram disagreed with its rows, the `F-nnn` and the `fix(<scope>):`
   that reconciled them are recorded.
+- **Reference images and the design document:** every element the spec's `reference/*.png`
+  show is present in the product, in the state the caption names; the rhythm, alignment and
+  sizes the typography / design document assigns are what the product draws (§3.2b is where you
+  look; this row is where you record that each image was compared).
 - **README (Phase 2)** describes what the code *does*, verified command-by-command (run the
   README's commands; every one works as written).
 - **Every wave closed:** each wave in `IMPLEMENTATION_PLAN.md` §4 has its gate command, its
@@ -484,6 +506,33 @@ Review *every* produced artifact — not just the source tree — for adherence:
   wave with no commit is not reviewable.
 - **No silent omissions:** diff the Phase 0 checklist against reality — every in-scope box is
   closed, or its deferral is explicitly recorded with user approval.
+
+### 3.2b Look at it — the observed pass
+
+The gate and the walk above see ids, tests and citations. They do not see the product. A build
+has reached `CONFORMING` with every heading rendered flush against the preceding paragraph and
+display math left-aligned, because every test it cited was green and every golden it compared
+against had been produced by the same pipeline. This step exists so that cannot be the verdict.
+
+1. **Run the product** — not the harness, the product — on the spec's own corpus, in the state
+   the spec's reference images show (the theme, the panes open, the features set).
+2. **Compare region by region against the reference images** the spec ships (`reference/`) and
+   against the typography / design document where the spec delegates values to it: every element
+   present, every row's anatomy, every state, the rhythm between blocks. Write down each
+   difference as an `F-nnn` — a difference from the reference is a defect unless the spec says
+   otherwise.
+3. **Record what you looked at**: the screenshot path or the window you drove, the document, the
+   theme, and the outcome of every *observed* T-nn (§9), one line each. A screenshot a person
+   opened counts; a screenshot nobody opened does not.
+4. **If the environment cannot show a window** (locked console, no screen-recording permission,
+   a CI runner without a window server), the observed group is **pending**: say so in the
+   report, mark every observed T-nn *verification pending*, and set the verdict to
+   `VERIFICATION PENDING` — never `PASS`. Do not substitute the harness for the look.
+5. **Self-generated goldens are not an oracle.** A golden image or fixture produced by the code
+   under test is a regression guard: it proves the output is *stable*, not that it is *right*.
+   Conformance evidence for a rendered surface needs an oracle the build did not produce — the
+   spec's reference images, a measured quantity the spec states (a gap in points, a centred
+   bounding box), or a person. Say in the report which of the three each visual claim rests on.
 
 ### 3.3 Fix, then re-verify
 
@@ -509,6 +558,9 @@ naming the ids it depicts.
    R/C/I/K/E/T realized or explicitly deferral-recorded.
 2. **Documented:** `README.md` (and any rendered copy) describes the running system,
    command-verified.
+2b. **Observed:** every §9 *observed* T-nn has a recorded outcome from a person looking at the
+   running product against the reference images (§3.2b), or the verdict is
+   `VERIFICATION PENDING` with the environmental reason named.
 3. **Conforming:** on the final test run `speccheck … --judge mock --strict` exits `0`
    (`CONFORMING`, 0 dangling, 0 stale) and then `speccheck … --judge llm --strict` exits `0`
    (0 weak, judge available, `unknown_rate` within bound) — or every exception is a
@@ -522,8 +574,9 @@ Report the verdict in one line, then stop:
 Spec coverage: <NN>/<NN> IDs realized (<k> deferred: <ids + why>)
 speccheck (mock): <summary line, verbatim, from the final --judge mock --strict run>
 speccheck (llm):  <summary line, verbatim, + model name; or "not run: <reason>">
+Observed: <observed T-nn outcomes, one line each, with the screenshot or window driven; or "PENDING: <reason>">
 Readiness: BUILT / BUILT WITH DEFERRALS / INCOMPLETE
-Conformance: PASS / PASS WITH NOTES / FAIL
+Conformance: PASS / PASS WITH NOTES / VERIFICATION PENDING / FAIL
 ```
 
 ---
@@ -558,6 +611,13 @@ Conformance: PASS / PASS WITH NOTES / FAIL
       spec; defects recorded and fixed; `SPEC_BUILD_REPORT.md` written
 - [ ] Deferrals (if any) are explicit, user-approved, id-listed in both README and the report
 - [ ] Verification is evidenced with real run output, not assertion
+- [ ] I ran the product and looked at it against the spec's reference images (§3.2b), and the
+      report records what I looked at — or the verdict says `VERIFICATION PENDING` and why
+- [ ] No golden or fixture used as conformance evidence was produced by the code it certifies
+- [ ] Each wave was executed by one agent against its brief; no scratch files inside the package;
+      every "green" in a commit message was a gate the orchestrator re-ran
+- [ ] The plan's LOC budget was treated as an estimate; code above the smallest known complete
+      build of the same spec is named in the report as added structure, not as requirement
 
 > **The build succeeds when `speccheck` can point every spec ID at a green test, the README
 > reads like the thing that was built, and a grader re-reading the spec and walking §11 finds
