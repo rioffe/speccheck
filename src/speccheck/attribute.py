@@ -1,9 +1,11 @@
 """Attributor: map test-file citations to the enclosing test case (C-03).
 
 Python files are delimited with `ast` (module-level `test_*` functions; `test*` methods of
-recognized classes); everything else, and any `.py` that fails to parse, is one file-level case.
+recognized classes); Swift files by the line-based adapter in `swift.py` (R-31); everything
+else, and any file that fails to delimit, is one file-level case.
 
-Spec IDs realized here (§11): R-04, R-16, C-03, I-002, K-08, E-12, E-13, E-22, E-28.
+Spec IDs realized here (§11): R-04, R-16, R-31, C-03, I-002, K-08, E-12, E-13, E-22, E-28, E-42,
+E-43.
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ import ast
 from dataclasses import dataclass
 
 from .extract import RawCitation, ScannedFile, citations_in_file
+from .swift import SwiftParseError, delimit_swift, swift_module
 
 
 @dataclass(frozen=True)
@@ -126,6 +129,19 @@ def attribute_file(scanned: ScannedFile) -> tuple[AttributedFile, list[str]]:
             cases = []
         else:
             if undelimited:
+                notes.append(f"undelimited tests in {scanned.path}: {', '.join(undelimited)}")
+    elif scanned.path.endswith(".swift"):
+        try:
+            swift_cases, undelimited = delimit_swift(scanned.lines)
+        except SwiftParseError:
+            notes.append(f"parse fallback: {scanned.path}")  # E-42
+            cases = []
+        else:
+            module = swift_module(scanned.path, scanned.scan_root)
+            for sc in swift_cases:
+                classname = ".".join((module, *sc.chain))
+                cases.append(TestCase(scanned.path, sc.name, classname, sc.start, sc.end))
+            if undelimited:  # E-43
                 notes.append(f"undelimited tests in {scanned.path}: {', '.join(undelimited)}")
     cases.sort(key=lambda c: (c.start, c.end, c.name))
     citations: list[Citation] = []

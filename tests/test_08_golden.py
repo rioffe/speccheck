@@ -209,3 +209,82 @@ def test_removing_each_planted_defect_flips_exactly_its_row(tmp_path: Path, labe
         assert doc["dangling"] == golden["dangling"] and doc["stale"] == golden["stale"]
         assert doc["unattributed_results"] == golden["unattributed_results"]
     assert run.code == 1  # every single repair still leaves other defects
+
+
+SWIFT_FIXTURE = FIXTURE.parent / "target-swift"
+SWIFT_ARGS = [
+    "check",
+    "--spec",
+    "SPEC.md",
+    "--src",
+    "Sources",
+    "--tests",
+    "Tests",
+    "--results",
+    "junit.xml",
+    "--judge",
+    "mock",
+    "--strict",
+]
+
+
+def test_swift_golden_fixture_matches_byte_for_byte(tmp_path: Path):
+    """T-71: fixtures/target-swift/ (a SwiftPM-shaped project: Swift Testing file with a nested
+    suite, a parameterized and a disabled test, doc-comment citations; an XCTest file; a
+    `**[port]**`-decorated declaration; a junit.xml that is SwiftPM's swift-testing output plus
+    an XCTest suite) with its planted defects produces reports byte-identical to golden/ and
+    exits 1. (R-31, R-32, R-16, R-24)"""
+    target = tmp_path / "target-swift"
+    shutil.copytree(SWIFT_FIXTURE, target)
+    out = target / "fresh-out"
+    run = run_cli(SWIFT_ARGS + ["--root", ".", "--out", str(out)], target)
+    assert run.code == 1
+    assert run.stdout == (SWIFT_FIXTURE / "golden" / "summary.txt").read_text(encoding="utf-8")
+    assert (out / "speccheck.json").read_bytes() == (
+        SWIFT_FIXTURE / "golden" / "speccheck.json"
+    ).read_bytes()
+    assert (out / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == (
+        SWIFT_FIXTURE / "golden" / "SPEC_CONFORMANCE_REPORT.md"
+    ).read_bytes()
+    doc = json.loads((out / "speccheck.json").read_text(encoding="utf-8"))
+    assert doc["metrics"]["declared"] >= 10 and doc["metrics"]["retired"] == 0
+    assert {r["family"] for r in doc["ids"]} == set("RCIKET")
+    statuses = {r["id"]: r["status"] for r in doc["ids"]}
+    assert statuses == {
+        "R-01": "PASSING",
+        "R-02": "PASSING",
+        "R-03": "UNCITED",
+        "C-01": "PASSING",
+        "C-02": "UNTESTED",
+        "I-001": "PASSING",
+        "I-002": "WEAKLY_PASSING",
+        "K-01": "SKIPPED",
+        "K-02": "FAILING",
+        "E-01": "UNVERIFIED",
+        "E-02": "PASSING",
+        "T-01": "PASSING",
+        "T-02": "PASSING",
+        "T-03": "FAILING",
+    }
+    by_id = {r["id"]: r for r in doc["ids"]}
+    # the parameterized test joined by identifier; the nested suite and XCTest by dotted chain
+    t01 = {(t["name"], t["classname"]) for t in by_id["T-01"]["tests"]}
+    assert t01 == {("add", "CalcTests.CalcTests")}
+    assert {(t["name"], t["classname"]) for t in by_id["E-02"]["tests"]} == {
+        ("scaleEmpty", "CalcTests.CalcTests.Edges")
+    }
+    assert ("testVersionString", "CalcTests.LegacyTests") in {
+        (t["name"], t["classname"]) for t in by_id["R-01"]["tests"]
+    }
+    assert [t["name"] for t in by_id["E-01"]["tests"]] == [""]  # file-level (E-43)
+    assert doc["unattributed_results"] == [
+        {"classname": "CalcTests.GoneTests", "name": "testVanished", "outcome": "passed"}
+    ]
+    assert doc["dangling"] == [] and doc["stale"] == []
+    assert any(
+        n.startswith(
+            "undelimited tests in Tests/CalcTests/CalcTests.swift: CalcTests.testScaleNegative"
+        )
+        for n in doc["notes"]
+    )
+    assert (SWIFT_FIXTURE / "golden").is_dir() and not (SWIFT_FIXTURE / "out").exists()

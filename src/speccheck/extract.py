@@ -88,10 +88,13 @@ class SpecIndex:
 # --------------------------------------------------------------------------------------------
 
 _WS_RE = re.compile(r"\s+")
+# C-01 (a): the bold form must BEGIN the trimmed first cell; whatever follows is decoration and
+# must be empty or start with whitespace (R-32, E-44: `**K-07** **[port]**` declares K-07,
+# `**K-07**x` declares nothing).
 _FIRST_CELL_RE = re.compile(
     r"^(?:\*\*(?P<a>[RCIKET]-[0-9]{1,3})\*\*"
     r"|~~\*\*(?P<b>[RCIKET]-[0-9]{1,3})\*\*~~"
-    r"|\*\*~~(?P<c>[RCIKET]-[0-9]{1,3})~~\*\*)$"
+    r"|\*\*~~(?P<c>[RCIKET]-[0-9]{1,3})~~\*\*)(?:$|\s)"
 )
 _HEADING_RE = re.compile(
     r"^\s*#{1,6}\s+(?P<tok>~~[RCIKET]-[0-9]{1,3}~~|[RCIKET]-[0-9]{1,3})(?![A-Za-z0-9])(?P<rest>.*)$"
@@ -226,6 +229,9 @@ class ScannedFile:
     path: str  # relative, POSIX
     text: str
     lines: tuple[str, ...]
+    scan_root: str = (
+        ""  # the --src/--tests root this file was found under, relative, POSIX (C-03 MODULE)
+    )
 
 
 @dataclass
@@ -310,6 +316,7 @@ def scan_roots(
             except OSError:
                 continue
             rel = to_posix_relative(path, root)
+            rel_root = to_posix_relative(scan_root, root)
             if size > MAX_FILE_BYTES:
                 counters.oversized.append(rel)
                 continue
@@ -326,7 +333,7 @@ def scan_roots(
             if any(IGNORE_FILE in ln for ln in lines[:3]):
                 counters.ignored_files += 1
                 continue
-            files.append(ScannedFile(path=rel, text=text, lines=tuple(lines)))
+            files.append(ScannedFile(path=rel, text=text, lines=tuple(lines), scan_root=rel_root))
     files.sort(key=lambda f: f.path)
     return files
 

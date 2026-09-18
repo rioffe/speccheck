@@ -26,9 +26,14 @@ class RawResult:
 
     @property
     def join_name(self) -> str:
-        if self.name.endswith("]") and "[" in self.name:
-            return self.name[: self.name.index("[")]
-        return self.name
+        """C-04: step 1 strips a pytest `[param]`; step 2 (R-31) strips a Swift signature
+        `(label:...)`, which names the test rather than a variant."""
+        name = self.name
+        if name.endswith("]") and "[" in name:
+            name = name[: name.index("[")]
+        if name.endswith(")") and "(" in name:
+            name = name[: name.index("(")]
+        return name
 
     @property
     def param(self) -> str | None:

@@ -10,7 +10,7 @@ from pathlib import Path
 from speccheck.attribute import attribute_file, module_classname
 from speccheck.extract import ScannedFile
 
-from .conftest import DATA, SIMPLE_PROJECT, spec_table
+from .conftest import DATA, SIMPLE_PROJECT, junit, spec_table
 
 
 def _scanned(path: str, text: str) -> ScannedFile:
@@ -266,3 +266,188 @@ def test_several_citations_in_one_case_yield_one_edge(project):
     run = project(files).check(results=False)
     (edge,) = run.ids()["R-01"]["tests"]
     assert edge["name"] == "test_a" and edge["lines"] == [2, 3, 4]
+
+
+SWIFT_TESTING_FILE = "\n".join(
+    [
+        "import Testing",  # 1
+        "@testable import Probe",  # 2: `@testable` is not `@Test`
+        "",  # 3
+        "/// R-01 free function",  # 4
+        "@Test func freeFunction() {",  # 5
+        "    #expect(add(1, 1) == 2)",  # 6
+        "}",  # 7
+        "",  # 8
+        '@Suite("Outer suite")',  # 9
+        "struct Outer {",  # 10
+        "    /// C-01 named",  # 11
+        '    @Test("named test") func named() {',  # 12
+        "        #expect(add(2, 2) == 4)  // K-01 in the body",  # 13
+        "    }",  # 14
+        "",  # 15
+        "    @Test(arguments: [",  # 16
+        "        1, 2, 3])  // E-01 on an attribute continuation line",  # 17
+        "    func parameterized(x: Int) {",  # 18
+        "        #expect(add(x, 0) == x)",  # 19
+        "    }",  # 20
+        "",  # 21
+        "    @Suite struct Inner {",  # 22
+        "        /** T-01",  # 23
+        "            block doc comment */",  # 24
+        "        @Test",  # 25
+        "        func nested() throws {",  # 26
+        "            try #require(add(0, 0) == 0)",  # 27
+        "        }",  # 28
+        "    }",  # 29
+        "",  # 30
+        "    func helper() {",  # 31
+        "        // I-001 belongs to the file",  # 32
+        "    }",  # 33
+        "",  # 34
+        "    func testHelper() {}  // E-02 undelimited: no @Test, not an XCTestCase",  # 35
+        "}",  # 36
+    ]
+)
+
+
+def test_swift_testing_cases_are_delimited_with_doc_comment_spans(project):
+    """T-65: Swift Testing `@Test` functions at file scope, in a `@Suite`, with a multi-line
+    attribute and in a nested suite are cases named by identifier with classnames `<Module>`,
+    `<Module>.Outer`, `<Module>.Outer.Inner`; spans start on the first doc-comment line and end
+    on the closing brace; doc-comment, attribute-continuation and body citations belong to the
+    case; the helper's citation is file-level; `testHelper` is undelimited; `@testable` is not
+    `@Test`; MODULE is the first path component under the tests root. (R-31, C-03, E-43)"""
+    scanned = ScannedFile(
+        "Tests/ProbeTests/Cases.swift",
+        SWIFT_TESTING_FILE,
+        tuple(SWIFT_TESTING_FILE.split("\n")),
+        "Tests",
+    )
+    attributed, notes = attribute_file(scanned)
+    assert notes == ["undelimited tests in Tests/ProbeTests/Cases.swift: Outer.testHelper"]
+    spans = {c.name: (c.classname, c.start, c.end) for c in attributed.cases}
+    assert spans == {
+        "freeFunction": ("ProbeTests", 4, 7),
+        "named": ("ProbeTests.Outer", 11, 14),
+        "parameterized": ("ProbeTests.Outer", 16, 20),
+        "nested": ("ProbeTests.Outer.Inner", 23, 28),
+    }
+    owners = {(c.id, c.line): c.testcase.name for c in attributed.citations}
+    assert owners == {
+        ("R-01", 4): "freeFunction",
+        ("C-01", 11): "named",
+        ("K-01", 13): "named",
+        ("E-01", 17): "parameterized",
+        ("T-01", 23): "nested",
+        ("I-001", 32): "",
+        ("E-02", 35): "",
+    }
+    # MODULE for a file directly under the tests root is the root's own name.
+    direct = ScannedFile("tests/Cases.swift", SWIFT_TESTING_FILE, scanned.lines, "tests")
+    assert {c.classname for c in attribute_file(direct)[0].cases} == {
+        "tests",
+        "tests.Outer",
+        "tests.Outer.Inner",
+    }
+    # End to end: the citations reach the report attributed, and join SwiftPM-shaped results.
+    run = project(
+        {
+            "SPEC.md": spec_table([("R-01", "a"), ("C-01", "b"), ("T-01", "c"), ("I-001", "d")]),
+            "tests/ProbeTests/Cases.swift": SWIFT_TESTING_FILE,
+            "junit.xml": junit(
+                [
+                    ("ProbeTests", "freeFunction()", "passed"),
+                    ("ProbeTests.Outer", "named()", "passed"),
+                    ("ProbeTests.Outer", "parameterized(x:)", "passed"),
+                    ("ProbeTests.Outer.Inner", "nested()", "passed"),
+                ]
+            ),
+        }
+    ).check()
+    ids = run.ids()
+    assert ids["R-01"]["status"] == "PASSING"
+    assert ids["C-01"]["status"] == "PASSING"
+    assert ids["T-01"]["status"] == "PASSING"
+    assert ids["I-001"]["status"] == "UNVERIFIED"  # file-level helper citation
+    edge = ids["T-01"]["tests"][0]
+    assert (edge["name"], edge["classname"], edge["lines"]) == (
+        "nested",
+        "ProbeTests.Outer.Inner",
+        [23],
+    )
+
+
+XCTEST_FILE = "\n".join(
+    [
+        "import XCTest",  # 1
+        "@testable import Probe",  # 2
+        "",  # 3
+        "final class LegacyTests: XCTestCase {",  # 4
+        "    /// R-01",  # 5
+        "    func testAddition() {",  # 6
+        "        XCTAssertEqual(Probe.add(1, 2), 3)",  # 7
+        "    }",  # 8
+        "    func helper() {}",  # 9
+        "    class Nested {",  # 10
+        "        func testNested() {}  // C-01 undelimited",  # 11
+        "    }",  # 12
+        "}",  # 13
+        "",  # 14
+        "class Plain {",  # 15
+        "    func testFoo() {}  // K-01 undelimited",  # 16
+        "}",  # 17
+    ]
+)
+
+
+def test_xctest_methods_are_delimited_and_others_undelimited():
+    """T-66: a `test*` method directly inside an `XCTestCase` class is a case named by identifier
+    with classname `<Module>.LegacyTests` and a doc-comment-to-brace span; a `test*` method of a
+    nested class or of a non-`XCTestCase` class is undelimited with one Note; `helper` produces
+    no Note. (R-31, C-03, E-43)"""
+    scanned = ScannedFile(
+        "Tests/ProbeTests/Legacy.swift", XCTEST_FILE, tuple(XCTEST_FILE.split("\n")), "Tests"
+    )
+    attributed, notes = attribute_file(scanned)
+    assert notes == [
+        "undelimited tests in Tests/ProbeTests/Legacy.swift: LegacyTests.Nested.testNested, Plain.testFoo"
+    ]
+    assert [(c.name, c.classname, c.start, c.end) for c in attributed.cases] == [
+        ("testAddition", "ProbeTests.LegacyTests", 5, 8)
+    ]
+    owners = {(c.id, c.line): c.testcase.name for c in attributed.citations}
+    assert owners == {("R-01", 5): "testAddition", ("C-01", 11): "", ("K-01", 16): ""}
+
+
+def test_swift_brace_fallback_and_braces_in_strings_and_comments():
+    """T-67: an unclosed `{` or a stray `}` makes the file one file-level case with a
+    `parse fallback` Note; braces inside string literals and `//` comments do not count, so a
+    file whose only extra braces are quoted delimits correctly. (E-42, C-03)"""
+    unclosed = "@Test func a() {\n    #expect(true)\n"
+    stray = "@Test func a() {\n}\n}\n"
+    for text in (unclosed, stray):
+        scanned = ScannedFile("Tests/M/F.swift", text, tuple(text.split("\n")), "Tests")
+        attributed, notes = attribute_file(scanned)
+        assert notes == ["parse fallback: Tests/M/F.swift"]
+        assert attributed.cases == ()
+    quoted = "\n".join(
+        [
+            "/// R-01",
+            "@Test func a() {",
+            '    let open = "{"',
+            '    let multi = """',
+            "        } } {",
+            '        """',
+            "    // }",
+            '    #expect(open == "{")  // R-02',
+            "}",
+            "/// R-03",
+            "@Test func b() { #expect(true) }",
+        ]
+    )
+    scanned = ScannedFile("Tests/M/F.swift", quoted, tuple(quoted.split("\n")), "Tests")
+    attributed, notes = attribute_file(scanned)
+    assert notes == []
+    assert [(c.name, c.start, c.end) for c in attributed.cases] == [("a", 1, 9), ("b", 10, 11)]
+    owners = {(c.id, c.line): c.testcase.name for c in attributed.citations}
+    assert owners == {("R-01", 1): "a", ("R-02", 8): "a", ("R-03", 10): "b"}

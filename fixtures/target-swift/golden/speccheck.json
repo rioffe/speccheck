@@ -1,0 +1,588 @@
+{
+  "schema_version": "1.0",
+  "spec": "SPEC.md",
+  "judge": "mock",
+  "judge_available": true,
+  "strict": true,
+  "max_unknown": 0.2000,
+  "strict_judge_failure": null,
+  "ids": [
+    {
+      "id": "R-01",
+      "family": "R",
+      "statement": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
+      "line": 16,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "Sources/Calc/Calc.swift",
+          "lines": [
+            7
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "add",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            8
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "add(a:b:expected:)",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/CalcTests.swift",
+                "line": 11
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "Tests/CalcTests/LegacyTests.swift",
+          "name": "testVersionString",
+          "classname": "CalcTests.LegacyTests",
+          "lines": [
+            7
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "testVersionString",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/LegacyTests.swift",
+                "line": 9
+              },
+              {
+                "file": "Tests/CalcTests/LegacyTests.swift",
+                "line": 10
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "R-02",
+      "family": "R",
+      "statement": "`subtract(a, b)` MUST return `a - b`.",
+      "line": 17,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "Sources/Calc/Calc.swift",
+          "lines": [
+            12
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "subtract",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            19
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "subtract()",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/CalcTests.swift",
+                "line": 21
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "R-03",
+      "family": "R",
+      "statement": "`multiply(a, b)` MUST return the product of `a` and `b`.",
+      "line": 18,
+      "status": "UNCITED",
+      "src": [],
+      "tests": [],
+      "unrun": []
+    },
+    {
+      "id": "C-01",
+      "family": "C",
+      "statement": "`divide(a, b)` throws `CalcError.divideByZero(dividend:)` when `b == 0`",
+      "line": 22,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "Sources/Calc/Calc.swift",
+          "lines": [
+            4,
+            17
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "divideByZero",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            29
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "divideByZero()",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/CalcTests.swift",
+                "line": 31
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "C-02",
+      "family": "C",
+      "statement": "`scale(values, by:)` returns a new array and never mutates its input",
+      "line": 26,
+      "status": "UNTESTED",
+      "src": [
+        {
+          "file": "Sources/Calc/Calc.swift",
+          "lines": [
+            23
+          ]
+        }
+      ],
+      "tests": [],
+      "unrun": []
+    },
+    {
+      "id": "I-001",
+      "family": "I",
+      "statement": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
+      "line": 32,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "Sources/Calc/Calc.swift",
+          "lines": [
+            9
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "addCommutes",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            14
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "addCommutes()",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/CalcTests.swift",
+                "line": 16
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "I-002",
+      "family": "I",
+      "statement": "`scale` preserves the length of its input.",
+      "line": 33,
+      "status": "WEAKLY_PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "scaleRuns",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            42
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "scaleRuns()",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "EXECUTES_ONLY",
+            "evidence": [],
+            "rationale": "mock: no assertion token",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "K-01",
+      "family": "K",
+      "statement": "`divide` completes in under 1 ms for inputs below 10^6. (the `**[port]**` decoration exercises E-44)",
+      "line": 39,
+      "status": "SKIPPED",
+      "src": [],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "divideFast",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            36
+          ],
+          "outcome": "skipped",
+          "results": [
+            {
+              "name": "divideFast()",
+              "param": null,
+              "outcome": "skipped"
+            }
+          ],
+          "verdict": null
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "K-02",
+      "family": "K",
+      "statement": "Every result is rounded to two decimal places.",
+      "line": 40,
+      "status": "FAILING",
+      "src": [
+        {
+          "file": "Sources/Calc/Calc.swift",
+          "lines": [
+            7,
+            12,
+            28
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "subtractPrecision",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            24
+          ],
+          "outcome": "failed",
+          "results": [
+            {
+              "name": "subtractPrecision()",
+              "param": null,
+              "outcome": "failed"
+            }
+          ],
+          "verdict": null
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "E-01",
+      "family": "E",
+      "statement": "Negative inputs to `scale`",
+      "line": 46,
+      "status": "UNVERIFIED",
+      "src": [],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "",
+          "classname": "Tests.CalcTests.CalcTests",
+          "lines": [
+            54
+          ],
+          "outcome": null,
+          "results": [],
+          "verdict": null
+        }
+      ],
+      "unrun": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "id": "E-02",
+      "family": "E",
+      "statement": "Empty array passed to `scale`",
+      "line": 47,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "Sources/Calc/Calc.swift",
+          "lines": [
+            23
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "scaleEmpty",
+          "classname": "CalcTests.CalcTests.Edges",
+          "lines": [
+            48
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "scaleEmpty()",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/CalcTests.swift",
+                "line": 50
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-01",
+      "family": "T",
+      "statement": "`add` returns the sum for integers and floats. (R-01)",
+      "line": 53,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "add",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            8
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "add(a:b:expected:)",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/CalcTests.swift",
+                "line": 11
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-02",
+      "family": "T",
+      "statement": "`divide` by zero throws with the dividend in the error. (C-01)",
+      "line": 54,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "divideByZero",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            29
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "divideByZero()",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "evidence": [
+              {
+                "file": "Tests/CalcTests/CalcTests.swift",
+                "line": 31
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-03",
+      "family": "T",
+      "statement": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
+      "line": 55,
+      "status": "FAILING",
+      "src": [],
+      "tests": [
+        {
+          "file": "Tests/CalcTests/CalcTests.swift",
+          "name": "subtractPrecision",
+          "classname": "CalcTests.CalcTests",
+          "lines": [
+            24
+          ],
+          "outcome": "failed",
+          "results": [
+            {
+              "name": "subtractPrecision()",
+              "param": null,
+              "outcome": "failed"
+            }
+          ],
+          "verdict": null
+        }
+      ],
+      "unrun": []
+    }
+  ],
+  "dangling": [],
+  "stale": [],
+  "unattributed_results": [
+    {
+      "classname": "CalcTests.GoneTests",
+      "name": "testVanished",
+      "outcome": "passed"
+    }
+  ],
+  "notes": [
+    "undelimited tests in Tests/CalcTests/CalcTests.swift: CalcTests.testScaleNegative"
+  ],
+  "metrics": {
+    "declared": 14,
+    "retired": 0,
+    "in_scope": 14,
+    "by_status": {
+      "PASSING": 7,
+      "WEAKLY_PASSING": 1,
+      "FAILING": 2,
+      "SKIPPED": 1,
+      "UNVERIFIED": 1,
+      "UNTESTED": 1,
+      "UNCITED": 1
+    },
+    "conformance_ratio": "7/14",
+    "conformance": 0.5000,
+    "by_family": {
+      "R": {
+        "in_scope": 3,
+        "passing": 2,
+        "ratio": 0.6667
+      },
+      "C": {
+        "in_scope": 2,
+        "passing": 1,
+        "ratio": 0.5000
+      },
+      "I": {
+        "in_scope": 2,
+        "passing": 1,
+        "ratio": 0.5000
+      },
+      "K": {
+        "in_scope": 2,
+        "passing": 0,
+        "ratio": 0.0000
+      },
+      "E": {
+        "in_scope": 2,
+        "passing": 1,
+        "ratio": 0.5000
+      },
+      "T": {
+        "in_scope": 3,
+        "passing": 2,
+        "ratio": 0.6667
+      }
+    },
+    "judge_strength_ratio": "7/8",
+    "judge_strength": 0.8750,
+    "unknown_rate": 0.0000
+  },
+  "exit_code": 1
+}

@@ -15,9 +15,15 @@ log = logging.getLogger("speccheck")
 _ASSERT_STMT = re.compile(r"^\s*assert\b")
 
 
+_SWIFT_TOKENS = ("#expect(", "#require(", "XCTAssert", "XCTFail(", "Issue.record(")
+
+
 def is_assertion_line(text: str) -> bool:
-    """assertion token := a line matching ^\\s*assert\\b, or containing .assert or pytest.raises("""
-    return bool(_ASSERT_STMT.match(text)) or ".assert" in text or "pytest.raises(" in text
+    """assertion token := a line matching ^\\s*assert\\b, or containing .assert or pytest.raises(,
+    or (Swift, R-31) containing #expect( / #require( / XCTAssert / XCTFail( / Issue.record("""
+    if _ASSERT_STMT.match(text) or ".assert" in text or "pytest.raises(" in text:
+        return True
+    return any(token in text for token in _SWIFT_TOKENS)
 
 
 class MockJudge:

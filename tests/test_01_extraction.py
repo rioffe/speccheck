@@ -137,7 +137,7 @@ def test_row_and_heading_grammar_edge_cases():
             "## C-03 first token declares",
             "| **R-02** | a \\| pipe and a `x | y` span | third |",
             "| **R-03** |",
-            "| **R-04** **R-05** | two tokens is not a declaration |",
+            "| **R-04** **R-05** | a second bold token is decoration (E-44) |",
             "|**R-06**|tight cells|",
             "| R-07 | not bold |",
         ]
@@ -147,6 +147,7 @@ def test_row_and_heading_grammar_edge_cases():
         "C-03": "first token declares",
         "R-02": "a \\| pipe and a `x | y` span",
         "R-03": "",
+        "R-04": "a second bold token is decoration (E-44)",
         "R-06": "tight cells",
     }
     assert split_row("| a \\| b | `c | d` | e |") == [" a \\| b ", " `c | d` ", " e "]
@@ -162,3 +163,33 @@ def test_no_in_scope_ids_exits_3_and_writes_nothing(project):
         assert "spec declares no in-scope IDs" in run.stderr
         assert run.stdout == ""
         assert sorted(p.name for p in proj.path.iterdir()) == before
+
+
+def test_first_cell_decoration_after_bold_id():
+    """T-70: `| **K-07** **[port]** |` declares K-07 with the second cell as statement;
+    `| **R-01** **R-02** |` declares R-01 only; `**K-07**x` and `**K-07**, note` declare
+    nothing; retired forms tolerate decoration the same way; headings are unchanged.
+    (R-32, C-01, E-44)"""
+    text = "\n".join(
+        [
+            "| ID | Statement |",
+            "| -- | --------- |",
+            "| **K-07** **[port]** | history bound |",
+            "| **R-01** **R-02** | first token only |",
+            "| **K-08**x | glued suffix |",
+            "| **K-09**, note | comma suffix |",
+            "| ~~**E-09**~~ *(retired)* | retired with decoration |",
+            "| **~~E-10~~** [port] | retired inner form with decoration |",
+            "| **T-01**\t| tab after the form |",
+            "### C-03 **[port]** contract heading",
+        ]
+    )
+    index = parse_spec(text, "SPEC.md")
+    assert {s.id: (s.text, s.retired) for s in index.ids} == {
+        "K-07": ("history bound", False),
+        "R-01": ("first token only", False),
+        "E-09": ("retired with decoration", True),
+        "E-10": ("retired inner form with decoration", True),
+        "T-01": ("tab after the form", False),
+        "C-03": ("**[port]** contract heading", False),
+    }

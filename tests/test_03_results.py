@@ -190,3 +190,73 @@ def test_malformed_xml_and_nameless_testcase_exit_3(project):
         assert run.code == 3
         assert run.stderr.startswith("ERROR results: ")
         assert not (proj.path / "speccheck.json").exists()
+
+
+def test_swift_signature_names_join_by_identifier_and_overloads_tie():
+    """T-68: SwiftPM result names carry the signature (`twoArgs(a:b:)`, `freeFunction()`); step 2
+    of `join_name` strips it so they join their C-03 case with `param` null and the recorded
+    outcome; an XCTest bare name joins unchanged; overloads by label tie and are unattributed
+    with one Note; a Python `test_x[f(1)]` still strips from the first `[` and keeps its param.
+    (R-31, C-04, E-45)"""
+    assert (
+        RawResult("c", "twoArgs(a:b:)", "passed").join_name,
+        RawResult("c", "twoArgs(a:b:)", "passed").param,
+    ) == ("twoArgs", None)
+    assert RawResult("c", "freeFunction()", "passed").join_name == "freeFunction"
+    assert RawResult("c", "testAddition", "passed").join_name == "testAddition"
+    assert (
+        RawResult("c", "test_x[f(1)]", "passed").join_name,
+        RawResult("c", "test_x[f(1)]", "passed").param,
+    ) == ("test_x", "f(1)")
+    assert RawResult("c", "open(", "passed").join_name == "open("
+
+    def case(name: str, classname: str, start: int) -> SpecTestCase:
+        return SpecTestCase("Tests/ProbeTests/Cases.swift", name, classname, start, start + 2)
+
+    cases = [
+        case("freeFunction", "ProbeTests", 4),
+        case("named", "ProbeTests.Outer", 8),
+        case("parameterized", "ProbeTests.Outer", 12),
+        case("twoArgs", "ProbeTests.Outer", 16),
+        case("disabledOne", "ProbeTests.Outer", 20),
+        case("nested", "ProbeTests.Outer.Inner", 24),
+        case("f", "ProbeTests.Overloads", 30),
+        case("f", "ProbeTests.Overloads", 34),
+        SpecTestCase(
+            "Tests/ProbeTests/Legacy.swift", "testAddition", "ProbeTests.LegacyTests", 3, 5
+        ),
+    ]
+    results = parse_junit(
+        junit(
+            [
+                ("ProbeTests", "freeFunction()", "passed"),
+                ("ProbeTests.Outer", "named()", "passed"),
+                ("ProbeTests.Outer", "parameterized(x:)", "passed"),
+                ("ProbeTests.Outer", "twoArgs(a:b:)", "failed"),
+                ("ProbeTests.Outer", "disabledOne()", "skipped"),
+                ("ProbeTests.Outer.Inner", "nested()", "passed"),
+                ("ProbeTests.Overloads", "f(a:)", "passed"),
+                ("ProbeTests.Overloads", "f(b:)", "passed"),
+                ("ProbeTests.LegacyTests", "testAddition", "passed"),
+            ]
+        ).encode()
+    )
+    mapped = join_results(results, cases)
+    by_name = {(c.classname, c.name): o for c, o in mapped.outcomes.items()}
+    assert by_name[("ProbeTests", "freeFunction")].outcome == "passed"
+    assert by_name[("ProbeTests.Outer", "twoArgs")].outcome == "failed"
+    assert by_name[("ProbeTests.Outer", "disabledOne")].outcome == "skipped"
+    assert by_name[("ProbeTests.Outer.Inner", "nested")].outcome == "passed"
+    assert by_name[("ProbeTests.LegacyTests", "testAddition")].outcome == "passed"
+    assert all(r.param is None for o in mapped.outcomes.values() for r in o.results)
+    assert mapped.joined == 7
+    assert [(r.classname, r.name) for r in mapped.unattributed] == [
+        ("ProbeTests.Overloads", "f(a:)"),
+        ("ProbeTests.Overloads", "f(b:)"),
+    ]
+    assert mapped.notes == [
+        "ambiguous result ProbeTests.Overloads::f(a:): candidates "
+        "Tests/ProbeTests/Cases.swift::f, Tests/ProbeTests/Cases.swift::f",
+        "ambiguous result ProbeTests.Overloads::f(b:): candidates "
+        "Tests/ProbeTests/Cases.swift::f, Tests/ProbeTests/Cases.swift::f",
+    ]

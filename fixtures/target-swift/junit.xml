@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="TestResults" errors="0" tests="7" failures="1" skipped="1" time="0.000825083">
+    <testcase classname="CalcTests.CalcTests" name="subtractPrecision()" time="0.000379416" >
+      <failure message="Expectation failed: Calc.subtract(1.0, 0.0) == 1.01 (error)" />
+    </testcase>
+    <testcase classname="CalcTests.CalcTests" name="divideFast()" >
+      <skipped>timing test not run in CI</skipped>
+    </testcase>
+    <testcase classname="CalcTests.CalcTests.Edges" name="scaleEmpty()" time="0.000139292" />
+    <testcase classname="CalcTests.CalcTests" name="scaleRuns()" time="9.5833e-05" />
+    <testcase classname="CalcTests.CalcTests" name="addCommutes()" time="0.000204042" />
+    <testcase classname="CalcTests.CalcTests" name="subtract()" time="0.000151375" />
+    <testcase classname="CalcTests.CalcTests" name="add(a:b:expected:)" time="0.000214667" />
+    <testcase classname="CalcTests.CalcTests" name="divideByZero()" time="0.000549208" />
+  </testsuite>
+  <testsuite name="CalcTests.xctest" errors="0" tests="2" failures="0" skipped="0" time="0.002">
+    <testcase classname="CalcTests.LegacyTests" name="testVersionString" time="0.001" />
+    <testcase classname="CalcTests.GoneTests" name="testVanished" time="0.001" />
+  </testsuite>
+</testsuites>

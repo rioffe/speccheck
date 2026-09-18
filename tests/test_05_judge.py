@@ -71,6 +71,32 @@ class StubProvider:
         return self.answer
 
 
+def test_mock_judge_recognizes_swift_assertion_tokens():
+    """T-69: the mock returns ASSERTS with the line as evidence for a Swift span containing
+    `#expect(`, `#require(`, `XCTAssertEqual(`, `XCTFail(` or `Issue.record(` (one sub-test
+    each), and EXECUTES_ONLY for a Swift body that only calls code. (R-22, C-06)"""
+    mock = MockJudge()
+    for token in (
+        "#expect(add(1, 1) == 2)",
+        "let v = try #require(maybe())",
+        "XCTAssertEqual(add(1, 2), 3)",
+        'XCTFail("unreachable")',
+        'Issue.record("bad state")',
+    ):
+        verdict = mock.judge(_req(["@Test func t() {", "    " + token, "}"], start=5))
+        assert verdict.verdict == "ASSERTS", token
+        assert [e.line for e in verdict.evidence] == [6], token
+        assert verdict.rationale == "mock: assertion token on 1 line(s)"
+    executes = mock.judge(
+        _req(["@Test func t() {", "    _ = add(1, 2)", "    // #expectation", "}"])
+    )
+    assert (executes.verdict, executes.evidence, executes.rationale) == (
+        "EXECUTES_ONLY",
+        (),
+        "mock: no assertion token",
+    )
+
+
 def test_mock_judge_asserts_on_assertion_tokens_else_executes_only():
     """T-26: the mock returns ASSERTS with one evidence line per assertion token, and
     EXECUTES_ONLY with no evidence otherwise, including for an empty body. (R-22, E-17)"""
