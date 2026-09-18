@@ -282,6 +282,7 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
     if replaced:
         notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
     index = parse_spec(spec_text, rel_spec)
+    notes.extend(index.notes)  # K-14 / E-46: one Note per truncated statement
     stage.done(ids=len(index.ids), retired=sum(1 for s in index.ids if s.retired))
 
     excluded = _excluded_paths(config)

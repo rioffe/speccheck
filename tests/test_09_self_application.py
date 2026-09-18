@@ -13,6 +13,10 @@ from .conftest import run_cli
 ROOT = Path(__file__).resolve().parent.parent
 
 
+# SPEC.md v1.8 declares 190 ids (33 R, 11 C, 11 I, 14 K, 47 E, 74 T; none retired); bump with the spec
+DECLARED_IDS = 190
+
+
 def test_self_application_runs_on_this_repository(tmp_path: Path):
     """T-48: `speccheck check --spec SPEC.md --src src --tests tests --results <this suite's
     junit.xml> --judge mock` on this repository reports every R/C/I/K/E/T ID in SPEC.md; the
@@ -57,7 +61,7 @@ def test_self_application_runs_on_this_repository(tmp_path: Path):
         "T-01",
         "T-61",
     } <= ids
-    assert doc["metrics"]["declared"] == 183 and doc["metrics"]["retired"] == 0
+    assert doc["metrics"]["declared"] == DECLARED_IDS and doc["metrics"]["retired"] == 0
     statuses = {r["id"]: r["status"] for r in doc["ids"]}
     # every ID is at least cited by a test in this suite (the outcome depends on junit.xml)
     assert all(s not in ("UNCITED", "UNTESTED") for s in statuses.values()), sorted(

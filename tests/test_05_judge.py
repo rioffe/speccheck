@@ -548,3 +548,80 @@ def test_llm_response_path_fences_and_prompt_hash(tmp_path: Path, monkeypatch):
         "judge_prompt_sha256",
     ]
     assert run.ids()["R-01"]["tests"][0]["verdict"]["verdict"] == "ASSERTS"
+
+
+def test_llm_request_carries_heading_body_statement(tmp_path: Path, monkeypatch):
+    """T-74 (extends T-33): for a heading-declared ID with a body, the LLM request's user message
+    carries `statement` equal to `SpecId.text` — title, newline, body with its fenced block and
+    indentation, byte for byte — under the unchanged keys {id, statement, file, start, end,
+    source} and the unchanged system message; the shipped C-10 file contains the v1.7 any-clause
+    rule and `judge_prompt_sha256` is its SHA-256 (recorded HTTP stub). (R-33, C-06, C-10, R-26)"""
+    from speccheck.extract import parse_spec
+
+    spec = "\n".join(
+        [
+            "### C-01 `Widget` (an `actor`)",
+            "",
+            "```swift",
+            "actor Widget {",
+            "    func startRun() -> Bool   // false when a run is live",
+            "}",
+            "```",
+            "",
+            "Out-of-range parameters throw on the first tick.",
+            "",
+            "### C-02 Empty",
+        ]
+    )
+    write_tree(
+        tmp_path,
+        {
+            "SPEC.md": spec + "\n",
+            "src/w.py": "# C-01 C-02\n",
+            "tests/test_w.py": "def test_w():\n    '''C-01'''\n    assert True\n",
+            "junit.xml": junit([("tests.test_w", "test_w", "passed")]),
+        },
+    )
+    expected = parse_spec(spec + "\n", "SPEC.md").by_id()["C-01"].text
+    assert (
+        expected.startswith("`Widget` (an `actor`)\n```swift\n") and "    func startRun" in expected
+    )
+    post = RecordingPost(
+        reply=json.dumps(
+            {
+                "verdict": "ASSERTS",
+                "evidence": [{"file": "tests/test_w.py", "line": 3}],
+                "rationale": "r",
+            }
+        )
+    )
+    monkeypatch.setattr(judge_llm, "_httpx_post", post)
+    run = run_cli(
+        [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "src",
+            "--tests",
+            "tests",
+            "--results",
+            "junit.xml",
+            "--judge",
+            "llm",
+        ],
+        tmp_path,
+        env=LLM_ENV,
+    )
+    assert run.code == 0 and len(post.requests) == 1
+    body = json.loads(post.requests[0][2].decode("utf-8"))
+    user = json.loads(body["messages"][1]["content"])
+    assert list(user) == ["id", "statement", "file", "start", "end", "source"]
+    assert user["id"] == "C-01" and user["statement"] == expected
+    assert run.ids()["C-01"]["statement"] == expected  # the JSON records what the judge saw
+    assert run.ids()["C-01"]["title"] == "`Widget` (an `actor`)"
+    # the shipped instruction text carries the v1.7 rule and its hash is what the report records
+    shipped = C10_PATH.read_text(encoding="utf-8")
+    assert "a test that asserts any clause\n    of the statement ASSERTS it" in shipped
+    assert body["messages"][0]["content"] == shipped
+    assert run.json["judge_prompt_sha256"] == hashlib.sha256(shipped.encode("utf-8")).hexdigest()

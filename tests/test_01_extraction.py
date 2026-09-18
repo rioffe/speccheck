@@ -206,7 +206,7 @@ _T72_SPEC = "\n".join(
         "### C-01 Widget",
         "",
         "```python",
-        "| **R-99** | x |",
+        "| **R-99** | x |",  # speccheck:ignore
         "# comment inside a fence is not a heading",
         "    def pinned(self) -> int: ...",
         "```",
@@ -229,7 +229,7 @@ _T72_SPEC = "\n".join(
         "",
         "   ",
         "### C-05 Title ###",
-        "    ### R-98 indented four spaces: not a heading, not a declaration",
+        "    ### R-98 indented four spaces: not a heading, not a declaration",  # speccheck:ignore
         "###",
         "###C-06 x",
         "## Section",
@@ -269,7 +269,7 @@ def test_heading_section_bodies_title_cap_and_line_model():
     assert ids["C-05"].title == "Title"
     assert (
         ids["C-05"].text
-        == "Title\n    ### R-98 indented four spaces: not a heading, not a declaration"
+        == "Title\n    ### R-98 indented four spaces: not a heading, not a declaration"  # speccheck:ignore
     )
     assert ids["C-07"].text == ids["C-07"].title == "Last"
     assert index.notes == ()

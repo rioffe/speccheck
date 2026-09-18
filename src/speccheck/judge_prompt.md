@@ -31,3 +31,6 @@ Rules:
   - rationale is one sentence, at most 280 characters.
   - Judge only the given test case. Do not assume what other tests do.
   - A test that mentions the ID in a comment or string is not evidence of asserting it.
+  - The statement may contain a code block pinning an interface; a test that asserts any clause
+    of the statement ASSERTS it - a contract with several clauses is not required to be asserted
+    whole by one test.

@@ -20,7 +20,7 @@ from .extract import FAMILY_ORDER
 from .graph import IN_SCOPE_STATUSES, Graph, Metrics, TestEdge, compute_metrics
 from .results import RawResult
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"  # C-07: "1.0" through v1.6; "1.1" adds `title` per ID (v1.7, R-33)
 JSON_NAME = "speccheck.json"
 MD_NAME = "SPEC_CONFORMANCE_REPORT.md"
 EM_DASH = "\u2014"
@@ -175,7 +175,8 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
         {
             "id": rec.id,
             "family": rec.spec.family,
-            "statement": rec.spec.text,
+            "title": rec.spec.title,  # C-07 / R-33: heading text or table cell (C-08 renders it)
+            "statement": rec.spec.text,  # the full statement: title + section body for a heading
             "line": rec.spec.line,
             "status": rec.status,
             "src": [{"file": f, "lines": list(lines)} for f, lines in rec.src],
@@ -303,7 +304,8 @@ def render_markdown(report: dict) -> str:
                 f"`{_case_label(t['name'])}` {cites} "
                 f"({outcome} \u00b7 {_verdict_text(t['verdict'])})"
             )
-        rows.append([ident, rec["status"], rec["statement"], src, "; ".join(tests) or EM_DASH])
+        # C-08: the Statement cell renders `title`, never a section body (R-33)
+        rows.append([ident, rec["status"], rec["title"], src, "; ".join(tests) or EM_DASH])
     out += _table(
         [
             "ID",

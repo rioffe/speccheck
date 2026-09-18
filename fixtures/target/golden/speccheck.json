@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "spec": "SPEC.md",
   "judge": "mock",
   "judge_available": true,
@@ -10,6 +10,7 @@
     {
       "id": "R-01",
       "family": "R",
+      "title": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
       "statement": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
       "line": 15,
       "status": "PASSING",
@@ -60,6 +61,7 @@
     {
       "id": "R-02",
       "family": "R",
+      "title": "`subtract(a, b)` MUST return `a - b`.",
       "statement": "`subtract(a, b)` MUST return `a - b`.",
       "line": 16,
       "status": "PASSING",
@@ -105,6 +107,7 @@
     {
       "id": "R-03",
       "family": "R",
+      "title": "`multiply(a, b)` MUST return the product of `a` and `b`.",
       "statement": "`multiply(a, b)` MUST return the product of `a` and `b`.",
       "line": 17,
       "status": "UNCITED",
@@ -115,6 +118,7 @@
     {
       "id": "R-04",
       "family": "R",
+      "title": "`modulo(a, b)` MUST return `a % b`. (retired: dropped from the brief)",
       "statement": "`modulo(a, b)` MUST return `a % b`. (retired: dropped from the brief)",
       "line": 18,
       "status": "RETIRED",
@@ -125,7 +129,8 @@
     {
       "id": "C-01",
       "family": "C",
-      "statement": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0`",
+      "title": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0`",
+      "statement": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0`\nThe error message MUST name the dividend.",
       "line": 22,
       "status": "PASSING",
       "src": [
@@ -170,6 +175,7 @@
     {
       "id": "C-02",
       "family": "C",
+      "title": "`scale(values, factor)` returns a new list and never mutates its input",
       "statement": "`scale(values, factor)` returns a new list and never mutates its input",
       "line": 26,
       "status": "UNTESTED",
@@ -187,6 +193,7 @@
     {
       "id": "C-03",
       "family": "C",
+      "title": "`average(values)` returns the arithmetic mean (retired)",
       "statement": "`average(values)` returns the arithmetic mean (retired)",
       "line": 28,
       "status": "RETIRED",
@@ -197,6 +204,7 @@
     {
       "id": "I-001",
       "family": "I",
+      "title": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
       "statement": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
       "line": 34,
       "status": "PASSING",
@@ -242,6 +250,7 @@
     {
       "id": "I-002",
       "family": "I",
+      "title": "`scale` preserves the length of its input list.",
       "statement": "`scale` preserves the length of its input list.",
       "line": 35,
       "status": "WEAKLY_PASSING",
@@ -282,6 +291,7 @@
     {
       "id": "K-01",
       "family": "K",
+      "title": "`divide` completes in under 1 ms for inputs below 10^6.",
       "statement": "`divide` completes in under 1 ms for inputs below 10^6.",
       "line": 41,
       "status": "SKIPPED",
@@ -317,6 +327,7 @@
     {
       "id": "K-02",
       "family": "K",
+      "title": "Every result is rounded to two decimal places with `round(x, 2)`.",
       "statement": "Every result is rounded to two decimal places with `round(x, 2)`.",
       "line": 42,
       "status": "PASSING",
@@ -363,6 +374,7 @@
     {
       "id": "E-01",
       "family": "E",
+      "title": "Negative inputs to `scale`",
       "statement": "Negative inputs to `scale`",
       "line": 48,
       "status": "UNVERIFIED",
@@ -397,6 +409,7 @@
     {
       "id": "E-02",
       "family": "E",
+      "title": "Empty list passed to `scale`",
       "statement": "Empty list passed to `scale`",
       "line": 49,
       "status": "PASSING",
@@ -458,6 +471,7 @@
     {
       "id": "T-01",
       "family": "T",
+      "title": "`add` returns the sum for integers and floats. (R-01)",
       "statement": "`add` returns the sum for integers and floats. (R-01)",
       "line": 55,
       "status": "PASSING",
@@ -501,6 +515,7 @@
     {
       "id": "T-02",
       "family": "T",
+      "title": "`divide` by zero raises with the dividend in the message. (C-01)",
       "statement": "`divide` by zero raises with the dividend in the message. (C-01)",
       "line": 56,
       "status": "PASSING",
@@ -539,6 +554,7 @@
     {
       "id": "T-03",
       "family": "T",
+      "title": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
       "statement": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
       "line": 57,
       "status": "FAILING",

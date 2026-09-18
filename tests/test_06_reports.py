@@ -37,7 +37,8 @@ TOP_KEYS = [
     "metrics",
     "exit_code",
 ]
-ID_KEYS = ["id", "family", "statement", "line", "status", "src", "tests", "unrun"]
+# C-07 key order; `title` before `statement` since schema 1.1 (R-33)
+ID_KEYS = ["id", "family", "title", "statement", "line", "status", "src", "tests", "unrun"]
 TEST_KEYS = ["file", "name", "classname", "lines", "outcome", "results", "verdict"]
 METRIC_KEYS = [
     "declared",
@@ -120,7 +121,9 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
         "T-02",
         "T-03",
     ]
-    assert raw.endswith("}\n") and raw.startswith('{\n  "schema_version": "1.0",\n')
+    assert raw.endswith("}\n") and raw.startswith(
+        f'{{\n  "schema_version": "{report.SCHEMA_VERSION}",\n'
+    )
     assert str(target) not in raw and "\\" not in raw.replace("\\n", "").replace('\\"', "")
     # R-20: every path in the report is relative to --root and uses "/" regardless of host OS
     paths = [rec["spec"] for rec in [doc]]

@@ -288,3 +288,54 @@ def test_swift_golden_fixture_matches_byte_for_byte(tmp_path: Path):
         for n in doc["notes"]
     )
     assert (SWIFT_FIXTURE / "golden").is_dir() and not (SWIFT_FIXTURE / "out").exists()
+
+
+def _md_statement_cells(md: str) -> dict[str, str]:
+    """ID -> Statement cell of every §3 per-ID row (C-08 layout: | ID | Status | Statement | ...)."""
+    section = md.split("## 3. Per-ID evidence")[1].split("## 4.")[0]
+    cells: dict[str, str] = {}
+    for line in section.splitlines():
+        if not line.startswith("| ") or line.startswith("| ID ") or line.startswith("| --"):
+            continue
+        parts = [c.strip() for c in line.strip().strip("|").split(" | ")]
+        cells[parts[0].strip("~")] = parts[2]
+    return cells
+
+
+def test_goldens_carry_title_and_markdown_renders_title(tmp_path: Path):
+    """T-73: both goldens are at schema 1.1 with a `title` per ID; the Python fixture's C-01
+    statement is its title, a newline and the body sentence, while C-02 (empty body) equals its
+    title; every §3 Markdown row's Statement cell equals the JSON `title`, contains no newline and
+    never the K-14 marker; the Markdown and JSON agree on the set of IDs; the packaged self-check
+    copy is in step (T-60). (R-33, C-07, C-08, T-46, T-71)"""
+    from speccheck.extract import TRUNCATION_MARKER
+
+    expected_bodies = {
+        FIXTURE: "The error message MUST name the dividend.",
+        SWIFT_FIXTURE: "The error MUST carry the dividend.",
+    }
+    for fixture, body in expected_bodies.items():
+        golden = json.loads((fixture / "golden" / "speccheck.json").read_text(encoding="utf-8"))
+        assert golden["schema_version"] == "1.1"
+        recs = {r["id"]: r for r in golden["ids"]}
+        assert all("title" in r for r in recs.values())
+        assert list(recs["C-01"].keys())[:4] == ["id", "family", "title", "statement"]
+        assert recs["C-01"]["statement"] == recs["C-01"]["title"] + "\n" + body
+        assert recs["C-02"]["statement"] == recs["C-02"]["title"]
+        assert all(r["statement"] == r["title"] for i, r in recs.items() if i != "C-01")
+        md = (fixture / "golden" / "SPEC_CONFORMANCE_REPORT.md").read_text(encoding="utf-8")
+        cells = _md_statement_cells(md)
+        assert set(cells) == set(recs)
+        for ident, cell in cells.items():
+            assert cell == recs[ident]["title"], ident
+            assert "\n" not in cell and TRUNCATION_MARKER not in cell
+        # the golden is what the tool produces today (regression guard; T-46 / T-71 own the
+        # byte comparison) — here only the schema of a fresh run is checked against the golden
+        target = tmp_path / fixture.name
+        shutil.copytree(fixture, target)
+        out = target / "fresh-out"
+        args = ARGS if fixture is FIXTURE else SWIFT_ARGS
+        run_cli(args + ["--root", ".", "--out", str(out)], target)
+        fresh = json.loads((out / "speccheck.json").read_text(encoding="utf-8"))
+        assert fresh["schema_version"] == golden["schema_version"]
+        assert [r["title"] for r in fresh["ids"]] == [r["title"] for r in golden["ids"]]
