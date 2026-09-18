@@ -143,13 +143,17 @@ def test_row_and_heading_grammar_edge_cases():
         ]
     )
     index = parse_spec(text, "SPEC.md")
-    assert {s.id: s.text for s in index.ids} == {
+    assert {s.id: s.title for s in index.ids} == {
         "C-03": "first token declares",
         "R-02": "a \\| pipe and a `x | y` span",
         "R-03": "",
         "R-04": "a second bold token is decoration (E-44)",
         "R-06": "tight cells",
     }
+    # v1.8: a table-declared ID's text is its title; the heading's text carries the rows beneath
+    # it as its section body while those rows still declare their own IDs (E-47, R-33)
+    assert all(s.text == s.title for s in index.ids if s.id != "C-03")
+    assert index.by_id()["C-03"].text.startswith("first token declares\n| **R-02** |")
     assert split_row("| a \\| b | `c | d` | e |") == [" a \\| b ", " `c | d` ", " e "]
 
 
@@ -193,3 +197,123 @@ def test_first_cell_decoration_after_bold_id():
         "T-01": ("tab after the form", False),
         "C-03": ("**[port]** contract heading", False),
     }
+
+
+_T72_SPEC = "\n".join(
+    [
+        "# Spec",
+        "",
+        "### C-01 Widget",
+        "",
+        "```python",
+        "| **R-99** | x |",
+        "# comment inside a fence is not a heading",
+        "    def pinned(self) -> int: ...",
+        "```",
+        "",
+        "Prose clause with trailing spaces.  ",
+        "",
+        "#### note",
+        "",
+        "| ID | Statement |",
+        "| -- | --------- |",
+        "| **E-09** | inner declaration |",
+        "",
+        "---",
+        "",
+        "### C-02 Two",
+        "",
+        "### C-03",
+        "body without a title",
+        "### C-04 Empty",
+        "",
+        "   ",
+        "### C-05 Title ###",
+        "    ### R-98 indented four spaces: not a heading, not a declaration",
+        "###",
+        "###C-06 x",
+        "## Section",
+        "### C-07 Last",
+    ]
+)
+
+
+def test_heading_section_bodies_title_cap_and_line_model():
+    """T-72: a heading-declared ID's statement is its title plus its section body — every line
+    down to the next heading of the same or a higher level, fenced blocks (and the `#` lines
+    inside them), deeper headings, tables and `---` included, indentation and trailing spaces
+    intact; `title` is the heading text alone; inner declarations still declare (E-47); an
+    empty body gives `text == title` and an empty title gives the body alone (E-46); the K-14 cap
+    truncates at a line boundary with the marker line and one Note; CRLF parses as LF; a
+    whitespace-only line at the body's edge is dropped and one inside is kept; four-space
+    indentation, a bare `###`, closing hashes and `###C-06` follow C-01's HEADING LINE rule;
+    and for both fixture specs `title` equals the independently computed cell / heading
+    remainder. (R-33, C-01, C-02, K-14, E-46, E-47)"""
+    from pathlib import Path
+
+    from speccheck.extract import STATEMENT_CAP_BYTES, TRUNCATION_MARKER
+
+    index = parse_spec(_T72_SPEC, "SPEC.md")
+    ids = index.by_id()
+    assert set(ids) == {"C-01", "C-02", "C-03", "C-04", "C-05", "C-07", "E-09"}
+    body = "\n".join(_T72_SPEC.split("\n")[4:19])  # the fence through the `---`
+    assert body.startswith("```python") and body.endswith("---")
+    assert ids["C-01"].title == "Widget"
+    assert ids["C-01"].text == "Widget\n" + body
+    assert "trailing spaces.  \n" in ids["C-01"].text  # whitespace inside preserved
+    assert "    def pinned" in ids["C-01"].text  # indentation preserved
+    assert ids["E-09"].text == ids["E-09"].title == "inner declaration"
+    assert ids["C-02"].text == ids["C-02"].title == "Two"
+    assert ids["C-03"].title == "" and ids["C-03"].text == "body without a title"
+    assert ids["C-04"].text == ids["C-04"].title == "Empty"  # trailing blank lines dropped
+    assert ids["C-05"].title == "Title"
+    assert (
+        ids["C-05"].text
+        == "Title\n    ### R-98 indented four spaces: not a heading, not a declaration"
+    )
+    assert ids["C-07"].text == ids["C-07"].title == "Last"
+    assert index.notes == ()
+
+    # CRLF twin -> identical index (C-01 Lines rule, I-002)
+    assert parse_spec(_T72_SPEC.replace("\n", "\r\n"), "SPEC.md") == index
+
+    # whitespace-only line: dropped at the edge, kept inside
+    edge = parse_spec("### C-01 T\nline one\n   \n\n### C-02 U\n", "SPEC.md").by_id()
+    assert edge["C-01"].text == "T\nline one"
+    inside = parse_spec("### C-01 T\nline one\n   \nline two\n### C-02 U\n", "SPEC.md").by_id()
+    assert inside["C-01"].text == "T\nline one\n   \nline two"
+
+    # K-14: cap at a line boundary in UTF-8 bytes, marker appended, one Note
+    long_line = "café " * 40  # non-ASCII so bytes != characters
+    big = "### C-01 Big\n" + "\n".join(long_line for _ in range(120)) + "\n### C-02 Two\n"
+    capped = parse_spec(big, "SPEC.md")
+    text = capped.by_id()["C-01"].text
+    assert text.endswith("\n" + TRUNCATION_MARKER)
+    kept = text[: -len("\n" + TRUNCATION_MARKER)]
+    assert len(kept.encode("utf-8")) <= STATEMENT_CAP_BYTES == 16_384
+    assert kept.split("\n")[-1] == long_line  # whole lines only
+    assert len((kept + "\n" + long_line).encode("utf-8")) > STATEMENT_CAP_BYTES
+    assert capped.notes == ("statement truncated at K-14: C-01",)
+    assert capped.by_id()["C-01"].title == "Big"
+
+    # property over both fixture specs: title is the cell / remainder, text agrees with it
+    import re
+
+    for spec in ("fixtures/target/SPEC.md", "fixtures/target-swift/SPEC.md"):
+        raw = Path(__file__).resolve().parent.parent.joinpath(spec).read_text(encoding="utf-8")
+        got = parse_spec(raw, spec).by_id()
+        for line in raw.split("\n"):
+            m = re.match(
+                r"^\| (?:\*\*|~~\*\*|\*\*~~)([RCIKET]-\d+)(?:\*\*|\*\*~~|~~\*\*)\s*\|([^|]*)\|",
+                line,
+            )
+            if m:
+                sid = got[normalize_id(m.group(1)[0], int(m.group(1)[2:]))]
+                assert sid.title == " ".join(m.group(2).split())
+                assert sid.text == sid.title  # table-declared
+                continue
+            m = re.match(r"^### (?:~~)?([RCIKET]-\d+)(?:~~)?\s*(.*)$", line)
+            if m:
+                sid = got[normalize_id(m.group(1)[0], int(m.group(1)[2:]))]
+                assert sid.title == " ".join(m.group(2).split())
+                assert sid.text == sid.title or sid.text.startswith(sid.title + "\n")

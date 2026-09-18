@@ -2,9 +2,9 @@
 
 Everything here is deterministic and pattern-based (R-01..R-04, R-27); no semantic analysis.
 
-Spec IDs realized here (§11): R-01, R-02, R-03, R-16, R-20, R-27, C-01, C-02, C-03, I-002, I-011,
-    K-02, K-03, K-04, K-08, E-01, E-02, E-03, E-04, E-10, E-11, E-20, E-23, E-29, E-30, E-31,
-    E-33, E-34.
+Spec IDs realized here (§11): R-01, R-02, R-03, R-16, R-20, R-27, R-33, C-01, C-02, C-03, I-002,
+    I-011, K-02, K-03, K-04, K-08, K-14, E-01, E-02, E-03, E-04, E-10, E-11, E-20, E-23, E-29,
+    E-30, E-31, E-33, E-34, E-46, E-47.
 """
 
 from __future__ import annotations
@@ -27,6 +27,9 @@ SKIP_DIR_NAMES = frozenset({".git", ".hg", ".svn", "node_modules", "__pycache__"
 
 IGNORE_LINE = "speccheck:ignore"  # C-01 / E-33
 IGNORE_FILE = "speccheck:ignore-file"
+
+STATEMENT_CAP_BYTES = 16_384  # K-14: a statement is at most this many bytes of UTF-8
+TRUNCATION_MARKER = "\u2026 (statement truncated by speccheck at K-14)"  # K-14 marker line
 
 
 class SpecError(Exception):
@@ -65,7 +68,8 @@ def tokens_in_line(line: str) -> list[tuple[str, str, int]]:
 class SpecId:
     family: str
     number: int
-    text: str
+    title: str  # C-02: table cell / heading remainder, whitespace-collapsed (what C-08 renders)
+    text: str  # C-02: the statement; == title for a row, title + "\n" + SECTION BODY for a heading
     line: int
     retired: bool
 
@@ -78,6 +82,7 @@ class SpecId:
 class SpecIndex:
     path: str
     ids: tuple[SpecId, ...]
+    notes: tuple[str, ...] = ()  # K-14 / E-46: one Note per truncated statement
 
     def by_id(self) -> dict[str, SpecId]:
         return {s.id: s for s in self.ids}
@@ -96,9 +101,14 @@ _FIRST_CELL_RE = re.compile(
     r"|~~\*\*(?P<b>[RCIKET]-[0-9]{1,3})\*\*~~"
     r"|\*\*~~(?P<c>[RCIKET]-[0-9]{1,3})~~\*\*)(?:$|\s)"
 )
+# C-01 (b) HEADING LINE: at most three leading spaces, one to six "#", then whitespace or end of
+# line (ATX only; F-304). A declaring heading is a HEADING LINE whose first token is the ID.
+_HEADING_LINE_RE = re.compile(r"^ {0,3}(?P<hashes>#{1,6})(?:\s|$)")
 _HEADING_RE = re.compile(
-    r"^\s*#{1,6}\s+(?P<tok>~~[RCIKET]-[0-9]{1,3}~~|[RCIKET]-[0-9]{1,3})(?![A-Za-z0-9])(?P<rest>.*)$"
+    r"^ {0,3}#{1,6}\s+(?P<tok>~~[RCIKET]-[0-9]{1,3}~~|[RCIKET]-[0-9]{1,3})"
+    r"(?![A-Za-z0-9])(?P<rest>.*)$"
 )
+_CLOSING_HASHES_RE = re.compile(r"(?:^|\s)#+\s*$")  # C-01 (b): "### C-03 Title ###" -> "Title"
 _SEPARATOR_CELL_RE = re.compile(r"^[-:\s]+$")
 
 
@@ -140,8 +150,85 @@ def _fence_marker(line: str) -> str | None:
     return None
 
 
-def iter_declarations(lines: Iterable[str]) -> Iterable[tuple[str, int, str, bool, int]]:
-    """Yield (family, number, statement, retired, lineno) for every declaration outside fences."""
+def split_spec_lines(text: str) -> list[str]:
+    """C-01 Lines rule (F-301): split on "\n"; a trailing "\r" is removed from every line, so a
+    CRLF spec parses as its LF twin (I-002)."""
+    return [ln[:-1] if ln.endswith("\r") else ln for ln in text.split("\n")]
+
+
+def is_blank(line: str) -> bool:
+    """C-01 BLANK: empty, or spaces and tabs only."""
+    return line.strip(" \t") == ""
+
+
+def heading_level(line: str) -> int | None:
+    """C-01 (b) HEADING LINE -> its LEVEL, else None. Fence state is the caller's concern."""
+    m = _HEADING_LINE_RE.match(line)
+    return len(m.group("hashes")) if m else None
+
+
+def _heading_lines(lines: list[str]) -> list[tuple[int, int]]:
+    """(0-based index, LEVEL) of every HEADING LINE outside fenced code blocks."""
+    out: list[tuple[int, int]] = []
+    fence: str | None = None
+    for i, line in enumerate(lines):
+        marker = _fence_marker(line)
+        if fence is not None:
+            if marker == fence and line.strip() == fence:
+                fence = None
+            continue
+        if marker is not None:
+            fence = marker
+            continue
+        level = heading_level(line)
+        if level is not None:
+            out.append((i, level))
+    return out
+
+
+def section_body(lines: list[str], start: int, level: int, headings: list[tuple[int, int]]) -> str:
+    """C-01 (b) SECTION BODY: the lines after HEADING LINE `start` up to the next HEADING LINE of
+    LEVEL <= `level` (or end of file), leading/trailing BLANK lines dropped, joined with "\n",
+    everything else preserved (fenced blocks, deeper headings, tables, `---`; E-47)."""
+    end = len(lines)
+    for i, lvl in headings:
+        if i > start and lvl <= level:
+            end = i
+            break
+    body = lines[start + 1 : end]
+    while body and is_blank(body[0]):
+        body = body[1:]
+    while body and is_blank(body[-1]):
+        body = body[:-1]
+    return "\n".join(body)
+
+
+def cap_statement(statement: str) -> tuple[str, bool]:
+    """K-14: keep the longest prefix of whole lines (the first line always) whose UTF-8 length,
+    joined by "\n", is <= STATEMENT_CAP_BYTES; when anything was cut, append the marker line,
+    which does not count toward the cap. Returns (text, truncated)."""
+    if len(statement.encode("utf-8")) <= STATEMENT_CAP_BYTES:
+        return statement, False
+    kept: list[str] = []
+    size = 0
+    for line in statement.split("\n"):
+        add = len(line.encode("utf-8")) + (1 if kept else 0)
+        if kept and size + add > STATEMENT_CAP_BYTES:
+            break
+        kept.append(line)
+        size += add
+    return "\n".join(kept) + "\n" + TRUNCATION_MARKER, True
+
+
+def heading_title(rest: str) -> str:
+    """C-01 (b) title: the remainder after the ID token, closing "#" run removed, collapsed."""
+    return collapse_ws(_CLOSING_HASHES_RE.sub("", rest))
+
+
+def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bool, int]]:
+    """Yield (family, number, title, statement, retired, lineno) for every declaration outside
+    fences (C-01). The statement is capped per K-14 by the caller."""
+    headings = _heading_lines(lines)
     fence: str | None = None
     for lineno, line in enumerate(lines, start=1):
         marker = _fence_marker(line)
@@ -168,7 +255,8 @@ def iter_declarations(lines: Iterable[str]) -> Iterable[tuple[str, int, str, boo
             retired = m.group("a") is None
             statement = collapse_ws(cells[1]) if len(cells) > 1 else ""
             fam, num = tok.split("-")
-            yield fam, int(num), statement, retired, lineno
+            # C-01 (a): a table declaration's title is its statement
+            yield fam, int(num), statement, statement, retired, lineno
             continue
         if stripped.startswith("#"):
             m = _HEADING_RE.match(line)
@@ -178,13 +266,25 @@ def iter_declarations(lines: Iterable[str]) -> Iterable[tuple[str, int, str, boo
             retired = tok.startswith("~~")
             tok = tok.strip("~")
             fam, num = tok.split("-")
-            yield fam, int(num), collapse_ws(m.group("rest")), retired, lineno
+            title = heading_title(m.group("rest"))
+            level = heading_level(line)
+            assert level is not None  # _HEADING_RE is a subset of _HEADING_LINE_RE
+            body = section_body(lines, lineno - 1, level, headings)
+            # C-01 (b) / R-33: title, newline, body; body alone when the title is empty (E-46)
+            if not body:
+                statement = title
+            elif not title:
+                statement = body
+            else:
+                statement = title + "\n" + body
+            yield fam, int(num), title, statement, retired, lineno
 
 
 def parse_spec(text: str, rel_path: str) -> SpecIndex:
     """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
     seen: dict[tuple[str, int], SpecId] = {}
-    for fam, num, statement, retired, lineno in iter_declarations(text.split("\n")):
+    notes: list[str] = []
+    for fam, num, title, statement, retired, lineno in iter_declarations(split_spec_lines(text)):
         key = (fam, num)
         if key in seen:
             prior = seen[key]
@@ -199,11 +299,14 @@ def parse_spec(text: str, rel_path: str) -> SpecIndex:
                 f"{ident} declared {first_kind} at line {prior.line} "
                 f"and {second_kind} at line {lineno}"
             )
-        seen[key] = SpecId(fam, num, statement, lineno, retired)
+        statement, truncated = cap_statement(statement)  # K-14
+        if truncated:
+            notes.append(f"statement truncated at K-14: {normalize_id(fam, num)}")  # E-46
+        seen[key] = SpecId(fam, num, title, statement, lineno, retired)
     ids = tuple(sorted(seen.values(), key=lambda s: (family_rank(s.family), s.number)))
     if not any(not s.retired for s in ids):
         raise SpecError("spec declares no in-scope IDs")
-    return SpecIndex(path=rel_path, ids=ids)
+    return SpecIndex(path=rel_path, ids=ids, notes=tuple(sorted(notes)))
 
 
 def decode_text(data: bytes) -> tuple[str, bool]:

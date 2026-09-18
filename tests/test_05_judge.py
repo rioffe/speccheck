@@ -128,7 +128,7 @@ def test_mock_judge_asserts_on_assertion_tokens_else_executes_only():
 
 
 def _graph_with_edges(verdict_names: list[str | None]) -> tuple[Graph, dict]:
-    spec = SpecId("R", 1, "s", 1, False)
+    spec = SpecId("R", 1, "s", "s", 1, False)
     edges = []
     verdicts = {}
     for i, name in enumerate(verdict_names):
