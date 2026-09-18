@@ -1,8 +1,8 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.6 — v1.5 plus a Swift test-case adapter (R-31: Swift Testing `@Test` functions and XCTest `test*` methods are delimited with spans that include the doc comment and attributes, joined to SwiftPM's xUnit output by identifier — C-03, C-04, E-42, E-43, E-45, T-65..T-68, T-71, D-17..D-19), Swift assertion tokens for the mock judge (C-06, T-69) and tolerance for decoration after the bold ID in a declaring table cell (R-32, C-01, E-44, T-70). Requested 2026-09-17 after a Swift build of a spec ran the checker and got `62 unverified; 43 dangling` for tool reasons alone. v1.5 was v1.4 with E-41 tightened after a real Ctrl-C against a local model: in-flight judge requests are abandoned at once, never awaited (the first interrupt used to look ignored for up to K-05 seconds). v1.4 was v1.3 with every finding of the v1.3 `spec-review` applied (`SPEC_REVIEW_REPORT.md`, F-201..F-210): the progress indicator now owns stderr while displayed, has one clock, a coalesced cadence, portable byte sequences, and an interrupt rule (E-41, exit `3`); the C-07 example matches its rules; T-46/T-60 are in §11. v1.3 was v1.2 plus a judge-stage progress indicator for `--judge llm` (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15): the LLM judge takes minutes, and an operator at a terminal MUST be able to see how far along it is without turning on `--verbose`. v1.2 was v1.1 with D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 (C-06, T-33) so thinking models can finish the verdict JSON inside the budget; the remaining §12 rows marked `confirm` are still decisions the build inherits from the author, not the requester
+> - **Status:** v1.7 — v1.6 plus the section body of a heading-declared ID in its statement (R-33: for `### C-03 <title>` the statement the judge receives and `speccheck.json` records is the title followed by every line down to the next heading of the same or a higher level, fenced code blocks included, capped per K-14; `SpecId.title` and a JSON `title` key keep the heading text alone, which is what the Markdown report renders, so `SPEC_CONFORMANCE_REPORT.md` is unchanged — C-01 (b), C-02, C-06, C-07 `schema_version` `"1.1"`, C-08, one added rule in C-10, K-14, E-46, E-47, T-72..T-74, D-20). Requested 2026-09-17 after two `--judge llm` runs over the same 130 edges of the MonteCarloPi Swift build disagreed almost entirely on heading-declared contracts (`gpt-4o-mini` 65/70, 0 weak; `gemini-3.8-flash` 56/70, 9 weak, 15 UNRELATED, 3 UNKNOWN): both judges had been handed a title such as `Data structures`, never the contract beneath it (`PROPOSAL_v1.7_heading_bodies.md`). v1.6 was v1.5 plus a Swift test-case adapter (R-31: Swift Testing `@Test` functions and XCTest `test*` methods are delimited with spans that include the doc comment and attributes, joined to SwiftPM's xUnit output by identifier — C-03, C-04, E-42, E-43, E-45, T-65..T-68, T-71, D-17..D-19), Swift assertion tokens for the mock judge (C-06, T-69) and tolerance for decoration after the bold ID in a declaring table cell (R-32, C-01, E-44, T-70). Requested 2026-09-17 after a Swift build of a spec ran the checker and got `62 unverified; 43 dangling` for tool reasons alone. v1.5 was v1.4 with E-41 tightened after a real Ctrl-C against a local model: in-flight judge requests are abandoned at once, never awaited (the first interrupt used to look ignored for up to K-05 seconds). v1.4 was v1.3 with every finding of the v1.3 `spec-review` applied (`SPEC_REVIEW_REPORT.md`, F-201..F-210): the progress indicator now owns stderr while displayed, has one clock, a coalesced cadence, portable byte sequences, and an interrupt rule (E-41, exit `3`); the C-07 example matches its rules; T-46/T-60 are in §11. v1.3 was v1.2 plus a judge-stage progress indicator for `--judge llm` (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15): the LLM judge takes minutes, and an operator at a terminal MUST be able to see how far along it is without turning on `--verbose`. v1.2 was v1.1 with D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 (C-06, T-33) so thinking models can finish the verdict JSON inside the budget; the remaining §12 rows marked `confirm` are still decisions the build inherits from the author, not the requester
 > - **Language / stack:** Python 3.12 | standard library for the deterministic kernel (`re`, `ast`, `xml.etree`, `json`, `argparse`, `pathlib`) | CLI only; optional model-backed judge behind an `[llm]` extra
-> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (review of v0.1; F-001..F-017 below point at it); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision)
+> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (review of v0.1; F-001..F-017 below point at it); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20)
 > - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code.
 > - **Normative language:** MUST/MUST NOT/SHALL/SHALL NOT = normative; SHOULD = strong recommendation; MAY = optional.
 > - **Principle:** *The model may only ever make the news worse.* Every status is computed deterministically from evidence the operator can `grep`; the judge is permitted to downgrade a status with cited evidence, never to upgrade one, and every claim in the report points at a file and line.
@@ -88,6 +88,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-30** | With `--judge llm`, the checker MUST display a progress indicator for the judge stage on stderr, in the format of C-11, whenever `--progress` resolves to on (default `auto`: on iff stderr is a TTY and verbosity is not `DEBUG`; §5.1). The indicator MUST be redrawn in place per K-13, MUST be erased before anything else is written to stderr or stdout after the judge stage begins, and MUST NOT alter stdout, either report file, or the exit code. With `--judge none` or `--judge mock` no indicator is ever drawn. | requester (2026-09-13: "speccheck should include progress bar when running with LLM judge, since that takes quite a bit of time") |
 | **R-31** | For every file ending `.swift` under a `--tests` root, the checker MUST delimit test cases per the C-03 Swift adapter — Swift Testing `@Test` functions and XCTest `test*` methods — with a span that begins at the first line of the doc comment / attribute block above the declaration and ends at the function's closing brace, and MUST join their citations to SwiftPM's xUnit `<testcase>` outcomes by function identifier (C-04), so that a citation written where `spec-build` puts it (the test's doc comment) counts exactly as a Python citation does under R-04 and R-05. | requester (2026-09-17: "what would it take to make it work for Swift projects as well as Python ones?" — "go ahead"); the MonteCarloPi Swift build (`SPEC_BUILD_REPORT.md` of that project), where every Swift citation was file-level and the run reported `62 unverified` |
 | **R-32** | The declaration parser MUST declare an ID whose bold form is the *beginning* of a table row's first cell and is followed by whitespace-separated decoration (`\| **K-07** **[port]** \|`), ignoring the decoration; the statement remains the second cell (C-01 (a), E-44). | the MonteCarloPi port spec marks port-specific ids `**[port]**` inside the id cell; six declared ids were reported as 43 dangling citations |
+| **R-33** | For an ID declared by a heading (C-01 (b)), the checker MUST use the heading text followed by the section body beneath it — prose, bullets, and fenced code blocks, up to the next heading of the same or a higher level, capped per K-14 — as the ID's statement (`SpecId.text`, `JudgeRequest.statement`, JSON `statement`), so that the judge and the JSON report see the contract's pinned shape and not its title. The heading text alone is kept as `SpecId.title` / JSON `title`, and that is what the Markdown report renders (C-08). Table-row declarations are unchanged. | `PROPOSAL_v1.7_heading_bodies.md` (2026-09-17): two judges over the same 130 MonteCarloPi edges — `gpt-4o-mini` 65/70, 0 weak; `gemini-3.8-flash` 56/70, 9 weak, 15 UNRELATED, 3 UNKNOWN — and every disagreement was a `###`-declared contract whose statement was a title (`Data structures`, `` `EstimationWorker` (an `actor`) ``) while the pinned API sat unsent beneath it |
 
 ---
 
@@ -160,7 +161,7 @@ A run is a single, stateless pipeline. There is no persistent state between runs
 | Artifact | Written to | Version | Shape |
 | -------- | ---------- | ------- | ----- |
 | `SPEC_CONFORMANCE_REPORT.md` | `--out` (default `.`) | mirrors JSON `schema_version` | C-08 |
-| `speccheck.json` | `--out` | `schema_version: "1.0"` | C-07 |
+| `speccheck.json` | `--out` | `schema_version: "1.1"` (was `"1.0"` through v1.6; `title` added in v1.7) | C-07 |
 
 Both files are overwritten on every successful run, via the temp-and-rename sequence in §3.1. No other file is ever written, and no temporary survives a run (I-001).
 
@@ -194,12 +195,32 @@ backticks, and an unclosed fence runs to end of file (Q-008).
         Text after the form is DECORATION: it is not part of the statement, and a bold ID inside
         it is not a declaration (`**R-01** **R-02**` declares R-01 only).
         statement := the trimmed text of the SECOND cell ("" if there is none)
+        title     := statement  (a table declaration has no separate title; R-33)
         A bold ID in any other cell is not a declaration (E-31). A separator row (cells made of
         "-" and ":" only) is never a declaration.
-  (b) heading:      ### C-03 <statement>
+  (b) heading:      ### C-03 <title>
+        HEADING LINE := a line, outside fenced code blocks, whose first non-space characters are
+                     one to six "#" followed by whitespace; its LEVEL is the number of "#".
         the ID token (optionally wrapped ~~ ~~) MUST be the first token after the "#" run;
-        statement := the rest of the heading text, trimmed. "### 9.1 Extraction (C-01, C-02)"
-        declares nothing.
+        "### 9.1 Extraction (C-01, C-02)" declares nothing.
+        title     := the rest of the heading text, trimmed, whitespace-collapsed
+        statement := title, then — when the SECTION BODY is non-empty — a newline and the
+                     SECTION BODY (R-33; v1.7. Through v1.6 the statement was the title alone.)
+        SECTION BODY := the lines after the HEADING LINE up to (not including) the next HEADING
+                     LINE whose LEVEL is <= the declaring heading's LEVEL, or end of file;
+                     fenced code blocks INCLUDED (the pinned shape is the contract; D-20);
+                     leading and trailing blank lines dropped; whitespace inside preserved
+                     line for line (a code block's indentation is meaning); the body's own
+                     deeper headings (#### under a ###) are part of it; a thematic break
+                     (---) is body text like any other line; capped at K-14 bytes (E-46).
+                     A body that is empty after trimming — "### C-04 Data structures" followed
+                     by blank lines and another ### — leaves the statement equal to the title
+                     (E-46).
+        The body is context, not grammar: a table row inside it is still parsed for its own
+        declarations, a deeper heading inside it still declares its own ID (whose own body is
+        delimited by the same rule), and a bold ID in the body is not a declaration of the
+        heading's ID (E-31, E-47). IDs inside the body's fenced blocks remain non-declarations
+        (E-04).
   A SECOND declaration of the same ID is E-02 (exit 3); the message names the ID and both lines.
   Nothing "wins": the run produces no report (Q-006).
 
@@ -235,7 +256,11 @@ Family T (F-001): a T id names an acceptance test. It is IN SCOPE and is expecte
 class SpecId:
     family: str          # one of "R","C","I","K","E","T"
     number: int          # 0..999
-    text: str            # statement (table cell or heading remainder), whitespace-collapsed, may be ""
+    title: str           # table: the second cell, whitespace-collapsed, may be ""; heading: the heading
+                         # remainder, whitespace-collapsed (C-01). What C-08 renders. Added in v1.7 (R-33).
+    text: str            # the statement (C-01). table: == title. heading: title + "\n" + SECTION BODY
+                         # when the body is non-empty (body whitespace preserved line for line, fenced
+                         # blocks included, capped per K-14); == title when the body is empty (R-33, E-46)
     line: int            # 1-based line of the declaration in SPEC.md
     retired: bool
 
@@ -435,7 +460,7 @@ Step 5 is the ONLY place verdicts influence anything: an ID with verdicts {ASSER
 @dataclass(frozen=True)
 class JudgeRequest:
     id: str                 # "R-07"
-    statement: str          # SpecId.text
+    statement: str          # SpecId.text — for a heading-declared ID: title, newline, section body (R-33); may be multi-line
     testcase: TestCase
     source: str             # lines testcase.start..testcase.end, each prefixed "<lineno>\t" (F-109)
 
@@ -473,6 +498,8 @@ LLM provider wire format (judge_llm.py; F-004) — an OpenAI-compatible chat-com
                 "messages": [
                   { "role": "system", "content": <the C-10 instruction text, verbatim> },
                   { "role": "user",   "content": <JSON object {id, statement, file, start, end, source}, K-09 formatting;
+                                                     statement = SpecId.text verbatim — body, fenced blocks and
+                                                     indentation included for a heading-declared ID (R-33, T-74);
                                                      source = the span with every line prefixed by its absolute
                                                      1-based line number and one TAB (F-109)> } ] }
   Response: HTTP 200 with a JSON body; the model's text is read from  choices[0].message.content .
@@ -490,11 +517,11 @@ Mock provider (judge_mock.py):
   evidence = every such line (file, line); rationale = "mock: assertion token on N line(s)" / "mock: no assertion token"
 ```
 
-### C-07 JSON report (`speccheck.json`, `schema_version` "1.0")
+### C-07 JSON report (`speccheck.json`, `schema_version` "1.1")
 
 ```json
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "spec": "SPEC.md",
   "judge": "none | mock | llm",
   "judge_available": null,
@@ -506,6 +533,7 @@ Mock provider (judge_mock.py):
     {
       "id": "R-07",
       "family": "R",
+      "title": "…",
       "statement": "…",
       "line": 88,
       "status": "PASSING",
@@ -550,6 +578,11 @@ Rules: keys emitted in exactly this order (`judge_prompt_sha256` omitted entirel
   the E-case that produces it, so this order is total and reproducible; Q-002);
   `lines` ascending, unique. No timestamps, hostnames, absolute paths, durations, or version
   strings other than schema_version (R-16).
+Title and statement (R-33): `title` is `SpecId.title` and `statement` is `SpecId.text` (C-01, C-02).
+  For a table-declared ID the two are equal; for a heading-declared ID with a body, `statement` is
+  multi-line — title, `\n`, the section body with its fenced blocks and indentation, truncated per
+  K-14 when over the cap — and `title` is the heading text alone. `schema_version` was `"1.0"`
+  through v1.6 and is `"1.1"` from v1.7, when `title` was added; no other key changed.
 Verdict field (Q-001): every `tests[]` entry has the key `verdict`. It is a verdict object when
   the case was judged (judge enabled, ID `PASSING` after C-05 step 4, outcome `passed`) and `null`
   otherwise — including every entry under `--judge none`. The key is never omitted.
@@ -597,6 +630,8 @@ Shape rules (F-016): `by_family` ALWAYS has exactly the six keys R, C, I, K, E, 
 ## 3. Per-ID evidence
 | ID | Status | Statement | Source citations | Test citations (outcome · verdict) |
 # one row per declared ID in C-07 order; RETIRED rows included, with the ID cell (only) struck through: `~~R-07~~`;
+# the Statement cell renders the JSON `title` — the heading text or the table cell — never a section body, so
+# this table is byte-identical before and after v1.7 (R-33, T-73); the body the judge saw is in `speccheck.json`
 # citations rendered as `file:line`; verdict rendered as ASSERTS / EXECUTES_ONLY / UNRELATED / UNKNOWN(coerced),
 # or as an em dash (—) when the JSON `verdict` is null (Q-001); a file-level case is rendered with the
 # label `(file)` in place of its empty name (Q-011)
@@ -622,7 +657,7 @@ and error messages (redact to "***").
 
 ### C-10 Judge instruction text (normative; F-004)
 
-The file `speccheck/judge_prompt.md` is shipped as package data and its content is exactly the text below (trailing newline, `\n` line endings). It is sent verbatim as the system message (C-06). Changing it is a spec change: bump this document's version and the file together.
+The file `speccheck/judge_prompt.md` is shipped as package data and its content is exactly the text below (trailing newline, `\n` line endings). It is sent verbatim as the system message (C-06). Changing it is a spec change: bump this document's version and the file together (v1.7 added the last rule, for statements that carry a section body — R-33, D-20).
 
 ```text
 You are a test-strength judge for a specification conformance checker.
@@ -658,6 +693,9 @@ Rules:
   - rationale is one sentence, at most 280 characters.
   - Judge only the given test case. Do not assume what other tests do.
   - A test that mentions the ID in a comment or string is not evidence of asserting it.
+  - The statement may contain a code block pinning an interface; a test that asserts any clause
+    of the statement ASSERTS it - a contract with several clauses is not required to be asserted
+    whole by one test.
 ```
 
 ### C-11 Judge progress indicator (R-30)
@@ -819,6 +857,7 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **K-06** | Exactly one HTTP request per judged edge; no retries, no batching. Requests MAY be issued concurrently, at most `--judge-concurrency` at a time (default `4`, integer `1..32`); output order is fixed by C-07 and MUST NOT depend on completion order (F-110). |
 | **K-12** | `--judge-budget SECONDS` (default `0` = unlimited; integer `0..86400`) bounds the wall-clock spent in the judge stage, measured from the first request issued. The deadline is `start + budget`. A request is *started* when it is issued; no request is issued at or after the deadline; requests in flight at the deadline are allowed to complete (each still bounded by K-05) and their verdicts count. Every edge not started before the deadline receives `UNKNOWN` with rationale `judge: budget` and `coerced: true`, and one Note records how many (F-110, Q-010). |
 | **K-13** | The progress indicator (C-11) is drawn once when the judge stage starts (with $d = 0$, `0:00 elapsed`); every determined verdict is reflected by a draw within 100 ms of its determination (a burst of verdicts MAY be coalesced into one draw); it is redrawn at least once per second of wall-clock while any request is in flight so that `elapsed` and `left` keep moving; and it is never drawn more than 10 times per second. Each draw and the erase is one atomic write, serialized across threads. The bar has exactly 20 cells. From the first draw to the erase nothing else is written to stderr (F-201). The indicator is erased exactly once, when the judge stage ends, after the final state has been drawn and before the `report` stage begins — before any INFO stage line, Note, error message, or the summary line is written. |
+| **K-14** | A statement (C-01: title, newline, section body) is at most 16,384 bytes of UTF-8. A longer statement is truncated to the longest prefix of whole lines whose UTF-8 length, joined by `\n`, is $\leq$ 16,384 — the title line is always kept — followed by `\n` and the marker line `… (statement truncated by speccheck at K-14)` (U+2026, one space, then ASCII); the marker does not count toward the cap. The truncated text is what `SpecId.text`, the judge, and the JSON carry; `title` is unaffected; one Note `statement truncated at K-14: <ID>` is recorded per truncated ID (E-46). Table declarations never approach the cap. Reference points: the largest contract of the MonteCarloPi spec is 2.7 kB and the largest in this document is C-03 at 8.4 kB, so neither T-48 nor any known spec is truncated; the cap is a bound on the judge payload (about 4 k tokens per edge at most), not a working limit (D-20). |
 | **K-07** | `rationale` $\leq$ 280 characters after truncation; single line (newlines replaced by spaces). |
 | **K-08** | Kernel performance, measured on the reference machine named in `SPEC_BUILD_REPORT.md` (CPU model, RAM, OS, Python build, run in isolation): `check --judge mock` on the §9.8 golden fixture completes in $\leq$ 2 s wall-clock, and a generated 10,000-file tree with 100 declared IDs in $\leq$ 60 s. Both bounds are recorded, not CI-gated (F-017). |
 | **K-09** | JSON output is UTF-8, `indent=2`, `ensure_ascii=False`, sorted per C-07 (not alphabetically), trailing newline; Markdown output is UTF-8 with `\n` line endings. |
@@ -876,6 +915,8 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **E-43** | A `.swift` function named `test*` that is neither `@Test`-attributed nor a direct `test*` method of an `XCTestCase` class (a method of another type, a member of a nested class, a free function) | Not a test case; its citations are file-level; one Note per file lists the undelimited names as `<Chain.name>` (R-31; the E-28 rule). |
 | **E-44** | A declaring table row whose first cell begins with a bold ID form and continues with whitespace-separated decoration (`**K-07** **[port]**`) | Declares the ID; the decoration is dropped; a bold ID inside the decoration is not a declaration; a first cell where the form is followed by a non-whitespace character (`**K-07**x`) declares nothing (R-32). |
 | **E-45** | Two Swift test cases with the same identifier and classname (overloads by parameter label) | A result with that `join_name` ties between them: unattributed, one Note names the result and both candidates (C-04; the E-27 rule). |
+| **E-46** | A heading-declared ID whose statement (title plus section body) exceeds K-14; or whose section body is empty — the heading is followed only by blank lines before the next heading of the same or a higher level, or before end of file | Over the cap: truncated per K-14, marker line appended, one Note `statement truncated at K-14: <ID>`; `title` is unaffected and the Markdown table shows it. Empty body: the statement is the title alone, exactly as through v1.6; no Note (R-33). |
+| **E-47** | A heading-declared ID whose section body contains a deeper heading that itself declares an ID (`#### E-09 …` under `### C-01 …`, retired or not), or a table with declaring rows | Those inner declarations are parsed exactly as before, each with its own title, statement, and body; the outer ID's statement includes their text verbatim as context (the judge sees the sub-rows). A declaring heading's body ends only at a heading of level $\leq$ its own, so a deeper declaring heading never ends it (R-33, E-31). |
 
 ---
 
@@ -895,6 +936,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-05** | IDs inside fenced code blocks in `SPEC.md` are ignored, for both ```` ``` ```` and `~~~` fences, with and without an info string, and for an unclosed fence running to end of file; a backtick fence opened with an info string is closed by a bare backtick line, is not closed by a tilde line, and a candidate closing line carrying an info string does not close it. (E-04, C-01) |
 | **T-06** | Duplicate declaration exits `3` and names both lines. (E-02) |
 | **T-55** | A bold ID in a second cell, a heading with the ID after other tokens, a separator row, and a row with `\|` and a backtick-quoted pipe in a cell are parsed per C-01: only first-cell/first-token forms declare; the statement is the second cell with escapes intact. (E-31, C-01) |
+| **T-72** | A spec with `### C-01 Widget`, a fenced block containing `\| **R-99** \| x \|` and a `# comment` line, a prose paragraph, a `#### note` sub-section holding a declaring `\| **E-09** \| … \|` row, a `---`, then `### C-02 …`: C-01's `text` is `Widget`, a newline, and every line through the `---` with its indentation intact (the `#### note` section included, C-02's heading excluded); C-01's `title` is `Widget`; R-99 is not declared (E-04) and E-09 is (E-47); a body that takes the statement over K-14 yields a `text` of whole lines $\leq$ 16,384 bytes plus the marker line and one Note naming the ID; a heading with an empty body, and a declaring heading on the last line of the file, each yield `text == title`; for every ID of `fixtures/target/SPEC.md` and `fixtures/target-swift/SPEC.md`, `title` equals the statement v1.6 produced, and every table-declared ID has `text == title`. (R-33, C-01, C-02, K-14, E-46, E-47) |
 | **T-07** | A spec with no in-scope IDs exits `3` and writes no files. (E-01, I-001) |
 
 ### 9.2 Citation and attribution (C-03)
@@ -953,6 +995,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-32** | Rationale over 280 chars is truncated to 277 + `...`; newlines become spaces. (K-07) |
 | **T-33** | LLM provider sends exactly one `POST` per edge whose body is byte-for-byte the C-06 shape (`model`, `temperature: 0`, `max_tokens: 4000`, system message equal to the C-10 text, user message equal to the request JSON with line-numbered `source`), with the bearer header, honors the timeout, never retries, and issues at most `--judge-concurrency` requests at once while output order stays fixed (recorded HTTP stub with a concurrency counter). (K-05, K-06, R-26) |
 | **T-54** | The provider reads `choices[0].message.content`, accepts a bare JSON object and one wrapped in a ```` ``` ````/```` ```json ```` fence, and treats a missing path, a non-200 status, or any other text as E-14/E-15; the report carries `judge_prompt_sha256` equal to the SHA-256 of `speccheck/judge_prompt.md`, and that file equals the C-10 text. (C-06, C-10, R-26) |
+| **T-74** | Extends T-33: for a heading-declared ID with a body, the LLM request's user message carries `statement` equal to `SpecId.text` — title, newline, body with its fenced block and indentation, byte for byte — under the unchanged keys `{id, statement, file, start, end, source}` and the unchanged system message; the C-10 file contains the any-clause rule added in v1.7 and `judge_prompt_sha256` is its SHA-256 (recorded HTTP stub). (R-33, C-06, C-10, R-26) |
 
 ### 9.6 Reports and determinism (C-07, C-08)
 
@@ -990,6 +1033,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-46** | `fixtures/target/` — a small self-contained project with its own `SPEC.md` ($\geq$ 12 IDs across all six families, 2 retired), `src/`, `tests/`, and a checked-in `junit.xml` — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` E, one `FAILING` T, one `SKIPPED` K, one `EXECUTES_ONLY`-only test, one dangling citation, one stale citation, one unattributed result, one file-level citation. The golden reports live in `fixtures/target/golden/` (outside every scan root). `speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --root fixtures/target --out <fresh tmp>` produces files byte-identical to `golden/speccheck.json` and `golden/SPEC_CONFORMANCE_REPORT.md` and exits `1` (Q-003). (all of §2) |
 | **T-47** | Removing each planted defect in turn flips exactly the expected row and metric (one sub-test per defect). (R-06, R-24) |
 | **T-71** | `fixtures/target-swift/` — a SwiftPM-shaped project with its own `SPEC.md` ($\geq$ 10 IDs across all six families, one carrying `**[port]**` decoration), `Sources/`, `Tests/<Module>/` holding one Swift Testing file (nested suite, parameterized test, disabled test, doc-comment citations) and one XCTest file, and a checked-in `junit.xml` that concatenates the `junit-swift-testing.xml` SwiftPM wrote and an XCTest `<testsuite>` in SwiftPM's shape — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` file-level citation, one `FAILING` T, one `SKIPPED` K (the disabled test), one `EXECUTES_ONLY`-only test, one undelimited `test*` helper (E-43), one unattributed result. With `--judge mock` both reports are byte-identical to `fixtures/target-swift/golden/`, and the summary line is exactly the one recorded in that golden. (R-31, R-32, R-16, R-24) |
+| **T-73** | Both golden fixtures regenerated for v1.7: each `golden/speccheck.json` carries `schema_version` `"1.1"` and a `title` per ID; in `fixtures/target/golden/speccheck.json` C-01's `statement` is its heading text, a newline, and `The error message MUST name the dividend.` while C-02's (empty body) equals its `title`; each `golden/SPEC_CONFORMANCE_REPORT.md` is byte-identical to its v1.6 version (the Markdown renders `title`); `speccheck/_selfcheck/` is updated in step (T-60) and `--self-check` still prints `self-check: ok`. (R-33, C-07, C-08, T-46, T-71) |
 
 ### 9.9 Self-application (recorded, not gating)
 
@@ -1044,7 +1088,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 
 | Spec id | Where realized (component / module) | Verified by |
 | ------- | ----------------------------------- | ----------- |
-| R-01 | `extract.py` (declaration scan, UTF-8 replace) | T-01, T-05, T-46 |
+| R-01 | `extract.py` (declaration scan, UTF-8 replace) | T-01, T-05, T-46, T-72 |
 | R-02 | `extract.py` (retired flag), `graph.py` (denominators) | T-04, T-25, T-46 |
 | R-03 | `extract.py` (source scan, C-03 exclusions, binary/symlink filters) | T-08, T-13, T-36, T-46 |
 | R-04 | `attribute.py` (Python adapter, Swift adapter, fallback, C-03 exclusions) | T-09, T-10, T-11, T-12, T-36, T-56, T-46, T-65, T-66, T-67 |
@@ -1069,23 +1113,24 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-23 | `judge_llm.py`, `cli.py` (env validation, redaction) | T-40, T-41 |
 | R-24 | `report.py` (evidence table completeness) | T-37, T-48 |
 | R-25 | `graph.py` (C-05 step 2b) | T-53 |
-| R-26 | `judge_llm.py` (body, response path, prompt hash), `speccheck/judge_prompt.md` | T-33, T-54 |
+| R-26 | `judge_llm.py` (body, response path, prompt hash), `speccheck/judge_prompt.md` | T-33, T-54, T-74 |
 | R-27 | `extract.py` (ignore markers) | T-57 |
 | R-28 | `cli.py` (`--strict` judge gate), `report.py` (`strict_judge_failure`) | T-59 |
 | R-29 | `cli.py` (summary line encoding) | T-44 |
 | R-30 | `cli.py` (`--progress` resolution, TTY test), `judge.py` (progress callback in `run_judge`) | T-62, T-63 |
 | R-31 | `attribute.py` (Swift adapter: type/func lines, attribute block, brace spans, MODULE), `results.py` (signature strip), `judge_mock.py` (Swift tokens) | T-65, T-66, T-67, T-68, T-69, T-71 |
 | R-32 | `extract.py` (first-cell prefix rule) | T-70, T-71 |
-| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70 |
-| C-02 | `extract.py` (`SpecId`, `SpecIndex`) | T-01, T-06 |
+| R-33 | `extract.py` (heading title, SECTION BODY, K-14 cap and Note), `report.py` (`title` key; Markdown renders `title`), `judge_llm.py` (statement passthrough) | T-72, T-73, T-74 |
+| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration and section bodies, ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72 |
+| C-02 | `extract.py` (`SpecId` with `title` and `text`, `SpecIndex`) | T-01, T-06, T-72 |
 | C-03 | `attribute.py` (`TestCase`, `Citation`, `test*` methods, Swift adapter), `extract.py` (exclusions incl. temporaries, binary, symlinks) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67 |
 | C-04 | `results.py` (two-step `join_name`) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68 |
 | C-05 | `graph.py` (`IdStatus`, `compute_status`) | T-20, T-21, T-27, T-53 |
-| C-06 | `judge.py` (`JudgeRequest` with numbered `source`, `Verdict`, validation), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69 |
-| C-07 | `report.py` (`to_json`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59 |
-| C-08 | `report.py` (`to_markdown`; em dash and `(file)` renderings) | T-35 |
+| C-06 | `judge.py` (`JudgeRequest` with numbered `source` and full statement, `Verdict`, validation), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74 |
+| C-07 | `report.py` (`to_json`; `title`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59, T-73 |
+| C-08 | `report.py` (`to_markdown`; Statement cell from `title`; em dash and `(file)` renderings) | T-35, T-73 |
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
-| C-10 | `speccheck/judge_prompt.md`, `judge_llm.py` (system message) | T-33, T-54 |
+| C-10 | `speccheck/judge_prompt.md`, `judge_llm.py` (system message) | T-33, T-54, T-74 |
 | C-11 | `judge.py` (progress line rendering, draw/erase sequences) | T-62 |
 | I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
@@ -1111,6 +1156,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | K-11 | `cli.py` (`--max-unknown`, Decimal comparison, `null` rule) | T-59 |
 | K-12 | `judge.py` (budget deadline, in-flight completion), `cli.py` (`--judge-budget`) | T-61 |
 | K-13 | `judge.py` (redraw on completion, 1 s ticker, single erase) | T-62 |
+| K-14 | `extract.py` (statement cap at line boundary, marker line, Note) | T-72 |
 | E-01 | `extract.py`, `cli.py` | T-07 |
 | E-02 | `extract.py` | T-06 |
 | E-03 | `extract.py` | T-04 |
@@ -1156,6 +1202,8 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-43 | `attribute.py` (Swift undelimited `test*`) | T-65, T-66, T-71 |
 | E-44 | `extract.py` (first-cell decoration) | T-70, T-71 |
 | E-45 | `results.py` (tie → unattributed) | T-68 |
+| E-46 | `extract.py` (cap and Note; empty body → title) | T-72 |
+| E-47 | `extract.py` (inner declarations parsed; body ends only at level $\leq$ own) | T-72 |
 
 ---
 
@@ -1184,6 +1232,7 @@ Every row below is a decision the specification's author made on the requester's
 | D-17 | How Swift test files are delimited | by lines and brace counting inside `attribute.py` (C-03 TYPE LINE / FUNC LINE / ATTRIBUTE BLOCK / SPAN END rules; comments and string literals excluded from the count), so the kernel stays standard-library and needs no toolchain at check time | a real parser (`swift-syntax` has no Python binding; `swiftc -dump-parse` or `swift test list` need a Swift toolchain where the checker runs and give names but not line spans); treating `.swift` as file-level as before (the citations then never join — the defect that motivated v1.6) | R-31, C-03, E-42, E-43, T-65..T-67 | requester / confirm |
 | D-18 | Where the Swift `MODULE` in a classname comes from | the first path component of the file under its `--tests` root, or the root's last component for a file directly under it (SwiftPM's `Tests/<Target>/` layout) | parse `Package.swift` for target names and paths (a second grammar); a `--swift-module` flag (one more thing to get wrong); match on the type chain alone ignoring the module (ambiguous across targets) | C-03, T-65, T-68 | requester / confirm |
 | D-19 | How a Swift Testing result name (`twoArgs(a:b:)`) is joined | C-04 strips the signature and joins on the bare identifier; overloads by label tie and are unattributed (E-45) | reconstruct the label signature in the adapter and join exactly (correct for overloads, but default arguments, `_` labels, generics and `inout` all need parsing to get right); join on signature when present and fall back to identifier (two rules where one suffices) | C-04, E-45, T-68 | requester / confirm |
+| D-20 | What a heading-declared ID's statement contains | the title plus the whole section body, fenced code blocks included, capped at 16,384 bytes (R-33, C-01 (b), K-14) — the pinned shape is the contract, and it is what a literal judge needs | prose only, code blocks dropped (smaller; rejected because MonteCarloPi's C-02 would still be judged on comment-free prose); the first fenced block only (loses prose clauses such as "throws on the first tick", and bullet-pinned shapes such as C-05's reservoir); the body to the judge but the title as JSON `statement` (two notions of "statement" in one tool; the report could not show what the judge saw); letting the judge fetch context itself (nondeterministic, provider-specific, against the §0 boundary). The cap's value is part of this decision: the proposal drafted 8,192 bytes, which would have truncated this document's own C-03 (8.4 kB) in T-48 and handed the judge a Swift-less C-03; the requester raised it to 16,384 on 2026-09-18 so no known contract is cut | R-33, C-01, C-02, C-06, C-07, C-10, K-14, E-46, E-47, T-72..T-74 | requester / confirmed v1.7 (code blocks included, cap 16,384; 2026-09-18) |
 
 None of the first fourteen was raised as a question before v1.1; each was decided and reviewed for precision only. That is the defect this section corrects: a specification can be implementation-grade and still not be what was asked for.
 
@@ -1200,6 +1249,7 @@ None of the first fourteen was raised as a question before v1.1; each was decide
 | v1.1 | Added §12, *Open questions and decisions to confirm*: fourteen decisions the author took by default on the requester's behalf (stack, results contract, citation rule, T-family option, mixed-verdict strict rule, judge question and parameters, instruction text, input limits, endpoint shape, fixture layout, report names, test delimitation, reference machine), each with its default, the alternatives rejected, the IDs it affects, and a `confirm` / `open` status. No normative row changed. The `spec-writing` skill now requires this section. |
 | v1.2 | D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 in the judge request body (C-06), the wire-format test updated to match (T-33), and the D-07 row records the evidence. Thinking models truncated at 400 before emitting the verdict JSON; at 4000 `qwen3:8b` and `gemma4:latest` pass T-49 three runs out of three. No other normative row changed. |
 | v1.3 | Judge-stage progress indicator, requested on 2026-09-13 because `--judge llm` runs take minutes: R-30 (requirement), C-11 (the one-line ASCII format, draw/erase byte sequences, regex, $k$ and ETA formulas), K-13 (redraw cadence, 20 cells, single erase before the report stage), E-39 (no bytes when not a TTY, at DEBUG, under `--progress never`, or with `--judge none\|mock`), E-40 (erase on interrupt or failure), `--progress auto\|always\|never` in §5.1, the §5.3 quiet-by-default exception, T-62/T-63, §11 rows, D-15. The indicator is written to the raw stderr stream, not the logger, and is erased at the end of the stage, so stdout, both reports, the exit code, and what remains on stderr at exit are unchanged. |
+| v1.7 | A heading-declared ID's statement is its title plus its section body (`PROPOSAL_v1.7_heading_bodies.md`, 2026-09-17): two LLM judges over the same 130 MonteCarloPi edges disagreed almost entirely on `###`-declared contracts because both were handed a title (`Data structures`, `` `EstimationWorker` (an `actor`) ``) and never the pinned API beneath it — one guessed generously, the other refused, and neither had the contract. R-33; C-01 (b) HEADING LINE / SECTION BODY grammar, fenced blocks included (D-20), table declarations unchanged; C-02 `SpecId.title`; C-06 statement passthrough; C-07 `title` key and `schema_version` `"1.1"`; C-08 renders `title`, so the Markdown report is byte-identical; C-10 gains the any-clause rule (new `judge_prompt_sha256`); K-14 16,384-byte cap with marker line and Note (the proposal's 8,192 would have truncated this document's C-03); E-46, E-47; T-72..T-74; §11 rows; D-20. The mock judge, statuses, metrics, and exit codes are unchanged; `--judge none` output differs only in `speccheck.json`. |
 | v1.6 | Swift adapter and two small grammar changes, requested 2026-09-17 after the MonteCarloPi Swift build ran the checker and got `62 unverified; 43 dangling` purely from tool limits: R-31 Swift Testing / XCTest test-case delimiting by lines with doc-comment-inclusive spans and SwiftPM-shaped classnames (C-03, E-42, E-43, D-17, D-18, T-65..T-67), a second `join_name` step that strips a Swift signature (C-04, E-45, D-19, T-68), Swift assertion tokens for the mock judge (C-06, T-69), R-32 decoration after the bold ID in a declaring first cell (C-01, E-44, T-70), a Swift golden fixture (T-71), O-2 and the §0 non-goal updated. |
 | v1.5 | E-41 tightened from "in-flight requests are not awaited beyond the K-05 timeout" to "abandoned; exit within 1 s" after the first interrupt of a real `--judge llm` run against a local model appeared to be ignored: the main thread was blocked in an untimed future wait (not SIGINT-interruptible on macOS CPython) and then waited for the in-flight requests. T-64 gains the timing case; §11 E-41 row names the mechanism. No other row changed. |
 | v1.4 | All ten findings of the v1.3 `SPEC_REVIEW_REPORT.md` applied. P1: F-201 the logger is silent while the indicator is displayed (C-11, K-13, §5.3, T-62); F-202 one clock origin $t_0$ = first draw, K-12 keeps its own (C-11, K-13, T-62); F-203 coalesced cadence — within 100 ms, $\geq$ 1/s in flight, $\leq$ 10/s — and atomic serialized writes (K-13, T-62); F-204 E-41 interrupt rule: exit `3`, message `interrupted`, temporaries and renamed reports removed (E-40, E-41, §3.1, §5.4, T-63, T-64, §11, D-16); F-206 C-07 example uses `0.2000`/`0.0000` and `max_unknown` is emitted quantized (C-07). P2: F-205 no terminal escapes — draws padded to the widest line so far, erase is `\r` + spaces + `\r` (C-11, T-62, D-15); F-207 C-08 header parenthetical omitted when `judge_available` is null (C-08, T-35); F-208 T-46 cited by R-01..R-15 and T-60 by R-18/I-001 in §11; F-209 I-005 vacuous clause replaced; F-210 T-49 names `fixtures/target/golden/judge_labels.json` and `tools/eval_judge.py`. |

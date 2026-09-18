@@ -10,8 +10,10 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.6) in full, and
-so is the worked example of the method it serves — together with the four agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` in full (the code
+is at 1.6.0; `SPEC.md` is at v1.7, whose one change — the judge receives a heading-declared
+contract's section body, not just its heading — is the next build) and so is the worked example of
+the method it serves — together with the four agent skills that
 write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -281,9 +283,24 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
 
 Any other OpenAI-compatible endpoint works the same way; the request body is pinned by the spec
 (`model`, `temperature: 0`, `max_tokens: 4000`, a system message equal to
-`src/speccheck/judge_prompt.md`, and a user message carrying the line-numbered test source). The
-SHA-256 of the instruction text is recorded in `speccheck.json` as `judge_prompt_sha256`. A
-missing variable is a usage error; the key never appears in any output.
+`src/speccheck/judge_prompt.md`, and a user message carrying the ID's statement and the
+line-numbered test source). The SHA-256 of the instruction text is recorded in `speccheck.json` as
+`judge_prompt_sha256`. A missing variable is a usage error; the key never appears in any output.
+
+**What the judge sees as the statement (SPEC v1.7, R-33).** For an ID declared by a table row the
+statement is the row's text. For an ID declared by a heading — `### C-03 <title>` — v1.6 sent only
+the heading's remaining text, which for a contract is its *title* (`Data structures`,
+`` `EstimationWorker` (an `actor`) ``) while the requirement itself is the code block and prose
+beneath it. Two judges over the same 130 edges of a Swift build disagreed almost entirely on such
+IDs: one guessed generously from the title, the other refused (`UNRELATED`, `UNKNOWN`), and
+neither had the contract. From v1.7 the statement is the title followed by the whole section
+body — every line down to the next heading of the same or a higher level, fenced code blocks and
+indentation included, capped at 16 KiB (K-14; the largest contract in this repository's own spec
+is 8.4 kB). The instruction text gains one rule to match: a test that asserts *any clause* of a
+multi-clause statement `ASSERTS` it. `speccheck.json` carries both — `title` (the heading text,
+which the Markdown report renders, so `SPEC_CONFORMANCE_REPORT.md` is unchanged) and the full
+`statement` the judge was given — under `schema_version` `"1.1"`. See
+`PROPOSAL_v1.7_heading_bodies.md` for the evidence.
 
 ### LLM judge via OpenRouter (or any hosted endpoint)
 
@@ -307,9 +324,12 @@ Practical notes:
   Ollama the extra concurrency mostly queues inside the server. The reports are byte-identical
   whatever the concurrency; only timing changes.
 - **Cost.** One request per judged edge: roughly 1–2 k input tokens (the instruction text plus
-  one test's source) and a short JSON reply. `max_tokens` is pinned at 4000 by the spec, which a
-  non-thinking model never approaches; a reasoning model may spend it thinking. `--judge-budget`
-  caps wall-clock, not spend. Self-application on this repository is ~330 edges and cost cents on
+  one test's source) and a short JSON reply; an edge of a heading-declared contract also carries
+  that contract's section body (SPEC v1.7, above), typically 1–2 k tokens more and at most ~4 k
+  (K-14). `max_tokens` is pinned at 4000 by the spec, which a non-thinking model never
+  approaches; a reasoning model may spend it thinking. `--judge-budget` caps wall-clock, not
+  spend. Self-application on this repository is ~330 edges, 39 of them on heading-declared
+  contracts; the bodies add about 160 kB (~40 k tokens) to the run, which still costs cents on
   `gpt-4o-mini`.
 - **Model choice.** The judge needs a model that reliably answers with one bare JSON object.
   `openai/gpt-4o-mini` did so on every edge of this repository's self-application (332 judged,
@@ -363,7 +383,7 @@ renamed JSON-then-Markdown; either both exist afterwards or neither).
 
 | File | Contract | Notes |
 | --- | --- | --- |
-| `speccheck.json` | C-07, `schema_version` `"1.0"` | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
+| `speccheck.json` | C-07, `schema_version` `"1.0"` (`"1.1"` from the v1.7 build, which adds a `title` per ID next to the full `statement`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections: verdict line, metrics, per-ID evidence (retired rows struck through, `(file)` for file-level cases, `—` for unjudged edges), dangling, stale, unattributed results, unrun citations, judge details (judge enabled only), notes. |
 
 Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
@@ -372,11 +392,11 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.6; the source of truth; written in the
+SPEC.md                         the specification (v1.7; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.6.0, mirrors the spec version)
+  __init__.py                   __version__ (1.6.0; becomes 1.7.0 with the v1.7 build)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
