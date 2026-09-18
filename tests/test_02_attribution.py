@@ -423,13 +423,21 @@ def test_swift_brace_fallback_and_braces_in_strings_and_comments():
     """T-67: an unclosed `{` or a stray `}` makes the file one file-level case with a
     `parse fallback` Note; braces inside string literals and `//` comments do not count, so a
     file whose only extra braces are quoted delimits correctly. (E-42, C-03)"""
-    unclosed = "@Test func a() {\n    #expect(true)\n"
-    stray = "@Test func a() {\n}\n}\n"
+    unclosed = "/// R-01\n@Test func a() {\n    #expect(true)  // R-02\n"  # depth 1 at EOF
+    stray = "/// R-01\n@Test func a() {\n}\n}  // R-02\n"  # depth goes negative on line 4
     for text in (unclosed, stray):
         scanned = ScannedFile("Tests/M/F.swift", text, tuple(text.split("\n")), "Tests")
         attributed, notes = attribute_file(scanned)
+        # E-42: the whole file is ONE file-level case (name "", span = the file) with the Note;
+        # no @Test case is delimited, and every citation belongs to that file-level case
         assert notes == ["parse fallback: Tests/M/F.swift"]
         assert attributed.cases == ()
+        assert attributed.file_case.name == "" and attributed.file_case.start == 1
+        assert attributed.file_case.end == len(text.split("\n"))
+        assert {(c.id, c.line, c.testcase.name) for c in attributed.citations} == {
+            ("R-01", 1, ""),
+            ("R-02", 3 if text is unclosed else 4, ""),
+        }
     quoted = "\n".join(
         [
             "/// R-01",

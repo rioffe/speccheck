@@ -10,10 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` in full (the code
-is at 1.6.0; `SPEC.md` is at v1.8, whose one behavioural change since — the judge receives a
-heading-declared contract's section body, not just its heading (v1.7) — is the next build) and so is the worked example of
-the method it serves — together with the four agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.8, code
+1.8.0) in full, and so is the worked example of the method it serves — together with the four agent skills that
 write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -287,7 +285,7 @@ Any other OpenAI-compatible endpoint works the same way; the request body is pin
 line-numbered test source). The SHA-256 of the instruction text is recorded in `speccheck.json` as
 `judge_prompt_sha256`. A missing variable is a usage error; the key never appears in any output.
 
-**What the judge sees as the statement (SPEC v1.7, R-33).** For an ID declared by a table row the
+**What the judge sees as the statement (SPEC v1.7, R-33; built in 1.8.0).** For an ID declared by a table row the
 statement is the row's text. For an ID declared by a heading — `### C-03 <title>` — v1.6 sent only
 the heading's remaining text, which for a contract is its *title* (`Data structures`,
 `` `EstimationWorker` (an `actor`) ``) while the requirement itself is the code block and prose
@@ -299,8 +297,11 @@ indentation included, capped at 16 KiB (K-14; the largest contract in this repos
 is 8.4 kB). The instruction text gains one rule to match: a test that asserts *any clause* of a
 multi-clause statement `ASSERTS` it. `speccheck.json` carries both — `title` (the heading text,
 which the Markdown report renders, so `SPEC_CONFORMANCE_REPORT.md` is unchanged) and the full
-`statement` the judge was given — under `schema_version` `"1.1"`. See
-`PROPOSAL_v1.7_heading_bodies.md` for the evidence.
+`statement` the judge was given — under `schema_version` `"1.1"`. A statement over the cap is
+cut at a line boundary, ends with `… (statement truncated by speccheck at K-14)`, and the report's
+Notes name the ID. `SPEC.md` is parsed with one line model — split on `\n`, a trailing `\r`
+dropped — so a CRLF checkout yields the same bytes as an LF one (C-01, I-002). See
+`PROPOSAL_v1.7_heading_bodies.md` for the evidence behind the change.
 
 ### LLM judge via OpenRouter (or any hosted endpoint)
 
@@ -328,12 +329,12 @@ Practical notes:
   that contract's section body (SPEC v1.7, above), typically 1–2 k tokens more and at most ~4 k
   (K-14). `max_tokens` is pinned at 4000 by the spec, which a non-thinking model never
   approaches; a reasoning model may spend it thinking. `--judge-budget` caps wall-clock, not
-  spend. Self-application on this repository is ~330 edges, 39 of them on heading-declared
-  contracts; the bodies add about 160 kB (~40 k tokens) to the run, which still costs cents on
-  `gpt-4o-mini`.
+  spend. Self-application on this repository at 1.8.0 is 436 judged edges, about 40 of them
+  on heading-declared contracts whose bodies add roughly 160 kB (~40 k tokens) to the run; the
+  whole Phase B run took 35 s at `--judge-concurrency 32` and cost cents on `gpt-4o-mini`.
 - **Model choice.** The judge needs a model that reliably answers with one bare JSON object.
-  `openai/gpt-4o-mini` did so on every edge of this repository's self-application (332 judged,
-  0 `UNKNOWN`, recorded in `SPEC_BUILD_REPORT.md` §0). Any malformed reply is not a failure of
+  `openai/gpt-4o-mini` did so on every edge of this repository's self-application (436 judged
+  at 1.8.0, 0 `UNKNOWN`, 0 weak; recorded in `SPEC_BUILD_REPORT.md` §0c). Any malformed reply is not a failure of
   the run: it is recorded as `UNKNOWN` with `coerced: true`, and only `--strict` with
   `unknown_rate > --max-unknown` turns it into exit `1`.
 - **Reading the result.** `WEAKLY_PASSING` means every passed test citing that ID was judged
@@ -383,7 +384,7 @@ renamed JSON-then-Markdown; either both exist afterwards or neither).
 
 | File | Contract | Notes |
 | --- | --- | --- |
-| `speccheck.json` | C-07, `schema_version` `"1.0"` (`"1.1"` from the v1.8 build, which adds a `title` per ID next to the full `statement`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
+| `speccheck.json` | C-07, `schema_version` `"1.1"` (`title` per ID beside the full `statement`; `"1.0"` through 1.6.0) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections: verdict line, metrics, per-ID evidence (retired rows struck through, `(file)` for file-level cases, `—` for unjudged edges), dangling, stale, unattributed results, unrun citations, judge details (judge enabled only), notes. |
 
 Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
@@ -396,7 +397,7 @@ SPEC.md                         the specification (v1.8; the source of truth; wr
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.6.0; becomes 1.8.0 with the v1.8 build)
+  __init__.py                   __version__ (1.8.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
@@ -458,13 +459,13 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (74 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (84 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # gate, phase B (needs Ollama + SPECCHECK_JUDGE_*)
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*: Ollama or a hosted endpoint)
 uv run python tools/bench.py                               # K-08 (recorded)
-uv run python tools/eval_judge.py --model qwen3:8b         # T-49 (opt-in, needs Ollama)
+uv run python tools/eval_judge.py --runs 3                 # T-49 (opt-in; model/URL from SPECCHECK_JUDGE_*, default qwen3:8b on Ollama)
 uv run python tools/sync_selfcheck.py --check              # _selfcheck/ still equals fixtures/target/
 ```
 
@@ -476,7 +477,7 @@ The full specification is implemented; nothing was scoped out. The optional LLM 
 built behind the `--judge llm` flag and the `[llm]` extra. Test-case adapters exist for Python
 (`ast`) and, since v1.6, Swift (Swift Testing and XCTest, delimited by lines — R-31, D-17); the
 remaining language adapters (O-2) and non-CLI surfaces (O-3) are, as the spec states, not part
-of v1.6: other test files get file-level attribution. Interpretations the build had to make where the spec was silent or
+of v1.8: other test files get file-level attribution. Interpretations the build had to make where the spec was silent or
 inconsistent are listed in `SPEC_BUILD_REPORT.md` §3.
 
 ## License
