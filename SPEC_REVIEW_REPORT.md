@@ -1,38 +1,38 @@
 # Specification Review Report
 
-> - **Subject:** `SPEC.md` v1.3 — Specification Conformance Checker (`speccheck`)
-> - **Review date:** 2026-09-13
-> - **Method:** `spec-review` four-pass method (comprehension, local precision, cross-consistency, implementation simulation) over all 20 dimensions, plus a mechanical cross-check of ID declarations, §9 coverage, and §11 rows.
-> - **Finding IDs:** `F-201..F-210`. `F-001..F-017` (v0.1 review), `F-101..F-110` (v0.4 review) and `Q-001..Q-011` (v0.5 review) are already cited inside `SPEC.md` and are not reused.
-> - **Disposition:** all ten findings applied in `SPEC.md` v1.4 (see its revision history); F-204's default (exit `3`, message `interrupted`) is recorded as D-16 for the requester to confirm.
-> - **Focus:** v1.0 was cleared by three prior reviews with no findings open. This pass re-reads the whole document but concentrates on what changed since: the v1.3 judge-stage progress indicator (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15) and its interaction with the pre-existing diagnostics, exit-code, and portability contracts.
+> - **Subject:** `SPEC.md` v1.7 — Specification Conformance Checker (`speccheck`)
+> - **Review date:** 2026-09-18
+> - **Method:** `spec-review` four-pass method (comprehension, local precision, cross-consistency, implementation simulation) over all 20 dimensions, plus a mechanical cross-check run with the shipped extractor: 190 declared ids (32 R, 11 C, 11 I, 14 K, 47 E, 74 T; 0 retired), every non-T id has a §11 row (116 rows, none undeclared), every I/K/E id is cited by at least one T row, every T id appears in a §11 "Verified by" cell, no dangling R/C/I/K/E/T/D reference anywhere in the document.
+> - **Finding IDs:** `F-301..F-307`. `F-001..F-017` (v0.1), `F-101..F-110` (v0.4), `Q-001..Q-011` (v0.5) and `F-201..F-210` (v1.3) are cited inside `SPEC.md` and are not reused.
+> - **Disposition:** all seven findings applied in `SPEC.md` v1.8 on 2026-09-18 (see its revision history); D-08 is re-opened for the requester pending three fresh T-49 runs.
+> - **Focus:** v1.4 closed every finding of the v1.3 review; v1.5 and v1.6 were built and self-checked. This pass re-reads the whole document but concentrates on the v1.7 change — a heading-declared id's statement is its title plus its section body (R-33, C-01 (b), C-02, C-06, C-07, C-08, C-10, K-14, E-46, E-47, T-72..T-74, D-20) — and on the seams it opens with the pre-existing determinism (I-002), golden-fixture (T-46, T-60) and judge-evaluation (T-49, D-08) contracts.
 
 ---
 
 ## 1. Executive Summary
 
-`SPEC.md` v1.3 is an implementation-grade (Level 3) specification. Every requirement is observable and cites its source; every contract has a pinned shape; every I/K/E id has at least one test; §11 has one row per R/C/I/K/E id (105 rows, mechanically verified — no id missing, none undeclared); §12 lists fifteen defaulted decisions with alternatives. The determinism, downgrade-only-judge, and read-only-input principles are carried consistently through requirements, invariants, edge cases, and tests.
+`SPEC.md` v1.7 remains an implementation-grade (Level 3) specification. The v1.7 change is small in surface and precise where it matters: the body grammar names its start, its end (the next heading of level $\leq$ the declaring one, outside fences), what it includes (fenced blocks, deeper headings, thematic breaks), what it drops (leading and trailing blank lines), its cap and the cap's marker and Note, and its two degenerate cases (empty body, inner declarations). The `title`/`statement` split keeps the Markdown report byte-identical and puts the whole change into one JSON key and one schema bump. D-20 is confirmed, with the cap's history recorded.
 
-The v1.3 addition is well bounded — it names its stream, its byte sequences, its regex, its formulas and its gating — but it touches three older contracts (§5.3 diagnostics, §5.4 exit codes, R-29 portability) at seams the new rows do not fully close. Those seams are the findings below.
+What the new rows do not close is *how a line is a line*. Through v1.6 every statement was whitespace-collapsed, so the spec never had to say how `SPEC.md` is split into lines, whether a trailing `\r` survives, or whether a whitespace-only line is "blank". A body is now carried byte for byte into `speccheck.json`, and I-002 promises byte-identical output on any OS; those two facts meet at a rule the document does not state (F-301). The other two MEDIUM findings are verification seams: T-72/T-73 use "what v1.6 produced" as their oracle, which is unavailable once the goldens are regenerated (F-302), and the C-10 text changed without the spec saying that the recorded T-49 runs — keyed by `judge_prompt_sha256` — no longer count (F-303).
 
 | Severity | Count |
 | -------- | ----: |
 | CRITICAL | 0 |
 | HIGH | 0 |
-| MEDIUM | 6 |
+| MEDIUM | 3 |
 | LOW | 4 |
 
-**Strengths:** closed status algorithm (C-05) with a single point of judge influence; byte-determined JSON via Decimal quantization; exit code a pure function of the report; exhaustive edge table (E-01..E-40) each with a deterministic outcome and a test; §12 honest about what the author decided alone.
+**Strengths:** the body rule is stated once (C-01) and referenced everywhere else, not restated; the cap is a bound with a marker and a Note rather than a silent cut; E-47 makes explicit that the body is context and never grammar; the Markdown report is provably unchanged (C-08 renders `title`, and `title` is the v1.6 statement by construction); the decision row records the number that was changed and why.
 
-**Weaknesses:** (1) the progress indicator's contract with the logger is implied, not stated — an INFO line emitted during the judge stage would corrupt the in-place line; (2) interruption (`KeyboardInterrupt`) now appears in a normative row (E-40) but has no exit-code semantics, contradicting K-01's closed set; (3) the elapsed clock has two origins; (4) the ANSI erase sequence undercuts the Windows/locale portability the spec otherwise invests in.
+**Weaknesses:** (1) line splitting, CR handling and "blank line" are undefined, so two conforming builds can emit different `statement` bytes from a CRLF spec; (2) two new tests name a superseded version as their expected value; (3) the judge-evaluation evidence is silently stale after a C-10 edit; (4) a handful of ATX-heading edge cases (`###` alone, deep indentation, closing hashes) are left to the implementer and, because they now also end bodies, are worth one sentence each.
 
-None blocks implementation. All six MEDIUM findings are one-row edits.
+None blocks implementation. All three MEDIUM findings are one- or two-row edits.
 
 ---
 
 ## 2. Overall Maturity
 
-**Level 3 — Implementation-grade.** A coding agent can build v1.3 with minimal semantic inference; conformance is objectively testable via §9 and the golden fixture. Level 4 is not assigned: the judge component is contractually bounded but its evaluation (T-49) is recorded, not gated, and the traceability matrix still names intended modules rather than verified ones for the v1.3 rows.
+**Level 3 — Implementation-grade.** A coding agent can build v1.7 with minimal semantic inference; conformance is objectively testable through §9, two golden fixtures and the packaged self-check. Level 4 is not assigned, for the same reasons as before: the judge's evaluation (T-49) is recorded rather than gated, and §11 still names intended modules for the v1.7 rows until the build replaces them.
 
 ---
 
@@ -40,280 +40,241 @@ None blocks implementation. All six MEDIUM findings are one-row edits.
 
 | ID | Severity | Location | Title |
 | -- | -------- | -------- | ----- |
-| F-201 | MEDIUM | §5.3, K-13, R-30 | Logger output during the judge stage is not excluded, so an INFO line can land on the progress line |
-| F-202 | MEDIUM | C-11, K-13, K-12 | Two origins for the elapsed clock $t$: "first request issued" vs. the $d = 0$ draw that precedes it |
-| F-203 | MEDIUM | K-13 | Per-verdict MUST-redraw conflicts with the 10 Hz SHOULD-NOT at high concurrency; write atomicity implied by T-62 but not stated |
-| F-204 | MEDIUM | E-40, §5.4, K-01, I-001 | `KeyboardInterrupt` "propagates" — an exit code outside K-01's closed set; interrupt semantics undefined |
-| F-205 | MEDIUM | C-11, R-29 | `\x1b[K` is not interpreted by a legacy Windows console; a portable padded-`\r` form exists |
-| F-206 | MEDIUM | C-07 | Example disagrees with the four-decimal rule (`unknown_rate: 0.0`, `max_unknown: 0.2`); `max_unknown` emission format unstated |
-| F-207 | LOW | C-08 | Header `(available\|unavailable)` has no rendering for `judge_available == null` |
-| F-208 | LOW | §11, T-46, T-60 | T-46 and T-60 are cited by no §11 row |
-| F-209 | LOW | I-005 | "carries $\geq$ 0 evidence entries" is vacuous |
-| F-210 | LOW | T-49, §10 | Hand-label file for the T-49 evaluation is not named (the repository has `tools/eval_judge.py`; `tools/bench.py` is named for T-51) |
+| F-301 | MEDIUM | C-01 (b), C-02, I-002, K-09 | Line splitting, trailing `\r`, and "blank line" are undefined for the SECTION BODY, which is now emitted byte for byte |
+| F-302 | MEDIUM | T-72, T-73 | The oracle for `title` and for the Markdown report is "what v1.6 produced" — unavailable once the goldens are regenerated |
+| F-303 | MEDIUM | C-10, T-49, D-08, §0, D-06 | C-10 changed; the recorded T-49 runs and D-08's status are stale and nothing says so |
+| F-304 | LOW | C-01 (b) | HEADING LINE edge cases: bare `###`, indentation $\geq$ 4 spaces, closing `#` run, `###C-03`, setext headings |
+| F-305 | LOW | C-01 (b), C-02 | A heading with an empty title and a non-empty body yields a statement that begins with `\n` |
+| F-306 | LOW | §9, §11 (C-09) | C-09 is cited by no §9 test row although §11 says T-33 and T-40 verify it |
+| F-307 | LOW | Front matter, §1, §12 revision history | Editorial: revision rows out of order, seven versions of history in the Status line, §1 Extractor row omits `title` |
 
 ---
 
 ## 4. Detailed Findings
 
-### F-201 — Logger output during the judge stage can corrupt the progress line
+### F-301 — Line splitting, trailing `\r`, and "blank line" are undefined for the SECTION BODY
 
 **Severity:** MEDIUM
 
-**Location:** §5.3 (INFO), K-13, R-30, C-11
+**Location:** C-01 (b) `SECTION BODY`; C-02 `SpecId.text`; I-002; K-09
 
 **Observation**
 
-C-11 writes the indicator directly to the stderr stream and redraws it with `\r`. §5.3 INFO says the judge mode and, for the LLM judge, the URL and model are logged at INFO, and that stage lines carry counts and elapsed milliseconds — but does not say *when* within the stage those lines are emitted. K-13 requires the erase to precede "any INFO stage line", which covers the *end* of the stage only. Nothing forbids a logger emission between the first draw and the erase. Under the most common interactive configuration (`--judge llm --verbose` on a TTY) such an emission would be written to the same stream mid-line, leaving `INFO judge=llm url=…` glued to a half-drawn bar, and the next `\r` would overwrite part of it.
+C-01 (b) defines the body as "the lines after the HEADING LINE …, leading and trailing blank lines dropped; whitespace inside preserved line for line", and C-07 emits it as the JSON `statement`. The document never says how `SPEC.md` is divided into lines. Through v1.6 this did not matter: every statement was whitespace-collapsed (C-02), so `\r\n` and `\n` produced the same bytes. From v1.7 a body is carried verbatim. `str.splitlines()` drops a trailing `\r`; `text.split("\n")` keeps it; a spec written on Windows, or one checked out with `core.autocrlf`, therefore yields `statement` values that differ by one byte per line between two conforming builds — and I-002 promises byte-identical reports "on any OS". "Blank line" is likewise undefined: a trailing line of three spaces is dropped by one implementer (whitespace-only is blank) and kept by another (only an empty line is blank), again changing `statement` bytes and, at the margin, whether K-14's cap is crossed.
 
 **Why it matters**
 
-The indicator is on by default on a TTY. An implementer who logs the URL/model line after building the requests (a natural place) conforms to every row as written and produces garbled stderr. Two conforming implementations differ observably.
+The v1.7 change moves the body from "collapsed" to "byte for byte", which is exactly the regime where line-ending and blank-line conventions become observable. The golden fixtures and `--self-check` would pass on the author's machine and fail on a CRLF checkout with no defect in the code.
 
 **Potential consequence**
 
-T-62 captures stderr with `--progress always` and no `--verbose`, so the defect is invisible to the suite; it appears only to operators.
+Golden-fixture and self-check divergence across operating systems and Git configurations; T-36 and T-46 pass or fail depending on how the repository was cloned.
 
 **Recommended resolution**
 
-Add one sentence to K-13 (or §5.3 *Mechanism*): "While the indicator is displayed — from the first draw to the erase — nothing is written to stderr through the logger; the judge stage's INFO lines (mode, URL, model, stage summary) are emitted after the erase." Extend T-62 with a `--verbose INFO` variant asserting that every `\r`-delimited segment is either a C-11 sequence or a complete `INFO …\n` line and that no `INFO` line occurs between the first draw and the erase.
+Add to C-01, next to the fence definition, one rule that every SPEC.md parser follows:
+
+```text
+Lines: SPEC.md is split on "\n"; a trailing "\r" on any line is removed before every other rule
+  is applied (a CRLF file parses as its LF twin). A BLANK line is one whose text is empty or
+  consists only of spaces and tabs. Body lines are re-joined with "\n"; no other whitespace is
+  added or removed (trailing spaces on a body line are kept).
+```
+
+Reference the rule from C-02 (`text`) and I-002. Extend T-72 with a sub-case: the same spec saved with CRLF line endings yields byte-identical `SpecIndex` and `speccheck.json`; a whitespace-only line after the body's last text line is dropped, one inside the body is kept.
 
 ---
 
-### F-202 — Two definitions of the elapsed-clock origin
+### F-302 — T-72 and T-73 use a superseded version as their oracle
 
 **Severity:** MEDIUM
 
-**Location:** C-11 (definition of $t$), K-13 (first draw), K-12
+**Location:** T-72 ("`title` equals the statement v1.6 produced"); T-73 ("byte-identical to its v1.6 version")
 
 **Observation**
 
-C-11 defines $t$ as "wall-clock seconds since the judge stage started (the same origin as K-12: the moment the first request is issued)". K-13 requires a first draw "when the judge stage starts (with $d = 0$)" — which by construction precedes the first request. At that instant $t$ is undefined (or negative) under the C-11 definition. T-62 asserts the content of that first draw (`0/6 edges`, `?:??`) but not its `elapsed`, so testers could disagree whether `0:00` is required.
+Two of the new tests define their expected result as the output of the previous version. That is a one-time regeneration check, not a test: once `fixtures/*/golden/` and `speccheck/_selfcheck/` are regenerated (which T-73 itself requires), the v1.6 artifacts exist only in Git history, and a tester running the suite on a fresh clone has no way to evaluate the clause. It also fails the skill's oracle-independence rule — the expected value is the implementation's own earlier output rather than a property the spec states.
 
 **Why it matters**
 
-The two clocks are also semantically different: K-12's budget deadline must not start before a request can be issued, whereas the indicator's elapsed time should include request construction. Conflating them invites an implementer to start the budget clock at the first draw, shortening the budget by the request-building time.
+The clauses are meant to prove two real properties — that `title` is exactly the old statement (so nothing about the Markdown report changed) and that the Markdown renders `title` and never a body. Both are directly assertable without any historical artifact.
 
 **Potential consequence**
 
-Sub-second discrepancy in practice, but a definitional contradiction between two normative rows.
+The build either skips the clause (leaving the "Markdown unchanged" claim unverified) or hard-codes a copy of the v1.6 goldens into the test tree, which then drifts.
 
 **Recommended resolution**
 
-In C-11 define $t_0$ as the instant of the first draw (the start of the judge stage, immediately before the first request is issued), and state that K-12's deadline keeps its own origin (first request issued), which is $\geq t_0$. Add to T-62: "the first draw shows `0:00 elapsed`".
+Rewrite the two clauses as properties of the current output:
+
+- T-72: for every id in both fixture specs, `title` equals the second cell (table) or the heading remainder after the id token (heading), whitespace-collapsed, computed independently in the test; `text == title` for every table-declared id and for every heading-declared id with an empty body; `text.startswith(title + "\n")` otherwise.
+- T-73: in each `golden/SPEC_CONFORMANCE_REPORT.md`, the Statement cell of every per-id row equals that id's JSON `title` and contains no newline; no row of §3 contains the K-14 marker; `speccheck.json` and the Markdown agree on the set of ids. Record the one-time v1.6 → v1.7 golden diff (only `schema_version` and `title` keys added; heading-declared `statement`s changed; Markdown unchanged) in `SPEC_BUILD_REPORT.md`, where a one-time observation belongs.
 
 ---
 
-### F-203 — Redraw cadence: MUST-per-verdict vs. SHOULD-NOT-over-10 Hz; atomicity
+### F-303 — C-10 changed; the recorded T-49 evidence and D-08 are stale and nothing says so
 
 **Severity:** MEDIUM
 
-**Location:** K-13, C-11, T-62
+**Location:** C-10; T-49; D-08; §0 and D-06 (the judge question)
 
 **Observation**
 
-K-13 says the indicator is "redrawn after every determined verdict" (normative) and "SHOULD NOT be redrawn more than 10 times per second". With `--judge-concurrency 32` and a fast provider (or a budget-exhausted tail, where remaining edges are determined instantly in a burst), verdicts arrive far faster than 10 Hz; the MUST and the SHOULD cannot both hold. Separately, draws originate from worker threads (completions) and a ticker thread (the 1 s rule); T-62 requires that splitting the capture on `\r` yields *only* well-formed C-11 sequences, which is achievable only if each draw is a single, serialized write — a requirement the spec relies on but does not state.
+v1.7 adds a rule to the C-10 instruction text and correctly notes that `judge_prompt_sha256` changes. T-49 requires three independent runs "recorded with model name, date, and `judge_prompt_sha256`", and the repository's recorded runs (README, `SPEC_BUILD_REPORT.md`) were made under the v1.6 hash and with title-only statements. The spec does not say that a run whose recorded hash differs from the current C-10 hash does not count toward T-49, so the conformance claim for R-26/T-49 can be made against evidence produced by a different prompt over different inputs. D-08 ("Judge instruction text — confirm after the first T-49 run") was not re-opened when the text changed. Separately, §0 and D-06 still phrase the judge's question as "does this test assert the observable behavior this id describes", while C-10 now answers it at the granularity of a clause; the decision row that owns the question should carry the granularity.
+
+The hand labels are less exposed than they look: the golden fixture's only heading-declared id with a body is C-01 (`The error message MUST name the dividend.`), and its judged test asserts that clause (`pytest.raises(ZeroDivisionError, match="7")`), so its `ASSERTS` label holds under the any-clause rule. That was checked by reading the fixture, not by a rule in the spec.
 
 **Why it matters**
 
-An implementer following the MUST produces a flicker-storm on fast providers; one following the SHOULD violates the MUST as written. Interleaved partial writes would fail T-62 nondeterministically.
+T-49 is the only evidence that the instruction text works; the spec ties each run to a prompt hash precisely so that stale evidence is detectable, but stops one sentence short of saying stale evidence is void.
 
 **Potential consequence**
 
-Divergent behavior under high concurrency; flaky T-62.
+A v1.7 build ships with T-49 "recorded" figures that were measured for v1.6's prompt and statements; a later regression in the judge's behaviour on body-bearing statements goes unnoticed.
 
 **Recommended resolution**
 
-Rephrase K-13 as coalescing: "Every determined verdict is reflected by a draw within 100 ms; the indicator is redrawn at least once per second while any request is in flight; draws are never more frequent than 10 per second. Each draw and the erase is one atomic write (a single `write()` call, serialized across threads)." T-62's "6/6 with a full bar exists" then still holds (the final state is always drawn before the erase — say so explicitly).
+- T-49: add "A run counts only if its recorded `judge_prompt_sha256` equals the SHA-256 of the current C-10 text; a C-10 change therefore requires three fresh runs before T-49 is satisfied. The labels in `judge_labels.json` are re-read against the current statements whenever C-01's statement rule or C-10 changes."
+- D-08: status → "confirm — re-run T-49 after v1.7 (text changed 2026-09-18)".
+- D-06: add to the default "… at the granularity of a clause: a statement with several clauses is asserted when any one of them is (C-10, v1.7)"; one clause in §0's judge paragraph to match.
 
 ---
 
-### F-204 — Interruption has no exit-code semantics; E-40 contradicts K-01
-
-**Severity:** MEDIUM
-
-**Location:** E-40, §5.4, K-01, I-001, §3.1
-
-**Observation**
-
-E-40 says that on `KeyboardInterrupt` the erase is written "before … the interrupt propagates". If it propagates, Python exits with status 130 (or 1 with a traceback), which K-01 ("no other exit codes exist") and §5.4 forbid; §5.4 additionally says "any uncaught exception MUST also map to `3`" — but `KeyboardInterrupt` is a `BaseException`, and whether it is an "uncaught exception" in the §5.4 sense is exactly the ambiguity. The interrupt case is also absent from §3.1's failure column and from I-001 (an interrupt during the report stage — between steps 2 and 4 — is a "step fails" case only if the reader treats it as one).
-
-**Why it matters**
-
-CI wrappers that send SIGINT on timeout will see either 130, 1 or 3 depending on the implementer; the report-file guarantee ("either both or neither") is unstated for the interrupted case.
-
-**Potential consequence**
-
-Divergent exit codes; a `.tmp` leftover after an interrupt during step 2 if the implementer does not treat the interrupt as a failure.
-
-**Recommended resolution**
-
-Add E-41: "`SIGINT` / `KeyboardInterrupt` at any stage → the progress indicator (if displayed) is erased, every temporary of §3.1 is removed, no report file from this run remains, and the process exits `3` with the one-line message `interrupted`" — or, if the conventional 130 is preferred, widen K-01 explicitly. Either choice needs a T id (a stub raising `KeyboardInterrupt` mid-judge and mid-report) and a §11 row. Rephrase E-40 to reference E-41 instead of "propagates".
-
----
-
-### F-205 — ANSI erase sequence vs. the spec's own portability posture
-
-**Severity:** MEDIUM
-
-**Location:** C-11 (draw / erase sequences), R-29, T-44, D-15
-
-**Observation**
-
-C-11 pins `\x1b[K` (erase-to-end-of-line) in every draw and in the erase. A legacy Windows console (conhost without `ENABLE_VIRTUAL_TERMINAL_PROCESSING`, still the default for `cmd.exe` on some hosts) prints the sequence literally as `←[K`. The spec elsewhere spends effort on exactly this class of host (R-29's "regardless of locale", T-44's `cp1252` stdout), so Windows terminals are evidently in scope. The sequence is avoidable: `<done>` and `<elapsed>` only grow, and although `<left>` can shrink (`~12:00 left` → `~9:59 left`), padding each draw with spaces to the width of the widest line drawn so far makes a bare `\r` redraw residue-free, and the erase becomes `\r` + spaces + `\r`.
-
-**Why it matters**
-
-Two conforming implementations produce different visible output on the platform the spec otherwise names; there is no way to conform on that platform without enabling VT mode, which C-11 does not require.
-
-**Potential consequence**
-
-Garbled stderr on legacy Windows consoles; `← [K` residue after the run.
-
-**Recommended resolution**
-
-Replace the sequences with the portable forms: `draw := "\r" + <line> + " " * (W - len(<line>))` and `erase := "\r" + " " * W + "\r"`, where $W$ is the width of the widest line drawn so far in the run, and state why the padding is needed. Alternatively keep ANSI and add a K-row: "on Windows the process enables VT processing on the stderr console handle before the first draw; if that fails, the indicator is not drawn." Update T-62's sequence check accordingly.
-
----
-
-### F-206 — C-07 example disagrees with the four-decimal rule
-
-**Severity:** MEDIUM
-
-**Location:** C-07 (example and *Numbers* rule), K-11, §5.1 regex
-
-**Observation**
-
-The C-07 rules say every ratio "is emitted as a JSON number with exactly four decimal places (0.9000, not 0.9)", and T-34 asserts it. The example in the same contract shows `"unknown_rate": 0.0` and `"max_unknown": 0.2`. Whether `max_unknown` (an echoed CLI input, not a computed ratio) falls under the four-decimal rule is not stated; the §5.1 summary-line regex renders it with exactly four decimals (`max_unknown \d\.\d{4}`), which suggests the JSON should too.
-
-**Why it matters**
-
-The skill's rule is that examples agree with definitions; a reader using the example as the shape will emit `0.2` and `0.0`, and a golden-comparison test against a hand-written expectation will disagree with one derived from the rule.
-
-**Potential consequence**
-
-Byte-level nonconformance on `max_unknown` between implementations; T-34 ambiguity for the `max_unknown` key.
-
-**Recommended resolution**
-
-Change the example to `"max_unknown": 0.2000` and `"unknown_rate": 0.0000`, and add to *Numbers*: "`max_unknown` is the K-11 Decimal quantized to four places, emitted like a ratio."
-
----
-
-### F-207 — C-08 header rendering for `judge_available == null`
+### F-304 — HEADING LINE edge cases
 
 **Severity:** LOW
 
-**Location:** C-08 header line
+**Location:** C-01 (b) `HEADING LINE`
 
 **Observation**
 
-The header pins `**Judge:** none|mock|llm (available|unavailable)`. With `--judge none`, `judge_available` is `null` (C-07), and no rendering is given for the parenthetical.
+`HEADING LINE := a line, outside fenced code blocks, whose first non-space characters are one to six "#" followed by whitespace`. Because a HEADING LINE now *ends* every body as well as declaring ids, five cases that were harmless before are worth a sentence each:
+
+1. A bare `###` (nothing after the hashes; CommonMark's empty heading) — "followed by whitespace" is not met at end of line, so it is not a HEADING LINE and does not end a body; one implementer will treat it as a heading anyway.
+2. A line indented four or more spaces (`    # comment` inside an *indented*, unfenced code block) is a HEADING LINE by this rule and ends the body; CommonMark allows at most three spaces. The same wording governs declarations, so `    ### R-99 x` inside an indented block also declares — a pre-existing property that the body rule now makes more visible.
+3. A closing hash run (`### C-03 Title ###`) — CommonMark strips it; the title here keeps it.
+4. `###C-03` (no space) — not a HEADING LINE, but (b)'s declaration sentence does not say the declaring line must be a HEADING LINE, so a reader can take "first token after the `#` run" to admit it.
+5. Setext headings (`Title` underlined by `===`/`---`) are not HEADING LINEs; a body runs through them. Acceptable for specs written with `spec-writing` (ATX only), but it should be said, and note that a `---` underline is already "body text like any other line".
+
+**Why it matters**
+
+Each is a place two implementers can differ on where a body ends or whether an id is declared. None occurs in the two fixture specs or in this document, which is why the severity is LOW.
+
+**Potential consequence**
+
+A body that swallows or stops at an unexpected line; a phantom declaration from an indented code sample.
 
 **Recommended resolution**
 
-State: "the parenthetical is omitted when `judge_available` is `null`" (or pin `(n/a)`), and add it to T-35.
+One block in C-01: "ATX headings only; at most three leading spaces (four or more is not a heading and not a declaration); a bare `#` run with nothing after it is a HEADING LINE with an empty title; a trailing run of `#` preceded by whitespace is not part of the title; the declaring line of (b) MUST be a HEADING LINE." Add the indented-block and bare-`###` cases to T-72. If the three-space limit is adopted it changes declaration semantics too — keep the two uses of HEADING LINE on one rule rather than two.
 
 ---
 
-### F-208 — T-46 and T-60 cited by no §11 row
+### F-305 — Empty title with a non-empty body
 
 **Severity:** LOW
 
-**Location:** §11, T-46, T-60
+**Location:** C-01 (b) `statement`; C-02 `text`
 
 **Observation**
 
-Every R/C/I/K/E id has a §11 row (verified mechanically), but two T ids appear in no *Verified by* cell: T-46 (the golden end-to-end fixture, which the spec calls the proof of "all of §2") and T-60 (the `_selfcheck/` drift guard). T-46 is the strongest single piece of evidence in the suite and is invisible in the matrix.
+`statement := title, then — when the SECTION BODY is non-empty — a newline and the SECTION BODY`. For `### C-03` with nothing after the id and a body beneath it, `title` is `""` and the statement begins with `\n`. Harmless to the judge, but it is a leading blank line the same rule says bodies never have, and the Markdown Statement cell is empty while the JSON statement is not.
 
 **Recommended resolution**
 
-Cite T-46 in the rows of R-01..R-15 (or add a footnote row "golden: T-46 covers every row above"), and cite T-60 under I-001 or R-18 (whichever the author regards as owning the packaged fixture).
+"When `title` is empty the statement is the SECTION BODY alone." One sub-case in T-72.
 
 ---
 
-### F-209 — Vacuous clause in I-005
+### F-306 — C-09 is cited by no §9 test row
 
 **Severity:** LOW
 
-**Location:** I-005
+**Location:** §9.5 T-33, §9.7 T-40; §11 row C-09
 
 **Observation**
 
-"Every non-`UNKNOWN` verdict in a report carries $\geq$ 0 evidence entries" is true of any list. The invariant's content is the second and third clauses.
+§11 lists C-09 as verified by T-33 and T-40, but neither row's citation list names C-09 (T-33 cites K-05, K-06, R-26; T-40 cites K-01, E-09, E-21, R-23). Every other R/C/I/K/E id is cited by at least one T row (mechanically checked). Pre-existing; noticed because the cross-check was re-run for v1.7.
+
+**Potential consequence**
+
+Under §9's own rule ("every test cites … the R/C/I/K/E ids it proves"), a test author following the T rows literally never cites C-09, and the T-48 self-application reports it `UNTESTED`.
 
 **Recommended resolution**
 
-Drop the clause, or make it meaningful: "carries an `evidence` list (possibly empty)".
+Add C-09 to T-33's and T-40's parentheticals (T-33 asserts the URL/model/key/timeout are read from the C-09 variables; T-40 asserts a missing one exits `2`).
 
 ---
 
-### F-210 — T-49 hand-labels not located
+### F-307 — Editorial
 
 **Severity:** LOW
 
-**Location:** T-49, §10
+**Location:** front-matter Status; §1 Extractor row; §12 revision history
 
 **Observation**
 
-T-49 evaluates the LLM judge against "hand-labeled" edges of the golden fixture but does not say where the labels live or what runs the evaluation. The repository contains `tools/eval_judge.py`; T-51 names `tools/bench.py` for the analogous recorded benchmark.
+1. The revision-history table runs v0.1 … v1.3, v1.7, v1.6, v1.5, v1.4 — the last four are in reverse order after v1.3, because each new row was inserted above the previous one.
+2. The Status bullet now narrates seven versions (≈ 1,900 characters) and duplicates the revision table; its job is to say what the current version is and why.
+3. §1's Extractor row still says "declared IDs (with statement text, family, retired flag)"; `title` is now a fourth field.
 
 **Recommended resolution**
 
-Name the label file (e.g. `fixtures/target/golden/judge_labels.json`) and the runner (`tools/eval_judge.py`) in T-49 and §10, and pin the label file's shape in one line.
+Sort the revision table ascending; cut the Status bullet to the v1.7 paragraph plus "see revision history"; add `title` to the §1 row. No normative effect.
 
 ---
 
 ## 5. Requirements Review
 
-R-01..R-30 are observable obligations in normative language, each with a source. R-30 (progress) is fully observable — stream, format, gating, and non-effects are all named. The cross-cutting concerns (diagnostics R-17, security R-23, portability R-20/R-29, read-only R-19) each have requirements. No conflicting requirements were found; the closest is the R-30/§5.3 seam covered by F-201, which is an omission rather than a conflict.
+R-01..R-33 are observable obligations in normative language, each with a source. R-33 is fully observable: it names the three places the statement appears (`SpecId.text`, `JudgeRequest.statement`, JSON `statement`), the field that preserves the old rendering (`title`), and the one contract it leaves alone (table rows). No requirement conflicts with another; the R-33/I-002 seam (F-301) is an omission in the grammar, not a conflict between requirements.
 
 ## 6. Interface and Data-Contract Review
 
-C-01..C-11 pin every externally significant shape. C-11 is a good contract — grammar, regex, and formulas with symbols defined and the degenerate cases stated ($d = 0$, $n = 0$). Defects: the example/rule mismatch in C-07 (F-206), the `null` rendering gap in C-08 (F-207), and the platform assumption embedded in C-11's escape sequence (F-205). The CLI table in §5.1 now lists every flag, and the synopsis matches the table.
+C-01..C-11 pin every externally significant shape. The v1.7 grammar in C-01 (b) is written in the same style as the fence and row rules and reuses them (a HEADING LINE is "outside fenced code blocks"; inner rows and headings are parsed "exactly as before"). C-02 and C-07 agree on `title`/`text`; C-07's example, key order and rules paragraph agree with each other; the schema bump is stated in C-07, §3.3 and the revision row. Defects: the line/blank definition (F-301), the empty-title corner (F-305), and the heading edge cases (F-304). No rendered surface — the Visual-surface row of the scorecard is n/a.
 
 ## 7. State and Failure Review
 
-§3.1's pipeline is complete for the success path and for every failure that maps to exit 2/3. The gap is interruption (F-204): E-40 introduces `KeyboardInterrupt` without an outcome, and I-001's "either both or neither" is not restated for it. K-12's budget semantics (in-flight completion, budget-skipped edges) remain precise and are consistent with C-11's definition of "determined".
+Unchanged from v1.4: §3.1's pipeline is complete for success, exit 2/3 and interruption. v1.7 adds no state and no failure mode — the cap is a deterministic transformation with a Note, never an error — and E-46/E-47 give both degenerate body cases a defined outcome.
 
 ## 8. Determinism and Algorithm Review
 
-C-05 is closed and total. Metrics are Decimal-quantized and byte-determined. C-11's $k$ and ETA formulas are well defined; the only algorithmic ambiguity is the clock origin (F-202). Note that I-002 (determinism) correctly excludes stderr, so the indicator does not threaten it.
+C-05 is closed and total; metrics are Decimal-quantized; the body rule is deterministic given a line model — which is the gap (F-301). K-14's truncation is precisely specified (whole lines, $\leq$ 16,384 bytes of UTF-8, title line always kept, marker excluded from the cap). The measured sizes cited in K-14 (C-03 of this document 8.4 kB; the largest MonteCarloPi contract 2.7 kB) were re-measured during this review and are correct under the v1.7 rule.
 
 ## 9. Edge-Case Review
 
-E-01..E-40 cover empty, malformed, duplicate, oversized, binary, symlink, unavailable-dependency, timeout, budget, and zero-edge cases with deterministic outcomes and tests. E-39 correctly enumerates every suppression condition for the indicator. Missing: the interrupt case (F-204) and the high-concurrency burst case that motivates F-203.
+E-01..E-47 cover the body's two boundary cases (empty; over the cap) and its one structural case (declarations inside it). Missing: CRLF and whitespace-only lines (F-301), the empty title (F-305), and the ATX corner cases (F-304). The `###` immediately before end of file is covered by T-72.
 
 ## 10. Non-Functional Requirement Review
 
-K-08 is measurable and recorded on a named machine (D-14 still open). K-13 is measurable except for the internal MUST/SHOULD tension (F-203). The 1 s tick and the 100 ms coalescing window recommended in F-203 are both testable with a sleeping stub, as T-62 already does.
+K-08 unchanged and still recorded, not gated (D-14 open). K-14 is measurable and its rationale is honest about being a payload bound rather than a working limit. The judge-payload cost is now quantified in the README rather than the spec, which is the right place.
 
 ## 11. Security and Trust-Boundary Review
 
-Unchanged from v1.0 and still sound: the key never reaches any output (R-23, I-007, C-09), the network boundary is guarded and self-checked (R-18, I-006), and the judge is downgrade-only (I-004). C-11 explicitly excludes secrets and payloads from the progress line.
+Unchanged and sound. The statement now carries more of `SPEC.md` to the provider; the spec is already explicit that the judge receives spec and test text (C-06, §5.3 DEBUG), so no new boundary is crossed. I-007 still excludes statements from INFO.
 
 ## 12. Observability and Provenance Review
 
-The report carries `judge_prompt_sha256`, per-edge rationale and evidence, and coerced-flags; the INFO stream gives stage timings. The indicator adds operator-facing observability without touching the reports. F-201 is the one place where the two observability channels can collide.
+Improved: the JSON now records both what the operator wrote (`title`) and what the judge was shown (`statement`), truncation is visible in the statement itself and in a Note, and the prompt hash changes with the text. The one provenance gap is that a stale T-49 record is not declared void (F-303).
 
 ## 13. Testing and Verification Review
 
-Every I/K/E id has a T id (verified); every R and C id is cited in §9. T-62/T-63 are concrete and reproducible with the stubs they describe. Gaps: no test for logger/indicator interleaving (F-201), for the first draw's `elapsed` (F-202), or for interruption exit code and cleanup (F-204).
+Every I/K/E id has a T id and every T id is in §11 (verified). T-72 and T-74 are concrete and reproducible with the fixtures they describe; T-73's and part of T-72's oracle is the previous version (F-302). T-49's evidence needs an explicit staleness rule (F-303). C-09's citation gap is pre-existing (F-306).
 
 ## 14. Metrics and Evaluation Review
 
-`conformance`, `by_family`, `judge_strength`, `unknown_rate` have formula, population, denominator and zero-denominator rule. C-11's ETA has the same. The only defect is presentational (F-206). T-49 remains recorded-not-gated, which is appropriate for a probabilistic component, but its inputs should be located (F-210).
+No metric changed. `unknown_rate`, `judge_strength`, `conformance` and their zero-denominator rules are as in v1.0 and remain reproducible from the report.
 
 ## 15. Traceability Review
 
-Intent → R → C → I → T → evidence is intact. Mechanical check: 168 declared ids; 105 R/C/I/K/E ids each with exactly one §11 row; no undeclared id in §11; no undeclared T referenced anywhere. Two T ids are orphaned from §11 (F-208). Diagrams: §3.2 is ASCII (house style) and matches §3.1's stage table including the v1.3 judge-row note.
+Intent (§0, the proposal) → R-33 → C-01/C-02/C-06/C-07/C-08/C-10 → K-14, E-46, E-47 → T-72..T-74 → §11 rows: complete, and the proposal file is named in Sources. D-20 records the decision, the alternatives, the changed number and its date. The single break is F-306.
 
 ## 16. Internal-Consistency Review
 
-Cross-checked: §5.1 synopsis vs. flag table (consistent after v1.3); §5.3 vs. R-17 vs. R-30 (seam: F-201); C-11 vs. K-12 vs. K-13 (seam: F-202); E-40 vs. §5.4 vs. K-01 (contradiction: F-204); C-07 example vs. rule (F-206); §12 count sentence ("first fourteen") vs. fifteen rows (consistent). Revision history matches the front-matter status.
+Cross-checked: the cap value (16,384) in K-14, T-72, D-20 and the revision row; `schema_version` `"1.1"` in §3.3, C-07 heading, C-07 example and rules, and the revision row; the Note text in K-14 and E-46; the marker text in K-14 only (T-72 refers to it as "the marker line"); `title` semantics in C-01 (a)/(b), C-02, C-07, C-08. All agree. The §3.2 diagram still labels SpecIndex "declared IDs, statements" — accurate. The only drift found is editorial (F-307) and the D-06/§0 wording (F-303).
 
 ## 17. Architecture Review
 
-Component responsibilities in §1 support every requirement; the v1.3 rows are assigned to `judge.py` (rendering, cadence, erase) and `cli.py` (flag resolution, TTY test), which matches dependency direction (the CLI decides, the judge stage reports). No redesign warranted.
+Unchanged. The change lives entirely in the Extractor (title/body/cap), the Reporter (one key) and the LLM provider (pass-through); the Grapher, the mock judge and the status algorithm are untouched, as the revision row claims.
 
 ## 18. Implementation-Agent Readiness
 
@@ -321,13 +282,13 @@ Component responsibilities in §1 support every requirement; the v1.3 rows are a
 
 Minimum questions an implementer would ask:
 
-1. May the logger write to stderr while the indicator is displayed? (F-201 — assume no.)
-2. Is `elapsed` on the first draw `0:00`, and does the budget clock start at the same instant? (F-202 — assume `0:00`; budget starts at first request.)
-3. On a burst of verdicts, coalesce or draw each? Are writes atomic? (F-203 — assume coalesce within 100 ms; atomic.)
-4. What exit code and cleanup on Ctrl-C? (F-204 — no safe default; the author must choose.)
-5. ANSI or portable erase? (F-205 — assume ANSI as written; note Windows caveat.)
+1. Split `SPEC.md` on `\n` and strip a trailing `\r`? Is a whitespace-only line blank? (F-301 — assume yes and yes.)
+2. What do I compare `title` against in T-72/T-73 once the goldens are regenerated? (F-302 — assume the property form above.)
+3. Do the recorded T-49 runs still count? (F-303 — assume no; re-run.)
+4. Is `    # x` (four spaces) a heading? Is a bare `###`? (F-304 — assume CommonMark: no and yes.)
+5. Empty title with a body — leading newline or body alone? (F-305 — assume body alone.)
 
-Only question 4 lacks an obvious default, and it does not affect the success path.
+None lacks an obvious default; none affects the golden fixtures as they stand.
 
 ## 19. Quality Scorecard
 
@@ -337,18 +298,19 @@ Only question 4 lacks an obvious default, and it does not affect the success pat
 | Terminology | 5 |
 | Requirement precision | 5 |
 | Interface completeness | 4 |
+| Visual-surface completeness | n/a |
 | Data-contract completeness | 4 |
-| State/lifecycle definition | 4 |
+| State/lifecycle definition | 5 |
 | Algorithm precision | 4 |
-| Failure semantics | 4 |
+| Failure semantics | 5 |
 | Edge-case coverage | 4 |
 | Non-functional requirements | 4 |
 | Security specification | 5 |
 | Observability/provenance | 4 |
-| Testability | 5 |
+| Testability | 4 |
 | Evaluation/metrics | 4 |
 | Traceability | 4 |
-| Internal consistency | 4 |
+| Internal consistency | 5 |
 | Architecture consistency | 5 |
 | Implementation readiness | 4 |
 
@@ -358,23 +320,20 @@ Only question 4 lacks an obvious default, and it does not affect the success pat
 
 None.
 
-### P1 — Important (resolve before claiming conformance of the v1.3 rows)
+### P1 — Important (resolve before the v1.7 build claims conformance)
 
-- **F-201** — pin "no logger output while the indicator is displayed"; extend T-62.
-- **F-202** — single origin for $t$ (first draw); K-12 keeps its own; T-62 asserts `0:00`.
-- **F-203** — coalescing cadence (100 ms / 1 s / 10 Hz) and atomic writes.
-- **F-204** — E-41 interrupt semantics with exit code and cleanup; T id; §11 row; E-40 references it.
-- **F-206** — fix the C-07 example; state `max_unknown` emission format.
+- **F-301** — line model in C-01 (split on `\n`, strip `\r`, BLANK := empty or whitespace-only, re-join with `\n`); cite from C-02 and I-002; CRLF sub-case in T-72.
+- **F-302** — restate T-72's and T-73's oracle as properties of the current output; move the one-time golden diff to `SPEC_BUILD_REPORT.md`.
+- **F-303** — T-49 counts only runs under the current `judge_prompt_sha256`; D-08 re-opened; D-06/§0 name the clause granularity.
 
 ### P2 — Improvement (may be deferred)
 
-- **F-205** — portable erase or an explicit VT-mode rule.
-- **F-207** — `null` rendering in the C-08 header.
-- **F-208** — cite T-46 and T-60 in §11.
-- **F-209** — tidy I-005.
-- **F-210** — locate the T-49 labels and runner.
+- **F-304** — ATX-only, three-space limit, bare `###`, closing hashes, declaring line is a HEADING LINE.
+- **F-305** — empty title → statement is the body alone.
+- **F-306** — cite C-09 from T-33 and T-40.
+- **F-307** — sort the revision table; shorten the Status bullet; `title` in §1.
 
-Suggested version bump: `v1.3 → v1.4` with `fix(speccheck):` commits per the spec-writing convention.
+Suggested version bump: `v1.7 → v1.8` with `fix(speccheck):` commits per the spec-writing convention, before or alongside the v1.7 build (the P1 items change no behaviour the build would otherwise get wrong, only what the spec pins).
 
 ## 21. Final Verdict
 
@@ -389,5 +348,5 @@ Primary blocker:
 NONE
 
 Most important improvement:
-Close the seam between the in-place progress line and the stderr logger (F-201), and give interruption an exit code and cleanup rule so E-40 stops contradicting K-01 (F-204).
+State the line model for SPEC.md (split, trailing CR, blank line) so that the section body — now emitted byte for byte — is the same bytes on every OS and every Git checkout (F-301).
 ```

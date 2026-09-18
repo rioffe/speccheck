@@ -11,8 +11,8 @@ and downgrade the verdict when the test merely runs the behavior without asserti
 never upgrade anything.
 
 This repository holds the checker itself — which implements its own `SPEC.md` in full (the code
-is at 1.6.0; `SPEC.md` is at v1.7, whose one change — the judge receives a heading-declared
-contract's section body, not just its heading — is the next build) and so is the worked example of
+is at 1.6.0; `SPEC.md` is at v1.8, whose one behavioural change since — the judge receives a
+heading-declared contract's section body, not just its heading (v1.7) — is the next build) and so is the worked example of
 the method it serves — together with the four agent skills that
 write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
@@ -383,7 +383,7 @@ renamed JSON-then-Markdown; either both exist afterwards or neither).
 
 | File | Contract | Notes |
 | --- | --- | --- |
-| `speccheck.json` | C-07, `schema_version` `"1.0"` (`"1.1"` from the v1.7 build, which adds a `title` per ID next to the full `statement`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
+| `speccheck.json` | C-07, `schema_version` `"1.0"` (`"1.1"` from the v1.8 build, which adds a `title` per ID next to the full `statement`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections: verdict line, metrics, per-ID evidence (retired rows struck through, `(file)` for file-level cases, `—` for unjudged edges), dangling, stale, unattributed results, unrun citations, judge details (judge enabled only), notes. |
 
 Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
@@ -392,11 +392,11 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.7; the source of truth; written in the
+SPEC.md                         the specification (v1.8; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.6.0; becomes 1.7.0 with the v1.7 build)
+  __init__.py                   __version__ (1.6.0; becomes 1.8.0 with the v1.8 build)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
