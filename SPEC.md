@@ -1,6 +1,6 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.5 — v1.4 with E-41 tightened after a real Ctrl-C against a local model: in-flight judge requests are abandoned at once, never awaited (the first interrupt used to look ignored for up to K-05 seconds). v1.4 was v1.3 with every finding of the v1.3 `spec-review` applied (`SPEC_REVIEW_REPORT.md`, F-201..F-210): the progress indicator now owns stderr while displayed, has one clock, a coalesced cadence, portable byte sequences, and an interrupt rule (E-41, exit `3`); the C-07 example matches its rules; T-46/T-60 are in §11. v1.3 was v1.2 plus a judge-stage progress indicator for `--judge llm` (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15): the LLM judge takes minutes, and an operator at a terminal MUST be able to see how far along it is without turning on `--verbose`. v1.2 was v1.1 with D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 (C-06, T-33) so thinking models can finish the verdict JSON inside the budget; the remaining §12 rows marked `confirm` are still decisions the build inherits from the author, not the requester
+> - **Status:** v1.6 — v1.5 plus a Swift test-case adapter (R-31: Swift Testing `@Test` functions and XCTest `test*` methods are delimited with spans that include the doc comment and attributes, joined to SwiftPM's xUnit output by identifier — C-03, C-04, E-42, E-43, E-45, T-65..T-68, T-71, D-17..D-19), Swift assertion tokens for the mock judge (C-06, T-69) and tolerance for decoration after the bold ID in a declaring table cell (R-32, C-01, E-44, T-70). Requested 2026-09-17 after a Swift build of a spec ran the checker and got `62 unverified; 43 dangling` for tool reasons alone. v1.5 was v1.4 with E-41 tightened after a real Ctrl-C against a local model: in-flight judge requests are abandoned at once, never awaited (the first interrupt used to look ignored for up to K-05 seconds). v1.4 was v1.3 with every finding of the v1.3 `spec-review` applied (`SPEC_REVIEW_REPORT.md`, F-201..F-210): the progress indicator now owns stderr while displayed, has one clock, a coalesced cadence, portable byte sequences, and an interrupt rule (E-41, exit `3`); the C-07 example matches its rules; T-46/T-60 are in §11. v1.3 was v1.2 plus a judge-stage progress indicator for `--judge llm` (R-30, C-11, K-13, E-39, E-40, T-62, T-63, D-15): the LLM judge takes minutes, and an operator at a terminal MUST be able to see how far along it is without turning on `--verbose`. v1.2 was v1.1 with D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 (C-06, T-33) so thinking models can finish the verdict JSON inside the budget; the remaining §12 rows marked `confirm` are still decisions the build inherits from the author, not the requester
 > - **Language / stack:** Python 3.12 | standard library for the deterministic kernel (`re`, `ast`, `xml.etree`, `json`, `argparse`, `pathlib`) | CLI only; optional model-backed judge behind an `[llm]` extra
 > - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (review of v0.1; F-001..F-017 below point at it); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision)
 > - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code.
@@ -28,7 +28,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 - No remediation. The checker reports; it never edits the spec, the code, or the tests.
 - No multi-repository or multi-spec runs; one spec, one source tree set, one results file per invocation.
 - No IDE integration, daemon mode, watch mode, or web UI.
-- No language adapters beyond Python in v0.1 (see O-2); other languages get file-level attribution.
+- Language adapters exist for Python (v0.1) and Swift (v1.6, R-31); every other language gets file-level attribution (O-2). No adapter parses its language with a real parser except Python (`ast`); the Swift adapter is line-based (D-17).
 - The checker never reads its own outputs as inputs: the spec, the results file, and the two report files are excluded from every scan (C-03, F-002).
 
 **A known limitation, stated rather than hidden (F-013):** citation is literal. A test that mentions `R-03` as *data* — asserting on a report that contains it, or on an error message — cites R-03 exactly as a test that proves it does. The `speccheck:ignore` markers in C-01 are the opt-out; they are the author's responsibility, and `speccheck` never infers intent from context.
@@ -86,6 +86,8 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-28** | With `--strict` and `--judge llm`, the checker MUST exit `1` when the judge was unavailable (`judge_available == false`) or when `unknown_rate` exceeds `--max-unknown` (K-11), and the summary line MUST name the reason (F-012). | review F-012 |
 | **R-29** | The summary line MUST be a single line of ASCII text written to stdout as UTF-8 regardless of locale, in the exact format of §5.1 (F-010). | review F-010 |
 | **R-30** | With `--judge llm`, the checker MUST display a progress indicator for the judge stage on stderr, in the format of C-11, whenever `--progress` resolves to on (default `auto`: on iff stderr is a TTY and verbosity is not `DEBUG`; §5.1). The indicator MUST be redrawn in place per K-13, MUST be erased before anything else is written to stderr or stdout after the judge stage begins, and MUST NOT alter stdout, either report file, or the exit code. With `--judge none` or `--judge mock` no indicator is ever drawn. | requester (2026-09-13: "speccheck should include progress bar when running with LLM judge, since that takes quite a bit of time") |
+| **R-31** | For every file ending `.swift` under a `--tests` root, the checker MUST delimit test cases per the C-03 Swift adapter — Swift Testing `@Test` functions and XCTest `test*` methods — with a span that begins at the first line of the doc comment / attribute block above the declaration and ends at the function's closing brace, and MUST join their citations to SwiftPM's xUnit `<testcase>` outcomes by function identifier (C-04), so that a citation written where `spec-build` puts it (the test's doc comment) counts exactly as a Python citation does under R-04 and R-05. | requester (2026-09-17: "what would it take to make it work for Swift projects as well as Python ones?" — "go ahead"); the MonteCarloPi Swift build (`SPEC_BUILD_REPORT.md` of that project), where every Swift citation was file-level and the run reported `62 unverified` |
+| **R-32** | The declaration parser MUST declare an ID whose bold form is the *beginning* of a table row's first cell and is followed by whitespace-separated decoration (`\| **K-07** **[port]** \|`), ignoring the decoration; the statement remains the second cell (C-01 (a), E-44). | the MonteCarloPi port spec marks port-specific ids `**[port]**` inside the id cell; six declared ids were reported as 43 dangling citations |
 
 ---
 
@@ -185,8 +187,12 @@ backticks, and an unclosed fence runs to end of file (Q-008).
         row       := a line whose first non-space character is "|"
         cells     := the row split on every "|" that is not preceded by "\" and not inside a
                      backtick span (`...`); the leading and trailing empty cells are dropped
-        the ID MUST be the ENTIRE trimmed content of the FIRST cell, in one of the forms
+        the trimmed content of the FIRST cell MUST BEGIN with one of the forms
           **ID**   ~~**ID**~~   **~~ID~~**
+        and whatever follows the form MUST be empty or begin with whitespace (R-32, E-44):
+          `**K-07** **[port]**` declares K-07; `**K-07**x` and `**K-07**, note` declare nothing.
+        Text after the form is DECORATION: it is not part of the statement, and a bold ID inside
+        it is not a declaration (`**R-01** **R-02**` declares R-01 only).
         statement := the trimmed text of the SECOND cell ("" if there is none)
         A bold ID in any other cell is not a declaration (E-31). A separator row (cells made of
         "-" and ":" only) is never a declaration.
@@ -275,6 +281,63 @@ Python adapter (files ending .py under a --tests root):
   * a citation on a line inside a span is attributed to that case; any other citation in the file
     is attributed to the file-level case (name "").
   * a .py file that fails to parse -> whole file is file-level (E-12; a note, not an error).
+Swift adapter (files ending .swift under a --tests root; R-31, D-17, D-18, D-19). The file is
+  delimited BY LINES, not by a parser, so the kernel stays standard-library (D-17). Every rule
+  below reads a line's text with its `//` comment removed (a `//` inside a string literal is
+  treated as a comment start too — D-17) and counts braces `{` / `}` only outside `"…"` and
+  `"""…"""` string literals (the latter may span lines).
+    TYPE LINE  := a line matching, after that stripping,
+                    ^\s*(?:@\S+\s+|(?:public|package|internal|private|fileprivate|open|final|indirect)\s+)*
+                    (?:struct|class|actor|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)
+                  whose brace depth is greater at the end of the line than at its start. Its CHAIN is
+                  the identifiers of the TYPE LINEs still open at that depth (outermost first) plus its
+                  own identifier; an `extension X` line contributes `X`. Nesting depth is unbounded.
+    FUNC LINE  := a line matching, after that stripping,
+                    ^\s*(?:@[A-Za-z_][A-Za-z0-9_]*(?:\([^)]*\))?\s+|(?:public|package|internal|private|fileprivate|open|static|class|final|override|mutating|nonmutating|nonisolated|isolated|consuming|borrowing)\s+)*
+                    func\s+([A-Za-z_][A-Za-z0-9_]*)\s*[<(]
+                  whose identifier is the FUNC NAME. A FUNC LINE on which no `{` opens before SPAN END
+                  can be computed (a protocol requirement, a declaration without a body) is not a case.
+    ATTRIBUTE BLOCK := the maximal run of lines immediately above the FUNC LINE, each of which is
+                  (i) a doc-comment line: first non-space characters `///`, or any line of a
+                      `/** … */` block; or
+                  (ii) an attribute line: first non-space character `@`, or a continuation of an
+                      attribute whose parentheses had not balanced on the previous line of the run; or
+                  (iii) a blank line that lies between two lines of kinds (i)/(ii);
+                  together with the text of the FUNC LINE itself that precedes `func`.
+    SPAN END   := the first line, at or after the FUNC LINE, on which the running brace depth returns
+                  to the depth in force before the FUNC LINE's first `{`.
+  A test case is:
+    (S) Swift Testing — a FUNC LINE whose ATTRIBUTE BLOCK contains the token `@Test` bounded on the
+        right by `(`, whitespace or end of line (`@Testable`, `@TestSuite` do not match).
+        name := FUNC NAME (the parameter list is not part of the name; D-19)
+        classname := MODULE, or MODULE "." + CHAIN of the innermost enclosing TYPE LINE joined with "."
+    (X) XCTest — a FUNC LINE whose FUNC NAME starts with `test`, that is a DIRECT member (brace depth
+        exactly one deeper) of a TYPE LINE declaring a `class` whose text contains the token
+        `XCTestCase` after the identifier.
+        name := FUNC NAME;  classname := MODULE "." + that class's CHAIN joined with "."
+    A FUNC LINE that satisfies both is (S). A FUNC LINE whose FUNC NAME starts with `test` and is
+    neither (S) nor (X) — a method of a non-`XCTestCase` type, a member of a class nested inside an
+    `XCTestCase`, a free function — is NOT a test case: its citations are file-level and the file
+    gets one Note "undelimited tests in <path>: <Chain.name>, …" (E-43; E-28's rule). Any other
+    function is a helper and produces no Note.
+  MODULE := the first path component of the file's path relative to the --tests root under which it
+    was found, or the last path component of that root when the file lies directly under it
+    (SwiftPM's `Tests/<Target>/…` layout; D-18). `Tests/ProbeTests/Unit/Foo.swift` under
+    `--tests Tests` -> `ProbeTests`. (Under `--tests Tests/ProbeTests` the same file yields `Unit`,
+    which will not join; pass the `Tests` directory.)
+  span := first line of the ATTRIBUTE BLOCK .. SPAN END. A citation on a line inside a span is
+    attributed to that case (the doc comment is inside the span — that is the point of R-31);
+    every other citation is file-level (E-13).
+  A .swift file whose brace depth goes negative on any line, or is non-zero at end of file, is
+    one file-level case with Note `parse fallback: <path>` (E-42; E-12's rule).
+  What the join sees (measured 2026-09-17, Swift 6.4 / SwiftPM; D-19): `swift test --xunit-output
+    junit.xml` writes `junit-swift-testing.xml` for Swift Testing with
+      classname = "<Module>.<Outer>.<Inner>"   (dotted CHAIN; a free function: "<Module>")
+      name      = "<name>(<label>:<label>:)"    (the signature; ONE <testcase> per function —
+                                                 parameterized tests are not expanded; a
+                                                 `.disabled` test carries <skipped>)
+    and, on toolchains that write it, `junit.xml` for XCTest with classname = "<Module>.<Class>"
+    and name = "<testName>". C-04 strips the signature, so both forms join by identifier.
 Fallback adapter (any other text file): one file-level case per file; its classname is derived
   exactly as for Python (path relative to --root, "/" -> ".", final extension dropped; F-108).
 
@@ -312,12 +375,20 @@ Join to a TestCase (F-006): a result joins the TestCase whose `join_name` equals
   "unit_test_core"). Among candidates, the one whose classname has the LONGEST common dotted
   suffix with the result wins; if two or more candidates tie, the result is UNATTRIBUTED and one
   Note names the result and every candidate (E-27). `join_name` is defined as:
-    join_name := if name ends with "]" and contains "[":  name[:name.index("[")]
-                 else:                                     name
+    join_name := step 1: if name ends with "]" and contains "[":  name[:name.index("[")]
+                         else:                                     name
                  i.e. everything from the FIRST "[" to the end is removed, whatever it contains
                  (F-005, F-101): "test_x[3-True]" -> "test_x"; "test_x[list[int]]" -> "test_x";
                  "test_y[a][b]" -> "test_y".
-    param     := the removed text without its outer brackets ("3-True", "list[int]", "a][b"), or null.
+                 step 2 (R-31, D-19): if the step-1 result ends with ")" and contains "(":
+                 everything from the FIRST "(" is removed as well — a Swift signature names the
+                 test, not a variant: "twoArgs(a:b:)" -> "twoArgs"; "freeFunction()" ->
+                 "freeFunction"; "testAddition" -> "testAddition"; "test_x[f(1)]" -> "test_x".
+    param     := the text removed in step 1 without its outer brackets ("3-True", "list[int]",
+                 "a][b"), or null; a signature removed in step 2 is never a param.
+  Two Swift Testing cases in one type with the same identifier (overloads by label: `f(a:)` and
+  `f(b:)`) share `join_name` and `classname`: a result for either ties, is UNATTRIBUTED, and one
+  Note names the result and both candidates (E-45; the E-27 rule).
   Every <testcase> that joins the same TestCase (parametrized variants, or duplicates) is kept in
   that case's `results` list; the case's single `outcome` = worst of them, worst order
   error > failed > skipped > passed (E-06, E-24).
@@ -415,6 +486,7 @@ LLM provider wire format (judge_llm.py; F-004) — an OpenAI-compatible chat-com
 Mock provider (judge_mock.py):
   verdict = ASSERTS if the span contains an assertion token, else EXECUTES_ONLY
   assertion token := a line matching ^\s*assert\b  or containing  .assert  or  pytest.raises(
+                     or (Swift; R-31) containing  #expect(  or  #require(  or  XCTAssert  or  XCTFail(  or  Issue.record(
   evidence = every such line (file, line); rationale = "mock: assertion token on N line(s)" / "mock: no assertion token"
 ```
 
@@ -800,6 +872,10 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **E-39** | `--judge llm` with stderr not a TTY (CI log, redirected file, pipe) under `--progress auto`; or `--verbose DEBUG` under any `--progress` value; or `--progress never`; or `--judge none\|mock` under any `--progress` value | No progress bytes (neither draw nor erase) are written to stderr; the run is otherwise identical. `--progress always` overrides only the TTY test, never the DEBUG or judge-mode suppression (R-30). |
 | **E-40** | The judge stage is cut short while the indicator is displayed: a provider raises out of the stage (should not happen — E-14..E-16 coerce), an uncaught exception, or an interrupt (E-41) | The erase sequence is written before the exit-`3` message (§5.4, E-41); no partially drawn line remains on stderr. The erase MUST happen in a `finally`-equivalent path so it cannot be skipped (R-30, K-13). |
 | **E-41** | `SIGINT` / `KeyboardInterrupt` at any stage | Exit `3` with the one-line message `interrupted`; the indicator, if displayed, is erased first (E-40); every §3.1 temporary of this run is removed and no report file from this run remains (a report file already renamed is removed, per §3.1's failure rule); judge requests in flight are **abandoned**, not awaited — the process MUST exit within 1 s of the interrupt regardless of K-05 — and edges not yet started are never started (v1.5). No other exit code is produced (K-01); a traceback is printed only under `--verbose DEBUG` (F-204, D-16). |
+| **E-42** | A `.swift` test file whose brace depth goes negative on some line or is non-zero at end of file (counted per C-03, outside comments and string literals) | Whole file is one file-level case; Note `parse fallback: <path>` (R-31; the E-12 rule). |
+| **E-43** | A `.swift` function named `test*` that is neither `@Test`-attributed nor a direct `test*` method of an `XCTestCase` class (a method of another type, a member of a nested class, a free function) | Not a test case; its citations are file-level; one Note per file lists the undelimited names as `<Chain.name>` (R-31; the E-28 rule). |
+| **E-44** | A declaring table row whose first cell begins with a bold ID form and continues with whitespace-separated decoration (`**K-07** **[port]**`) | Declares the ID; the decoration is dropped; a bold ID inside the decoration is not a declaration; a first cell where the form is followed by a non-whitespace character (`**K-07**x`) declares nothing (R-32). |
+| **E-45** | Two Swift test cases with the same identifier and classname (overloads by parameter label) | A result with that `join_name` ties between them: unattributed, one Note names the result and both candidates (C-04; the E-27 rule). |
 
 ---
 
@@ -812,6 +888,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | ID | Test |
 | -- | ---- |
 | **T-01** | Table-cell and heading declarations are both extracted with correct family, number, statement, and line; a `SPEC.md` containing invalid UTF-8 is decoded with replacement, its ASCII declarations are still found, and a Note is recorded. (R-01, E-11) |
+| **T-70** | `\| **K-07** **[port]** \| s \|` declares K-07 with statement `s`; `\| **R-01** **R-02** \| s \|` declares R-01 only; `\| **K-07**x \| s \|` and `\| **K-07**, note \| s \|` declare nothing; the retired forms tolerate decoration the same way; heading declarations are unchanged. (R-32, C-01, E-44) |
 | **T-02** | `R-7`, `R-07`, `R-007` in a spec are one ID reported as `R-07`; `I-5` is reported as `I-005`. (I-011, K-04) |
 | **T-03** | A token with 4 digits (`R-1234`) and tokens adjacent to alphanumerics (`XR-07`, `R-07a`) are not IDs. (K-04, C-01) |
 | **T-04** | Strikethrough declarations yield `retired=True`; a later plain declaration of the same ID exits `3`. (R-02, E-03) |
@@ -833,6 +910,9 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-56** | `test_*` and `testFoo` methods of a `*TestCase` subclass, `testFoo` methods of a `Test*` class, and `async def test_*` functions are delimited with correct spans; a module-level `testFoo` (no underscore) is not a test case; a `test*` method of an unrecognized class is not, its citations are file-level, and the file gets an `undelimited tests` Note. (E-28, C-03) |
 | **T-57** | A line containing `speccheck:ignore` yields no citations but still counts toward its case's span; a file with `speccheck:ignore-file` on line 2 yields no citations and no test cases; a marker on line 4 has no file-level effect; markers inside `SPEC.md` change nothing; the Note counts ignored files. (R-27, E-33) |
 | **T-14** | Several citations of one ID in one case yield one edge with all lines listed. (E-22) |
+| **T-65** | Swift Testing attribution: a `.swift` file with a doc-commented `@Test func` at file scope, a `@Suite struct Outer` holding a `@Test("named") func`, a `@Test(arguments: [...])` attribute spread over two lines, a nested `@Suite struct Inner` with a `@Test func`, a plain helper, and a `func testHelper()` with no `@Test`, plus a `@testable import`: the cases are named by identifier, their classnames are `<Module>`, `<Module>.Outer`, `<Module>.Outer.Inner`, each span starts on the first doc-comment line above its attribute and ends on the function's closing brace; a citation on a doc-comment line, on an attribute continuation line and on a body line is attributed to that case; the helper's citation is file-level; the Note lists `Outer.testHelper` (E-43); `@testable` is not `@Test`. MODULE is the first path component under the `--tests` root, or the root's own name for a file directly under it. (R-31, C-03, E-43) |
+| **T-66** | XCTest attribution: `final class LegacyTests: XCTestCase` with `func testAddition()` and `func helper()`, a class nested inside it with a `test*` method, and a `class Plain` (no `XCTestCase`) with `func testFoo()`: `testAddition` is a case named `testAddition` with classname `<Module>.LegacyTests` and a span from its doc comment to its closing brace; the nested and the `Plain` methods are undelimited with one Note naming `LegacyTests.Nested.testNested, Plain.testFoo`; `helper` produces no Note. (R-31, C-03, E-43) |
+| **T-67** | A `.swift` file with an unclosed `{` is one file-level case with Note `parse fallback: <path>`; a file with a stray `}` likewise; a file whose only extra braces are inside `"{"`, `"""…}…"""` and `// }` delimits its cases correctly. (E-42, C-03) |
 
 ### 9.3 Results mapping (C-04)
 
@@ -842,6 +922,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-16** | Classname join accepts both `tests.test_core` and `test_core` forms for `tests/test_core.py`, and rejects `unit_test_core` for `test_core`. (C-04) |
 | **T-58** | With `tests/a/test_core.py` and `tests/b/test_core.py`, a result with classname `tests.a.test_core` joins `a` only; a result with classname `test_core` is unattributed with a Note naming both candidates. (E-27, C-04) |
 | **T-52** | `test_x[3-True]` and `test_x[0-False]` both join `test_x`; `results` lists both with `param`; the case `outcome` is the worst of them; a name with no `[` is unchanged; everything from the first `[` is removed: `test_y[a][b]` → `test_y` and `test_x[list[int]]` → `test_x` with `param` `list[int]`; a result with empty `classname` joins the unique case with its `join_name` and is unattributed when two exist. (E-24, C-04, F-105) |
+| **T-68** | A SwiftPM `junit-swift-testing.xml` with `freeFunction()` under `ProbeTests`, `named()`, `parameterized(x:)`, `twoArgs(a:b:)` and a `<skipped>` `disabledOne()` under `ProbeTests.Outer`, and `nested()` under `ProbeTests.Outer.Inner` joins each to its C-03 case with `param` null and the outcomes `passed` / `skipped`; an XCTest `<testcase classname="ProbeTests.LegacyTests" name="testAddition">` joins the XCTest case; results for overloads `f(a:)` and `f(b:)` are unattributed with one Note naming both candidates (E-45); `test_x[f(1)]` still strips from the first `[` and keeps `param` `f(1)`. (R-31, C-04, E-45) |
 | **T-17** | Duplicate `(classname, name)` collapses to the worst outcome in the order error > failed > skipped > passed. (E-06) |
 | **T-18** | Results for unknown cases are listed as unattributed and change no status. (E-07) |
 | **T-19** | Malformed XML and a `<testcase>` without `name` each exit `3`. (E-05) |
@@ -863,6 +944,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | ID | Test |
 | -- | ---- |
 | **T-26** | Mock judge returns `ASSERTS` with one evidence line per assertion token, and `EXECUTES_ONLY` with no evidence when none is present, including for an empty test body. (R-22, E-17) |
+| **T-69** | The mock judge returns `ASSERTS` with the line as evidence for a Swift span containing `#expect(`, `#require(`, `XCTAssertEqual(`, `XCTFail(` or `Issue.record(` (one sub-test each), and `EXECUTES_ONLY` for a Swift body that only calls code (`_ = add(1, 2)`). (R-22, C-06) |
 | **T-27** | A `PASSING` ID whose only passed edges are `EXECUTES_ONLY` becomes `WEAKLY_PASSING`; with any `ASSERTS` edge it stays `PASSING` and passes `--strict`; with only `UNKNOWN` it stays `PASSING`. (C-05 step 5, R-11, E-26) |
 | **T-28** | Disabling the judge changes no status except `WEAKLY_PASSING` → `PASSING` (property test over random fixtures). (I-004) |
 | **T-29** | A stub provider returning `ASSERTS` without evidence, evidence outside the span, or evidence in another file is coerced to `UNKNOWN` with `coerced: true` and rationale `judge: ungrounded`. (E-16, I-005) |
@@ -907,6 +989,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | -- | ---- |
 | **T-46** | `fixtures/target/` — a small self-contained project with its own `SPEC.md` ($\geq$ 12 IDs across all six families, 2 retired), `src/`, `tests/`, and a checked-in `junit.xml` — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` E, one `FAILING` T, one `SKIPPED` K, one `EXECUTES_ONLY`-only test, one dangling citation, one stale citation, one unattributed result, one file-level citation. The golden reports live in `fixtures/target/golden/` (outside every scan root). `speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --root fixtures/target --out <fresh tmp>` produces files byte-identical to `golden/speccheck.json` and `golden/SPEC_CONFORMANCE_REPORT.md` and exits `1` (Q-003). (all of §2) |
 | **T-47** | Removing each planted defect in turn flips exactly the expected row and metric (one sub-test per defect). (R-06, R-24) |
+| **T-71** | `fixtures/target-swift/` — a SwiftPM-shaped project with its own `SPEC.md` ($\geq$ 10 IDs across all six families, one carrying `**[port]**` decoration), `Sources/`, `Tests/<Module>/` holding one Swift Testing file (nested suite, parameterized test, disabled test, doc-comment citations) and one XCTest file, and a checked-in `junit.xml` that concatenates the `junit-swift-testing.xml` SwiftPM wrote and an XCTest `<testsuite>` in SwiftPM's shape — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` file-level citation, one `FAILING` T, one `SKIPPED` K (the disabled test), one `EXECUTES_ONLY`-only test, one undelimited `test*` helper (E-43), one unattributed result. With `--judge mock` both reports are byte-identical to `fixtures/target-swift/golden/`, and the summary line is exactly the one recorded in that golden. (R-31, R-32, R-16, R-24) |
 
 ### 9.9 Self-application (recorded, not gating)
 
@@ -950,7 +1033,7 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
 
 - **Optional items:**
   - **O-1** LLM judge provider (`--judge llm`, `[llm]` extra). Specified fully in C-06/C-09; gated by flag and extra.
-  - **O-2** Additional language adapters for test-case attribution (Go `func Test*`, JS/TS `test(`/`it(`). Not in v0.1; the fallback path is what v0.1 ships and tests (T-12).
+  - **O-2** Additional language adapters for test-case attribution (Go `func Test*`, JS/TS `test(`/`it(`). Not in v0.1; the fallback path is what v0.1 ships and tests (T-12). Swift joined the shipped adapters in v1.6 (R-31, C-03); Go and JS/TS remain optional.
   - **O-3** Any non-CLI surface (GUI, HTTP, editor plugin). Not in v0.1 and not designed for.
 
 ---
@@ -964,8 +1047,8 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-01 | `extract.py` (declaration scan, UTF-8 replace) | T-01, T-05, T-46 |
 | R-02 | `extract.py` (retired flag), `graph.py` (denominators) | T-04, T-25, T-46 |
 | R-03 | `extract.py` (source scan, C-03 exclusions, binary/symlink filters) | T-08, T-13, T-36, T-46 |
-| R-04 | `attribute.py` (Python adapter, fallback, C-03 exclusions) | T-09, T-10, T-11, T-12, T-36, T-56, T-46 |
-| R-05 | `results.py` | T-15, T-16, T-52, T-58, T-46 |
+| R-04 | `attribute.py` (Python adapter, Swift adapter, fallback, C-03 exclusions) | T-09, T-10, T-11, T-12, T-36, T-56, T-46, T-65, T-66, T-67 |
+| R-05 | `results.py` | T-15, T-16, T-52, T-58, T-46, T-68 |
 | R-06 | `graph.py` (C-05 steps 1–4) | T-20, T-21, T-47, T-46 |
 | R-07 | `graph.py` (dangling) | T-23, T-46 |
 | R-08 | `graph.py` (stale) | T-23, T-46 |
@@ -982,7 +1065,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-19 | `report.py` (only writer, temp-and-rename), `cli.py` | T-38, T-43, T-45 |
 | R-20 | `extract.py`, `report.py` (path normalization) | T-34, T-36 |
 | R-21 | `cli.py` (summary line) | T-44, T-59 |
-| R-22 | `judge_mock.py` | T-26 |
+| R-22 | `judge_mock.py` (Python and Swift assertion tokens) | T-26, T-69 |
 | R-23 | `judge_llm.py`, `cli.py` (env validation, redaction) | T-40, T-41 |
 | R-24 | `report.py` (evidence table completeness) | T-37, T-48 |
 | R-25 | `graph.py` (C-05 step 2b) | T-53 |
@@ -991,12 +1074,14 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-28 | `cli.py` (`--strict` judge gate), `report.py` (`strict_judge_failure`) | T-59 |
 | R-29 | `cli.py` (summary line encoding) | T-44 |
 | R-30 | `cli.py` (`--progress` resolution, TTY test), `judge.py` (progress callback in `run_judge`) | T-62, T-63 |
-| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers, ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57 |
+| R-31 | `attribute.py` (Swift adapter: type/func lines, attribute block, brace spans, MODULE), `results.py` (signature strip), `judge_mock.py` (Swift tokens) | T-65, T-66, T-67, T-68, T-69, T-71 |
+| R-32 | `extract.py` (first-cell prefix rule) | T-70, T-71 |
+| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70 |
 | C-02 | `extract.py` (`SpecId`, `SpecIndex`) | T-01, T-06 |
-| C-03 | `attribute.py` (`TestCase`, `Citation`, `test*` methods), `extract.py` (exclusions incl. temporaries, binary, symlinks) | T-09, T-10, T-13, T-14, T-36, T-56 |
-| C-04 | `results.py` | T-15, T-16, T-17, T-18, T-19, T-52, T-58 |
+| C-03 | `attribute.py` (`TestCase`, `Citation`, `test*` methods, Swift adapter), `extract.py` (exclusions incl. temporaries, binary, symlinks) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67 |
+| C-04 | `results.py` (two-step `join_name`) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68 |
 | C-05 | `graph.py` (`IdStatus`, `compute_status`) | T-20, T-21, T-27, T-53 |
-| C-06 | `judge.py` (`JudgeRequest` with numbered `source`, `Verdict`, validation), providers | T-26, T-29, T-30, T-32, T-33, T-54 |
+| C-06 | `judge.py` (`JudgeRequest` with numbered `source`, `Verdict`, validation), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69 |
 | C-07 | `report.py` (`to_json`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59 |
 | C-08 | `report.py` (`to_markdown`; em dash and `(file)` renderings) | T-35 |
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
@@ -1067,6 +1152,10 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-39 | `cli.py` (`--progress` gating) | T-63 |
 | E-40 | `judge.py` (erase in `finally`) | T-63 |
 | E-41 | `cli.py` (`KeyboardInterrupt` → exit 3), `report.py` (cleanup), `judge.py` (erase; timed polling of futures, `abort` flag), `judge_llm.py` (abortable deadline wait, daemon transport thread) | T-63, T-64 |
+| E-42 | `attribute.py` (Swift brace fallback) | T-67 |
+| E-43 | `attribute.py` (Swift undelimited `test*`) | T-65, T-66, T-71 |
+| E-44 | `extract.py` (first-cell decoration) | T-70, T-71 |
+| E-45 | `results.py` (tie → unattributed) | T-68 |
 
 ---
 
@@ -1092,6 +1181,9 @@ Every row below is a decision the specification's author made on the requester's
 | D-14 | Reference machine for K-08 | named in `SPEC_BUILD_REPORT.md` at build time | a CI runner with a generous bound; no performance constraint at all | K-08, T-51 | build owner / open |
 | D-15 | Progress indicator shape and gating | a single in-place ASCII line on stderr (`#`/`-` bar of 20 cells, done/total, elapsed, ETA per C-11), padded with spaces and redrawn with a bare `\r` (no terminal escapes; v1.4, F-205), on by default only when stderr is a TTY and not at DEBUG, erased when the judge stage ends, `--progress auto\|always\|never` to override; LLM judge only | leaving the final line on screen (rejected: §5.3 quiet-by-default would then have a visible exception at exit); a per-edge log line instead of a bar (rejected: that is what `--verbose DEBUG` already is); Unicode block characters (rejected: R-29 locale reasoning); a bar for `--judge mock` too (rejected: mock is sub-second, K-08); a spinner without ETA (rejected: the requester's complaint is duration, so ETA is the useful number) | R-30, C-11, K-13, E-39, E-40, §5.1, §5.3 | requester / confirm (the *existence* of the bar is the requester's ask of 2026-09-13; its shape is the author's default) |
 | D-16 | Exit code on interrupt | `SIGINT`/`KeyboardInterrupt` exits `3` with message `interrupted`, keeping K-01's closed set `{0,1,2,3}`; temporaries and any already-renamed report removed | the shell convention `130` (rejected by default: it widens K-01 and every CI wrapper that switches on the code; easy to adopt if the requester prefers it); leaving Python's default (rejected: traceback, exit `1`, indistinguishable from `NOT CONFORMING`) | E-41, E-40, §5.4, K-01, I-001, T-64 | requester / confirm (F-204) |
+| D-17 | How Swift test files are delimited | by lines and brace counting inside `attribute.py` (C-03 TYPE LINE / FUNC LINE / ATTRIBUTE BLOCK / SPAN END rules; comments and string literals excluded from the count), so the kernel stays standard-library and needs no toolchain at check time | a real parser (`swift-syntax` has no Python binding; `swiftc -dump-parse` or `swift test list` need a Swift toolchain where the checker runs and give names but not line spans); treating `.swift` as file-level as before (the citations then never join — the defect that motivated v1.6) | R-31, C-03, E-42, E-43, T-65..T-67 | requester / confirm |
+| D-18 | Where the Swift `MODULE` in a classname comes from | the first path component of the file under its `--tests` root, or the root's last component for a file directly under it (SwiftPM's `Tests/<Target>/` layout) | parse `Package.swift` for target names and paths (a second grammar); a `--swift-module` flag (one more thing to get wrong); match on the type chain alone ignoring the module (ambiguous across targets) | C-03, T-65, T-68 | requester / confirm |
+| D-19 | How a Swift Testing result name (`twoArgs(a:b:)`) is joined | C-04 strips the signature and joins on the bare identifier; overloads by label tie and are unattributed (E-45) | reconstruct the label signature in the adapter and join exactly (correct for overloads, but default arguments, `_` labels, generics and `inout` all need parsing to get right); join on signature when present and fall back to identifier (two rules where one suffices) | C-04, E-45, T-68 | requester / confirm |
 
 None of the first fourteen was raised as a question before v1.1; each was decided and reviewed for precision only. That is the defect this section corrects: a specification can be implementation-grade and still not be what was asked for.
 
@@ -1108,5 +1200,6 @@ None of the first fourteen was raised as a question before v1.1; each was decide
 | v1.1 | Added §12, *Open questions and decisions to confirm*: fourteen decisions the author took by default on the requester's behalf (stack, results contract, citation rule, T-family option, mixed-verdict strict rule, judge question and parameters, instruction text, input limits, endpoint shape, fixture layout, report names, test delimitation, reference machine), each with its default, the alternatives rejected, the IDs it affects, and a `confirm` / `open` status. No normative row changed. The `spec-writing` skill now requires this section. |
 | v1.2 | D-07 partly resolved by the first T-49 runs: `max_tokens` raised from 400 to 4000 in the judge request body (C-06), the wire-format test updated to match (T-33), and the D-07 row records the evidence. Thinking models truncated at 400 before emitting the verdict JSON; at 4000 `qwen3:8b` and `gemma4:latest` pass T-49 three runs out of three. No other normative row changed. |
 | v1.3 | Judge-stage progress indicator, requested on 2026-09-13 because `--judge llm` runs take minutes: R-30 (requirement), C-11 (the one-line ASCII format, draw/erase byte sequences, regex, $k$ and ETA formulas), K-13 (redraw cadence, 20 cells, single erase before the report stage), E-39 (no bytes when not a TTY, at DEBUG, under `--progress never`, or with `--judge none\|mock`), E-40 (erase on interrupt or failure), `--progress auto\|always\|never` in §5.1, the §5.3 quiet-by-default exception, T-62/T-63, §11 rows, D-15. The indicator is written to the raw stderr stream, not the logger, and is erased at the end of the stage, so stdout, both reports, the exit code, and what remains on stderr at exit are unchanged. |
+| v1.6 | Swift adapter and two small grammar changes, requested 2026-09-17 after the MonteCarloPi Swift build ran the checker and got `62 unverified; 43 dangling` purely from tool limits: R-31 Swift Testing / XCTest test-case delimiting by lines with doc-comment-inclusive spans and SwiftPM-shaped classnames (C-03, E-42, E-43, D-17, D-18, T-65..T-67), a second `join_name` step that strips a Swift signature (C-04, E-45, D-19, T-68), Swift assertion tokens for the mock judge (C-06, T-69), R-32 decoration after the bold ID in a declaring first cell (C-01, E-44, T-70), a Swift golden fixture (T-71), O-2 and the §0 non-goal updated. |
 | v1.5 | E-41 tightened from "in-flight requests are not awaited beyond the K-05 timeout" to "abandoned; exit within 1 s" after the first interrupt of a real `--judge llm` run against a local model appeared to be ignored: the main thread was blocked in an untimed future wait (not SIGINT-interruptible on macOS CPython) and then waited for the in-flight requests. T-64 gains the timing case; §11 E-41 row names the mechanism. No other row changed. |
 | v1.4 | All ten findings of the v1.3 `SPEC_REVIEW_REPORT.md` applied. P1: F-201 the logger is silent while the indicator is displayed (C-11, K-13, §5.3, T-62); F-202 one clock origin $t_0$ = first draw, K-12 keeps its own (C-11, K-13, T-62); F-203 coalesced cadence — within 100 ms, $\geq$ 1/s in flight, $\leq$ 10/s — and atomic serialized writes (K-13, T-62); F-204 E-41 interrupt rule: exit `3`, message `interrupted`, temporaries and renamed reports removed (E-40, E-41, §3.1, §5.4, T-63, T-64, §11, D-16); F-206 C-07 example uses `0.2000`/`0.0000` and `max_unknown` is emitted quantized (C-07). P2: F-205 no terminal escapes — draws padded to the widest line so far, erase is `\r` + spaces + `\r` (C-11, T-62, D-15); F-207 C-08 header parenthetical omitted when `judge_available` is null (C-08, T-35); F-208 T-46 cited by R-01..R-15 and T-60 by R-18/I-001 in §11; F-209 I-005 vacuous clause replaced; F-210 T-49 names `fixtures/target/golden/judge_labels.json` and `tools/eval_judge.py`. |
