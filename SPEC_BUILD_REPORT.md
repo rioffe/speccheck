@@ -1,8 +1,59 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.5.0 against `SPEC.md` (v1.5)
+# SPEC_BUILD_REPORT — `speccheck` v1.6.0 against `SPEC.md` (v1.6)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below) and 2026-09-17 to v1.6 (§0b); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0b. v1.6 increment (2026-09-17) — Swift projects
+
+**Why.** A Swift 6 / SwiftUI build of a Monte Carlo π spec (`SPEC_swift.md`, 70 live ids, 42
+Swift Testing tests each citing its ids in a doc comment) ran the v1.5 checker and got
+`NOT CONFORMING - 0/64 passing, 62 unverified, 1 untested, 1 uncited; 43 dangling`. Every
+number but two was the tool's: `.swift` files were file-level cases (citations never joined),
+and six ids declared as `| **K-07** **[port]** |` were not declarations under C-01's "entire
+cell" rule, so their citations dangled. The user asked what it would take; the answer is v1.6.
+
+**Spec first.** `SPEC.md` v1.5 → v1.6 (`152cf15`): R-31, R-32; C-01, C-03, C-04, C-06 extended;
+E-42..E-45; T-65..T-71; D-17..D-19. The self-check on the edited spec before any code read
+`170/183 passing`, exactly the thirteen new ids `UNCITED`. Two facts in C-03 were measured, not
+assumed, on a throwaway package under Swift 6.4: SwiftPM's `--xunit-output` writes
+`junit-swift-testing.xml` with `classname="<Module>.<Outer>.<Inner>"` and `name="<fn>(<label>:…)"`,
+one `<testcase>` per function (parameterized tests are not expanded, `.disabled` is `<skipped>`);
+this toolchain writes no XCTest xUnit file at all, so the XCTest shape is pinned from SwiftPM's
+known format and the fixture's XCTest suite is hand-written in that shape.
+
+**Build, test-first, in the order T-70 → T-69 → T-68 → T-65..T-67 → T-71** (`66afb57`):
+
+| Change | Where | Test |
+| --- | --- | --- |
+| first cell may carry decoration after the bold ID form; `**R-04** **R-05**` now declares R-04 (T-55's expectation updated to the v1.6 grammar) | `extract.py` `_FIRST_CELL_RE` | T-70 |
+| `#expect(`, `#require(`, `XCTAssert`, `XCTFail(`, `Issue.record(` are assertion tokens | `judge_mock.py` | T-69 |
+| `join_name` step 2 strips a Swift signature; overloads tie → unattributed | `results.py` | T-68 |
+| line-based Swift adapter: `_strip` (comments and string literals removed per C-03, braces counted), `_attribute_lines`, `delimit_swift` (TYPE/FUNC lines, attribute block, span end, `@Test` vs `XCTestCase` direct member, undelimited `test*`), `swift_module` (D-18) | `swift.py` (new), `attribute.py`, `extract.py` (`ScannedFile.scan_root`) | T-65, T-66, T-67 |
+| `fixtures/target-swift/` — a real SwiftPM package (built and run to produce its `junit.xml`), planted defects per T-71, golden reports + `summary.txt` | `fixtures/`, `test_08_golden.py` | T-71 |
+| declared-id count 170 → 183 | `test_09_self_application.py` | T-48 |
+
+Traps met while building: `@Suite struct Inner {` begins with `@` and was swept into the
+attribute block of the test below it (fixed: a type-opening line is never part of a function's
+attribute block); `@testable import` likewise (excluded by name). Both are covered by T-65.
+
+**Gate on the v1.6 tree.** `pytest`: 81 passed. `ruff check` / `ruff format --check`: clean.
+`speccheck --self-check`: ok. Self-application:
+`speccheck: CONFORMING - 183/183 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock`.
+On the motivating Swift project (`swift test --xunit-output junit.xml`, `--tests Tests`):
+`speccheck: NOT CONFORMING - 65/70 passing (92.9%), 0 failing, 2 skipped, 0 weak, 0 unverified, 2 untested, 1 uncited; 0 dangling, 0 stale; judge=mock`
+— the five non-passing ids are that spec's own "no automated test" rows (R-11, K-08 recorded;
+T-17 observed; T-18/K-04 a throughput harness off by default), which is the same answer a
+hand-written grep walk had produced. Phase B was not run for this increment on speccheck's own
+tree (no judged Python test changed its kind of assertion); it was run on the Swift project, whose
+report records the outcome.
+
+**Deviation from `spec-build`'s method, stated.** No `IMPLEMENTATION_PLAN.md` was written for this
+four-file increment; the order above stood in for it and the commit message records the gate.
+
+**Interpretations (D-17..D-19 defaults, awaiting confirmation).** Line-based delimiting rather than
+a parser; MODULE from the first path component under the tests root; join on the bare identifier
+with overloads unattributed.
 
 ## 0a. v1.5 increment (2026-09-13, later the same day)
 

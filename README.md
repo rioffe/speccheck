@@ -10,7 +10,7 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.5) in full, and
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.6) in full, and
 so is the worked example of the method it serves — together with the four agent skills that
 write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
@@ -180,7 +180,16 @@ same check on this repository itself:
 ```bash
 uv run python -m pytest tests -q --junitxml=junit.xml
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out build/selfapp
-# speccheck: CONFORMING - 170/170 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
+# speccheck: CONFORMING - 183/183 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
+```
+
+For a Swift package, run `swift test --xunit-output junit.xml` (SwiftPM writes the Swift Testing
+results to `junit-swift-testing.xml` next to it) and point `--tests` at the `Tests` directory:
+
+```bash
+cp -r fixtures/target-swift /tmp/calc-swift && cd /tmp/calc-swift
+uv run --project "$OLDPWD" speccheck check --spec SPEC.md --src Sources --tests Tests --results junit.xml --judge mock --out reports
+# speccheck: NOT CONFORMING - 7/14 passing (50.0%), 2 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 0 dangling, 0 stale; judge=mock
 ```
 
 ## Usage
@@ -199,7 +208,7 @@ speccheck --help
 | --- | --- |
 | `--spec FILE` | Required. The specification (UTF-8; invalid bytes are replaced and noted). |
 | `--src DIR` | Repeatable. Source roots to scan for citations. Default: `src` if it exists. |
-| `--tests DIR` | Repeatable. Test roots; Python files are split into test cases with `ast`, anything else is attributed at file level. Default: `tests` if it exists. |
+| `--tests DIR` | Repeatable. Test roots; Python files are split into test cases with `ast`, Swift files by the line-based adapter (Swift Testing `@Test` functions and XCTest `test*` methods, doc comment and attributes included in the span; pass the `Tests` directory so the SwiftPM target name becomes the module in classnames), anything else is attributed at file level. Default: `tests` if it exists. |
 | `--results FILE` | JUnit XML. Without it no ID can be better than `UNVERIFIED`. |
 | `--root DIR` | Base for every path in the reports (default `.`). Every other path must resolve inside it. Command-line paths themselves are resolved against the current directory. |
 | `--out DIR` | Where `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json` go (default `.`; created if missing; must be inside `--root`). |
@@ -363,15 +372,16 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.5; the source of truth; written in the
+SPEC.md                         the specification (v1.6; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.5.0, mirrors the spec version)
+  __init__.py                   __version__ (1.6.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
-  attribute.py                  test-case delimitation (Python `ast`, fallback) and citation attribution
+  attribute.py                  test-case delimitation (Python `ast`, Swift via swift.py, fallback) and citation attribution
+  swift.py                      the Swift adapter: line-based @Test / XCTest delimiting, brace spans, MODULE (R-31)
   results.py                    JUnit XML parsing and the classname/join_name join
   graph.py                      status algorithm (C-05), edge selection for the judge, metrics (C-07)
   judge.py                      JudgeRequest/Verdict types, validation, concurrency + budget runner, progress indicator
@@ -382,16 +392,18 @@ src/speccheck/
   _selfcheck/                   byte-identical copy of fixtures/target/ (package data for --self-check)
 fixtures/target/                golden fixture: SPEC.md, src/, tests/, junit.xml, golden/{speccheck.json,
                                 SPEC_CONFORMANCE_REPORT.md, judge_labels.json}
+fixtures/target-swift/          Swift golden fixture (T-71): Package.swift, Sources/, Tests/CalcTests/ (Swift
+                                Testing + XCTest), junit.xml as SwiftPM wrote it, golden/{…, summary.txt}
 tests/
   conftest.py                   in-process CLI runner and project builder
-  test_01_extraction.py         §9.1  T-01..T-07, T-55
-  test_02_attribution.py        §9.2  T-08..T-14, T-56, T-57
-  test_03_results.py            §9.3  T-15..T-19, T-52, T-58
+  test_01_extraction.py         §9.1  T-01..T-07, T-55, T-70
+  test_02_attribution.py        §9.2  T-08..T-14, T-56, T-57, T-65..T-67
+  test_03_results.py            §9.3  T-15..T-19, T-52, T-58, T-68
   test_04_status.py             §9.4  T-20..T-25, T-53
-  test_05_judge.py              §9.5  T-26..T-33, T-54
+  test_05_judge.py              §9.5  T-26..T-33, T-54, T-69
   test_06_reports.py            §9.6  T-34..T-38
   test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61
-  test_08_golden.py             §9.8  T-46, T-47
+  test_08_golden.py             §9.8  T-46, T-47, T-71
   test_09_self_application.py   §9.9  T-48; §9.10 T-51 and §9.11 T-49 presence checks
   data/markers/                 the only files that contain the literal ignore markers
 tools/
@@ -441,9 +453,10 @@ Run one test with `uv run python -m pytest tests/test_04_status.py::test_family_
 ## Scope
 
 The full specification is implemented; nothing was scoped out. The optional LLM judge (O-1) is
-built behind the `--judge llm` flag and the `[llm]` extra. Additional language adapters (O-2) and
-non-CLI surfaces (O-3) are, as the spec states, not part of v1.5: non-Python test files get
-file-level attribution. Interpretations the build had to make where the spec was silent or
+built behind the `--judge llm` flag and the `[llm]` extra. Test-case adapters exist for Python
+(`ast`) and, since v1.6, Swift (Swift Testing and XCTest, delimited by lines — R-31, D-17); the
+remaining language adapters (O-2) and non-CLI surfaces (O-3) are, as the spec states, not part
+of v1.6: other test files get file-level attribution. Interpretations the build had to make where the spec was silent or
 inconsistent are listed in `SPEC_BUILD_REPORT.md` §3.
 
 ## License
