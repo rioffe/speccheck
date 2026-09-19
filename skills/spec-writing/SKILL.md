@@ -183,6 +183,16 @@ group was not run is *verification pending*, not conforming. Where a rendered pr
 measured (a gap in points, a centred bounding box), add the measured form as a scripted T-nn
 too, so the observation has a numeric companion — but the measurement does not replace the look.
 
+A test whose proof is a **recorded run** rather than an assertion in the suite — a self-application,
+a model evaluation, a benchmark, an observed pass — is declared with the marker `*(recorded)*` as the
+first token after its bold id: `| **T-48** *(recorded)* | … |`. Say in the row where the result is
+recorded (`SPEC_BUILD_REPORT.md` §n). The suite still needs a test that cites the id and passes — a
+presence check that the recorded artefact exists and has the right shape — so the id is never
+`UNCITED`; the marker tells `speccheck` (SPEC v1.10+, R-35) not to send that edge to the judge,
+because an honest judge would call a presence check `EXECUTES_ONLY` by construction and fail the
+strict LLM gate for a reason you intended but had not written down. Do not use the marker to excuse
+a test that could assert its outcome.
+
 ## 10. Dependencies and environment
 
 Language/runtime version, libraries (with version pins where behavior depends on them),
