@@ -499,6 +499,15 @@ Not every specification will explicitly contain every layer.
 
 Nevertheless, identify broken relationships where they materially affect verification.
 
+**§12 decisions are part of this chain, not separate from it.** If the spec's tool support reads
+the §12 *Affects* column mechanically (`speccheck` v1.13+ does: every id token in that cell
+becomes an `affects` edge), an id the cell omits is invisible to change-impact tooling even though
+the decision genuinely touches it — and an id it names that isn't declared anywhere in the spec
+is silently dropped rather than flagged as a defect. Check every decision row: does its *Affects*
+cell name only ids the spec actually declares, and does it name every id the decision's own prose
+says it constrains? Report a mismatch either way — this is now a traceability defect, not a
+documentation nicety.
+
 ---
 
 ## 3.18 Internal consistency

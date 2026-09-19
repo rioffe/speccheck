@@ -16,12 +16,25 @@ It sits between `spec-review` (the spec is READY) and `spec-build` (the spec is 
 either a decision, a measured fact about existing artifacts, or a command with its expected
 result.
 
-Two artifacts, both optional to the human and independent of `speccheck`:
+Two artifacts, both optional to the human and producible without `speccheck`:
 
 | Artifact | What it is | When |
 | --- | --- | --- |
 | `IMPLEMENTATION_PLAN.md` | the plan proper — 7 sections, one page per section, the wave order and the fork | always |
 | `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` | one executable brief per wave — file-by-file deliverables, work items, test plan, gate, traceability, handoff | when the waves are large enough that an agent will execute them one at a time |
+
+**If `speccheck` v1.13+ is installed, use it to cross-check the wave order, not to produce it.**
+`speccheck check --spec SPEC.md` (no `--src`/`--tests` needed before code exists) writes
+`speccheck.json` with an `edges` array — `depends_on` and `verifies` read from every id's own
+statement, `affects` from §12's decision rows — the same dependency graph §4 below is inferred by
+hand. Two uses: before committing to a wave boundary, `speccheck impact --spec SPEC.md --changed
+<the ids that wave discharges> --depth 0` shows everything downstream of it, which either confirms
+the boundary or shows it was cut mid-dependency; and when re-planning after a spec change,
+`speccheck impact --against <the prior SPEC.md>` gives the changed set and its closure directly,
+instead of re-reading the whole document to find what moved. Neither call is required — the plan
+can be written by reading the spec alone, as before — but skipping it means the ordering rests on
+however carefully every statement's cross-references were read, which is exactly what the edges
+are computed from.
 
 ## When to use
 
@@ -49,6 +62,7 @@ matter, everything you can measure:
    §5 surfaces, §6 invariants, §7 constraints (especially any formula), §8 edge cases, §9 the
    test groups, §10 dependencies, §11 the traceability matrix **including its status markers**,
    §12 the decisions awaiting confirmation. The §11 status column is the top of the work list.
+   (`speccheck`'s `edges` array, above, is the mechanical cross-check on this reading.)
 2. **The review**, if present: `SPEC_REVIEW_REPORT.md`'s remediation plan (P0/P1/P2) and its
    dimension scores. A weak dimension predicts which slice will churn.
 3. **Prior builds of the same spec**, if any exist — sibling repositories, branches, a comparison

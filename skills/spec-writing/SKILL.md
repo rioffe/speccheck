@@ -238,6 +238,16 @@ cites **another project's** ids, prefix them with that project's short name and 
 code — `` `mdv:C-06` ``, `` `mdv:C-18.9` `` — so they are never mistaken for this spec's own ids,
 never counted as its citations by `speccheck`, and never linked to the wrong spec by the PDF pass.
 
+**The §12 *Affects* column is machine-read, not just documentation (`speccheck` v1.13+).** The
+checker finds the §12 table by its header (a cell that trims and case-folds to `affects`) and
+reads every id token in that column as an edge from the decision to what it touches — the same
+graph a reader would build by hand from the column, but computed and, since v1.13, walkable
+(`speccheck impact`). An id the cell omits is invisible to that walk even though the decision
+genuinely constrains it; an id it names that the spec never declares becomes a Note, not an error,
+so a typo there goes unflagged unless someone reads the Notes. Fill the column completely — every
+`R-nn`/`C-nn`/`I-nnn`/`K-nn`/`E-nn`/`T-nn` the decision's own prose says it affects, not just the
+one or two the author had in mind — and keep it declared-ids only.
+
 ## Normative language discipline
 
 - `MUST` / `MUST NOT` / `SHALL` / `SHALL NOT` — the normative verbs. A violation is a defect.
