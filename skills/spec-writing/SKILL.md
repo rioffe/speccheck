@@ -223,7 +223,10 @@ normative rows assume. When a row is ratified, its status becomes `confirmed v0.
 
 IDs are unique within their family and are **never renumbered** once a review or an
 implementation cites them — append new ids, retire old ones with a strike-through note. Do not
-create `T-08a`/`T-08b` suffix collisions; allocate fresh numbers.
+create `T-08a`/`T-08b` suffix collisions; allocate fresh numbers. When a spec, proposal, or report
+cites **another project's** ids, prefix them with that project's short name and a colon, in inline
+code — `` `mdv:C-06` ``, `` `mdv:C-18.9` `` — so they are never mistaken for this spec's own ids,
+never counted as its citations by `speccheck`, and never linked to the wrong spec by the PDF pass.
 
 ## Normative language discipline
 
