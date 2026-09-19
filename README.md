@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.11, code
-1.11.0) in full, and so is the worked example of the method it serves — together with the four agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.13, code
+1.13.0) in full, and so is the worked example of the method it serves — together with the four agent skills that
 write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -199,6 +199,8 @@ speccheck check --spec SPEC.md [--src DIR]... [--tests DIR]... [--results junit.
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--max-unknown FRACTION] [--judge-concurrency N] [--judge-budget SECONDS]
                 [--progress auto|always|never] [--verbose [INFO|DEBUG]]
+speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src DIR]... [--tests DIR]...
+                 [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
 speccheck --version
 speccheck --help
@@ -261,6 +263,51 @@ citation, in code, comments, and strings alike. Two opt-outs exist: a line conta
 first 8 KiB, symlinks, and the directories `.git .hg .svn node_modules __pycache__ .venv venv`
 (and any dot-directory) are skipped. The spec, the results file, and the checker's own reports
 and temporaries are never scanned.
+
+### `impact` — change-impact analysis from the edges the spec already carries (v1.13)
+
+Most specs cross-reference themselves: a requirement names the contract it refines, an edge case
+names the constraint it bounds, a §12 decision names what it affects. `speccheck` reads those
+references — the id tokens already in every statement, plus the *Affects* column of a decision
+table — as a graph, and `impact` walks it.
+
+```text
+speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src DIR]... [--tests DIR]...
+                 [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--changed IDS` | Comma-separated ids (any of R/C/I/K/E/T, or `D-nn` for a decision row), each declared in `--spec`. |
+| `--against FILE` | A prior version of the same spec; the changed set is computed by diffing declarations (statement text, retired flag, a decision's *Affects* cell) rather than given directly. Exactly one of `--changed`/`--against` is required. |
+| `--src DIR`, `--tests DIR` | Optional here (no directory default): when given, every citation of an impacted or re-verify id is listed; without them, §4 of the report reads "Not scanned." |
+| `--depth N` | `0..999`, default `1` (`0` = unbounded). The direct set (depth 1) is usually the useful one — see below. |
+
+Two id families feed the walk, both read straight from `SPEC.md`, no annotation required:
+`depends_on` (an obligation's statement names another obligation) and `verifies` (a statement and
+its proving `T-nn` name each other); a decision row's *Affects* cell adds `affects` edges from the
+decision to what it touches. From a changed id the walk follows `affects` forward and `depends_on`
+**in reverse** — a requirement's dependents, never what it itself depends on — breadth-first, so
+each id lands at its shortest depth with the edge (`via`) that reached it first.
+
+```text
+$ speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests
+speccheck impact: 1 changed, 3 impacted (depth 1), 4 to re-verify, 6 citations, 5 test cases
+```
+
+writes `impact.json` (`schema_version` `"1.0"`) and `IMPACT_REPORT.md` — five sections: Changed,
+Impact (id, depth, `via`, e.g. `R-34 -depends_on-> K-15`), Re-verify (the `T-nn` ids to re-run,
+plus their test cases when `--tests` was given), Re-cite (file:line for every citation of the
+above, when `--src` was given), and Notes. Exit is always `0` once the reports are written (`2`
+usage, `3` on a broken `--against` file) — nothing here is pass/fail, and it consults no results
+file and no judge.
+
+The direct set (depth 1) is deliberately the default: following `depends_on` transitively in a
+heavily cross-referenced spec tends to saturate quickly (in this repository's own `SPEC.md`, the
+closure from many ids reaches dozens of others within two or three hops), at which point "what
+does this change touch" stops being a useful answer. `--depth 0` still gives the full closure when
+that is what's wanted; `tools/impact_backtest.py` scores the default against this repository's own
+history (see below).
 
 ### LLM judge via Ollama
 
@@ -411,8 +458,9 @@ renamed JSON-then-Markdown; either both exist afterwards or neither).
 
 | File | Contract | Notes |
 | --- | --- | --- |
-| `speccheck.json` | C-07, `schema_version` `"1.3"` (`"1.1"` added `title` per ID; `"1.2"` `clause` per verdict; `"1.3"` `recorded` per ID) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
+| `speccheck.json` | C-07, `schema_version` `"1.4"` (`"1.1"` added `title` per ID; `"1.2"` `clause` per verdict; `"1.3"` `recorded` per ID; `"1.4"` `decisions` and `edges`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. `decisions`/`edges` (v1.13, C-12) are read from the spec's own cross-references — never a citation, never a status/metric input. |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections: verdict line, metrics, per-ID evidence (retired rows struck through, `(file)` for file-level cases, `—` for unjudged edges), dangling, stale, unattributed results, unrun citations, judge details (judge enabled only), notes. |
+| `impact.json` / `IMPACT_REPORT.md` | C-13 (v1.13; written by `impact`, not `check`) | `schema_version` `"1.0"`. Same atomic-write discipline, its own file pair — a `check` run never touches these and vice versa. |
 
 Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 `LEVEL message`), level `ERROR` by default. Nothing is ever logged at `WARNING`.
@@ -420,14 +468,17 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.11; the source of truth; written in the
+SPEC.md                         the specification (v1.13; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.11.0, mirrors the spec version)
+  __init__.py                   __version__ (1.13.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
-  cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
-  extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
+  cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
+                                the `impact` subparser and its execute_impact pipeline (v1.13)
+  extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations,
+                                the decision-table grammar and C-12 edge extraction (v1.13)
+  impact.py                     the C-13 changed set, breadth-first walk, and reverify (v1.13)
   attribute.py                  test-case delimitation (Python `ast`, Swift via swift.py, fallback) and citation attribution
   swift.py                      the Swift adapter: line-based @Test / XCTest delimiting, brace spans, MODULE (R-31)
   results.py                    JUnit XML parsing and the classname/join_name join
@@ -436,10 +487,12 @@ src/speccheck/
   judge_mock.py                 deterministic assertion-token judge
   judge_llm.py                  OpenAI-compatible/Ollama provider, env config, response parsing
   judge_prompt.md               the normative C-10 instruction text (package data)
-  report.py                     JSON and Markdown renderers, summary line, exit rule, atomic writer
+  report.py                     JSON and Markdown renderers, summary line, exit rule, atomic writer;
+                                the impact.json/IMPACT_REPORT.md renderers (v1.13)
   _selfcheck/                   byte-identical copy of fixtures/target/ (package data for --self-check)
-fixtures/target/                golden fixture: SPEC.md, src/, tests/, junit.xml, golden/{speccheck.json,
-                                SPEC_CONFORMANCE_REPORT.md, judge_labels.json}
+fixtures/target/                golden fixture: SPEC.md (a §12 decision table since v1.2), src/, tests/,
+                                junit.xml, golden/{speccheck.json, SPEC_CONFORMANCE_REPORT.md,
+                                impact.json, IMPACT_REPORT.md, judge_labels.json}
 fixtures/target-swift/          Swift golden fixture (T-71): Package.swift, Sources/, Tests/CalcTests/ (Swift
                                 Testing + XCTest), junit.xml as SwiftPM wrote it, golden/{…, summary.txt}
 tests/
@@ -453,11 +506,15 @@ tests/
   test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61
   test_08_golden.py             §9.8  T-46, T-47, T-71
   test_09_self_application.py   §9.9  T-48; §9.10 T-51 and §9.11 T-49 presence checks
+  test_10_edges.py              §9.12 T-79 — decision-table grammar and C-12 edge extraction
+  test_11_impact.py             §9.12 T-80, T-81 — the impact CLI, changed set, walk, reverify
   data/markers/                 the only files that contain the literal ignore markers
 tools/
   bench.py                      K-08 benchmark (T-51; recorded, not CI-gated)
   eval_judge.py                 T-49 LLM evaluation against Ollama (opt-in)
   sync_selfcheck.py             copies fixtures/target/ into src/speccheck/_selfcheck/ (guarded by T-60)
+  impact_backtest.py            T-82 (recorded): scores `impact --against` on two ranges of this
+                                repository's own history; needs `git`; not collected by pytest (D-24)
 SPEC_BUILD_REPORT.md            the Phase 3 conformance audit
 ARCHITECTURE.md                 module-by-module design with data-flow, data-model, and sequence diagrams
 skills/
@@ -486,13 +543,15 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (88 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (112 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*: Ollama or a hosted endpoint)
+uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests --out build/impact              # v1.13, not gated
 uv run python tools/bench.py                               # K-08 (recorded)
 uv run python tools/eval_judge.py --runs 3                 # T-49 (opt-in; model/URL from SPECCHECK_JUDGE_*, default qwen3:8b on Ollama)
+uv run python tools/impact_backtest.py                     # T-82 (recorded; needs git and this repository's history)
 uv run python tools/sync_selfcheck.py --check              # _selfcheck/ still equals fixtures/target/
 ```
 
@@ -504,8 +563,12 @@ The full specification is implemented; nothing was scoped out. The optional LLM 
 built behind the `--judge llm` flag and the `[llm]` extra. Test-case adapters exist for Python
 (`ast`) and, since v1.6, Swift (Swift Testing and XCTest, delimited by lines — R-31, D-17); the
 remaining language adapters (O-2) and non-CLI surfaces (O-3) are, as the spec states, not part
-of v1.8: other test files get file-level attribution. Interpretations the build had to make where the spec was silent or
-inconsistent are listed in `SPEC_BUILD_REPORT.md` §3.
+of v1.8: other test files get file-level attribution. Since v1.13, `speccheck check` also records
+the spec's own cross-references as typed edges (`decisions`/`edges` in `speccheck.json`), and a
+second subcommand, `impact`, walks them for change-impact analysis — a decision aid, gated behind
+no flag because it has no gate: it never marks anything failed, stale, or non-conformant.
+Interpretations the build had to make where the spec was silent or inconsistent are listed in
+`SPEC_BUILD_REPORT.md` §3.
 
 ## License
 

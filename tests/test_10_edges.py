@@ -24,7 +24,7 @@ def _spec_with_decisions(extra_decisions: str = "") -> str:
         "| ID | Decision | Default | Alternatives | Affects | Owner |\n"
         "| -- | -------- | ------- | ------------- | ------- | ----- |\n"
         "| D-01 | first | x | y | R-01, C-01 | me |\n"
-        "| D-02 | second | x | y | R-99 | me |\n"
+        "| D-02 | second | x | y | R-99 | me |\n"  # speccheck:ignore
     )
     return base + table + extra_decisions
 
@@ -40,7 +40,7 @@ def test_statement_tokens_yield_depends_on_and_verifies_edges():
     assert ("T-01", "verifies", "R-01") in edges
     assert ("T-02", "depends_on", "T-01") in edges
     assert sum(1 for e in index.edges if e.kind == "verifies" and e.dst == "R-01") == 1
-    assert "edge to undeclared id: D-02 -> R-99" in index.notes
+    assert "edge to undeclared id: D-02 -> R-99" in index.notes  # speccheck:ignore
 
 
 def test_verifies_direction_normalized_regardless_of_which_side_is_named_first():
@@ -78,7 +78,7 @@ def test_edges_are_sorted_affects_before_depends_on_before_verifies():
 def test_decision_table_found_by_affects_header_cell_case_insensitively():
     """T-79: the decision table is the first table whose header has a cell "affects" (trimmed,
     case-folded); D-01's Affects cell names R-01 and the retired C-01 (both declared, so both
-    are in `affects` and each yields an edge); D-02's Affects cell names the undeclared R-99 (a
+    are in `affects` and each yields an edge); D-02's Affects cell names the undeclared R-99 (a  # speccheck:ignore
     Note, not an edge, and not in `affects`). (R-36, C-01 (c), C-02)"""
     index = parse_spec(_spec_with_decisions(), "SPEC.md")
     decisions = {d.id: d for d in index.decisions}

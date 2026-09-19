@@ -275,8 +275,8 @@ def test_heading_section_bodies_title_cap_and_line_model():
     # v1.13/C-12: the example ids inside C-01's pinned fence and C-05's body are undeclared,
     # so each yields an "edge to undeclared id" Note, not a declaration and not an edge.
     assert index.notes == (
-        "edge to undeclared id: C-01 -> R-99",
-        "edge to undeclared id: C-05 -> R-98",
+        "edge to undeclared id: C-01 -> R-99",  # speccheck:ignore
+        "edge to undeclared id: C-05 -> R-98",  # speccheck:ignore
     )
 
     # CRLF twin -> identical index (C-01 Lines rule, I-002)

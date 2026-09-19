@@ -114,4 +114,4 @@ speccheck: NOT CONFORMING - 13/19 passing (68.4%), 1 failing, 1 skipped, 1 weak,
 
 - edge to undeclared id: C-04 -> T-49
 - edge to undeclared id: C-04 -> T-76
-- edge to undeclared id: D-03 -> E-99
+- edge to undeclared id: D-03 -> E-45

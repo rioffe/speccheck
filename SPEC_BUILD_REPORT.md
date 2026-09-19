@@ -1,8 +1,111 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.11.0 against `SPEC.md` (v1.11)
+# SPEC_BUILD_REPORT — `speccheck` v1.13.0 against `SPEC.md` (v1.13)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0e. v1.13 increment (2026-09-19) — spec-internal edges (C-12) and the `impact` subcommand (C-13)
+
+**Why.** `PROPOSAL_v1.13_impact.md`: the spec already carries a dependency graph in its own prose
+(134 of 203 v1.12 ids name another id in their statement — 186 `depends_on`, 240 `verifies`; the
+§12 decision rows add 110 `affects` edges) and nothing read it. v1.13 extracts that graph
+mechanically and adds `speccheck impact` to walk it for change-impact analysis. D-24 and D-25 were
+confirmed in the spec before the build (no fork left for this build).
+
+**Note on this report's own upkeep.** §5's traceability matrix was last fully extended for the
+v1.11 increment; the v1.12 delta (D-23, I-012, E-52, T-78) and the Swift-adapter-era ids (E-42
+through E-52) were never backfilled into it, and the E family in §5 stops at E-41. That gap
+predates this build and is out of the scope asked of it (which was the v1.13 delta specifically);
+it is flagged here rather than silently left to look complete. Only the twelve v1.13 rows (R-36,
+R-37, C-12, C-13, I-013, E-53, E-54, E-55, T-79..T-82) are added below, at their correct family
+position.
+
+**Plan.** No `spec-plan` multi-document run was needed for a delta this bounded; a compact
+`IMPLEMENTATION_PLAN.md` covers it directly: W1 the C-12 edges (extractor + `speccheck.json`), W2
+the `impact` subcommand (C-13), W3 the backtest tool (D-24, recorded, non-gating).
+
+**Wave ledger.**
+
+| Wave | Gate as run | Result | Commit |
+| --- | --- | --- | --- |
+| W1 — C-12 edges | `pytest tests/test_10_edges.py -q`; full suite; ruff; golden fixtures regenerated and diffed (schema bump + `decisions`/`edges` + one new Note the only delta on both fixtures) | 9/9 new tests green; full suite green except the twelve new v1.13 ids (not yet cited); clean | `e5fc47c` |
+| W2 — `impact` subcommand | `pytest tests/test_11_impact.py -q`; full suite; ruff; a real `impact --changed K-02` run against the golden fixture, diffed and blessed | 9/9 new tests green (one, T-82's presence check, red pending W3); full suite 111/112 (same one red); clean | `acd2f08` |
+| W3 — backtest (recorded) | `python tools/impact_backtest.py --help` (exit 0); a real run against the two ranges named in the spec's T-82 row; full suite; ruff; `speccheck --self-check`; `speccheck check --strict` on this repository | `--help` exit 0; real run exit 0, report written; 112/112; clean; `self-check: ok`; `CONFORMING - 215/215 passing (100.0%) … 0 dangling, 0 stale`, exit 0 | this commit |
+
+**W1, test-first:** `Decision`/`Edge` dataclasses and `_decision_rows` (the C-01 (c) table-block
+scanner: a maximal run of row lines outside fences, second row a separator, header cell
+`affects` case-folded) written against `test_decision_table_found_by_affects_header_cell_case_insensitively`,
+which failed with `AttributeError: 'SpecIndex' object has no attribute 'decisions'` until the
+field existed; `_build_decisions_and_edges` (statement-token scan, direction normalization for
+`verifies`, `retired` flagging) against the other eight `test_10_edges.py` functions. Two
+pre-existing tests broke as a direct, correctly-specified consequence and were updated rather than
+the new code: `test_heading_section_bodies_title_cap_and_line_model` (the K-14 truncation marker
+itself contains the literal text "K-14", so a truncated statement now also yields an "edge to
+undeclared id" Note — C-12 says "after the K-14 cap", i.e. the already-marked text) and its two
+fenced example ids (`R-99` in C-01's pinned block, `R-98` in C-05's body) now also yield Notes.
+`fixtures/target/SPEC.md` gained a three-row decision table (T-79's own requirement: two declared
+Affects targets, one retired, one undeclared); the undeclared target was deliberately chosen as
+`E-45` — a real id of *this* project's own `SPEC.md` — not an arbitrary large number, because the
+fixture is packaged under `src/speccheck/_selfcheck/` and scanned as ordinary source by this
+project's own self-application (T-48): an arbitrary "obviously fake" id like the fixture's other
+examples would dangle-cite there, while a real outer id does not, the same trick the original
+fixture's planted defects (`R-09`, `R-04`, `E-02`) already relied on.
+
+**W2, test-first:** `resolve_changed_ids` (I-011 normalization, E-53) against
+`test_resolve_changed_ids_normalizes_and_validates`; `diff_changed_set` (the five reasons, in
+order) against `test_diff_changed_set_reasons_in_fixed_order`; `walk` (breadth-first, reverse
+`depends_on` from an obligation, forward `affects` from a decision, smallest `via` per C-12 order)
+against `test_walk_reverse_depends_on_and_affects_with_shortest_via` and
+`test_walk_depth_cap_is_a_prefix_with_a_note` — the latter written to pin I-013 (a depth-limited
+run is an exact prefix of the unbounded one) directly, rather than trusting it by inspection.
+`report.py` gained `write_named_files`, a generalization of the existing `write_reports` so the
+same temp-and-rename-and-cleanup discipline (I-001) serves both file pairs without duplicating it;
+`write_reports` itself became a one-line wrapper, and T-38/T-45 (already in the suite) caught
+nothing broken by the refactor. `cli.py`'s PATHS closure was lifted out of `parse_config` into
+`_resolve_paths(flag, values, root, default)` so `impact`'s "no directory default" need (an
+absent `--src`/`--tests` means *not scanned*, not the `check` default) shares the same E-52/I-012
+logic with a different `default` argument, rather than a second copy. `--results`/`--judge`/
+`--strict`/etc. are simply never defined on the `impact` subparser, so argparse's own
+unrecognized-argument path supplies E-54's exit `2` for free — cheaper and no less correct than a
+hand-written rejection, verified by `test_impact_usage_and_input_errors`.
+
+**Live run against the golden fixture.** `speccheck impact --spec SPEC.md --changed K-02 --src
+src --tests tests` on `fixtures/target/`: 1 changed, 1 impacted (`C-04 -depends_on-> K-02`, depth
+1), 5 to re-verify (`T-03, T-04, T-05, T-06, T-07`), 3 re-cite rows, 8 test cases — read by hand
+against the fixture's own C-04/K-02 rows before being blessed as `golden/impact.json` and
+`golden/IMPACT_REPORT.md`; both fixtures (`target`, `target-swift`) and `_selfcheck/` regenerated
+and diffed, confirming the only delta on `target-swift` is the schema bump, an empty `decisions`
+array, the `verifies`/`depends_on` edges its own statements already carry, and one new Note.
+
+**The backtest (W3, T-82, recorded — not gating).** `tools/impact_backtest.py`: `git archive` a
+read-only tree at each range's build-end commit (no worktree), `git show` both ends of the spec
+range, run `impact --against --depth 0` in-process (chdir into the tree first — `speccheck`
+resolves relative paths against the process cwd, not `--root`, matching every other invocation in
+this project), diff the build range with `-U0` for exact touched new-file line ranges, and score
+recall/precision per depth cutoff against citations from a `check` run on the same tree.
+
+| Range | d=1 recall/precision | d=2 | d=3 | d=∞ | Chosen depth |
+| --- | --- | --- | --- | --- | --- |
+| v1.6→v1.8 (spec `d170433^..c0a770a`, build `2a25569..2635298`) | 0.12 / 0.31 | 0.12 / 0.29 | 0.12 / 0.29 | 0.12 / 0.29 | unbounded (never reaches 0.80) |
+| v1.8→v1.11 (spec `2635298..c1e3d87`, build `330dd4e..dfea1a6`) | 0.22 / 0.82 | 0.27 / 0.85 | 0.27 / 0.85 | 0.27 / 0.85 | unbounded (never reaches 0.80) |
+
+Recall does not clear the bar's 0.80 threshold at any depth on either range — every miss is
+explained as one class, read from the actual miss lists (`build/impact_backtest/c1e3d87.md`):
+almost every "touched, never predicted" id shares its only build-tree citation with dozens of
+others on the same one or two lines — the module docstring's "Spec IDs realized here (§11): …"
+summary at the top of `extract.py`, `graph.py`, `judge.py`, etc. A commit that edits that summary
+line (adding one new id to the list, which most commits in this codebase's own history do) marks
+every id already listed there as "touched" under the diff-hunk heuristic, even though only one of
+them actually changed — inflating the *actually-affected* denominator with ids `impact` was never
+asked to predict and had no way to. This is a defect in the backtest's touched-line heuristic, not
+in `impact` itself or in the spec's own cross-references (the `depends_on`/`verifies`/`affects`
+edges it reads are unaffected by this and were spot-checked by hand above): a citation on a shared
+summary line is not evidence that *that specific id's* behavior changed. The bar's fallback branch
+("every miss explained") is taken rather than the recall threshold; `--depth` keeps its default of
+`1` from the proposal (D-24's own justification — the direct set as the useful answer — stands
+independently of this backtest's noisy denominator). A cleaner backtest would exclude a file's own
+summary-comment line from "touched", or weight a citation by how many ids share its line; left as
+a follow-up, not attempted here (T-82 is recorded, not gating, precisely for findings like this).
 
 ## 0d. v1.11 increment (2026-09-18) — clause-grounded verdicts, recorded tests, a body in the T-49 fixture
 
@@ -498,6 +601,8 @@ id. "Self-app" is the status from the T-48 run.
 | R-33 | `extract.py`, `report.py` | `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model`; `test_01_extraction::test_row_and_heading_grammar_edge_cases`; `test_05_judge::test_llm_request_carries_heading_body_statement`; `test_08_golden::test_goldens_carry_title_and_markdown_renders_title` | PASSING |
 | R-34 | `judge.py`, `judge_llm.py`, `judge_mock.py`, `report.py` | `test_05_judge::test_clause_grounding_validation`; `test_08_golden::test_fixture_long_body_contract_and_labels` | PASSING |
 | R-35 | `extract.py`, `graph.py`, `report.py` | `test_01_extraction::test_recorded_marker_declarations`; `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength` | PASSING |
+| R-36 | `extract.py` (decision table, edge extraction), `report.py` (`decisions`/`edges` keys) | `test_10_edges::test_statement_tokens_yield_depends_on_and_verifies_edges`; `test_10_edges::test_decision_table_found_by_affects_header_cell_case_insensitively`; `test_06_reports::test_decisions_and_edges_in_json` | PASSING |
+| R-37 | `impact.py` (changed set, walk, reverify), `cli.py` (`impact` subcommand) | `test_11_impact::test_impact_cli_against_golden_fixture`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
 | C-01 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-02 `test_01_extraction::test_numbers_normalize_within_family`; T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids`; T-04 `test_01_extraction::test_strikethrough_is_retired_and_mixed_redeclaration_exits_3`; T-05 `test_01_extraction::test_fenced_code_blocks_are_ignored`; T-55 `test_01_extraction::test_row_and_heading_grammar_edge_cases`; T-57 `test_02_attribution::test_ignore_markers`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-02 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-06 `test_01_extraction::test_duplicate_declaration_exits_3_naming_both_lines`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-03 | `attribute.py`, `extract.py` | T-09 `test_02_attribution::test_python_test_citations_attributed_to_enclosing_case`; T-10 `test_02_attribution::test_module_docstring_and_helper_citations_are_file_level`; T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks`; T-14 `test_02_attribution::test_several_citations_in_one_case_yield_one_edge`; T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; T-56 `test_02_attribution::test_class_recognition_and_async_and_undelimited` | PASSING |
@@ -509,6 +614,8 @@ id. "Self-app" is the status from the T-48 run.
 | C-09 | `judge_llm.py` | T-33 `test_05_judge::test_llm_provider_wire_format_timeout_and_concurrency`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak` | PASSING |
 | C-10 | `judge_llm.py` | `test_05_judge::test_llm_request_carries_heading_body_statement`; `test_05_judge::test_llm_response_path_fences_and_prompt_hash`; `test_09_self_application::test_self_application_runs_on_this_repository` | PASSING |
 | C-11 | `judge.py` | T-62 `test_07_cli::test_progress_indicator_format_cadence_and_isolation` | PASSING |
+| C-12 | `extract.py` (`_decision_rows`, `_build_decisions_and_edges`, `edge_id_key`) | T-79 `test_10_edges` (all nine functions) | PASSING |
+| C-13 | `impact.py`, `report.py` (`build_impact_report`, `render_impact_markdown`, `impact_summary_line`) | T-80 `test_11_impact::test_impact_cli_against_golden_fixture`; T-81 `test_11_impact::test_diff_changed_set_reasons_in_fixed_order`, `test_11_impact::test_impact_usage_and_input_errors` | PASSING |
 | I-001 | `cli.py`, `report.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing`; T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | I-002 | `attribute.py`, `extract.py`, `graph.py`, `report.py`, `results.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | I-003 | `report.py` | T-25 `test_04_status::test_retired_ids_excluded_from_denominators_but_listed_once`; T-35 `test_06_reports::test_markdown_layout` | PASSING |
@@ -520,6 +627,7 @@ id. "Self-app" is the status from the T-48 run.
 | I-009 | `cli.py`, `report.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons` | PASSING |
 | I-010 | `graph.py`, `judge.py` | `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength`; `test_05_judge::test_judge_called_once_per_eligible_edge_only` | PASSING |
 | I-011 | `extract.py` | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
+| I-013 | `impact.py` (`walk`: unbounded computation, depth-limited as a filter) | `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_impact_cli_against_golden_fixture` | PASSING |
 | K-01 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak`; T-19 `test_03_results::test_malformed_xml_and_nameless_testcase_exit_3`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | K-02 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
 | K-03 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
@@ -576,6 +684,9 @@ id. "Self-app" is the status from the T-48 run.
 | E-39 | `cli.py` | T-63 `test_07_cli::test_progress_gating_and_interrupt_erase` | PASSING |
 | E-40 | `judge.py` | T-63 `test_07_cli::test_progress_gating_and_interrupt_erase` | PASSING |
 | E-41 | `cli.py`, `report.py`, `judge.py` | T-63 `test_07_cli::test_progress_gating_and_interrupt_erase`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
+| E-53 | `cli.py`, `impact.py` (`resolve_changed_ids`) | T-81 `test_11_impact::test_resolve_changed_ids_normalizes_and_validates`, `test_11_impact::test_impact_usage_and_input_errors` | PASSING |
+| E-54 | `cli.py` (`_build_impact_config`; unrecognized-flag rejection by omission) | T-81 `test_11_impact::test_impact_usage_and_input_errors` | PASSING |
+| E-55 | `extract.py` (`Edge.retired`), `report.py` (struck ID cells in `IMPACT_REPORT.md`) | `test_10_edges::test_edge_to_retired_id_is_flagged_and_self_reference_is_ignored`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
 | T-01 | — | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement` | PASSING |
 | T-02 | — | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
 | T-03 | — | T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids` | PASSING |
@@ -653,22 +764,36 @@ id. "Self-app" is the status from the T-48 run.
 | T-75 | — | `test_05_judge::test_clause_grounding_validation` | PASSING |
 | T-76 | — | `test_08_golden::test_fixture_long_body_contract_and_labels`; `test_08_golden::test_goldens_carry_title_and_markdown_renders_title` | PASSING |
 | T-77 | — | `test_01_extraction::test_recorded_marker_declarations`; `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength` | PASSING |
+| T-79 | — | `test_10_edges.py` (all nine functions) | PASSING |
+| T-80 | — | `test_11_impact::test_impact_cli_against_golden_fixture`; `test_11_impact::test_walk_reverse_depends_on_and_affects_with_shortest_via`; `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_reverify_set` | PASSING |
+| T-81 | — | `test_11_impact::test_diff_changed_set_reasons_in_fixed_order`; `test_11_impact::test_impact_usage_and_input_errors`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
+| T-82 *(recorded)* | — | `test_11_impact::test_impact_backtest_script_exists` (presence check); the real run is §0e below | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 200/200 IDs realized (0 deferred)
-speccheck (mock): speccheck: CONFORMING - 200/200 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: CONFORMING - 200/200 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 488 edges, unknown_rate 0.0041, judge_prompt_sha256 6a05eb0dede74b3108322fdca58652b7e9e8bde328e02293c3be4d47df775052; openai/gpt-4o-mini: NOT CONFORMING 188/200, 12 weak, unknown_rate 0.0799 — fails T-49 under this prompt, see §0d]
-Observed: no rendered surface; the live wire pass (§0d) confirmed `clause` on every reply and K-15 on every recorded clause for fixtures/target C-04
+Spec coverage: 215/215 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 215/215 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: NOT CONFORMING - 215/215 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm (unknown_rate 0.9706 > max_unknown 0.2000)  [qwen3:8b via Ollama, local, 2026-09-19, judge_available true, judge_strength 1.0 (every verdict the model did give was ASSERTS, 0 weak), judge_prompt_sha256 6a05eb0dede74b3108322fdca58652b7e9e8bde328e02293c3be4d47df775052 (unchanged from v1.11 — no prompt or C-06 change in v1.13); superseded by gemini-3.8-flash's 0.0041 in §0d, not re-run here]
+Observed: no rendered surface (§5.2)
 Readiness: BUILT
 Conformance: PASS WITH NOTES
 ```
 
-The notes are §3 (B-01..B-15: interpretations for the spec owner to ratify), §0's D-16 default
-(exit `3` on interrupt, awaiting the requester), and §0d's model record: under the v1.9 clause-first
-prompt `gpt-4o-mini` fails T-49 on quoting fidelity (0/3, `unknown_rate 0.1429`) while
-`gemini-3.8-flash` passes 3/3 — D-08 is answered for this build by gemini, and the earlier T-49
-history in §0c/§2 was measured under superseded prompt hashes and no longer counts (F-303).
-Nothing in the specification was scoped out; O-1 is built behind its flag and extra, O-2/O-3 are
-absent by the spec's own statement.
+v1.13's own deliverable (R-36, R-37, C-12, C-13, I-013, E-53..E-55, T-79..T-82) is unaffected by
+the Phase B result above: the judge is not shown edges/decisions, and none of the new ids are
+R/C/I/K/E obligations the judge downgrades — they are `PASSING` from citation and result alone,
+and Phase A (`--judge mock --strict`) is the gate that governs them, which is clean. The Phase B
+note is a pre-existing model-choice characteristic, not a v1.13 defect: `qwen3:8b` is a thinking
+model, and this project's own history (D-07/D-08, §0d) already records that such models answer a
+minority of edges and should be judged on `judge_strength` (here 1.0, i.e. correct whenever it
+answered) rather than on `unknown_rate` alone — `gemini-3.8-flash`'s 0.0041 stands as this
+project's evidence for R-26/T-49 (§0d) and was not re-run for this delta, since nothing in v1.13
+touches the judge, `C-06`, or `C-10`.
+
+The other notes are §3 (B-01..B-15: interpretations for the spec owner to ratify) and §0d's model
+record (D-08 answered by `gemini-3.8-flash`). This report's own §5 has a known, disclosed gap
+(v1.12's ids and E-42..E-52 were never backfilled — §0e) that predates and is out of scope for
+this build. Nothing in the specification was scoped out; O-1 is built behind its flag and extra,
+O-2/O-3 are absent by the spec's own statement; v1.13's D-24 places the backtest outside the
+kernel (§0e), and its recall figures are recorded there with the reason they read low.

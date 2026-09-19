@@ -46,8 +46,8 @@ def test_resolve_changed_ids_normalizes_and_validates():
         ("K-15", "K", "changed"),
         ("D-08", "D", "changed"),
     ]
-    with pytest.raises(ChangedError, match=r"undeclared id: R-99"):
-        resolve_changed_ids(index, "R-99")
+    with pytest.raises(ChangedError, match=r"undeclared id: R-99"):  # speccheck:ignore
+        resolve_changed_ids(index, "R-99")  # speccheck:ignore
     with pytest.raises(ChangedError, match=r"undeclared id: X-01"):
         resolve_changed_ids(index, "X-01")
     with pytest.raises(ChangedError, match=r"undeclared id: 1234"):
@@ -68,7 +68,7 @@ def test_diff_changed_set_reasons_in_fixed_order():
             ("E-48", "unlocated, per K-15."),
             ("R-34", "grounding rule (K-15, E-48)."),
             ("T-75", "proves K-15 and E-48."),
-            ("R-90", "brand new."),  # added
+            ("R-90", "brand new."),  # added; speccheck:ignore
         ],
         retired={"C-01"},  # retired flag differs
     ) + "\n\n| ID | Affects |\n| -- | ------- |\n| D-08 | C-10, T-49, R-01 |\n| D-09 | R-01 |\n"
@@ -77,15 +77,15 @@ def test_diff_changed_set_reasons_in_fixed_order():
     by_id = {e.id: e for e in entries}
     assert by_id["R-01"].reason == "statement differs"
     assert by_id["C-01"].reason == "retired flag differs"
-    assert by_id["R-90"].reason == "added"
+    assert by_id["R-90"].reason == "added"  # speccheck:ignore
     assert by_id["D-08"].reason == "affects differs"
     assert by_id["D-09"].reason == "added"
     assert "K-15" not in by_id and "E-48" not in by_id  # unchanged
 
     # removed: an id declared in old only
-    old2 = _index(BASE_SPEC + "\n\n### R-91 Going away\n")
+    old2 = _index(BASE_SPEC + "\n\n### R-91 Going away\n")  # speccheck:ignore
     entries2 = diff_changed_set(old2, old)
-    assert {e.id: e.reason for e in entries2} == {"R-91": "removed"}
+    assert {e.id: e.reason for e in entries2} == {"R-91": "removed"}  # speccheck:ignore
     assert entries2[0].line > 0
 
     # identical specs -> empty changed set
@@ -250,8 +250,8 @@ def test_impact_usage_and_input_errors(tmp_path: Path):
     r = run("--changed", "K-15", "--against", "SPEC.md")  # both
     assert r.code == 2 and "exactly one of" in r.stderr
 
-    r = run("--changed", "R-99")
-    assert r.code == 2 and "undeclared id: R-99" in r.stderr
+    r = run("--changed", "R-99")  # speccheck:ignore
+    assert r.code == 2 and "undeclared id: R-99" in r.stderr  # speccheck:ignore
 
     r = run("--changed", "K-15", "--depth", "-1")
     assert r.code == 2

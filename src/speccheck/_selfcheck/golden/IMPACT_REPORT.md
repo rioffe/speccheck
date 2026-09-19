@@ -47,4 +47,4 @@ SPEC.md · changed by `--changed` · depth 1
 
 - edge to undeclared id: C-04 -> T-49
 - edge to undeclared id: C-04 -> T-76
-- edge to undeclared id: D-03 -> E-99
+- edge to undeclared id: D-03 -> E-45
