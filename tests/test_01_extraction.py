@@ -101,13 +101,13 @@ def test_fenced_code_blocks_are_ignored():
             "```",  # backticks never close a tilde fence
             "| **R-09** | still fenced |",
             "~~~",
-            "| **R-10** | real |",
+            "| **R-10** | real |",  # speccheck:ignore
             "```",
             "| **R-11** | unclosed to end of file |",
         ]
     )
     index = parse_spec(text, "SPEC.md")
-    assert [s.id for s in index.ids] == ["R-01", "R-07", "R-10"]
+    assert [s.id for s in index.ids] == ["R-01", "R-07", "R-10"]  # speccheck:ignore
     indented = "   ```\n| **R-01** | fenced |\n   ```\n| **R-02** | real |\n"
     assert [s.id for s in parse_spec(indented, "SPEC.md").ids] == ["R-02"]
 

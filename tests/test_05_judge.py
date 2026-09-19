@@ -99,7 +99,8 @@ def test_mock_judge_recognizes_swift_assertion_tokens():
 
 def test_mock_judge_asserts_on_assertion_tokens_else_executes_only():
     """T-26: the mock returns ASSERTS with one evidence line per assertion token, and
-    EXECUTES_ONLY with no evidence otherwise, including for an empty body. (R-22, E-17)"""
+    EXECUTES_ONLY with no evidence otherwise, including for an empty body — one verdict from the
+    R-10 set per edge, with evidence per C-06. (R-10, R-22, E-17)"""
     mock = MockJudge()
     req = _req(
         [
@@ -273,8 +274,9 @@ def test_provider_failures_yield_unknown_with_specified_rationale():
 
 
 def test_judge_called_once_per_eligible_edge_only(tmp_path: Path, monkeypatch):
-    """T-31: the judge is called exactly once per eligible edge and never for FAILING / SKIPPED /
-    UNVERIFIED / UNTESTED / UNCITED IDs or for skipped/failed test outcomes. (I-010)"""
+    """T-31: the judge is called exactly once per eligible edge — a PASSING id and a passed
+    outcome, R-10's population — and never for FAILING / SKIPPED / UNVERIFIED / UNTESTED / UNCITED
+    IDs or for skipped/failed test outcomes. (R-10, I-010)"""
     spec = spec_table(
         [
             ("R-01", "passing"),
@@ -395,7 +397,8 @@ class RecordingPost:
 def test_llm_provider_wire_format_timeout_and_concurrency():
     """T-33: the LLM provider sends exactly one POST per edge whose body is byte-for-byte the
     C-06 shape, with the bearer header; honors the timeout; never retries; issues at most
-    --judge-concurrency requests at once while output order stays fixed. (K-05, K-06, R-26, C-09)"""
+    --judge-concurrency requests at once while output order stays fixed; each edge yields one
+    verdict from the R-10 set. (R-10, K-05, K-06, R-26, C-09)"""
     config = LlmConfig.from_env({**LLM_ENV, "SPECCHECK_JUDGE_TIMEOUT": "1"})
     post = RecordingPost()
     provider = LlmJudge(config, post=post)

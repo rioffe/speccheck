@@ -3,7 +3,7 @@
 > - **Status:** proposal, 2026-09-18; for `spec-writing` to turn into `SPEC.md` v1.9 rows after the requester settles D-21 below
 > - **Applies to:** `SPEC.md` v1.8 — C-06 (`Verdict`, kernel validation), C-07 (verdict object), C-08 (§8 Judge details), C-10 (judge instruction text), T-46/T-49 (golden fixture and its labels), D-08
 > - **Notation:** unprefixed ids (C-06, T-49, D-08) are speccheck's own. Ids of the project used as evidence are written `mdv:C-06` — a foreign id, in inline code so the PDF cross-reference pass does not link it to speccheck's C-06.
-> - **Evidence:** speccheck 1.8.0 (the v1.7/v1.8 build: bodies sent to the judge) run twice with `openai/gpt-4o-mini` over the 440 edges of the mdv `SPEC.md` v0.11.2 tree, and once each with 1.6.0 (title only) and 1.8.0 over the same tree and `junit.xml`; the 1.8.0 self-application (436 edges); six T-49 runs the same day. Per-edge data in that project's `build/speccheck-1.{6,8}-llm*/speccheck.json` and its `SPEC_BUILD_REPORT.md` §3.1.
+> - **Evidence:** speccheck 1.8.0 (the v1.7/v1.8 build: bodies sent to the judge) run twice with `openai/gpt-4o-mini` over the 440 edges of the mdv `SPEC.md` v0.11.2 tree, and once each with 1.6.0 (title only) and 1.8.0 over the same tree and `junit.xml`; the 1.8.0 self-application (436 edges); six T-49 runs the same day; then the same two trees and T-49 with `google/gemini-3.8-flash` (§1, *A second model*). Per-edge data in that project's `build/speccheck-1.{6,8}-llm*/speccheck.json` and its `SPEC_BUILD_REPORT.md` §3.1.
 
 ## 1. The problem
 
@@ -43,6 +43,29 @@ test against the gist. The any-clause rule added in v1.7 is one bullet at the en
 with the question's own wording, *"does this test case ASSERT **the** observable behavior described by the statement"*,
 which reads as singular. Titles produced the mirror error (ASSERTS guessed from `Data structures`): in both regimes
 the verdict tracks the *amount* of statement text rather than a located match between one clause and one assertion.
+
+**A second model.** The same 1.8.0 build with `google/gemini-3.8-flash` (OpenRouter, 2026-09-18) over the same two
+trees and `junit.xml` files:
+
+| | `gpt-4o-mini` | `gemini-3.8-flash` |
+| --- | --- | --- |
+| mdv contract edges (99): `ASSERTS` / `EXECUTES_ONLY` / `UNRELATED` | 82 / 15 / 2 | 93 / 4 / 2 |
+| of the 13 edges read as gpt false negatives above | — | 11 `ASSERTS`, 2 agree with gpt |
+| mdv, all 439 edges: `UNRELATED` | 14 | 50 |
+| mdv weak ids | none | `mdv:R-10`, `mdv:E-19`, `mdv:T-04`, `mdv:T-34` |
+| speccheck's own tree weak ids | none | R-10, then T-48 |
+| T-49 | 5 of 6 runs at 1.000, one at 0.889 | 3 of 3 at 1.000 |
+| wall-clock, 440 edges | 36 s at concurrency 32 | 4.5 min at 8 (HTTP 429 at 32; one 60 s timeout) |
+
+So the long-body failure is **model-specific**: gemini locates the clause in an 11 kB body that gpt reduces to a gist.
+Gemini is also the stricter judge, and on reading, mostly right: `mdv:E-19` (reload while text is selected — the test
+never selects text) and `mdv:T-34` (the `diff -r` the row requires lives in a shell script, not the test) are real gaps;
+speccheck's own R-10 was cited by a fixture string and a label-file check while its actual tests (T-26, T-31, T-33) did
+not cite it — fixed the same day; `mdv:R-10` is defensible; `mdv:T-04` is harsh. And its T-48 downgrade is correct by
+that test's own docstring (*"the all-PASSING result is recorded in `SPEC_BUILD_REPORT.md`, not asserted here"*): the
+spec's *recorded, not gating* tests (T-48, T-49, T-51) are cited by presence checks so they are not `UNCITED`, and an
+honest judge will always mark those edges `EXECUTES_ONLY`. The two models pass T-49 identically, which is the point of
+Part A: the current nine labels cannot tell a judge that finds `mdv:E-19` from one that does not.
 
 Two consequences. The gate is not at risk — an id is `WEAKLY_PASSING` only when *every* passed edge is downgraded, and
 long-bodied contracts have many edges. But §8 of the report, where v1.7's value lives, had ~28 % precision on contract
@@ -96,7 +119,9 @@ the failure §1 documents — mislabels four edges at once and fails the run, wh
 passes. Clause 5 is deliberately left without a test: it is what the `EXECUTES_ONLY` case must not be credited for.*
 
 **Part B — a grounded clause.** The reply carries the clause it matched; the kernel checks that the clause is in the
-statement; a verdict that names no locatable clause is `UNKNOWN`.
+statement; a verdict that names no locatable clause is `UNKNOWN`. The second model shows Part B is not the only way
+out of the gist problem — a model that locates clauses exists — but it is the only way to make *which* clause was
+judged an auditable fact in the report rather than a property of whichever model ran today.
 
 ```mermaid
 flowchart LR
@@ -182,4 +207,9 @@ It does not make the judge deterministic, and it does not change the gate: an id
 `PASSING` under either branch, exactly as C-05 step 5 says today. It does not decide which model to run; it makes
 that decision measurable. And it does not address the 63 table-row edges the same runs downgraded on the mdv tree (their ids would all be `mdv:` ones) —
 those were not read for this proposal, and the long-body pattern above says nothing about one-line statements, where
-the v1.7 evidence pointed the other way (generous, not strict).
+the v1.7 evidence pointed the other way (generous, not strict). It also leaves open a question the second model
+exposed and this proposal does not answer: a *recorded, not gating* T id (T-48, T-49, T-51 here; `mdv:T-04`,
+`mdv:T-34` there) is cited by a presence check so that it is not `UNCITED`, and an honest judge downgrades that edge
+by design. Under `--strict --judge llm` such an id is `WEAKLY_PASSING` and the gate is red for a reason the spec
+intends. That wants a rule of its own — a `recorded` marker on the T row that the judge stage skips, or a statement
+of what the presence check is expected to assert — and is left for `spec-writing` as a separate D row.
