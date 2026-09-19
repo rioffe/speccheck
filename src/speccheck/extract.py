@@ -20,6 +20,7 @@ ID_RE = re.compile(r"(?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])")
 
 FAMILY_ORDER = "RCIKET"
 FAMILIES = frozenset(FAMILY_ORDER)
+EDGE_FAMILY_ORDER = FAMILY_ORDER + "D"  # C-12 sort order: decisions (D) sort last
 
 MAX_FILE_BYTES = 2 * 1024 * 1024  # K-02
 BINARY_PROBE_BYTES = 8192  # K-02 / E-29
@@ -54,6 +55,13 @@ def id_sort_key(ident: str) -> tuple[int, int]:
     return (family_rank(family), int(num))
 
 
+def edge_id_key(ident: str) -> tuple[int, int]:
+    """C-12 order: like id_sort_key, but the family alphabet includes "D" (decisions), which
+    sorts last."""
+    family, num = ident.split("-", 1)
+    return (EDGE_FAMILY_ORDER.index(family), int(num))
+
+
 def tokens_in_line(line: str) -> list[tuple[str, str, int]]:
     """Every ID token on a line as (normalized_id, family, number)."""
     return [
@@ -83,10 +91,33 @@ class SpecId:
 
 
 @dataclass(frozen=True)
+class Decision:
+    """C-01 (c) / v1.13: a decision-table row. Never a SpecId; never in `ids`; never a citation
+    target (the TOKEN regex does not match "D-"); never in any metric (D-25)."""
+
+    id: str  # normalized "D-nn"
+    line: int
+    affects: tuple[str, ...]  # DECLARED ids named in the AFFECTS CELL, normalized, unique, sorted
+
+
+@dataclass(frozen=True)
+class Edge:
+    """C-12 / v1.13: a spec-internal edge. Not a citation, not a status or metric input — it
+    records only that `src`'s statement (or Affects cell) names `dst`."""
+
+    src: str  # normalized id: a D id for "affects", the T id for "verifies"
+    kind: str  # "affects" | "depends_on" | "verifies"
+    dst: str  # normalized; always a declared R/C/I/K/E/T id
+    retired: bool  # dst is RETIRED (E-55)
+
+
+@dataclass(frozen=True)
 class SpecIndex:
     path: str
     ids: tuple[SpecId, ...]
     notes: tuple[str, ...] = ()  # K-14 / E-46: one Note per truncated statement
+    decisions: tuple[Decision, ...] = ()  # C-01 (c) / v1.13, sorted by number
+    edges: tuple[Edge, ...] = ()  # C-12 / v1.13, sorted per the C-12 order
 
     def by_id(self) -> dict[str, SpecId]:
         return {s.id: s for s in self.ids}
@@ -290,6 +321,143 @@ def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bo
             yield fam, int(num), title, statement, retired, lineno, recorded
 
 
+# --------------------------------------------------------------------------------------------
+# C-01 (c) decision table (v1.13)
+# --------------------------------------------------------------------------------------------
+
+_DECISION_ID_RE = re.compile(r"^D-[0-9]{1,3}$")
+
+
+def _is_row_line(line: str) -> bool:
+    return line.lstrip().startswith("|")
+
+
+def _all_separator(cells: list[str]) -> bool:
+    return bool(cells) and all(_SEPARATOR_CELL_RE.match(c) for c in cells)
+
+
+def _decision_rows(lines: list[str]) -> list[tuple[int, str, str]]:
+    """C-01 (c): (lineno, "D-nn" token, raw AFFECTS CELL text) for every decision row of the
+    DECISION TABLE -- the first TABLE (a maximal run of consecutive row lines outside fenced
+    code blocks, with no BLANK line between them, whose second row is a separator row) whose
+    HEADER ROW has a cell equal to "affects" once trimmed and case-folded. A D-nn row outside
+    that table, or in a second such table, declares nothing (Q-008-style: only the first
+    match counts). Duplicate D ids are the caller's concern."""
+    fence: str | None = None
+    block: list[tuple[int, str]] = []
+    decision_table: list[tuple[int, str]] | None = None
+    affects_col: int | None = None
+
+    def flush() -> None:
+        nonlocal block, decision_table, affects_col
+        if decision_table is None and len(block) >= 2:
+            header_cells = split_row(block[0][1])
+            sep_cells = split_row(block[1][1])
+            if _all_separator(sep_cells):
+                for i, cell in enumerate(header_cells):
+                    if cell.strip().casefold() == "affects":
+                        affects_col = i
+                        decision_table = block[2:]
+                        break
+        block = []
+
+    for lineno, line in enumerate(lines, start=1):
+        if decision_table is not None:
+            break
+        marker = _fence_marker(line)
+        if fence is not None:
+            if marker == fence and line.strip() == fence:
+                fence = None
+            flush()
+            continue
+        if marker is not None:
+            fence = marker
+            flush()
+            continue
+        if is_blank(line):
+            flush()
+            continue
+        if _is_row_line(line):
+            block.append((lineno, line))
+        else:
+            flush()
+    flush()
+
+    out: list[tuple[int, str, str]] = []
+    if decision_table is not None and affects_col is not None:
+        for lineno, line in decision_table:
+            cells = split_row(line)
+            first = cells[0].strip() if cells else ""
+            if _DECISION_ID_RE.match(first):
+                affects_raw = cells[affects_col] if affects_col < len(cells) else ""
+                out.append((lineno, first, affects_raw))
+    return out
+
+
+def _build_decisions_and_edges(
+    ids: tuple[SpecId, ...], decision_rows: list[tuple[int, str, str]]
+) -> tuple[tuple[Decision, ...], tuple[Edge, ...], list[str]]:
+    """C-12: statement-token edges among the declared ids, plus decision rows and their
+    `affects` edges. Returns (decisions, edges, notes) with everything in C-12 order."""
+    by_id = {s.id: s for s in ids}
+    notes: set[str] = set()
+    edge_retired: dict[tuple[str, str, str], bool] = {}
+
+    def targets_of(text: str, self_id: str) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for m in ID_RE.finditer(text):
+            y = normalize_id(m.group(1), int(m.group(2)))
+            if y == self_id or y in seen:
+                continue
+            seen.add(y)
+            out.append(y)
+        return out
+
+    def record(src: str, kind: str, dst: str, *, dst_retired: bool) -> None:
+        key = (src, kind, dst)
+        edge_retired[key] = edge_retired.get(key, False) or dst_retired
+
+    for s in ids:  # retired included (E-55)
+        for y in targets_of(s.text, s.id):
+            target = by_id.get(y)
+            if target is None:
+                notes.add(f"edge to undeclared id: {s.id} -> {y}")
+                continue
+            if s.family == "T" and target.family != "T":
+                record(s.id, "verifies", y, dst_retired=target.retired)
+            elif target.family == "T" and s.family != "T":
+                record(y, "verifies", s.id, dst_retired=s.retired)
+            else:
+                record(s.id, "depends_on", y, dst_retired=target.retired)
+
+    decisions: list[Decision] = []
+    for lineno, token, affects_raw in decision_rows:
+        fam, num = token.split("-")
+        d_id = normalize_id(fam, int(num))
+        declared_targets: list[str] = []
+        for y in targets_of(affects_raw, d_id):
+            target = by_id.get(y)
+            if target is None:
+                notes.add(f"edge to undeclared id: {d_id} -> {y}")
+                continue
+            declared_targets.append(y)
+            record(d_id, "affects", y, dst_retired=target.retired)
+        affects = tuple(sorted(set(declared_targets), key=id_sort_key))
+        decisions.append(Decision(id=d_id, line=lineno, affects=affects))
+
+    def _edge_sort_key(item: tuple[tuple[str, str, str], bool]) -> tuple[object, ...]:
+        (src, kind, dst), _retired = item
+        return (edge_id_key(src), kind, edge_id_key(dst))
+
+    edges = tuple(
+        Edge(src=src, kind=kind, dst=dst, retired=retired)
+        for (src, kind, dst), retired in sorted(edge_retired.items(), key=_edge_sort_key)
+    )
+    decisions_sorted = tuple(sorted(decisions, key=lambda d: int(d.id.split("-")[1])))
+    return decisions_sorted, edges, sorted(notes)
+
+
 def parse_spec(text: str, rel_path: str) -> SpecIndex:
     """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
     seen: dict[tuple[str, int], SpecId] = {}
@@ -321,7 +489,27 @@ def parse_spec(text: str, rel_path: str) -> SpecIndex:
     ids = tuple(sorted(seen.values(), key=lambda s: (family_rank(s.family), s.number)))
     if not any(not s.retired for s in ids):
         raise SpecError("spec declares no in-scope IDs")
-    return SpecIndex(path=rel_path, ids=ids, notes=tuple(sorted(notes)))
+
+    decision_rows = _decision_rows(split_spec_lines(text))
+    seen_decisions: dict[int, int] = {}  # number -> lineno, for E-02-style duplicate detection
+    for lineno, token, _affects_raw in decision_rows:
+        num = int(token.split("-")[1])
+        if num in seen_decisions:
+            ident = normalize_id("D", num)
+            raise SpecError(
+                f"duplicate declaration of {ident} at lines {seen_decisions[num]} and {lineno}"
+            )
+        seen_decisions[num] = lineno
+    decisions, edges, edge_notes = _build_decisions_and_edges(ids, decision_rows)
+    notes.extend(edge_notes)
+
+    return SpecIndex(
+        path=rel_path,
+        ids=ids,
+        notes=tuple(sorted(notes)),
+        decisions=decisions,
+        edges=edges,
+    )
 
 
 def decode_text(data: bytes) -> tuple[str, bool]:

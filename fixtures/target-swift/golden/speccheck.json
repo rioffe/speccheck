@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "spec": "SPEC.md",
   "judge": "mock",
   "judge_available": true,
@@ -558,6 +558,33 @@
       "unrun": []
     }
   ],
+  "decisions": [],
+  "edges": [
+    {
+      "src": "T-01",
+      "kind": "verifies",
+      "dst": "R-01",
+      "retired": false
+    },
+    {
+      "src": "T-02",
+      "kind": "verifies",
+      "dst": "C-01",
+      "retired": false
+    },
+    {
+      "src": "T-03",
+      "kind": "verifies",
+      "dst": "R-02",
+      "retired": false
+    },
+    {
+      "src": "T-03",
+      "kind": "verifies",
+      "dst": "K-02",
+      "retired": false
+    }
+  ],
   "dangling": [],
   "stale": [],
   "unattributed_results": [
@@ -568,6 +595,7 @@
     }
   ],
   "notes": [
+    "edge to undeclared id: K-01 -> E-44",
     "undelimited tests in Tests/CalcTests/CalcTests.swift: CalcTests.testScaleNegative"
   ],
   "metrics": {

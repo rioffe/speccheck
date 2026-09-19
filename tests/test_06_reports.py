@@ -30,6 +30,8 @@ TOP_KEYS = [
     "max_unknown",
     "strict_judge_failure",
     "ids",
+    "decisions",  # since 1.4 (R-36)
+    "edges",  # since 1.4 (R-36)
     "dangling",
     "stale",
     "unattributed_results",
@@ -259,6 +261,35 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
         dumps({"a": report._Num(Decimal("0.9000")), "b": None})
         == '{\n  "a": 0.9000,\n  "b": null\n}\n'
     )
+
+
+def test_decisions_and_edges_in_json(tmp_path: Path):
+    """T-79: `speccheck.json` carries `decisions` and `edges` after `ids` (schema "1.4"); an
+    edge's shape is {src, kind, dst, retired}; a decision's is {id, line, affects}; a spec with
+    no decision table has both as []; the Markdown report is untouched by their presence.
+    (R-36, C-07, C-12)"""
+    spec = (
+        spec_table([("R-01", "obeys C-01."), ("C-01", "the interface."), ("T-01", "proves R-01.")])
+        + "\n\n| ID | Affects |\n| -- | ------- |\n| D-01 | R-01, C-01 |\n"
+    )
+    write_tree(tmp_path / "p", {"SPEC.md": spec})
+    run = run_cli(["check", "--spec", "SPEC.md"], tmp_path / "p")
+    doc = run.json
+    assert doc["schema_version"] == "1.4" == report.SCHEMA_VERSION
+    assert doc["decisions"] == [{"id": "D-01", "line": 12, "affects": ["R-01", "C-01"]}]
+    # order: (edge_id_key(src), kind, edge_id_key(dst)); D sorts last among families
+    assert doc["edges"] == [
+        {"src": "R-01", "kind": "depends_on", "dst": "C-01", "retired": False},
+        {"src": "T-01", "kind": "verifies", "dst": "R-01", "retired": False},
+        {"src": "D-01", "kind": "affects", "dst": "R-01", "retired": False},
+        {"src": "D-01", "kind": "affects", "dst": "C-01", "retired": False},
+    ]
+    assert "D-01" not in {rec["id"] for rec in doc["ids"]}  # never a conformance id (D-25)
+    assert "decisions" not in run.md and "affects" not in run.md.lower()
+
+    write_tree(tmp_path / "q", {"SPEC.md": spec_table([("R-01", "a")])})
+    run_none = run_cli(["check", "--spec", "SPEC.md"], tmp_path / "q")
+    assert run_none.json["decisions"] == [] and run_none.json["edges"] == []
 
 
 def test_markdown_layout(tmp_path: Path):

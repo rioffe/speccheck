@@ -16,12 +16,13 @@ from decimal import Decimal
 from pathlib import Path
 
 from .attribute import Citation
-from .extract import FAMILY_ORDER
+from .extract import FAMILY_ORDER, Decision, Edge
 from .graph import IN_SCOPE_STATUSES, Graph, Metrics, TestEdge, compute_metrics
 from .results import RawResult
 
 SCHEMA_VERSION = (
-    "1.3"  # C-07: "1.0"-v1.6; "1.1" `title` (v1.7); "1.2" `clause` (v1.9); "1.3" `recorded` (v1.10)
+    "1.4"  # C-07: "1.0"-v1.6; "1.1" `title` (v1.7); "1.2" `clause` (v1.9); "1.3" `recorded`
+    # (v1.10); "1.4" `decisions`/`edges` (v1.13)
 )
 JSON_NAME = "speccheck.json"
 MD_NAME = "SPEC_CONFORMANCE_REPORT.md"
@@ -133,6 +134,8 @@ class ReportInputs:
     graph: Graph
     unattributed: list[RawResult]
     notes: list[str]
+    decisions: tuple[Decision, ...] = ()  # v1.13, C-12
+    edges: tuple[Edge, ...] = ()  # v1.13, C-12
 
 
 def _edge_json(edge: TestEdge) -> dict:
@@ -188,6 +191,12 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
             "unrun": [{"file": e.case.file, "name": e.case.name} for e in rec.unrun],
         }
         for rec in inputs.graph.records
+    ]
+    report["decisions"] = [
+        {"id": d.id, "line": d.line, "affects": list(d.affects)} for d in inputs.decisions
+    ]
+    report["edges"] = [
+        {"src": e.src, "kind": e.kind, "dst": e.dst, "retired": e.retired} for e in inputs.edges
     ]
     report["dangling"] = [_citation_json(c) for c in inputs.graph.dangling]
     report["stale"] = [_citation_json(c) for c in inputs.graph.stale]

@@ -88,4 +88,5 @@ None.
 
 ## 9. Notes
 
+- edge to undeclared id: K-01 -> E-44
 - undelimited tests in Tests/CalcTests/CalcTests.swift: CalcTests.testScaleNegative

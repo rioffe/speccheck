@@ -272,7 +272,12 @@ def test_heading_section_bodies_title_cap_and_line_model():
         == "Title\n    ### R-98 indented four spaces: not a heading, not a declaration"  # speccheck:ignore
     )
     assert ids["C-07"].text == ids["C-07"].title == "Last"
-    assert index.notes == ()
+    # v1.13/C-12: the example ids inside C-01's pinned fence and C-05's body are undeclared,
+    # so each yields an "edge to undeclared id" Note, not a declaration and not an edge.
+    assert index.notes == (
+        "edge to undeclared id: C-01 -> R-99",
+        "edge to undeclared id: C-05 -> R-98",
+    )
 
     # CRLF twin -> identical index (C-01 Lines rule, I-002)
     assert parse_spec(_T72_SPEC.replace("\n", "\r\n"), "SPEC.md") == index
@@ -293,7 +298,13 @@ def test_heading_section_bodies_title_cap_and_line_model():
     assert len(kept.encode("utf-8")) <= STATEMENT_CAP_BYTES == 16_384
     assert kept.split("\n")[-1] == long_line  # whole lines only
     assert len((kept + "\n" + long_line).encode("utf-8")) > STATEMENT_CAP_BYTES
-    assert capped.notes == ("statement truncated at K-14: C-01",)
+    # v1.13/C-12: the truncation marker itself contains the literal text "K-14"; scanning
+    # SpecId.text (the already-capped statement, marker included, per C-12) for edges finds it
+    # as an undeclared token like any other.
+    assert capped.notes == (
+        "edge to undeclared id: C-01 -> K-14",
+        "statement truncated at K-14: C-01",
+    )
     assert capped.by_id()["C-01"].title == "Big"
 
     # property over both fixture specs: title is the cell / remainder, text agrees with it

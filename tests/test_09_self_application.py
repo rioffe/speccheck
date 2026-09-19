@@ -16,7 +16,11 @@ ROOT = Path(__file__).resolve().parent.parent
 # SPEC.md v1.11 declares 200 ids (35 R, 11 C, 11 I, 15 K, 51 E, 77 T; none retired); bump with the spec
 # SPEC.md v1.12 declares 203 ids (35 R, 11 C, 12 I, 15 K, 52 E, 78 T; none retired); v1.12 added
 # E-52, I-012, T-78; bump with the spec
-DECLARED_IDS = 203
+# SPEC.md v1.13 declares 215 ids (37 R, 13 C, 13 I, 15 K, 55 E, 82 T; none retired); v1.13 added
+# new requirements/contracts/an invariant/edge cases/tests for spec-internal edges and the
+# impact walk; its own decision table is not counted here — decisions are never in `ids`
+# (D-25).  speccheck:ignore (this range notation is not a deliberate citation of every id)
+DECLARED_IDS = 215
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

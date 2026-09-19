@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "spec": "SPEC.md",
   "judge": "mock",
   "judge_available": true,
@@ -1100,6 +1100,108 @@
       "unrun": []
     }
   ],
+  "decisions": [
+    {
+      "id": "D-01",
+      "line": 114,
+      "affects": [
+        "C-04",
+        "K-02"
+      ]
+    },
+    {
+      "id": "D-02",
+      "line": 115,
+      "affects": [
+        "C-03"
+      ]
+    },
+    {
+      "id": "D-03",
+      "line": 116,
+      "affects": []
+    }
+  ],
+  "edges": [
+    {
+      "src": "C-04",
+      "kind": "depends_on",
+      "dst": "K-02",
+      "retired": false
+    },
+    {
+      "src": "T-01",
+      "kind": "verifies",
+      "dst": "R-01",
+      "retired": false
+    },
+    {
+      "src": "T-02",
+      "kind": "verifies",
+      "dst": "C-01",
+      "retired": false
+    },
+    {
+      "src": "T-03",
+      "kind": "verifies",
+      "dst": "R-02",
+      "retired": false
+    },
+    {
+      "src": "T-03",
+      "kind": "verifies",
+      "dst": "K-02",
+      "retired": false
+    },
+    {
+      "src": "T-04",
+      "kind": "verifies",
+      "dst": "C-04",
+      "retired": false
+    },
+    {
+      "src": "T-05",
+      "kind": "verifies",
+      "dst": "C-04",
+      "retired": false
+    },
+    {
+      "src": "T-05",
+      "kind": "verifies",
+      "dst": "K-02",
+      "retired": false
+    },
+    {
+      "src": "T-06",
+      "kind": "verifies",
+      "dst": "C-04",
+      "retired": false
+    },
+    {
+      "src": "T-07",
+      "kind": "verifies",
+      "dst": "C-04",
+      "retired": false
+    },
+    {
+      "src": "D-01",
+      "kind": "affects",
+      "dst": "C-04",
+      "retired": false
+    },
+    {
+      "src": "D-01",
+      "kind": "affects",
+      "dst": "K-02",
+      "retired": false
+    },
+    {
+      "src": "D-02",
+      "kind": "affects",
+      "dst": "C-03",
+      "retired": true
+    }
+  ],
   "dangling": [
     {
       "id": "R-09",
@@ -1121,7 +1223,11 @@
       "outcome": "passed"
     }
   ],
-  "notes": [],
+  "notes": [
+    "edge to undeclared id: C-04 -> T-49",
+    "edge to undeclared id: C-04 -> T-76",
+    "edge to undeclared id: D-03 -> E-99"
+  ],
   "metrics": {
     "declared": 21,
     "retired": 2,

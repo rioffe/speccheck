@@ -1,6 +1,6 @@
 # SPECIFICATION — `calc` (golden fixture for speccheck)
 
-> - **Status:** fixture v1.1 — a deliberately defective project used by T-46/T-47 and `--self-check`; v1.1 adds the long-body contract C-04 and its labeled tests for T-49/T-76
+> - **Status:** fixture v1.2 — a deliberately defective project used by T-46/T-47 and `--self-check`; v1.1 added the long-body contract C-04 and its labeled tests for T-49/T-76; v1.2 adds a decision table for T-79/T-80/T-81
 > - **Scope:** a four-function calculator with rounding; every planted defect is listed at the end
 
 ## 0. Intent
@@ -107,6 +107,14 @@ rather than against the clause the test asserts is caught by the labels in `gold
 Example IDs inside a fence are not declarations: R-20, C-08, T-40.
 ```
 
+## 12. Decisions
+
+| ID | Decision | Default | Alternatives | Affects | Owner |
+| -- | -------- | ------- | ------------- | ------- | ----- |
+| D-01 | Rounding library | stdlib `round()` | `decimal.Decimal` | K-02, C-04 | fixture |
+| D-02 | Legacy `average` | dropped, replaced by C-04 | keep `average` as a compatibility shim | C-03 | fixture |
+| D-03 | Negative-index guard | not yet specified | add a dedicated edge case | E-99 | fixture |
+
 ## Planted defects (for T-46 / T-47)
 
 - `R-03` is never cited anywhere (UNCITED).
@@ -119,3 +127,6 @@ Example IDs inside a fence are not declarations: R-20, C-08, T-40.
 - `src/calc/legacy.py` cites retired `R-04` (stale).
 - `junit.xml` carries a result for `tests.test_gone::test_vanished` (unattributed).
 - The module docstring of `tests/test_core.py` cites `E-02` (file-level citation).
+- D-01's *Affects* cell names two declared ids (K-02, C-04); D-02's names the retired C-03
+  (an `affects` edge with `retired: true`); D-03's names the undeclared E-99 (a Note, no edge;
+  T-79).

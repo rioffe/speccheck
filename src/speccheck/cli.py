@@ -399,6 +399,8 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             graph=graph,
             unattributed=unattributed,
             notes=notes,
+            decisions=index.decisions,
+            edges=index.edges,
         )
     )
     for note in report["notes"]:
