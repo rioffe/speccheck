@@ -62,8 +62,71 @@ test that calls the code and asserts nothing about it, and one that asserts a *d
 it. `judge_labels.json` labels them `ASSERTS` ×4, `EXECUTES_ONLY`, `UNRELATED`. The labeled set grows from 9 to at
 least 20 edges, so the 0.90 bar tolerates two misses instead of none.
 
+```mermaid
+flowchart LR
+  subgraph tests["tests/ — six tests citing the new contract"]
+    direction TB
+    A1["test_shape"]
+    A2["test_rounding"]
+    A3["test_ordering"]
+    A4["test_empty"]
+    X["test_runs_it<br/>calls the code, asserts nothing"]
+    U["test_other_id<br/>asserts a different id"]
+  end
+  subgraph spec["fixtures/target/SPEC.md — new heading-declared contract, body ≥ 2 kB"]
+    direction TB
+    K1["clause 1 — pinned struct"]
+    K2["clause 2 — rule: rounding"]
+    K3["clause 3 — rule: ordering"]
+    K4["clause 4 — rule: empty input"]
+    K5["clause 5 — rule: error text<br/>(no test on purpose)"]
+    T["title line"]
+  end
+  A1 -- "label: ASSERTS" --> K1
+  A2 -- "label: ASSERTS" --> K2
+  A3 -- "label: ASSERTS" --> K3
+  A4 -- "label: ASSERTS" --> K4
+  X -. "label: EXECUTES_ONLY" .-> T
+  U -. "label: UNRELATED" .-> T
+```
+
+*Figure 1 — Part A's addition to the golden fixture (T-46, T-76); the edge labels are the entries `judge_labels.json`
+gains (T-49). Each `ASSERTS` test touches one clause and no other, so a judge that grades against the gist of the body —
+the failure §1 documents — mislabels four edges at once and fails the run, while a judge that locates the clause
+passes. Clause 5 is deliberately left without a test: it is what the `EXECUTES_ONLY` case must not be credited for.*
+
 **Part B — a grounded clause.** The reply carries the clause it matched; the kernel checks that the clause is in the
 statement; a verdict that names no locatable clause is `UNKNOWN`.
+
+```mermaid
+flowchart LR
+  subgraph req["JudgeRequest (C-06)"]
+    S["statement<br/>title + section body (R-33)"]
+    SRC["source<br/>numbered lines start..end"]
+  end
+  J(["judge<br/>one call per edge (K-06)"])
+  subgraph reply["reply (C-10)"]
+    V["verdict"]
+    CL["clause — verbatim excerpt<br/><b>new in v1.9</b>"]
+    EV["evidence — file, line"]
+  end
+  S --> J
+  SRC --> J
+  J --> V
+  J --> CL
+  J --> EV
+  EV --> E{"every line inside<br/>start..end of the test?<br/>(C-06 today, I-005)"}
+  CL --> C{"whitespace-collapsed substring<br/>of the statement, 12..280 chars?<br/>(K-15, new)"}
+  E -- no --> U1["UNKNOWN<br/>judge: ungrounded (E-16)"]
+  C -- no --> U2["UNKNOWN<br/>judge: unlocated clause (E-48)"]
+  E -- yes --> OK
+  C -- yes --> OK["verdict recorded<br/>with clause and evidence (C-07)"]
+  V -. UNRELATED / UNKNOWN:<br/>clause blanked (E-49) .-> OK
+```
+
+*Figure 2 — one edge through the kernel after v1.9. Today the right-hand side has only the evidence check (E-16);
+Part B adds its mirror on the statement side (K-15, E-48). A verdict must be grounded in both the test and the
+statement before it is recorded; the mock judge satisfies K-15 with the title line, so Phase A is unchanged.*
 
 Proposed rows, drafted for `spec-writing`:
 
