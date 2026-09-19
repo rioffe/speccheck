@@ -14,7 +14,9 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 # SPEC.md v1.11 declares 200 ids (35 R, 11 C, 11 I, 15 K, 51 E, 77 T; none retired); bump with the spec
-DECLARED_IDS = 200
+# SPEC.md v1.12 declares 203 ids (35 R, 11 C, 12 I, 15 K, 52 E, 78 T; none retired); v1.12 added
+# E-52, I-012, T-78; bump with the spec
+DECLARED_IDS = 203
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

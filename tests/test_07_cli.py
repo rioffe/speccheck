@@ -675,12 +675,13 @@ def test_out_failures_and_temp_and_rename(project, monkeypatch):
         "SPEC_CONFORMANCE_REPORT.md",
         "speccheck.json",
     ]
-    nonces = [
-        re.fullmatch(
+    nonces = []
+    for n in renames:
+        m = re.fullmatch(
             r"\.(?:speccheck\.json|SPEC_CONFORMANCE_REPORT\.md)\.([0-9a-f]{8})\.tmp", n
-        ).group(1)
-        for n in renames
-    ]
+        )
+        assert m, n
+        nonces.append(m.group(1))
     assert len(nonces) == 2 and nonces[0] == nonces[1]
 
 
@@ -782,6 +783,7 @@ def test_progress_indicator_format_cadence_and_isolation(project, monkeypatch):
         width = max(width, len(line))
         assert len(padded) == width, (padded, width)
         m = re.match(r"^judge: \[([#-]{20})\] (\d+)/6 edges", line)
+        assert m, line
         bar, done = m.group(1), int(m.group(2))
         assert bar == "#" * (20 * done // 6) + "-" * (20 - 20 * done // 6)
         dones.append(done)
@@ -797,7 +799,12 @@ def test_progress_indicator_format_cadence_and_isolation(project, monkeypatch):
     monkeypatch.setattr(judge_llm, "_httpx_post", _asserting_stub(2.5))
     run = one.check("--judge", "llm", "--progress", "always", env=LLM_ENV)
     draws, _ = _segments(run.stderr)
-    idle = {re.search(r"(\d+:\d{2}) elapsed", d).group(1) for d in draws if " 0/1 edges" in d}
+    idle = set()
+    for d in draws:
+        if " 0/1 edges" in d:
+            m = re.search(r"(\d+:\d{2}) elapsed", d)
+            assert m, d
+            idle.add(m.group(1))
     assert len(idle) >= 2, draws
 
     many = _edges_project(project, 32)
@@ -951,3 +958,232 @@ def test_interrupt_abandons_in_flight_requests(project, monkeypatch):
         "\r" + " " * (len(run.stderr.split("\r")[-2])) + "\rERROR interrupted\n"
     )
     assert not (six.path / "speccheck.json").exists()
+
+
+# --------------------------------------------------------------------------------------------
+# Section 9.7 T-78: --src / --tests accept a comma-separated list of files and/or directories.
+# The effective list is built per C-03 PATHS (D-23): split each occurrence on ',', trim each
+# segment, drop empties, resolve inside --root, deduplicate by resolved path (I-012) and emit
+# ascending by resolved path (I-002). Directory elements are descended; file elements are scanned
+# under their parent (D-18); a segment inside --root that is neither is a usage error (E-52).
+
+PATHS_SPEC = spec_table([("R-01", "adds"), ("C-01", "divides"), ("E-29", "binary skip")])
+
+PATHS_PROJECT_FILES = {
+    "SPEC.md": PATHS_SPEC,
+    "src/a.py": "def add(a, b):\n    # R-01\n    return a + b\n",
+    "src/b.py": "def div(a, b):\n    # C-01\n    return a / b\n",
+    "src/sub/c.py": "x = 1    # R-01\n",
+    "tests/test_calc.py": "def test_add():\n    '''T-01: R-01'''\n    assert True\n",
+    "junit.xml": junit([("tests.test_calc", "test_add", "passed")]),
+}
+
+
+def _paths_argv(
+    srcs: list[str], tests: list[str], out: str | None = None, results: bool = True
+) -> list[str]:
+    argv = ["check", "--spec", "SPEC.md"]
+    for s in srcs:
+        argv += ["--src", s]
+    for t in tests:
+        argv += ["--tests", t]
+    if results:
+        argv += ["--results", "junit.xml"]
+    if out is not None:
+        argv += ["--out", out]
+    return argv
+
+
+def _report_bytes(base: Path, out: str) -> bytes:
+    return (base / out / "speccheck.json").read_bytes() + (
+        base / out / "SPEC_CONFORMANCE_REPORT.md"
+    ).read_bytes()
+
+
+def test_paths_one_list_equivalent_to_repeatable_occurrences(project):
+    """T-78 / C-03 / I-012 / I-002: one --src occurrence holding a comma list yields a byte-identical
+    report to repeating the flag across occurrences, and to descending the directory alone, because
+    the resolved paths are deduplicated (a file that a directory and a direct element both cover is
+    scanned and cited exactly once) and emitted in ascending resolved-path order. (D-23, R-03,
+    R-04)"""
+    p = project(dict(PATHS_PROJECT_FILES))
+    one = run_cli(_paths_argv(["src/a.py,src/b.py,src/sub/c.py,src"], ["tests"], out="one"), p.path)
+    repeated = run_cli(
+        _paths_argv(["src/a.py,src/b.py", "src/sub/c.py,src"], ["tests"], out="rep"), p.path
+    )
+    as_dir = run_cli(_paths_argv(["src"], ["tests"], out="dir"), p.path)
+    assert one.code == repeated.code == as_dir.code == 0
+    a = _report_bytes(p.path, "one")
+    b = _report_bytes(p.path, "rep")
+    c = _report_bytes(p.path, "dir")
+    assert a == b == c
+
+
+def test_paths_trims_and_drops_empty_segments(project):
+    """T-78 / C-03 / D-23: a --src occurrence is split on the literal ',', every segment trimmed of
+    leading/trailing space and tab, and empty segments dropped with no Note and no error -- so
+    ' src/a.py ,, src/b.py ,' is the effective list [src/a.py, src/b.py]; a present-but-entirely-
+    empty flag yields the empty list (not the directory default), and two empty lists together is
+    E-19 (exit 1); an ABSENT flag keeps the default. (I-002, R-03, R-04)"""
+    p = project(dict(PATHS_PROJECT_FILES))
+    messy = run_cli(_paths_argv([" src/a.py ,, src/b.py , "], ["tests"], out="messy"), p.path)
+    clean = run_cli(_paths_argv(["src/a.py,src/b.py"], ["tests"], out="clean"), p.path)
+    assert clean.code == 0
+    assert messy.code == 0
+    assert not any(
+        ("empty" in n) or ("no such" in n) for n in messy.json_at(p.path / "messy")["notes"]
+    )
+    assert _report_bytes(p.path, "messy") == _report_bytes(
+        p.path, "clean"
+    )  # empties dropped, no Note
+    # present-but-empty --src/--tests: no files, hence E-19 (no evidence), not the directory default
+    both_empty = run_cli(
+        ["check", "--spec", "SPEC.md", "--src", " ", "--tests", " ", "--out", "ee"],
+        p.path,
+    )
+    assert both_empty.code == 1, both_empty.stderr
+    # an entirely-absent flag keeps the src/ and tests/ directory default
+    defaulted = run_cli(
+        ["check", "--spec", "SPEC.md", "--results", "junit.xml", "--out", "df"],
+        p.path,
+    )
+    assert defaulted.json_at(p.path / "df")["metrics"]["by_status"]["PASSING"] >= 1
+
+
+def test_paths_element_neither_file_nor_directory_is_e52(project, tmp_path: Path):
+    """E-52 / D-23 / T-78: a --src or --tests element that resolves inside --root but exists as
+    neither a directory nor a regular file is a usage error -- exit 2 with the message
+    '--<flag>: no such file or directory: <segment>' and no reports written; a broken symlink
+    (Q-007) behaves the same; a segment OUTSIDE --root is E-09 instead. (E-09)"""
+    p = project(dict(SIMPLE_PROJECT))
+
+    missing = run_cli(
+        [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "does-not-exist",
+            "--tests",
+            "tests",
+            "--out",
+            "o1",
+        ],
+        p.path,
+    )
+    assert missing.code == 2
+    assert missing.stderr.startswith("ERROR --src: no such file or directory: does-not-exist")
+    assert not (p.path / "o1" / "speccheck.json").exists()
+
+    missing_tests = run_cli(
+        ["check", "--spec", "SPEC.md", "--src", "src", "--tests", "no-such-tests", "--out", "o2"],
+        p.path,
+    )
+    assert missing_tests.code == 2
+    assert missing_tests.stderr.startswith(
+        "ERROR --tests: no such file or directory: no-such-tests"
+    )
+
+    # a broken symlink that resolves inside --root to a non-existent target is E-52
+    os.symlink(p.path / "ghost", p.path / "broken", target_is_directory=False)
+    broken = run_cli(
+        ["check", "--spec", "SPEC.md", "--src", "broken", "--tests", "tests", "--out", "o3"],
+        p.path,
+    )
+    assert broken.code == 2
+    assert "no such file or directory: broken" in broken.stderr
+
+    # a segment that resolves OUTSIDE --root is E-09 (path outside --root), not E-52
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "f.py").write_text("x = 1\n")
+    outside_run = run_cli(
+        [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            str(outside / "f.py"),
+            "--tests",
+            "tests",
+            "--out",
+            "o4",
+        ],
+        p.path,
+    )
+    assert outside_run.code == 2 and outside_run.stderr.startswith("ERROR path outside --root: ")
+
+
+def test_paths_directly_named_files_get_each_per_file_filter(project):
+    """T-78 / C-03 / D-23: every per-file filter applies to a file reached by a PATHS element exactly
+    as when reached by descent -- an oversized file is skipped with a Note (E-10/K-02), a file with
+    'speccheck:ignore-file' in its first three lines is skipped with a Note (E-33), a binary file
+    (a 0x00 byte in its first 8192) is skipped silently with NO Note (E-29), and a non-Python text
+    file is scanned as one file-level case (R-03/E-13)."""
+    files = {
+        "SPEC.md": spec_table(
+            [("R-01", "a"), ("C-01", "file-level citation from a text file"), ("E-29", "binary")]
+        ),
+        "src/a.py": "def add(a, b):\n    # R-01\n    return a + b\n",
+        "src/readme.md": "# C-01\na citation from a non-Python text file proves E-13 file-level scan\n",
+        "src/bin.dat": b"\x00\x01\x02 # E-29 marker \xff\xfe",
+        "src/big.py": "x = 1 # R-01\n" * 250000,
+        "src/ig.py": "speccheck:ignore-file\n# R-01 ignored\n",
+    }
+    p = project(files)
+    run = run_cli(
+        [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "src/a.py,src/readme.md,src/bin.dat,src/big.py,src/ig.py",
+            "--out",
+            "o",
+        ],
+        p.path,
+    )
+    doc = run.json_at(p.path / "o")
+    notes = doc["notes"]
+    assert "skipped 1 file over 2 MiB: src/big.py" in notes  # E-10, via a direct element
+    assert "ignored 1 file(s) by speccheck:ignore-file" in notes  # E-33
+    assert not any("bin.dat" in n for n in notes)  # E-29 is silent
+    # E-29: the binary file is skipped, so its only token never becomes a citation
+    e29 = next(r for r in doc["ids"] if r["id"] == "E-29")
+    assert not e29["src"] and not e29["tests"]
+    # R-03/E-13: a non-Python text file is scanned and its citation is recorded file-level
+    c01 = next(r for r in doc["ids"] if r["id"] == "C-01")
+    assert any(s["file"] == "src/readme.md" for s in c01["src"])
+
+
+def test_paths_first_seen_covering_element_fixes_scan_root(tmp_path: Path):
+    """I-012 / D-18 / D-23 / T-78: a file that two PATHS elements both cover is scanned and cited
+    exactly once, its recorded --src/--tests root (the input to MODULE, D-18) being the FIRST element
+    in list order that covers it; a file named directly as a --tests element is found under its own
+    parent directory, so its scan_root is that parent's path relative to --root."""
+    from speccheck.extract import ScanCounters, scan_roots
+    from speccheck.swift import swift_module
+
+    root = tmp_path / "root"
+    (root / "x" / "y").mkdir(parents=True)
+    case = root / "x" / "y" / "Foo.swift"
+    case.write_text("@Test func free() {}\n")
+    root_res = root.resolve()
+    x_res = (root / "x").resolve()
+    xy_res = (root / "x" / "y").resolve()
+    case_res = case.resolve()
+
+    def roots(ordered: list[Path]) -> list:
+        return scan_roots(tuple(ordered), root_res, frozenset(), None, ScanCounters())
+
+    # a directly-named file's scan_root is its parent directory, relative to root
+    direct = roots([case_res])
+    assert len(direct) == 1
+    assert direct[0].scan_root == "x/y"
+    # a deeper overlapping directory first fixes the deeper root; a shallower first fixes the shallow
+    assert roots([xy_res, x_res])[0].scan_root == "x/y"
+    assert roots([x_res, xy_res])[0].scan_root == "x"
+    # however many elements cover the file, it is scanned and cited exactly once
+    assert len(roots([case_res, xy_res, x_res])) == 1
+    # the recorded scan_root drives MODULE, joining a SwiftPM xUnit module like a descended file
+    assert swift_module(direct[0].path, direct[0].scan_root) == "y"

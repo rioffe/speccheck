@@ -4,7 +4,7 @@ Everything here is deterministic and pattern-based (R-01..R-04, R-27); no semant
 
 Spec IDs realized here (§11): R-01, R-02, R-03, R-16, R-20, R-27, R-33, C-01, C-02, C-03, I-002,
     R-35, I-011, K-02, K-03, K-04, K-08, K-14, E-01, E-02, E-03, E-04, E-10, E-11, E-20, E-23,
-    E-29, E-30, E-31, E-33, E-34, E-46, E-47, E-50.
+    E-29, E-30, E-31, E-33, E-34, E-46, E-47, E-50, E-52, I-012.
 """
 
 from __future__ import annotations
@@ -419,11 +419,21 @@ def scan_roots(
     out_dir: Path | None,
     counters: ScanCounters,
 ) -> list[ScannedFile]:
-    """Every text file under the roots that C-03 admits, in deterministic path order."""
+    """C-03 PATHS (D-23): every admitted file, ascending by resolved path.
+    A directory element is descended; a file element is scanned under its parent
+    directory (D-18). Resolved-path deduplication: a directly-named file also
+    covered by a directory is scanned and cited exactly once (I-012)."""
     files: list[ScannedFile] = []
     seen: set[Path] = set()
-    for scan_root in roots:
-        for path in _walk(scan_root, counters):
+    for entry in roots:  # C-03 PATHS (D-23): a directory element is descended; a file element
+        # is scanned as that one file under its parent directory (D-18, fixes its MODULE).
+        if entry.is_dir():  # entry is a resolved (canonical) path, so never a symlink
+            candidates = ((p, entry) for p in _walk(entry, counters))
+        elif entry.is_file():
+            candidates = [(entry, entry.parent)]
+        else:
+            continue  # E-52 (cli.py) excludes any element that is neither a dir nor a file
+        for path, scan_root in candidates:
             if path in seen:
                 continue
             seen.add(path)

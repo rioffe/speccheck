@@ -3,7 +3,7 @@
 
 Spec IDs realized here (§11): R-14, R-15, R-17, R-18, R-19, R-21, R-23, R-28, R-29, R-30, I-001,
     I-006, I-007, I-009, K-01, K-06, K-10, K-11, K-12, E-01, E-09, E-19, E-21, E-26, E-32, E-36,
-    E-39, E-41.
+    E-39, E-41, E-52, C-03 (PATHS list parsing, D-23).
 """
 
 from __future__ import annotations
@@ -194,19 +194,36 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
     except OSError:
         raise UsageError(f"--spec: not a readable file: {args.spec}") from None
 
-    def dirs(flag: str, values: list[str] | None, default: str) -> tuple[Path, ...]:
+    def paths(flag: str, values: list[str] | None, default: str) -> tuple[Path, ...]:
+        """C-03 PATHS / D-23: each occurrence is a comma-separated list of files and/or
+        directories. Split on the literal ',', trim each segment (" " and "\t"), and drop
+        every empty segment (no Note, no error); resolve each surviving segment inside --root
+        (E-09, symlinks resolved to their target per Q-007); and deduplicate the resolved
+        paths so a file reached by two elements is scanned once. A segment resolved inside
+        --root that is neither a directory nor a regular file is a usage error (E-52),
+        replacing the former "not a directory" check. The default applies only when the flag
+        is entirely absent."""
         if values is None:
             values = [default] if Path(default).is_dir() else []
         out: list[Path] = []
+        seen: set[Path] = set()
         for value in values:
-            path = _resolve_inside(value, root)
-            if not path.is_dir():
-                raise UsageError(f"{flag}: not a directory: {value}")
-            out.append(path)
+            for raw in value.split(","):
+                segment = raw.strip(" \t")
+                if not segment:
+                    continue  # D-23: an empty/whitespace-only segment is dropped, no Note/error
+                path = _resolve_inside(segment, root)  # E-09 containment, after symlink resolve
+                if not (path.is_dir() or path.is_file()):
+                    # E-52: resolved inside --root but neither a directory nor a regular file
+                    raise UsageError(f"{flag}: no such file or directory: {segment}")
+                if path in seen:  # I-012 / C-03 step 5: deduplicate the resolved paths
+                    continue
+                seen.add(path)
+                out.append(path)
         return tuple(out)
 
-    src = dirs("--src", args.src, "src")
-    tests = dirs("--tests", args.tests, "tests")
+    src = paths("--src", args.src, "src")
+    tests = paths("--tests", args.tests, "tests")
     results: Path | None = None
     if args.results is not None:
         results = _resolve_inside(args.results, root)
