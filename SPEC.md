@@ -1,6 +1,6 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.9 — v1.8 plus clause-grounded verdicts and a body in the judge-evaluation fixture (`PROPOSAL_v1.9_clause_grounding.md`, D-21 confirmed 2026-09-18): the judge names the clause of the statement it judged against and the kernel discards a verdict whose clause cannot be located in the statement, the statement-side mirror of the evidence-line rule (R-34, C-06 `Verdict.clause`, K-15, E-48, E-49, I-005, C-07 `schema_version` `"1.2"`, C-08 §8 Clause column, C-10 reworded clause-first, T-75); the golden fixture gains a heading-declared contract with a multi-clause body and six labeled tests so T-49 can observe a judge that grades a body by its gist (T-46, T-76, T-49 label floor); D-08 re-run; D-22 opened for recorded-not-gating T ids under an honest judge. Evidence: `openai/gpt-4o-mini` mis-judged 13 of 18 long-body contract edges on the mdv tree while passing T-49 at 1.000; `google/gemini-3.8-flash` located the clauses and found real gaps, and also passed T-49 at 1.000. v1.8 applied the v1.7 review (F-301..F-307); v1.7 made a heading-declared ID's statement its title plus its section body (R-33). Earlier versions: see the revision history.
+> - **Status:** v1.10 — v1.9 with D-22 settled (2026-09-18): a T id declared with the marker `*(recorded)*` is a **recorded** test — one whose proof is a recorded run, not an assertion in the suite (T-48 self-application, T-49 judge evaluation, T-51 benchmark). Its citing test still has to exist and pass (status by C-05 steps 1–4 as before), but its edges are never sent to the judge (C-05 step 5, I-010), so an honest judge no longer downgrades a presence check by design (R-35, C-01 marker, C-02 `recorded`, C-07 `recorded` key and `schema_version` `"1.3"`, C-08 ID cell, E-50, E-51, T-77; D-22 confirmed). v1.9 added clause-grounded verdicts (R-34) and a body in the judge-evaluation fixture (T-76); v1.8 applied the v1.7 review; v1.7 made a heading-declared ID's statement its title plus its section body (R-33). Earlier versions: see the revision history.
 > - **Language / stack:** Python 3.12 | standard library for the deterministic kernel (`re`, `ast`, `xml.etree`, `json`, `argparse`, `pathlib`) | CLI only; optional model-backed judge behind an `[llm]` extra
 > - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (one file, rewritten per review: v0.1 → F-001..F-017, v1.3 → F-201..F-210, v1.7 → F-301..F-307; all cited below); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20); `PROPOSAL_v1.9_clause_grounding.md` (the v1.9 change, its two-model evidence, D-21, and the D-22 question)
 > - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code.
@@ -16,7 +16,7 @@
 This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") made mechanical. Humans doing that audit are slow and get tired; agents doing it are fast and confabulate. The design splits the work accordingly:
 
 - The **deterministic kernel** does everything that can be done by pattern, graph, and arithmetic: which IDs exist, which are cited where, which tests ran and how they ended, what that makes each ID's status, and what the coverage ratios are. Two runs on identical inputs produce byte-identical reports.
-- The **judge** — a model-backed component, off by default — answers exactly one question per (test case, ID) edge: *does this test assert the observable behavior this ID describes, or does it merely execute code near it?* — at the granularity of a clause: a statement with several clauses (a pinned interface and the prose around it, R-33) is asserted when a test asserts any one of them (C-10). Its answer MUST cite lines inside the test and MUST quote the clause of the statement it judged against; an answer without valid evidence, or whose clause cannot be found in the statement, is discarded as `UNKNOWN` (v1.9, R-34). The judge can turn a `PASSING` into a `WEAKLY_PASSING`; it can never turn anything into `PASSING`.
+- The **judge** — a model-backed component, off by default — answers exactly one question per (test case, ID) edge: *does this test assert the observable behavior this ID describes, or does it merely execute code near it?* — at the granularity of a clause: a statement with several clauses (a pinned interface and the prose around it, R-33) is asserted when a test asserts any one of them (C-10). Its answer MUST cite lines inside the test and MUST quote the clause of the statement it judged against; an answer without valid evidence, or whose clause cannot be found in the statement, is discarded as `UNKNOWN` (v1.9, R-34). The judge can turn a `PASSING` into a `WEAKLY_PASSING`; it can never turn anything into `PASSING`. It is never consulted about a *recorded* test — a T id marked `*(recorded)*` whose proof is a recorded run rather than an assertion (v1.10, R-35).
 
 **Why this boundary (context the implementer should not re-derive):** a checker that lets a model decide conformance has merely moved the vibe-coding problem one level up — the report becomes something to trust rather than something to verify. Keeping the model on the downgrade-only side of the line means a green report is as trustworthy as `grep` plus the test runner, and a yellow one carries a reason you can click on.
 
@@ -90,6 +90,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-32** | The declaration parser MUST declare an ID whose bold form is the *beginning* of a table row's first cell and is followed by whitespace-separated decoration (`\| **K-07** **[port]** \|`), ignoring the decoration; the statement remains the second cell (C-01 (a), E-44). | the MonteCarloPi port spec marks port-specific ids `**[port]**` inside the id cell; six declared ids were reported as 43 dangling citations |
 | **R-33** | For an ID declared by a heading (C-01 (b)), the checker MUST use the heading text followed by the section body beneath it — prose, bullets, and fenced code blocks, up to the next heading of the same or a higher level, capped per K-14 — as the ID's statement (`SpecId.text`, `JudgeRequest.statement`, JSON `statement`), so that the judge and the JSON report see the contract's pinned shape and not its title. The heading text alone is kept as `SpecId.title` / JSON `title`, and that is what the Markdown report renders (C-08). Table-row declarations are unchanged. | `PROPOSAL_v1.7_heading_bodies.md` (2026-09-17): two judges over the same 130 MonteCarloPi edges — `gpt-4o-mini` 65/70, 0 weak; `gemini-3.8-flash` 56/70, 9 weak, 15 UNRELATED, 3 UNKNOWN — and every disagreement was a `###`-declared contract whose statement was a title (`Data structures`, `` `EstimationWorker` (an `actor`) ``) while the pinned API sat unsent beneath it |
 | **R-34** | For every `ASSERTS` or `EXECUTES_ONLY` verdict the judge MUST name the clause of the statement it judged against, as a verbatim excerpt, and the kernel MUST discard as `UNKNOWN` any such verdict whose excerpt cannot be located in the statement (K-15, E-48) — the statement-side mirror of the evidence-line rule (C-06, I-005), so that a recorded verdict is grounded in both the test and the statement. | `PROPOSAL_v1.9_clause_grounding.md`: with bodies in the statement, `gpt-4o-mini` graded long contracts by their gist — 13 of 18 stable downgrades on the mdv tree were tests asserting a body clause nearly verbatim — while a model that located the clause (`gemini-3.8-flash`) did not; nothing in the report showed *which* clause either had judged |
+| **R-35** | A T id declared with the literal marker `*(recorded)*` immediately after its ID form (C-01) is RECORDED: the checker MUST compute its status by C-05 steps 1–4 exactly as for any other T id — it still needs a citing test case with a passed outcome to be `PASSING` — and MUST NOT send any of its edges to the judge, so that C-05 step 5 never applies to it; the marker MUST be carried into both reports (C-07 `recorded`, C-08). On a non-T id the marker is ignored with a Note (E-50). | D-22: the recorded tests of this document (T-48, T-49, T-51) are cited by presence checks so that they are not `UNCITED`; an honest judge reads such a check as `EXECUTES_ONLY` — `gemini-3.8-flash` did so to T-48 on 2026-09-18 — and `--strict --judge llm` went red for a reason the spec intended but had not written down |
 
 ---
 
@@ -162,7 +163,7 @@ A run is a single, stateless pipeline. There is no persistent state between runs
 | Artifact | Written to | Version | Shape |
 | -------- | ---------- | ------- | ----- |
 | `SPEC_CONFORMANCE_REPORT.md` | `--out` (default `.`) | mirrors JSON `schema_version` | C-08 |
-| `speccheck.json` | `--out` | `schema_version: "1.2"` (`"1.0"` through v1.6; `"1.1"` added `title` in v1.7; `"1.2"` adds `clause` per verdict in v1.9) | C-07 |
+| `speccheck.json` | `--out` | `schema_version: "1.3"` (`"1.0"` through v1.6; `"1.1"` added `title` in v1.7; `"1.2"` `clause` per verdict in v1.9; `"1.3"` `recorded` per id in v1.10) | C-07 |
 
 Both files are overwritten on every successful run, via the temp-and-rename sequence in §3.1. No other file is ever written, and no temporary survives a run (I-001).
 
@@ -200,6 +201,12 @@ Lines (F-301): SPEC.md is split into lines on "\n"; a trailing "\r" on any line 
           `**K-07** **[port]**` declares K-07; `**K-07**x` and `**K-07**, note` declare nothing.
         Text after the form is DECORATION: it is not part of the statement, and a bold ID inside
         it is not a declaration (`**R-01** **R-02**` declares R-01 only).
+        RECORDED marker (R-35, v1.10): a declaration is RECORDED when the first whitespace-separated
+        token of its DECORATION is exactly `*(recorded)*` (table: `| **T-48** *(recorded)* | ... |`;
+        heading: `### T-48 *(recorded)* <title>`, where the marker is then not part of the title).
+        The marker is meaningful for family T only; on any other family it is ignored and noted
+        (E-50). `*(Recorded)*`, `(recorded)`, and a marker that is not the first token are decoration
+        like any other and mark nothing.
         statement := the trimmed text of the SECOND cell ("" if there is none)
         title     := statement  (a table declaration has no separate title; R-33)
         A bold ID in any other cell is not a declaration (E-31). A separator row (cells made of
@@ -259,7 +266,11 @@ Normalized form used everywhere in output: FAMILY "-" zero-padded to 2 digits fo
 Family T (F-001): a T id names an acceptance test. It is IN SCOPE and is expected to be cited by
   the test case that realizes it (in that case's docstring or a comment). Source citations of a
   T id are recorded but do not affect its status (C-05 step 2b). All six families count toward
-  `in_scope` and `conformance`.
+  `in_scope` and `conformance`. A RECORDED T id (marker above; R-35) is a test whose proof is a
+  recorded run (a self-application, an evaluation, a benchmark) rather than an assertion: it is
+  still cited by a test case — typically a presence check that the recorded artefact exists and
+  has the right shape — and that citation and its outcome give the id its status; its edges are
+  never judged (C-05 step 5, I-010).
 ```
 
 ### C-02 `SpecIndex`
@@ -277,6 +288,7 @@ class SpecId:
                          # per K-14); == title when the body is empty; == body when title is "" (R-33, E-46)
     line: int            # 1-based line of the declaration in SPEC.md
     retired: bool
+    recorded: bool       # C-01 RECORDED marker (R-35); only ever True for family T
 
 @dataclass(frozen=True)
 class SpecIndex:
@@ -455,14 +467,16 @@ For each declared ID x:
      if any o in O is failed or error                 -> FAILING
      elif every o in O is skipped                     -> SKIPPED
      else                                             -> PASSING
-  5. (judge enabled only) if status == PASSING:
+  5. (judge enabled only) if status == PASSING and not x.recorded:        # R-35: recorded ids skip step 5
        V := verdicts for edges (t, x), t in T with outcome passed
        if V is non-empty and no v in V is ASSERTS and some v in V is EXECUTES_ONLY or UNRELATED
                                                       -> WEAKLY_PASSING
        else                                           -> PASSING   (UNKNOWN never changes status)
 
 Cases in T without an outcome are reported as "unrun" for x and ignored in step 4.
-The judge is never consulted for edges whose ID is not PASSING after step 4 (I-010).
+The judge is never consulted for edges whose ID is not PASSING after step 4, nor for any edge of a
+  RECORDED id (I-010, R-35); a recorded id's `tests[].verdict` is null (E-37) and its edges are not
+  eligible edges for the progress indicator's <total> (C-11).
 Step 5 is the ONLY place verdicts influence anything: an ID with verdicts {ASSERTS, EXECUTES_ONLY}
   is PASSING, and PASSING is what --strict tests (R-15, §5.4; F-003). There is no per-edge rule
   anywhere else in this document.
@@ -538,11 +552,11 @@ Mock provider (judge_mock.py):
              semantics and stays deterministic (R-16, R-22)
 ```
 
-### C-07 JSON report (`speccheck.json`, `schema_version` "1.2")
+### C-07 JSON report (`speccheck.json`, `schema_version` "1.3")
 
 ```json
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "spec": "SPEC.md",
   "judge": "none | mock | llm",
   "judge_available": null,
@@ -554,6 +568,7 @@ Mock provider (judge_mock.py):
     {
       "id": "R-07",
       "family": "R",
+      "recorded": false,
       "title": "…",
       "statement": "…",
       "line": 88,
@@ -605,7 +620,8 @@ Title and statement (R-33): `title` is `SpecId.title` and `statement` is `SpecId
   multi-line — title, `\n`, the section body with its fenced blocks and indentation, truncated per
   K-14 when over the cap — and `title` is the heading text alone. `schema_version` was `"1.0"`
   through v1.6, `"1.1"` from v1.7 (`title` added), and `"1.2"` from v1.9 (`clause` added to every verdict
-  object, after `verdict`; R-34); no other key changed.
+  object, after `verdict`; R-34), and `"1.3"` from v1.10 (`recorded` added to every id record, after
+  `family`; R-35 — `true` only for a T id carrying the C-01 marker); no other key changed.
 Verdict field (Q-001): every `tests[]` entry has the key `verdict`. It is a verdict object when
   the case was judged (judge enabled, ID `PASSING` after C-05 step 4, outcome `passed`) and `null`
   otherwise — including every entry under `--judge none`. The key is never omitted.
@@ -653,6 +669,7 @@ Shape rules (F-016): `by_family` ALWAYS has exactly the six keys R, C, I, K, E, 
 ## 3. Per-ID evidence
 | ID | Status | Statement | Source citations | Test citations (outcome · verdict) |
 # one row per declared ID in C-07 order; RETIRED rows included, with the ID cell (only) struck through: `~~R-07~~`;
+# a RECORDED id's ID cell is `T-48 (recorded)` (R-35; the verdict position shows the em dash, as for any unjudged case);
 # the Statement cell renders the JSON `title` — the heading text or the table cell — never a section body, so
 # this table is byte-identical before and after v1.7 (R-33, T-73); the body the judge saw is in `speccheck.json`
 # citations rendered as `file:line`; verdict rendered as ASSERTS / EXECUTES_ONLY / UNRELATED / UNKNOWN(coerced),
@@ -866,7 +883,7 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **I-007** | **Secret and payload hygiene.** The API key never appears in stdout, stderr, or either report. INFO never contains file contents, statements, prompts, or responses. |
 | **I-008** | **Total metrics.** Every ratio is either a number in `[0, 1]` or `null`/`n/a`; no run raises on a zero denominator. |
 | **I-009** | **Exit $\equiv$ report.** `exit_code` in `speccheck.json` equals the process exit status, and both are computable from the rest of the JSON plus `strict` by the §5.4 rule. |
-| **I-010** | **One judge call per edge.** The judge is invoked at most once per (test case, ID) edge per run, and only for edges whose ID is `PASSING` after C-05 step 4 and whose test outcome is `passed`. |
+| **I-010** | **One judge call per edge.** The judge is invoked at most once per (test case, ID) edge per run, and only for edges whose ID is `PASSING` after C-05 step 4, is not RECORDED (R-35), and whose test outcome is `passed`. |
 | **I-011** | **Family-safe numbering.** ID normalization is injective within a family: `R-7`, `R-07`, `R-007` map to one ID; `R-07` and `C-07` never collide. |
 
 ---
@@ -946,6 +963,8 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **E-47** | A heading-declared ID whose section body contains a deeper heading that itself declares an ID (`#### E-09 …` under `### C-01 …`, retired or not), or a table with declaring rows | Those inner declarations are parsed exactly as before, each with its own title, statement, and body; the outer ID's statement includes their text verbatim as context (the judge sees the sub-rows). A declaring heading's body ends only at a heading of level $\leq$ its own, so a deeper declaring heading never ends it (R-33, E-31). |
 | **E-48** | Judge returns `ASSERTS` or `EXECUTES_ONLY` with a `clause` that is missing, empty, paraphrased, or shorter than 12 characters against a longer statement | `UNKNOWN`, `coerced: true`, rationale `judge: unlocated clause`; counted in `unknown_rate`, so a model that cannot quote the statement surfaces through R-28 rather than through silent mis-verdicts (R-34, K-15). The raw answer is available only at DEBUG. |
 | **E-49** | Judge returns `UNRELATED` or `UNKNOWN` with a non-empty `clause` | Recorded with `clause` `""`; not coerced; no Note (R-34). |
+| **E-50** | The `*(recorded)*` marker on a declaration whose family is not T (`| **R-07** *(recorded)* |`) | The id is declared normally and is not RECORDED (`recorded: false`); one Note `recorded marker ignored on <ID>: not a T id` (R-35). |
+| **E-51** | A RECORDED T id whose citing test case failed, was skipped, has no result, or does not exist | Status by C-05 steps 1–4 exactly as for any T id — `FAILING`, `SKIPPED`, `UNVERIFIED`, `UNCITED`; the marker exempts an id from the judge (step 5) and from nothing else, so a recorded test still has to be present and green (R-35, R-15). |
 
 ---
 
@@ -1009,6 +1028,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-24** | `conformance`, per-family ratios, and counts match hand-computed values on the golden fixture; a family with zero in-scope IDs reports `null`/`n/a`, not `0.0`, and nothing raises. (R-09, I-008) |
 | **T-25** | Retired IDs are excluded from every denominator and still appear in `ids` exactly once. (R-02, I-003) |
 | **T-53** | A T id cited only in a source file is `UNCITED`; a T id cited by a passing test is `PASSING`; T ids are counted in `in_scope`, `conformance`, and `by_family.T`. (R-25, E-25) |
+| **T-77** | `| **T-01** *(recorded)* | s |` declares T-01 with `recorded == True`, `title == "s"`; `### T-02 *(recorded)* Title` declares T-02 recorded with title `Title`; `| **T-03** *(Recorded)* |`, `| **T-04** (recorded) |` and `| **T-05** **[port]** *(recorded)* |` declare their ids not recorded; `| **R-01** *(recorded)* |` declares R-01 not recorded with the E-50 Note. With `--judge mock` and a call-counting stub under `--judge llm`: a recorded T id cited by a passing test with an assertion-free body is `PASSING` and its edge is never sent to the judge (`verdict` null, not counted in `unknown_rate`'s denominator or the C-11 total), while the same test cited by a non-recorded T id yields `WEAKLY_PASSING`; a recorded T id with a failing test is `FAILING`, with a skipped one `SKIPPED`, with no citing test `UNCITED` (E-51); the JSON carries `"recorded": true` after `"family"` and the Markdown ID cell reads `T-01 (recorded)`; `schema_version` is `"1.3"`. (R-35, C-01, C-02, C-05, C-07, C-08, I-010, E-50, E-51) |
 
 ### 9.5 Judge contract (C-06)
 
@@ -1070,19 +1090,19 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 
 | ID | Test |
 | -- | ---- |
-| **T-48** | `speccheck check --spec SPEC.md --src src --tests tests --results <this suite's junit.xml> --judge mock` on this repository reports every R/C/I/K/E/T ID in this document as `PASSING`. Recorded in `SPEC_BUILD_REPORT.md`; it is evidence *for* the build, not the proof of it — the proof is §9.1–§9.8. (R-24) |
+| **T-48** *(recorded)* | `speccheck check --spec SPEC.md --src src --tests tests --results <this suite's junit.xml> --judge mock` on this repository reports every R/C/I/K/E/T ID in this document as `PASSING`. Recorded in `SPEC_BUILD_REPORT.md`; it is evidence *for* the build, not the proof of it — the proof is §9.1–§9.8. (R-24) |
 
 ### 9.10 Performance (recorded)
 
 | ID | Test |
 | -- | ---- |
-| **T-51** | A benchmark script (`tools/bench.py`, not collected by pytest) runs `check --judge mock` on the golden fixture and on the generated 10,000-file tree five times each and prints the median wall-clock; the medians, the reference-machine description, and the pass/fail against K-08 are recorded in `SPEC_BUILD_REPORT.md`. Not run in CI. (K-08) |
+| **T-51** *(recorded)* | A benchmark script (`tools/bench.py`, not collected by pytest) runs `check --judge mock` on the golden fixture and on the generated 10,000-file tree five times each and prints the median wall-clock; the medians, the reference-machine description, and the pass/fail against K-08 are recorded in `SPEC_BUILD_REPORT.md`. Not run in CI. (K-08) |
 
 ### 9.11 LLM judge evaluation (opt-in, `--judge llm`, not run in CI)
 
 | ID | Test |
 | -- | ---- |
-| **T-49** | On the golden fixture's judged edges (each hand-labeled `ASSERTS`/`EXECUTES_ONLY`/`UNRELATED`), the LLM judge's non-`UNKNOWN` verdicts agree with labels at $\geq$ 0.90 accuracy and `unknown_rate` $\leq$ 0.10 in **each** of three independent runs (no pooling; one failing run fails T-49); all three per-run figures are recorded with model name, date, and `judge_prompt_sha256`. The labels live in `fixtures/target/golden/judge_labels.json`, a JSON object mapping `"<ID> <file>::<name>"` (the judged edge) to its label, with at least 20 entries of which at least 6 are edges of a statement over 2,048 bytes (T-76), so that a judge which grades a body by its gist fails the run while one that locates the clause passes; the runner is `tools/eval_judge.py` (not collected by pytest), which runs the check three times and scores each run against the labels (F-210). A run counts toward T-49 only if its recorded `judge_prompt_sha256` equals the SHA-256 of the current C-10 text; a change to C-10, or to C-01's statement rule, therefore voids the recorded runs and requires three fresh ones, and the labels are re-read against the current statements before those runs (F-303). (R-10, R-26) |
+| **T-49** *(recorded)* | On the golden fixture's judged edges (each hand-labeled `ASSERTS`/`EXECUTES_ONLY`/`UNRELATED`), the LLM judge's non-`UNKNOWN` verdicts agree with labels at $\geq$ 0.90 accuracy and `unknown_rate` $\leq$ 0.10 in **each** of three independent runs (no pooling; one failing run fails T-49); all three per-run figures are recorded with model name, date, and `judge_prompt_sha256`. The labels live in `fixtures/target/golden/judge_labels.json`, a JSON object mapping `"<ID> <file>::<name>"` (the judged edge) to its label, with at least 20 entries of which at least 6 are edges of a statement over 2,048 bytes (T-76), so that a judge which grades a body by its gist fails the run while one that locates the clause passes; the runner is `tools/eval_judge.py` (not collected by pytest), which runs the check three times and scores each run against the labels (F-210). A run counts toward T-49 only if its recorded `judge_prompt_sha256` equals the SHA-256 of the current C-10 text; a change to C-10, or to C-01's statement rule, therefore voids the recorded runs and requires three fresh ones, and the labels are re-read against the current statements before those runs (F-303). (R-10, R-26) |
 
 ---
 
@@ -1153,14 +1173,15 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-32 | `extract.py` (first-cell prefix rule) | T-70, T-71 |
 | R-33 | `extract.py` (heading title, SECTION BODY, K-14 cap and Note), `report.py` (`title` key; Markdown renders `title`), `judge_llm.py` (statement passthrough) | T-72, T-73, T-74 |
 | R-34 | `judge.py` (clause validation, K-15 matcher, E-48/E-49 coercion), `judge_llm.py` (`clause` in the reply), `judge_mock.py` (prefix clause), `report.py` (`clause` key, §8 column), `speccheck/judge_prompt.md` | T-75, T-76, T-49 |
-| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration and section bodies, ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72 |
-| C-02 | `extract.py` (`SpecId` with `title` and `text`, `SpecIndex`) | T-01, T-06, T-72 |
+| R-35 | `extract.py` (RECORDED marker, `SpecId.recorded`), `graph.py` (step 5 skip, eligible edges), `report.py` (`recorded` key, ID cell) | T-77 |
+| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77 |
+| C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `SpecIndex`) | T-01, T-06, T-72, T-77 |
 | C-03 | `attribute.py` (`TestCase`, `Citation`, `test*` methods, Swift adapter), `extract.py` (exclusions incl. temporaries, binary, symlinks) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67 |
 | C-04 | `results.py` (two-step `join_name`) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68 |
-| C-05 | `graph.py` (`IdStatus`, `compute_status`) | T-20, T-21, T-27, T-53 |
+| C-05 | `graph.py` (`IdStatus`, `compute_status`, recorded skip in step 5) | T-20, T-21, T-27, T-53, T-77 |
 | C-06 | `judge.py` (`JudgeRequest` with numbered `source` and full statement, `Verdict` with `clause`, validation incl. K-15), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74, T-75 |
-| C-07 | `report.py` (`to_json`; `title`; `clause`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59, T-73, T-75 |
-| C-08 | `report.py` (`to_markdown`; Statement cell from `title`; §8 Clause column; em dash and `(file)` renderings) | T-35, T-73, T-75 |
+| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59, T-73, T-75, T-77 |
+| C-08 | `report.py` (`to_markdown`; Statement cell from `title`; `(recorded)` ID cell; §8 Clause column; em dash and `(file)` renderings) | T-35, T-73, T-75, T-77 |
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
 | C-10 | `speccheck/judge_prompt.md`, `judge_llm.py` (system message) | T-33, T-54, T-74, T-75 |
 | C-11 | `judge.py` (progress line rendering, draw/erase sequences) | T-62 |
@@ -1173,7 +1194,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | I-007 | `cli.py` (logging filter), `judge_llm.py` (redaction) | T-40, T-41 |
 | I-008 | `graph.py` (metrics) | T-24 |
 | I-009 | `cli.py`, `report.py` | T-39 |
-| I-010 | `graph.py` (edge selection), `judge.py` | T-31 |
+| I-010 | `graph.py` (edge selection: PASSING, passed, not recorded), `judge.py` | T-31, T-77 |
 | I-011 | `extract.py` (normalization) | T-02 |
 | K-01 | `cli.py` | T-39, T-40, T-19, T-64 |
 | K-02 | `extract.py` (file filters, binary rule) | T-13 |
@@ -1239,6 +1260,8 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-47 | `extract.py` (inner declarations parsed; body ends only at level $\leq$ own) | T-72 |
 | E-48 | `judge.py` (unlocated clause → `UNKNOWN`) | T-75 |
 | E-49 | `judge.py` (clause blanked for `UNRELATED` / `UNKNOWN`) | T-75 |
+| E-50 | `extract.py` (marker on a non-T id → Note) | T-77 |
+| E-51 | `graph.py` (steps 1–4 unchanged for recorded ids) | T-77 |
 
 ---
 
@@ -1269,7 +1292,7 @@ Every row below is a decision the specification's author made on the requester's
 | D-19 | How a Swift Testing result name (`twoArgs(a:b:)`) is joined | C-04 strips the signature and joins on the bare identifier; overloads by label tie and are unattributed (E-45) | reconstruct the label signature in the adapter and join exactly (correct for overloads, but default arguments, `_` labels, generics and `inout` all need parsing to get right); join on signature when present and fall back to identifier (two rules where one suffices) | C-04, E-45, T-68 | requester / confirm |
 | D-20 | What a heading-declared ID's statement contains | the title plus the whole section body, fenced code blocks included, capped at 16,384 bytes (R-33, C-01 (b), K-14) — the pinned shape is the contract, and it is what a literal judge needs | prose only, code blocks dropped (smaller; rejected because MonteCarloPi's C-02 would still be judged on comment-free prose); the first fenced block only (loses prose clauses such as "throws on the first tick", and bullet-pinned shapes such as C-05's reservoir); the body to the judge but the title as JSON `statement` (two notions of "statement" in one tool; the report could not show what the judge saw); letting the judge fetch context itself (nondeterministic, provider-specific, against the §0 boundary). The cap's value is part of this decision: the proposal drafted 8,192 bytes, which would have truncated this document's own C-03 (8.4 kB) in T-48 and handed the judge a Swift-less C-03; the requester raised it to 16,384 on 2026-09-18 so no known contract is cut | R-33, C-01, C-02, C-06, C-07, C-10, K-14, E-46, E-47, T-72..T-74 | requester / confirmed v1.7 (code blocks included, cap 16,384; 2026-09-18) |
 | D-21 | How a verdict is tied to the statement | the judge quotes the clause it judged against and the kernel requires it to be LOCATED (whitespace-collapsed substring, 12..280 characters; K-15), coercing an unlocated `ASSERTS`/`EXECUTES_ONLY` to `UNKNOWN` — the same grounding pattern as evidence lines (R-34, E-48) | prompt rewording only, no `clause` field (smaller; unverifiable — the kernel cannot tell a located match from a gist, and the report cannot show which clause was judged); sending only a "relevant" slice of the body (the kernel cannot know which clause a test is about; D-20's rejected alternative); voting across repeated calls (K-06: one request per edge; hides instability); fuzzy clause matching (arguable at the boundary; "quote it" means verbatim, and a model that cannot is the finding) | R-34, C-06, C-07, C-08, C-10, K-15, E-48, E-49, I-005, T-75 | requester / confirmed v1.9 (2026-09-18: "apply proposal 1.9 in full") |
-| D-22 | Recorded-not-gating T ids under an honest judge | none in v1.9: T-48, T-49 and T-51 are cited by presence checks (so they are not `UNCITED`) and those edges are judged like any other; a judge that reads the presence check honestly marks the edge `EXECUTES_ONLY`, the id is `WEAKLY_PASSING`, and `--strict --judge llm` exits 1 on this repository for a reason the spec intends (`gemini-3.8-flash` did exactly this to T-48 on 2026-09-18; `gpt-4o-mini` had not) | a `recorded` marker on the T row (e.g. `**T-48** *(recorded)*`) that C-05 step 5 skips, so the id stays `PASSING` on its citation alone; a stated expectation for what the presence check asserts (the ids reported, the summary-line shape) so the edge is honestly `ASSERTS`; excluding family T from the judge stage entirely (too broad: T ids realized by real tests benefit from the judge) | C-05 step 5, R-15, R-28, T-48, T-49, T-51, §9.9–§9.11 | requester / open |
+| D-22 | Recorded-not-gating T ids under an honest judge | v1.10: a `*(recorded)*` marker in the T row's ID cell (C-01) makes the id RECORDED — its citing test still has to exist and pass (C-05 steps 1–4, E-51), but its edges are never judged (step 5, I-010), so a presence check is what it is and the strict LLM gate stays about assertions. This document marks T-48, T-49 and T-51 | no rule (v1.9's state: an honest judge marks the presence check `EXECUTES_ONLY` and `--strict --judge llm` exits 1 on this repository by design — `gemini-3.8-flash` did so to T-48 on 2026-09-18); a stated assertion for the presence check (fragile: what a presence check can honestly assert differs per recorded test); excluding family T from the judge stage entirely (too broad: T ids realized by real tests benefit from the judge) | R-35, C-01, C-02, C-05 step 5, I-010, C-07, C-08, E-50, E-51, T-77 | requester / confirmed v1.10 (2026-09-18: "let's do D-22") |
 
 None of the first fourteen was raised as a question before v1.1; each was decided and reviewed for precision only. That is the defect this section corrects: a specification can be implementation-grade and still not be what was asked for.
 
@@ -1292,3 +1315,4 @@ None of the first fourteen was raised as a question before v1.1; each was decide
 | v1.7 | A heading-declared ID's statement is its title plus its section body (`PROPOSAL_v1.7_heading_bodies.md`, 2026-09-17): two LLM judges over the same 130 MonteCarloPi edges disagreed almost entirely on `###`-declared contracts because both were handed a title (`Data structures`, `` `EstimationWorker` (an `actor`) ``) and never the pinned API beneath it — one guessed generously, the other refused, and neither had the contract. R-33; C-01 (b) HEADING LINE / SECTION BODY grammar, fenced blocks included (D-20), table declarations unchanged; C-02 `SpecId.title`; C-06 statement passthrough; C-07 `title` key and `schema_version` `"1.1"`; C-08 renders `title`, so the Markdown report is byte-identical; C-10 gains the any-clause rule (new `judge_prompt_sha256`); K-14 16,384-byte cap with marker line and Note (the proposal's 8,192 would have truncated this document's C-03); E-46, E-47; T-72..T-74; §11 rows; D-20. The mock judge, statuses, metrics, and exit codes are unchanged; `--judge none` output differs only in `speccheck.json`. |
 | v1.8 | All seven findings of the v1.7 `SPEC_REVIEW_REPORT.md` applied. P1: F-301 line model for `SPEC.md` — split on `\n`, trailing `\r` removed, BLANK := empty or whitespace-only, body lines re-joined with `\n` (C-01, C-02, I-002, T-72); F-302 T-72 and T-73 restated as properties of the current output, the one-time golden diff moved to `SPEC_BUILD_REPORT.md`; F-303 T-49 counts only runs under the current `judge_prompt_sha256`, D-08 re-opened, D-06 and §0 name the clause granularity. P2: F-304 ATX headings only, at most three leading spaces, bare `###` is a heading with an empty title, trailing `#` run stripped from the title, the declaring line is a HEADING LINE (C-01, T-72); F-305 empty title with a body → statement is the body alone (C-01, C-02, E-46, T-72); F-306 C-09 cited by T-33 and T-40; F-307 revision table sorted ascending, Status bullet shortened, `title` in the §1 Extractor row. No behaviour the v1.7 build would produce differently was changed; what changed is what the spec pins. |
 | v1.9 | Clause-grounded verdicts and a body in the judge-evaluation fixture (`PROPOSAL_v1.9_clause_grounding.md`, 2026-09-18; D-21 confirmed). Evidence: with bodies in the statement, `gpt-4o-mini` graded long contracts by their gist — 13 of 18 stable downgrades on the mdv tree were tests asserting a body clause nearly verbatim — while `gemini-3.8-flash` located the clauses and found real gaps (`mdv:E-19`, `mdv:T-34`, this document's R-10); both passed the nine-label T-49 at 1.000. R-34; C-06 `Verdict.clause`, K-15 LOCATED rule, E-48 (`judge: unlocated clause`), E-49 (clause blanked for `UNRELATED`/`UNKNOWN`), I-005 grounded on both sides, mock clause = prefix of the statement (R-22); C-07 `clause` key and `schema_version` `"1.2"`; C-08 §8 Clause column; C-10 question reworded clause-first, `clause` in the reply (new `judge_prompt_sha256`); T-75; golden fixture gains a heading-declared contract with a multi-clause body ≥ 2,048 bytes and six labeled tests, label set ≥ 20 entries (T-46, T-76, T-49); §11 rows; D-08 re-opened and made a model row; D-21; D-22 opened (recorded-not-gating T ids under an honest judge). Statuses, metrics, exit codes, and `--judge none`/`mock` Markdown output unchanged; `--judge mock` JSON gains the `clause` key. |
+| v1.10 | D-22 settled: RECORDED tests. A T row whose ID cell carries `*(recorded)*` as the first decoration token declares a recorded id (C-01, C-02 `recorded`); its status is computed by C-05 steps 1–4 like any T id (E-51) but its edges are never judged (step 5, I-010) and are not eligible edges for C-11; the marker on a non-T id is ignored with a Note (E-50); JSON gains `recorded` per id (`schema_version` `"1.3"`), the Markdown ID cell reads `T-48 (recorded)` (C-07, C-08); R-35, T-77; T-48, T-49 and T-51 marked in this document. Motivation: under an honest judge the presence checks that keep those ids cited are `EXECUTES_ONLY` by construction, so `--strict --judge llm` was red on this repository for a reason the spec intended but had left implicit. |
