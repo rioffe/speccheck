@@ -317,3 +317,46 @@ def test_heading_section_bodies_title_cap_and_line_model():
                 sid = got[normalize_id(m.group(1)[0], int(m.group(1)[2:]))]
                 assert sid.title == " ".join(m.group(2).split())
                 assert sid.text == sid.title or sid.text.startswith(sid.title + "\n")
+
+
+def test_recorded_marker_declarations():
+    """T-77 (extraction half): `| **T-01** *(recorded)* | s |` declares T-01 recorded with
+    title `s`; `### T-02 *(recorded)* Title` declares T-02 recorded with title `Title`;
+    `*(Recorded)*`, `(recorded)` and a marker after other decoration declare their ids not
+    recorded; the marker on a non-T id declares it not recorded with the E-50 Note; a retired
+    row may be recorded. (R-35, C-01, C-02, E-50)"""
+    text = "\n".join(
+        [
+            "| ID | Test |",
+            "| -- | ---- |",
+            "| **T-01** *(recorded)* | s |",
+            "| **T-03** *(Recorded)* | wrong case |",
+            "| **T-04** (recorded) | not the marker |",
+            "| **T-05** **[port]** *(recorded)* | marker not first |",
+            "| ~~**T-06**~~ *(recorded)* | retired and recorded |",
+            "| **R-01** *(recorded)* | a requirement |",
+            "",
+            "### T-02 *(recorded)* Title",
+            "",
+            "body line",
+            "",
+            "### T-07 Title *(recorded)*",
+        ]
+    )
+    index = parse_spec(text, "SPEC.md")
+    ids = index.by_id()
+    assert {i: s.recorded for i, s in ids.items()} == {
+        "T-01": True,
+        "T-02": True,
+        "T-03": False,
+        "T-04": False,
+        "T-05": False,
+        "T-06": True,
+        "T-07": False,
+        "R-01": False,
+    }
+    assert ids["T-01"].title == ids["T-01"].text == "s"
+    assert ids["T-02"].title == "Title" and ids["T-02"].text == "Title\nbody line"
+    assert ids["T-06"].retired is True
+    assert ids["T-07"].title == "Title *(recorded)*"
+    assert index.notes == ("recorded marker ignored on R-01: not a T id",)

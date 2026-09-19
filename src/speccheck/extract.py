@@ -3,8 +3,8 @@
 Everything here is deterministic and pattern-based (R-01..R-04, R-27); no semantic analysis.
 
 Spec IDs realized here (§11): R-01, R-02, R-03, R-16, R-20, R-27, R-33, C-01, C-02, C-03, I-002,
-    I-011, K-02, K-03, K-04, K-08, K-14, E-01, E-02, E-03, E-04, E-10, E-11, E-20, E-23, E-29,
-    E-30, E-31, E-33, E-34, E-46, E-47.
+    R-35, I-011, K-02, K-03, K-04, K-08, K-14, E-01, E-02, E-03, E-04, E-10, E-11, E-20, E-23,
+    E-29, E-30, E-31, E-33, E-34, E-46, E-47, E-50.
 """
 
 from __future__ import annotations
@@ -30,6 +30,9 @@ IGNORE_FILE = "speccheck:ignore-file"
 
 STATEMENT_CAP_BYTES = 16_384  # K-14: a statement is at most this many bytes of UTF-8
 TRUNCATION_MARKER = "\u2026 (statement truncated by speccheck at K-14)"  # K-14 marker line
+RECORDED_MARKER = (
+    "*(recorded)*"  # C-01 / R-35: the first token after the ID form marks a recorded T id
+)
 
 
 class SpecError(Exception):
@@ -72,6 +75,7 @@ class SpecId:
     text: str  # C-02: the statement; == title for a row, title + "\n" + SECTION BODY for a heading
     line: int
     retired: bool
+    recorded: bool = False  # C-01 RECORDED marker (R-35); only ever True for family T
 
     @property
     def id(self) -> str:
@@ -225,9 +229,9 @@ def heading_title(rest: str) -> str:
     return collapse_ws(_CLOSING_HASHES_RE.sub("", rest))
 
 
-def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bool, int]]:
-    """Yield (family, number, title, statement, retired, lineno) for every declaration outside
-    fences (C-01). The statement is capped per K-14 by the caller."""
+def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bool, int, bool]]:
+    """Yield (family, number, title, statement, retired, lineno, recorded) for every declaration
+    outside fences (C-01). The statement is capped per K-14 by the caller."""
     headings = _heading_lines(lines)
     fence: str | None = None
     for lineno, line in enumerate(lines, start=1):
@@ -253,10 +257,12 @@ def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bo
                 continue
             tok = m.group("a") or m.group("b") or m.group("c")
             retired = m.group("a") is None
+            decoration = first[m.end() :].split()
+            recorded = bool(decoration) and decoration[0] == RECORDED_MARKER  # R-35
             statement = collapse_ws(cells[1]) if len(cells) > 1 else ""
             fam, num = tok.split("-")
             # C-01 (a): a table declaration's title is its statement
-            yield fam, int(num), statement, statement, retired, lineno
+            yield fam, int(num), statement, statement, retired, lineno, recorded
             continue
         if stripped.startswith("#"):
             m = _HEADING_RE.match(line)
@@ -266,7 +272,11 @@ def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bo
             retired = tok.startswith("~~")
             tok = tok.strip("~")
             fam, num = tok.split("-")
-            title = heading_title(m.group("rest"))
+            rest = m.group("rest")
+            recorded = rest.split()[:1] == [RECORDED_MARKER]  # R-35: first token after the ID
+            if recorded:
+                rest = rest.lstrip()[len(RECORDED_MARKER) :]  # the marker is not part of the title
+            title = heading_title(rest)
             level = heading_level(line)
             assert level is not None  # _HEADING_RE is a subset of _HEADING_LINE_RE
             body = section_body(lines, lineno - 1, level, headings)
@@ -277,14 +287,16 @@ def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bo
                 statement = body
             else:
                 statement = title + "\n" + body
-            yield fam, int(num), title, statement, retired, lineno
+            yield fam, int(num), title, statement, retired, lineno, recorded
 
 
 def parse_spec(text: str, rel_path: str) -> SpecIndex:
     """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
     seen: dict[tuple[str, int], SpecId] = {}
     notes: list[str] = []
-    for fam, num, title, statement, retired, lineno in iter_declarations(split_spec_lines(text)):
+    for fam, num, title, statement, retired, lineno, recorded in iter_declarations(
+        split_spec_lines(text)
+    ):
         key = (fam, num)
         if key in seen:
             prior = seen[key]
@@ -302,7 +314,10 @@ def parse_spec(text: str, rel_path: str) -> SpecIndex:
         statement, truncated = cap_statement(statement)  # K-14
         if truncated:
             notes.append(f"statement truncated at K-14: {normalize_id(fam, num)}")  # E-46
-        seen[key] = SpecId(fam, num, title, statement, lineno, retired)
+        if recorded and fam != "T":  # E-50: the marker is meaningful for family T only
+            notes.append(f"recorded marker ignored on {normalize_id(fam, num)}: not a T id")
+            recorded = False
+        seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded)
     ids = tuple(sorted(seen.values(), key=lambda s: (family_rank(s.family), s.number)))
     if not any(not s.retired for s in ids):
         raise SpecError("spec declares no in-scope IDs")

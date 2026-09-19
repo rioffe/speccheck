@@ -339,3 +339,45 @@ def test_goldens_carry_title_and_markdown_renders_title(tmp_path: Path):
         fresh = json.loads((out / "speccheck.json").read_text(encoding="utf-8"))
         assert fresh["schema_version"] == golden["schema_version"]
         assert [r["title"] for r in fresh["ids"]] == [r["title"] for r in golden["ids"]]
+
+
+def test_fixture_long_body_contract_and_labels():
+    """T-76: fixtures/target/SPEC.md declares one heading-declared contract whose section body is
+    at least 2,048 bytes and is a fenced code block pinning a struct followed by at least five
+    numbered rules; tests/ holds four tests that each assert exactly one of its clauses and cite
+    it, one that calls the code and asserts nothing about it while citing it, and one that asserts
+    a different ID's behaviour while citing it; the six are attributed to their own cases and
+    labeled ASSERTS x4, EXECUTES_ONLY x1, UNRELATED x1; the label file has at least 20 entries of
+    which at least 6 are edges of an ID whose statement exceeds 2,048 bytes; under --judge mock
+    the contract is PASSING. (T-46, T-49, R-34)"""
+    import re
+
+    from speccheck.extract import parse_spec
+
+    spec_text = (FIXTURE / "SPEC.md").read_text(encoding="utf-8")
+    index = parse_spec(spec_text, "SPEC.md")
+    long_bodies = [s for s in index.ids if len(s.text.encode("utf-8")) >= 2048 and "\n" in s.text]
+    assert long_bodies, (
+        "no heading-declared contract with a body >= 2048 bytes in fixtures/target/SPEC.md"
+    )
+    contract = long_bodies[0]
+    body = contract.text.split("\n", 1)[1]
+    assert body.lstrip().startswith("```"), "the body starts with a fenced block pinning a struct"
+    rules = re.findall(r"^\d+\. ", body, re.M)
+    assert len(rules) >= 5, f"at least five numbered rules, found {len(rules)}"
+    labels = json.loads((FIXTURE / "golden" / "judge_labels.json").read_text(encoding="utf-8"))
+    assert len(labels) >= 20
+    on_contract = {k: v for k, v in labels.items() if k.startswith(contract.id + " ")}
+    assert len(on_contract) >= 6
+    assert sorted(on_contract.values()) == ["ASSERTS"] * 4 + ["EXECUTES_ONLY", "UNRELATED"]
+    # every labeled edge on the contract is a real, attributed test case with a result, and the
+    # contract is PASSING under the mock judge
+    target = _copy(Path(__import__("tempfile").mkdtemp()))
+    out = target / "fresh-out"
+    assert run_cli(ARGS + ["--root", ".", "--out", str(out)], target).code == 1  # planted defects
+    doc = json.loads((out / "speccheck.json").read_text(encoding="utf-8"))
+    rec = next(r for r in doc["ids"] if r["id"] == contract.id)
+    assert rec["status"] == "PASSING"
+    judged = {f"{contract.id} {t['file']}::{t['name']}" for t in rec["tests"] if t["verdict"]}
+    assert set(on_contract) == judged
+    assert all(t["name"] for t in rec["tests"]), "attributed to their own cases, not file-level"

@@ -1,6 +1,6 @@
 # SPECIFICATION — `calc` (golden fixture for speccheck)
 
-> - **Status:** fixture v1.0 — a deliberately defective project used by T-46/T-47 and `--self-check`
+> - **Status:** fixture v1.1 — a deliberately defective project used by T-46/T-47 and `--self-check`; v1.1 adds the long-body contract C-04 and its labeled tests for T-49/T-76
 > - **Scope:** a four-function calculator with rounding; every planted defect is listed at the end
 
 ## 0. Intent
@@ -26,6 +26,49 @@ The error message MUST name the dividend.
 ### C-02 `scale(values, factor)` returns a new list and never mutates its input
 
 ### ~~C-03~~ `average(values)` returns the arithmetic mean (retired)
+
+### C-04 Summary report: `summarize(values)` and the `Summary` shape
+
+```python
+@dataclass(frozen=True)
+class Summary:
+    count: int                 # rule 1: number of input values, including duplicates
+    total: float               # rule 2: the K-02-rounded sum of the inputs
+    mean: float | None         # rule 3: total / count rounded per K-02; None when count == 0
+    ordered: tuple[float, ...] # rule 4: the inputs sorted ascending, ties kept in input order
+    smallest: float | None     # rule 4: ordered[0], or None when empty
+    largest: float | None      # rule 4: ordered[-1], or None when empty
+
+def summarize(values: list[float]) -> Summary: ...   # pure; never mutates `values`
+```
+
+Rules (normative; each is one clause a test may assert on its own):
+
+1. **Shape.** `summarize` returns a `Summary` whose fields are exactly `count`, `total`, `mean`,
+   `ordered`, `smallest`, `largest`, in that order, with the types shown. `count` equals
+   `len(values)`; a value that appears twice is counted twice. The result is immutable
+   (`frozen=True`): assigning a field raises `FrozenInstanceError`.
+2. **Rounding.** `total` is the sum of the inputs rounded per K-02 — `round(sum(values), 2)` — and
+   never the sum of the individually rounded inputs, so `summarize([0.005, 0.005]).total == 0.01`
+   while `add(0.005, 0.0) + add(0.005, 0.0)` would give `0.02`. The rounding is applied once, to
+   the exact sum.
+3. **Mean.** `mean` is `round(total_exact / count, 2)` where `total_exact` is the unrounded sum;
+   it is `None` — not `0.0`, not `NaN` — when `count == 0`. `summarize([1, 2]).mean == 1.5`;
+   `summarize([1, 1, 2]).mean == 1.33`.
+4. **Ordering.** `ordered` is the inputs sorted ascending by value; equal values keep their input
+   order (a stable sort), so `summarize([2.0, 1, 2]).ordered == (1, 2.0, 2)` with the float `2.0`
+   before the int `2`. `smallest` is `ordered[0]` and `largest` is `ordered[-1]`; both are `None`
+   for an empty input. The input list itself is not reordered.
+5. **Error text.** A non-numeric value (anything that is not an `int` or a `float`; `bool` counts
+   as non-numeric here) raises `TypeError` whose message is exactly
+   `summary: non-numeric value at index <i>` for the first offending index; nothing is summed
+   before the check, so a later offending value is never reached.
+6. **Empty input.** `summarize([])` returns `Summary(count=0, total=0.0, mean=None, ordered=(),
+   smallest=None, largest=None)` and does not raise; `total` is the float `0.0`, not the int `0`.
+
+The contract exists for speccheck's own judge evaluation (its T-49 / T-76): its body is long and has
+several independent clauses, so a judge that grades a test against the gist of the whole contract
+rather than against the clause the test asserts is caught by the labels in `golden/judge_labels.json`.
 
 ## 6. Invariants
 
@@ -55,6 +98,10 @@ The error message MUST name the dividend.
 | **T-01** | `add` returns the sum for integers and floats. (R-01) |
 | **T-02** | `divide` by zero raises with the dividend in the message. (C-01) |
 | **T-03** | `subtract` of floats keeps two-decimal precision. (R-02, K-02) |
+| **T-04** | `summarize` returns the pinned `Summary` shape: field names, order, types, `count` including duplicates, frozen. (C-04 rule 1) |
+| **T-05** | `summarize` rounds the exact sum once: `[0.005, 0.005]` totals `0.01`. (C-04 rule 2, K-02) |
+| **T-06** | `summarize` orders ascending with a stable sort and reports `smallest`/`largest`. (C-04 rule 4) |
+| **T-07** | `summarize([])` is the all-empty `Summary` with `mean` `None` and `total` `0.0`. (C-04 rule 6) |
 
 ```text
 Example IDs inside a fence are not declarations: R-20, C-08, T-40.
