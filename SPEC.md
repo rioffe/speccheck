@@ -1,9 +1,9 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.12 — `--src` and `--tests` now each accept a comma-separated **list of files and/or directories** (D-23): every occurrence is split on `,`, each resulting segment is whitespace-trimmed and an empty segment is dropped (not an error), each path resolves inside `--root` (E-09) and is either descended (a directory) or scanned as one file, and the file set that is scanned is deduplicated so a file covered by more than one element is scanned and cites exactly once (new I-012); a path that exists as neither a file nor a directory is a usage error (E-52, replacing the former "non-directory → usage error"). Output is unchanged for any two inputs that name the same file set; only input acceptance changed. v1.11 applied all seven findings of the v1.10 `spec-review` (F-401..F-407); v1.10 settled D-22 (recorded tests, R-35); v1.9 added clause-grounded verdicts (R-34). Earlier versions: see the revision history.
+> - **Status:** v1.13 — the edges this document already carries become data, and a second subcommand walks them (`PROPOSAL_v1.13_impact.md`, 2026-09-19; D-24 and D-25 confirmed). Every `check` run now records in `speccheck.json` the typed edges between declared ids — `depends_on` between two obligations and `verifies` between a T id and an obligation, both read from the id tokens inside statement text — and the §12 decision rows with the ids their *Affects* cell names (`affects`), under a new declaration-only family **D** (C-01 (c), C-02, C-12; C-07 `decisions` and `edges`, `schema_version` `"1.4"`; R-36). `speccheck impact --changed IDS | --against OLD_SPEC.md` reports the ids reached from a changed set by `affects` and by reverse `depends_on` edges at their shortest depth (default `--depth 1`), the T ids that verify them, and — with `--src`/`--tests` — every citation to re-cite and test case to re-run, in `impact.json` and `IMPACT_REPORT.md` (C-13, R-37, I-013, E-53..E-55, T-79..T-82). Statuses, metrics, the conformance report and the gate are unchanged. v1.12 made `--src`/`--tests` comma-separated lists of files and/or directories (D-23, I-012, E-52); v1.11 applied F-401..F-407; v1.10 settled D-22 (R-35); v1.9 added clause-grounded verdicts (R-34). Earlier versions: see the revision history.
 > - **Language / stack:** Python 3.12 | standard library for the deterministic kernel (`re`, `ast`, `xml.etree`, `json`, `argparse`, `pathlib`) | CLI only; optional model-backed judge behind an `[llm]` extra
-> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (one file, rewritten per review: v0.1 → F-001..F-017, v1.3 → F-201..F-210, v1.7 → F-301..F-307, v1.10 → F-401..F-407; all cited below); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20); `PROPOSAL_v1.9_clause_grounding.md` (the v1.9 change, its two-model evidence, D-21, and the D-22 question)
-> - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code.
+> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (one file, rewritten per review: v0.1 → F-001..F-017, v1.3 → F-201..F-210, v1.7 → F-301..F-307, v1.10 → F-401..F-407; all cited below); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20); `PROPOSAL_v1.9_clause_grounding.md` (the v1.9 change, its two-model evidence, D-21, and the D-22 question); `PROPOSAL_v1.13_impact.md` (the v1.13 change, its measurement of the edges in this document — 186 `depends_on`, 240 `verifies`, 110 `affects` in v1.12 — and D-24, D-25)
+> - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code. Since v1.13 it also specifies the typed edges between declared ids that the kernel records (C-12) and the `impact` walk over them (C-13); it does not specify what an edge *means* — an edge records that one statement names another id, nothing more.
 > - **Normative language:** MUST/MUST NOT/SHALL/SHALL NOT = normative; SHOULD = strong recommendation; MAY = optional.
 > - **Principle:** *The model may only ever make the news worse.* Every status is computed deterministically from evidence the operator can `grep`; the judge is permitted to downgrade a status with cited evidence, never to upgrade one, and every claim in the report points at a file and line.
 
@@ -26,10 +26,11 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 - No test execution. The checker consumes a results file; it never runs `pytest`, `go test`, or anything else.
 - No spec-quality review (ambiguity, contradictions, missing sections). That is `spec-review`.
 - No remediation. The checker reports; it never edits the spec, the code, or the tests.
-- No multi-repository or multi-spec runs; one spec, one source tree set, one results file per invocation.
+- No multi-repository or multi-spec runs; one spec, one source tree set, one results file per invocation. `impact --against` reads a second spec file only as a *prior version of the same spec*, to diff its declarations against `--spec`; the prior version is never checked, scanned for, or reported on (C-13).
+- No change semantics. An edge (C-12) records that one statement names another id — not why, and not whether the dependency is real. `impact` (R-37) lists what a change *might* touch, at the depth the operator asked for; it never marks an id stale, failed, or non-conformant. The next `check` reports what actually happened.
 - No IDE integration, daemon mode, watch mode, or web UI.
 - Language adapters exist for Python (v0.1) and Swift (v1.6, R-31); every other language gets file-level attribution (O-2). No adapter parses its language with a real parser except Python (`ast`); the Swift adapter is line-based (D-17).
-- The checker never reads its own outputs as inputs: the spec, the results file, and the two report files are excluded from every scan (C-03, F-002).
+- The checker never reads its own outputs as inputs: the spec, the results file, the two report files of `check` and the two of `impact` are excluded from every scan (C-03, F-002).
 
 **A known limitation, stated rather than hidden (F-013):** citation is literal. A test that mentions `R-03` as *data* — asserting on a report that contains it, or on an error message — cites R-03 exactly as a test that proves it does. The `speccheck:ignore` markers in C-01 are the opt-out; they are the author's responsibility, and `speccheck` never infers intent from context.
 
@@ -42,13 +43,14 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | Actor | Goals |
 | ----- | ----- |
 | **Operator** (human at a terminal, or a CI job) | Run one command against a project and get a report plus an exit code that can gate a merge. Never has to trust a number without a path to its evidence. |
-| **Extractor** (`speccheck/extract.py`) | Turn `SPEC.md` into the set of declared IDs (with title, statement text, family, retired flag) and turn source/test files into citations, deterministically. |
+| **Extractor** (`speccheck/extract.py`) | Turn `SPEC.md` into the set of declared IDs (with title, statement text, family, retired flag), the §12 decision rows, and the typed edges between ids (C-12; v1.13), and turn source/test files into citations, deterministically. |
 | **Attributor** (`speccheck/attribute.py`) | Map each citation in a test file to the test case that contains it (Python adapter), falling back to file-level attribution for anything it cannot parse. |
 | **Results Mapper** (`speccheck/results.py`) | Read a JUnit XML file and join each `<testcase>` to an attributed test case, yielding outcomes per test case. |
 | **Grapher** (`speccheck/graph.py`) | Build the ID → source-file / ID → test-case edge sets and compute each ID's deterministic status and the coverage metrics. |
+| **Impact walker** (`speccheck/impact.py`) | From the spec-internal edges the Extractor records (C-12: `depends_on`, `verifies`, `affects`), and a changed set given on the command line or computed by diffing two versions of the spec, list every id reached at its shortest depth, the T ids that verify the set, and — through the Extractor's citations — what to re-cite and re-run (C-13). Deterministic; consults no judge and no results file. |
 | **Judge** (`speccheck/judge.py`; providers `judge_mock.py`, `judge_llm.py`) | For each (test case, ID) edge of a `PASSING` ID, return a verdict with evidence lines; the mock provider is deterministic, the LLM provider is opt-in. Single-principal: the judge sees one edge at a time and holds no state across calls. |
-| **Reporter** (`speccheck/report.py`) | Render the Markdown and JSON reports from the graph and judge results, in a fixed order, with no content that varies between identical runs. |
-| **CLI** (`speccheck/cli.py`, entry point `speccheck`) | The only surface. Parse arguments, wire the pipeline, apply the exit-code and verbosity contracts. |
+| **Reporter** (`speccheck/report.py`) | Render the Markdown and JSON reports from the graph and judge results — and, for `impact`, the two C-13 reports from the walk — in a fixed order, with no content that varies between identical runs. |
+| **CLI** (`speccheck/cli.py`, entry point `speccheck`) | The only surface; two subcommands, `check` and `impact` (v1.13). Parse arguments, wire the pipeline, apply the exit-code and verbosity contracts. |
 
 ---
 
@@ -91,6 +93,8 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-33** | For an ID declared by a heading (C-01 (b)), the checker MUST use the heading text followed by the section body beneath it — prose, bullets, and fenced code blocks, up to the next heading of the same or a higher level, capped per K-14 — as the ID's statement (`SpecId.text`, `JudgeRequest.statement`, JSON `statement`), so that the judge and the JSON report see the contract's pinned shape and not its title. The heading text alone is kept as `SpecId.title` / JSON `title`, and that is what the Markdown report renders (C-08). Table-row declarations are unchanged. | `PROPOSAL_v1.7_heading_bodies.md` (2026-09-17): two judges over the same 130 MonteCarloPi edges — `gpt-4o-mini` 65/70, 0 weak; `gemini-3.8-flash` 56/70, 9 weak, 15 UNRELATED, 3 UNKNOWN — and every disagreement was a `###`-declared contract whose statement was a title (`Data structures`, `` `EstimationWorker` (an `actor`) ``) while the pinned API sat unsent beneath it |
 | **R-34** | For every `ASSERTS` or `EXECUTES_ONLY` verdict the judge MUST name the clause of the statement it judged against, as a verbatim excerpt, and the kernel MUST discard as `UNKNOWN` any such verdict whose excerpt cannot be located in the statement (K-15, E-48) — the statement-side mirror of the evidence-line rule (C-06, I-005), so that a recorded verdict is grounded in both the test and the statement. | `PROPOSAL_v1.9_clause_grounding.md`: with bodies in the statement, `gpt-4o-mini` graded long contracts by their gist — 13 of 18 stable downgrades on the mdv tree were tests asserting a body clause nearly verbatim — while a model that located the clause (`gemini-3.8-flash`) did not; nothing in the report showed *which* clause either had judged |
 | **R-35** | A T id declared with the literal marker `*(recorded)*` immediately after its ID form (C-01) is RECORDED: the checker MUST compute its status by C-05 steps 1–4 exactly as for any other T id — it still needs a citing test case with a passed outcome to be `PASSING` — and MUST NOT send any of its edges to the judge, so that C-05 step 5 never applies to it; the marker MUST be carried into both reports (C-07 `recorded`, C-08). On a non-T id the marker is ignored with a Note (E-50). | D-22: the recorded tests of this document (T-48, T-49, T-51) are cited by presence checks so that they are not `UNCITED`; an honest judge reads such a check as `EXECUTES_ONLY` — `gemini-3.8-flash` did so to T-48 on 2026-09-18 — and `--strict --judge llm` went red for a reason the spec intended but had not written down |
+| **R-36** | The checker MUST extract, from every declared id's statement, the ids it names, and record them as typed edges — `depends_on` between two R/C/I/K/E ids, `verifies` between a T id and an R/C/I/K/E id, `depends_on` between two T ids — together with every §12 decision row (family D, declaration-only) and the ids its *Affects* cell names as `affects` edges, in `speccheck.json` (C-12, C-07 `decisions`, `edges`). An edge whose target is undeclared is a Note, not an error; an edge whose target is retired is recorded with `retired: true` (E-55). D ids are never citation targets, never appear in `ids`, and count in no metric. | `PROPOSAL_v1.13_impact.md` §1: in v1.12 of this document 134 of 203 live ids name another id (434 tokens; 186 `depends_on`, 240 `verifies`, 110 `affects` edges), and nothing read them |
+| **R-37** | The checker MUST provide an `impact` subcommand that, given a changed set — the ids of `--changed`, or the ids whose declarations differ between `--spec` and a prior version named by `--against` — reports every id reached from that set by `affects` edges and by *reverse* `depends_on` edges (dependents, never what the changed id itself depends on), each at its shortest depth with the edge that first reached it, up to `--depth`; the T ids that verify any id of the set; and, when `--src`/`--tests` are given, every source citation and every test case citing any of them; as `impact.json` and `IMPACT_REPORT.md` under `--out` (C-13), deterministically (I-002) and under I-001's write discipline. `impact` never consults a results file or the judge and has no gate. | `PROPOSAL_v1.13_impact.md` §2 Part B; D-24 |
 
 ---
 
@@ -111,6 +115,18 @@ A run is a single, stateless pipeline. There is no persistent state between runs
 | judge (optional) | Judge | `PASSING` edges | `Verdict[]` (C-06); progress indicator on stderr while running (R-30, C-11) | never (E-14..E-17 yield `UNKNOWN`) |
 | report | Reporter | everything | `SPEC_CONFORMANCE_REPORT.md`, `speccheck.json` | exit `3` if `--out` unwritable |
 | exit | CLI | JSON report, `--strict` | exit code (§5.4), summary line | — |
+
+**The `impact` pipeline (v1.13).** `speccheck impact` is a second, shorter pipeline over the same Extractor and Reporter; it shares parse-args, extract-spec, and — only when `--src`/`--tests` are given — the two scan stages, and it has no results, graph, or judge stage. It writes `impact.json` and `IMPACT_REPORT.md` with the same in-memory render, nonce-named temporaries (`.impact.json.<nonce>.tmp`, `.IMPACT_REPORT.md.<nonce>.tmp`), leftover deletion, and rename order (JSON first) as above, and the same cleanup on failure (E-18, E-41). The two subcommands never write each other's files.
+
+| Stage | Owner | Input | Output | Fails with |
+| ----- | ----- | ----- | ------ | ---------- |
+| parse-args | CLI | argv | `ImpactConfig` (exactly one of `--changed`, `--against`; E-54) | exit `2` |
+| extract-spec | Extractor | `--spec` (and `--against`, parsed by the same C-01 rules) | `SpecIndex` ×1 or ×2 with `decisions` and `edges` (C-02, C-12) | exit `3` (E-01, E-02, E-03 — for `--against`, the message names that file) |
+| changed-set | Impact walker | `--changed` ids, or the diff of the two indexes (C-13) | `Changed[]` with a reason each; an undeclared `--changed` id → E-53 | exit `2` (E-53) |
+| walk | Impact walker | `edges`, changed set, `--depth` | `Impact[]` (id, depth, via), `Reverify[]` | never |
+| scan (optional) | Extractor, Attributor | `--src`/`--tests` per C-03 (no directory default here) | `Citation[]`, `TestCase[]` restricted to the impact and re-verify sets | never |
+| report | Reporter | everything | `IMPACT_REPORT.md`, `impact.json` | exit `3` if `--out` unwritable |
+| exit | CLI | — | `0`; one summary line (§5.1) | — |
 
 ### 3.2 Executable flow
 
@@ -163,9 +179,11 @@ A run is a single, stateless pipeline. There is no persistent state between runs
 | Artifact | Written to | Version | Shape |
 | -------- | ---------- | ------- | ----- |
 | `SPEC_CONFORMANCE_REPORT.md` | `--out` (default `.`) | mirrors JSON `schema_version` | C-08 |
-| `speccheck.json` | `--out` | `schema_version: "1.3"` (`"1.0"` through v1.6; `"1.1"` added `title` in v1.7; `"1.2"` `clause` per verdict in v1.9; `"1.3"` `recorded` per id in v1.10) | C-07 |
+| `speccheck.json` | `--out` | `schema_version: "1.4"` (`"1.0"` through v1.6; `"1.1"` added `title` in v1.7; `"1.2"` `clause` per verdict in v1.9; `"1.3"` `recorded` per id in v1.10; `"1.4"` `decisions` and `edges` in v1.13) | C-07 |
+| `IMPACT_REPORT.md` | `--out`, by `impact` only | mirrors `impact.json` `schema_version` | C-13 |
+| `impact.json` | `--out`, by `impact` only | `schema_version: "1.0"` (v1.13) | C-13 |
 
-Both files are overwritten on every successful run, via the temp-and-rename sequence in §3.1. No other file is ever written, and no temporary survives a run (I-001).
+A subcommand's two files are overwritten on every successful run of that subcommand, via the temp-and-rename sequence in §3.1; `check` never touches the `impact` files and vice versa. No other file is ever written, and no temporary survives a run (I-001).
 
 ---
 
@@ -175,7 +193,8 @@ Both files are overwritten on every successful run, via the temp-and-rename sequ
 
 ```text
 ID        := FAMILY "-" DIGITS
-FAMILY    := "R" | "C" | "I" | "K" | "E" | "T"          # O-n, D-nn and F-nnn are NOT conformance IDs
+FAMILY    := "R" | "C" | "I" | "K" | "E" | "T"          # O-n, D-nn and F-nnn are NOT conformance IDs;
+                                                        # D-nn is DECLARATION-ONLY since v1.13 — rule (c)
 DIGITS    := [0-9]{1,3}
 TOKEN     := ID bounded by non-alphanumerics on both sides   # regex: (?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])
 
@@ -247,6 +266,21 @@ Lines (F-301): SPEC.md is split into lines on "\n"; a trailing "\r" on any line 
   decoration like any other and mark nothing. A retired declaration may also be recorded.
   A SECOND declaration of the same ID is E-02 (exit 3); the message names the ID and both lines.
   Nothing "wins": the run produces no report (Q-006).
+  (c) decision row (v1.13; R-36; family D, DECLARATION-ONLY): a TABLE is a maximal run of
+        consecutive rows (per (a)) outside fenced code blocks with no BLANK line between them, whose
+        second row is a separator row; its first row is the HEADER ROW. The DECISION TABLE is the
+        first TABLE in the file whose HEADER ROW has a cell whose trimmed, case-folded content is
+        exactly "affects"; that cell's index (cells per (a), leading and trailing empties dropped)
+        is the AFFECTS COLUMN. Every row of the decision table after the separator whose trimmed
+        first cell matches ^D-[0-9]{1,3}$ (no bold, no strike-through, no decoration) declares the
+        decision D-nn (normalized to two digits: D-8 -> D-08; I-011). Its AFFECTS CELL is the cell at
+        the AFFECTS COLUMN ("" when the row is shorter); every TOKEN in it (the TOKEN rule above —
+        R/C/I/K/E/T only) names an `affects` target (C-12); everything else in the cell ("§10",
+        "s5.2", prose) is ignored. A second table with an "affects" header, and a D-nn row anywhere
+        else, declare nothing. A second row declaring the same D-nn is E-02 (exit 3). A decision
+        is not a conformance ID: it is never in `ids`, never a citation target (the TOKEN regex
+        does not match "D-"), never in any metric (D-25); it exists as the source of `affects`
+        edges and as a row of C-07 `decisions`.
 
 Retirement — a declaration whose ID token is wrapped in ~~ ~~ :
   | ~~**R-07**~~ | ... |   or   | **~~R-07~~** | ...   or   ### ~~C-03~~ ...
@@ -295,10 +329,27 @@ class SpecId:
     recorded: bool       # C-01 RECORDED marker (R-35); only ever True for family T
 
 @dataclass(frozen=True)
+class Decision:                      # v1.13, C-01 (c); never a SpecId, never in `ids`
+    id: str                          # normalized "D-nn"
+    line: int                        # 1-based line of the row in SPEC.md
+    affects: tuple[str, ...]         # the DECLARED ids named in the AFFECTS CELL, normalized, unique,
+                                     # sorted per the C-12 id order; undeclared tokens are Notes (C-12)
+
+@dataclass(frozen=True)
+class Edge:                          # v1.13, C-12
+    src: str                         # normalized id: a D id for "affects", the T id for "verifies"
+    kind: str                        # "affects" | "depends_on" | "verifies"
+    dst: str                         # normalized, always a declared R/C/I/K/E/T id
+    retired: bool                    # dst is RETIRED (E-55)
+
+@dataclass(frozen=True)
 class SpecIndex:
     path: str                       # relative, POSIX
     ids: tuple[SpecId, ...]         # sorted by (family order R,C,I,K,E,T ; number)
-    # invariant: no two SpecId share (family, number)
+    decisions: tuple[Decision, ...] # sorted by number (v1.13)
+    edges: tuple[Edge, ...]         # sorted per C-12 (v1.13)
+    # invariant: no two SpecId share (family, number); no two Decision share a number;
+    #            no two Edge share (src, kind, dst)
 ```
 
 ### C-03 `Citation`, `TestCase`, attribution
@@ -434,9 +485,11 @@ Text vs binary (F-008): a file is BINARY if any of its first 8192 bytes is 0x00.
 
 Excluded from every scan (F-002), whether or not they lie under a --src/--tests root, and
   whether or not they exist yet: the file named by --spec, the file named by --results,
-  <out>/SPEC_CONFORMANCE_REPORT.md, <out>/speccheck.json, and every file directly under <out>
-  whose name starts with ".speccheck.json." or ".SPEC_CONFORMANCE_REPORT.md." and ends with
-  ".tmp" (the §3.1 temporaries, including leftovers from a killed run; F-103). Exclusion is by
+  <out>/SPEC_CONFORMANCE_REPORT.md, <out>/speccheck.json, <out>/IMPACT_REPORT.md, <out>/impact.json
+  (v1.13), the file named by --against (impact only), and every file directly under <out> whose
+  name starts with ".speccheck.json.", ".SPEC_CONFORMANCE_REPORT.md.", ".impact.json." or
+  ".IMPACT_REPORT.md." and ends with ".tmp" (the §3.1 temporaries, including leftovers from a
+  killed run; F-103). Exclusion is by
   resolved path (symlinks resolved), is silent (no Note), and applies before K-02/K-03 filtering.
 ```
 
@@ -588,11 +641,11 @@ Mock provider (judge_mock.py):
              semantics and stays deterministic (R-16, R-22)
 ```
 
-### C-07 JSON report (`speccheck.json`, `schema_version` "1.3")
+### C-07 JSON report (`speccheck.json`, `schema_version` "1.4")
 
 ```json
 {
-  "schema_version": "1.3",
+  "schema_version": "1.4",
   "spec": "SPEC.md",
   "judge": "none | mock | llm",
   "judge_available": null,
@@ -624,6 +677,10 @@ Mock provider (judge_mock.py):
       "unrun": [ {"file": "…", "name": "…"} ]
     }
   ],
+  "decisions": [ {"id": "D-08", "line": 1331, "affects": ["C-10", "R-26", "T-49", "T-76"]} ],      // v1.13, C-01 (c); [] when the spec has no decision table
+  "edges": [ {"src": "R-01", "kind": "depends_on", "dst": "C-01", "retired": false},              // v1.13, C-12 order; [] when no statement names another id
+             {"src": "T-01", "kind": "verifies",   "dst": "R-01", "retired": false},
+             {"src": "D-08", "kind": "affects",    "dst": "C-10", "retired": false} ],
   "dangling": [ {"id": "R-99", "file": "src/pkg/x.py", "line": 3} ],
   "stale":    [ {"id": "R-02", "file": "tests/test_old.py", "line": 9} ],
   "unattributed_results": [ {"classname": "tests.test_gone", "name": "test_x", "outcome": "passed"} ],
@@ -645,7 +702,9 @@ Rules: keys emitted in exactly this order (`judge_prompt_sha256` omitted entirel
   `max_unknown` always present, echoing K-11; `strict_judge_failure` is null, "unavailable", or
   "unknown_rate" and is non-null only when R-28 forced exit 1 — when BOTH reasons hold,
   "unavailable" is recorded, since a fully unavailable judge makes the unknown rate vacuous; Q-004);
-  `ids` sorted by (family order R,C,I,K,E,T ; number); `results` sorted by name;
+  `ids` sorted by (family order R,C,I,K,E,T ; number); `decisions` and `edges` always present, after
+  `ids`, sorted per C-12 (v1.13; a D id never appears in `ids`, `dangling`, `stale`, or any metric — D-25);
+  `results` sorted by name;
   `src`/`tests`/`dangling`/`stale`/`unattributed_results` sorted by (file, line) then name;
   `notes` is a list of strings sorted ascending by Unicode code point (each Note's text is fixed by
   the E-case that produces it, so this order is total and reproducible; Q-002);
@@ -657,7 +716,8 @@ Title and statement (R-33): `title` is `SpecId.title` and `statement` is `SpecId
   K-14 when over the cap — and `title` is the heading text alone. `schema_version` was `"1.0"`
   through v1.6, `"1.1"` from v1.7 (`title` added), and `"1.2"` from v1.9 (`clause` added to every verdict
   object, after `verdict`; R-34), and `"1.3"` from v1.10 (`recorded` added to every id record, after
-  `family`; R-35 — `true` only for a T id carrying the C-01 marker); no other key changed.
+  `family`; R-35 — `true` only for a T id carrying the C-01 marker), and `"1.4"` from v1.13 (`decisions`
+  and `edges` after `ids`; R-36); no other key changed.
   The literal is stated in this contract (heading and example) and in §3.3 only; no §9 row repeats
   it — a test asserts "the C-07 value" (F-401).
 Verdict field (Q-001): every `tests[]` entry has the key `verdict`. It is a verdict object when
@@ -833,6 +893,137 @@ $M = \lfloor s / 60 \rfloor$ and $\mathrm{SS} = s \bmod 60$. The line is pure AS
 carries no file name, statement text, prompt, response, or key (I-007). The final state
 ($d = n$, a full bar) is always drawn before the erase.
 
+### C-12 Spec-internal edges (v1.13; R-36)
+
+```text
+Sources of edges -- all read from the SpecIndex, nothing else:
+  (1) statement tokens: for every declared id X (retired included), every TOKEN (C-01) in X.text --
+      title and section body, fenced blocks included, after the K-14 cap -- whose normalized id Y
+      is != X:
+        Y undeclared                              -> no edge; one Note per distinct (X, Y):
+                                                     "edge to undeclared id: <X> -> <Y>"
+        X and Y both in R/C/I/K/E                 -> Edge(X, "depends_on", Y)
+        exactly one of X, Y in family T           -> Edge(<the T id>, "verifies", <the other>)
+                                                     direction is normalized: an obligation naming its
+                                                     T and the T naming the obligation are the SAME
+                                                     edge, emitted once
+        X and Y both in family T                  -> Edge(X, "depends_on", Y)
+  (2) decision rows (C-01 (c)): for every Decision D and every TOKEN Y in its AFFECTS CELL:
+        Y undeclared                              -> no edge; Note "edge to undeclared id: <D> -> <Y>"
+        otherwise                                 -> Edge(D, "affects", Y)
+      Decision.affects is the sorted, unique list of the DECLARED Y only.
+  retired := Y is RETIRED (E-55). X being retired does not suppress X's edges: a retired statement
+  still names what it named, and whether to walk from a retired id is the operator's call.
+  A self-reference (Y == X) and a repeated token produce nothing; each (src, kind, dst) is
+  emitted at most once.
+
+Order (total, so I-002 holds): edges sorted by (id_key(src), kind, id_key(dst)), where
+  id_key(id) = (family order R, C, I, K, E, T, D ; number) and kind orders
+  "affects" < "depends_on" < "verifies" (ASCII); decisions sorted by number.
+
+What an edge is not (D-25; the scope note in the front matter): it is not a citation (C-05 never
+  reads it), not a status or metric input, and it carries no meaning beyond "the statement of
+  src contains the token dst". The judge (C-06) is not shown edges in v1.13. The Markdown
+  conformance report (C-08) does not render them; they live in the JSON and in `impact`.
+```
+
+### C-13 `impact`: changed set, walk, `impact.json`, `IMPACT_REPORT.md` (v1.13; R-37)
+
+```text
+Changed set:
+  --changed IDS   IDS is a comma-separated list, split, trimmed, and deduplicated like a PATHS
+                  list (C-03 steps 1-3). Each element MUST be a TOKEN of family R/C/I/K/E/T, or
+                  "D-" DIGITS, and is normalized (I-011); an element that is not a declared id or a
+                  declared decision -> exit 2, message "--changed: undeclared id: <element>"
+                  (E-53); a list that is empty after trimming -> exit 2, "--changed: no ids".
+                  Every element gets reason "changed".
+  --against FILE  FILE is a prior version of the same spec: resolved inside --root (E-09), decoded
+                  and parsed exactly as --spec (C-01, K-14); its E-01/E-02/E-03 exit 3 with the
+                  message prefixed "--against: ". The changed set, in the C-12 id order, is:
+                    id declared in both, whitespace-collapsed `text` differs     reason "statement differs"
+                    id declared in --spec only                                   reason "added"
+                    id declared in FILE only                                     reason "removed"
+                                                                                 (walked by --spec's edges,
+                                                                                 of which it is dst of none;
+                                                                                 `line` is its line in FILE)
+                    id declared in both, `retired` differs                       reason "retired flag differs"
+                    D declared in both, `affects` differs                        reason "affects differs"
+                    D declared in exactly one                                    reason "added" / "removed"
+                  An id with several reasons carries all of them, in the order above, joined by "; ".
+                  An empty changed set is not an error: every section reads "None." and exit is 0.
+  Exactly one of --changed / --against MUST be given (E-54).
+
+Walk (over the edges of --spec, C-12; breadth-first):
+  depth 0 := the changed set. The successors of a node X at depth d are:
+    X a D id            -> every Y with Edge(X, "affects", Y)
+    X in R/C/I/K/E      -> every Y with Edge(Y, "depends_on", X)        (REVERSE: X's dependents;
+                                                                         what X depends on is never
+                                                                         a successor)
+    X in T              -> every Y with Edge(Y, "depends_on", X); the obligations X verifies are NOT
+                           successors (a test changing does not change what it tests)
+  An id enters IMPACT once, at the first depth reached, with `via` := the edge that reached it --
+  among several at that depth, the smallest by the C-12 order. Changed-set ids never enter IMPACT.
+  No edge has a D id as dst, so a D id is never reached. --depth N (integer 0..999; default 1;
+  0 = unbounded): a node that would enter at depth > N is neither entered nor expanded; the count
+  of such nodes under N = 0 that are not in IMPACT is one Note when non-zero:
+  "<k> further id(s) beyond --depth <N>; --depth 0 lists them".
+  REVERIFY := every T id with a "verifies" edge whose dst is in (changed ∪ IMPACT), plus every T id
+  in (changed ∪ IMPACT); each with the sorted list of the obligations in (changed ∪ IMPACT) it
+  verifies ([] for a T that is there only because it changed or was reached). A retired T is
+  included, flagged. Nothing is walked from REVERIFY.
+  IMPACT is sorted by (depth, id order); every other list by id order.
+
+Citations (only with --src and/or --tests; the C-03 scan and PATHS rules apply unchanged, except
+  that an absent flag means "not scanned" -- the `src`/`tests` directory default of `check` does not
+  apply to impact):
+  RECITE     := every src-kind citation whose id is in (changed ∪ IMPACT ∪ REVERIFY), grouped as
+                (id, file, lines[]), sorted by (id order, file), lines ascending unique.
+  TEST_CASES := every TestCase (C-03) holding a test-kind citation of an id in that set, as
+                (file, name, classname, ids[]) with ids the sorted ids of the set it cites, sorted
+                by (file, start); a file-level case has name "" (Q-011).
+  Dangling and stale citations are not computed here; --results is not accepted.
+
+impact.json -- keys in exactly this order (K-09 formatting):
+{
+  "schema_version": "1.0",
+  "spec": "SPEC.md",                                         // relative to --root, as C-07 `spec`
+  "against": null,                                           // or the --against path, relative to --root
+  "depth": 1,                                                // the --depth value as given; 0 = unbounded
+  "changed":    [ {"id": "K-15", "family": "K", "line": 951, "retired": false, "reason": "changed"} ],
+  "impact":     [ {"id": "R-34", "depth": 1, "retired": false,
+                   "via": {"src": "R-34", "kind": "depends_on", "dst": "K-15"}} ],
+  "reverify":   [ {"id": "T-75", "retired": false, "verifies": ["K-15"]} ],
+  "recite":     [ {"id": "K-15", "file": "src/speccheck/judge.py", "lines": [6, 76, 143]} ],
+  "test_cases": [ {"file": "tests/test_judge.py", "name": "test_clause_bounds",
+                   "classname": "tests.test_judge", "ids": ["K-15", "T-75"]} ],
+  "notes":      [ "2 further id(s) beyond --depth 1; --depth 0 lists them" ]
+}
+  `recite` is [] without --src and `test_cases` is [] without --tests; `against` is null under
+  --changed; `notes` is sorted as C-07 notes are and also carries the C-12 undeclared-target Notes
+  and the scan Notes (E-10, E-11, E-30 ...) when a scan ran. `family` of a D id is "D". No
+  timestamps, hostnames, absolute paths, durations, or version strings other than schema_version
+  (R-16).
+
+IMPACT_REPORT.md -- sections in this order, every one present, "None." when empty:
+# Impact Report
+<spec> · changed by `--changed` | against `<file>` · depth <N> | depth unbounded        # one line
+## 1. Changed      | ID | Line | Reason |                      the ID cell (only) struck through when retired
+## 2. Impact       | ID | Depth | Via |                        Via rendered `R-34 -depends_on-> K-15`
+## 3. Re-verify    | T id | Verifies |   then, when --tests was given, a second table | File | Case | IDs |
+                                          (a file-level case renders `(file)`, as C-08 does)
+## 4. Re-cite      | ID | File | Lines |                       "Not scanned." when --src is absent
+## 5. Notes        bullet list, or "None."
+  The byte-exact rendering is pinned by the golden fixture (T-80) as C-08's is by T-46. UTF-8, `\n`
+  line endings (K-09).
+
+Summary line (stdout, exactly one line, on exit 0 only; pure ASCII, single trailing "\n"):
+  speccheck impact: <changed> changed, <impact> impacted (depth <N> | unbounded), <reverify> to re-verify, <recite> citations, <cases> test cases
+  Regex it MUST match (T-80):
+  ^speccheck impact: \d+ changed, \d+ impacted \((depth \d+|unbounded)\), \d+ to re-verify, \d+ citations, \d+ test cases$
+  <recite> is the number of (id, file) rows; <cases> the number of TEST_CASES rows; both 0 when
+  the respective root was not given.
+```
+
 ---
 
 ## 5. Interface specification
@@ -844,6 +1035,8 @@ speccheck check --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results ju
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--judge-concurrency N] [--judge-budget SECONDS] [--max-unknown FRACTION]
                 [--progress auto|always|never] [--verbose [INFO|DEBUG]]
+speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src PATHS]... [--tests PATHS]...
+                 [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
 speccheck --version
 speccheck --help
@@ -867,6 +1060,10 @@ speccheck --help
 | `--verbose [LEVEL]` | §5.3. Bare = `INFO`. `LEVEL` other than `INFO`/`DEBUG` → usage error. | `2` |
 | `--self-check` | Copy the packaged fixture `speccheck/_selfcheck/` (a byte-identical copy of the §9.8 golden fixture `fixtures/target/`, its `golden/` directory included; F-107) into a fresh temporary directory `<tmp>`; install a socket guard; then run, **in the same process**, exactly `check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --root <tmp> --out <tmp>/out` with the working directory set to `<tmp>` (Q-003). The inner check is **expected** to exit `1` (the fixture has planted defects) and that exit code is not the self-check's result; compare `<tmp>/out/speccheck.json` and `<tmp>/out/SPEC_CONFORMANCE_REPORT.md` to `<tmp>/golden/` byte-for-byte; remove `<tmp>`; print `self-check: ok` when both match, else one line naming the first mismatch or failure (F-011). | `0` / `1` |
 | `--version` | Print `speccheck <semver>` and exit. | `0` |
+| `impact` | v1.13 (R-37, C-13). Run the §3.1 `impact` pipeline; write `impact.json` and `IMPACT_REPORT.md` under `--out`; print the C-13 summary line. Accepts `--spec`, `--src`, `--tests`, `--root`, `--out`, `--verbose` with the meanings above, except that `--src`/`--tests` have **no directory default** here: absent means not scanned (C-13), since the scan is optional for `impact`; no `--results`, no judge flags — any of them → usage error (E-54). | `0` written, `2` usage, `3` input contract |
+| `--changed IDS` | `impact` only. Comma-separated ids (R/C/I/K/E/T or D), each declared in `--spec`; an undeclared one → E-53; empty → usage error. Mutually exclusive with `--against` (E-54). | `2` |
+| `--against FILE` | `impact` only. A prior version of the spec, inside `--root` (E-09), parsed by C-01; the changed set is the C-13 diff. Unreadable → usage error; its E-01/E-02/E-03 → `3` with `--against: ` prefixed. Mutually exclusive with `--changed` (E-54). | `2` / `3` |
+| `--depth N` | `impact` only. Integer `0..999`, default `1`; `0` = unbounded (C-13). Other values → usage error. | `2` |
 
 **The `--src`/`--tests` PATHS list (D-23).** Each flag value is a comma-separated list, one list per occurrence. To build the effective list the extractor walks, each occurrence is split on the literal `,`, every resulting segment is whitespace-trimmed and empty segments dropped; the surviving paths are resolved inside `--root` (E-09) and deduplicated (I-012). Each resolved path is a directory (descended as in v1.11: K-02/K-03, E-10/E-11/E-13/E-29/E-30/E-33 apply) or a regular file (scanned as one, no descent); a segment that resolves inside `--root` but exists as neither is a usage error (E-52), replacing the former "non-directory → usage error". The full rule — including the absent-flag-only default, the directly-named-file Swift `MODULE`, and the determinism of the emitted order — is C-03 *PATHS*; the summary-line regex, both report files, and the exit codes are otherwise unchanged for two inputs that name the same file set. Example: `--src a.py,b.py,src --tests tests/unit,tests/core` is equivalent to `--src a.py --src b.py --src src --tests tests/unit --tests tests/core` (the list is repeatable), and `--src a.py,,src,` trims and drops to `[a.py, src]`.
 
@@ -913,15 +1110,17 @@ None. This system has no graphical surface, and O-3 explicitly leaves one out of
 
 Any uncaught exception MUST also map to `3` with a one-line message; a traceback is printed only under `--verbose DEBUG`. `KeyboardInterrupt` is treated the same way, with the message `interrupted` (E-41).
 
+`impact` (v1.13) uses `0` (both C-13 reports written; there is no `1`: nothing it reports is pass/fail), `2` (usage, E-53, E-54), and `3` (E-01/E-02/E-03 on either spec, E-18); the same "reports written?" column applies.
+
 ---
 
 ## 6. Invariants (must hold in every valid implementation)
 
 | ID | Invariant |
 | -- | --------- |
-| **I-001** | **Read-only inputs.** No file under `--root` other than the two report files under `--out` — and the `--out` directory itself, if it did not exist — is created, modified, or deleted by a run, and no temporary of §3.1 survives a run; no file outside `--root` is written at all. Sole exception: `--self-check` creates, uses, and removes one fresh temporary directory (F-011); it writes nowhere else. |
-| **I-002** | **Determinism.** For `--judge none` and `--judge mock`, identical inputs (bytes of every file read, argv, env) produce byte-identical report files and summary line, on any OS. A `SPEC.md` that differs from another only in `\r\n` versus `\n` line endings counts as identical input (C-01 Lines rule; F-301). |
-| **I-003** | **Exactly-once reporting.** Every declared ID (retired included) appears exactly once in `ids` and exactly once in the Markdown per-ID table; no undeclared ID ever appears there. |
+| **I-001** | **Read-only inputs.** No file under `--root` other than the two report files of the subcommand that ran, under `--out` (`check`: `speccheck.json`, `SPEC_CONFORMANCE_REPORT.md`; `impact`: `impact.json`, `IMPACT_REPORT.md`; v1.13) — and the `--out` directory itself, if it did not exist — is created, modified, or deleted by a run, and no temporary of §3.1 survives a run; no file outside `--root` is written at all. Sole exception: `--self-check` creates, uses, and removes one fresh temporary directory (F-011); it writes nowhere else. |
+| **I-002** | **Determinism.** For `--judge none` and `--judge mock`, and for every `impact` run (v1.13), identical inputs (bytes of every file read, argv, env) produce byte-identical report files and summary line, on any OS. A `SPEC.md` that differs from another only in `\r\n` versus `\n` line endings counts as identical input (C-01 Lines rule; F-301). |
+| **I-003** | **Exactly-once reporting.** Every declared ID (retired included) appears exactly once in `ids` and exactly once in the Markdown per-ID table; no undeclared ID ever appears there. A decision (C-01 (c)) is not an ID: it appears exactly once in `decisions` and never in `ids` (D-25). |
 | **I-004** | **Downgrade-only judge.** For every ID, `status_with_judge` $\in$ `{status_without_judge}` $\cup$ (`{WEAKLY_PASSING}` iff `status_without_judge == PASSING`). Disabling the judge never changes any status except `WEAKLY_PASSING` → `PASSING`. |
 | **I-005** | **Grounded verdicts, on both sides.** Every verdict in a report carries an `evidence` list (possibly empty), every `ASSERTS` carries $\geq$ 1 entry, and every evidence entry points to a line inside the judged test case's span in the judged file; and every `ASSERTS` or `EXECUTES_ONLY` carries a `clause` that is LOCATED in the judged ID's statement per K-15 (v1.9, R-34). |
 | **I-006** | **Network boundary.** With `--judge none`/`mock`, no socket is opened for the lifetime of the process. |
@@ -931,6 +1130,7 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **I-010** | **One judge call per edge.** The judge is invoked at most once per (test case, ID) edge per run, and only for edges whose ID is `PASSING` after C-05 step 4, is not RECORDED (R-35), and whose test outcome is `passed`. |
 | **I-011** | **Family-safe numbering.** ID normalization is injective within a family: `R-7`, `R-07`, `R-007` map to one ID; `R-07` and `C-07` never collide. |
 | **I-012** | **One scan per physical file (D-23).** For the `--src` list, and separately for the `--tests` list, every physical file reached by the PATHS elements is scanned and produces citations at most once (C-03 PATHS deduplication): a file reached by two overlapping elements, or named directly and also covered by a directory element, is deduplicated by resolved path. Where a direct file and a directory element both cover a file, that file's recorded `--src`/`--tests` root — and therefore a directly-named `.swift` file's `MODULE` (D-18) — is the FIRST element in the effective-list order that covers it; the emitted citation order is by ascending resolved path, independent of the order in which paths were named. Two inputs that name the same physical file set produce byte-identical reports (I-002). |
+| **I-013** | **The direct set is exact; depth is a prefix (v1.13).** In every `impact` report, an id is at depth 1 if and only if it is the `dst` of an `affects` edge whose `src` is a changed D id, or the `src` of a `depends_on` edge whose `dst` is a changed id, and it is not itself in the changed set; and for every $N \geq 1$ the `impact` list under `--depth N` is exactly the rows of the `--depth 0` list whose depth is $\leq N$, in the same order with the same `via`. |
 
 ---
 
@@ -961,7 +1161,7 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | ID | Case | Semantics |
 | -- | ---- | --------- |
 | **E-01** | Spec declares zero IDs (or all declared IDs are retired) | Exit `3`, message `spec declares no in-scope IDs`; no reports written. |
-| **E-02** | Same ID declared twice (both non-retired, or both retired) | Exit `3`, message names the ID and both lines. |
+| **E-02** | Same ID declared twice (both non-retired, or both retired); since v1.13 also a decision D-nn declared by two rows of the decision table (C-01 (c)) | Exit `3`, message names the ID and both lines. |
 | **E-03** | ID declared retired and also declared non-retired (any order) | Exit `3`, message names the ID and both lines (a spec must retire *or* keep an ID, not both). |
 | **E-04** | ID declared inside a fenced code block in `SPEC.md` | Not a declaration; ignored silently (spec templates contain example IDs). |
 | **E-05** | `--results` file is not well-formed XML, or root is neither `testsuites` nor `testsuite`, or a `<testcase>` lacks `name` | Exit `3`, message `results: <reason>`. |
@@ -1012,6 +1212,9 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **E-50** | The `*(recorded)*` marker on a declaration whose family is not T (`| **R-07** *(recorded)* |`) | The id is declared normally and is not RECORDED (`recorded: false`); one Note `recorded marker ignored on <ID>: not a T id` (R-35). |
 | **E-51** | A RECORDED T id whose citing test case failed, was skipped, has no result, or does not exist | Status by C-05 steps 1–4 exactly as for any T id — `FAILING`, `SKIPPED`, `UNVERIFIED`, `UNCITED`; the marker exempts an id from the judge (step 5) and from nothing else, so a recorded test still has to be present and green (R-35, R-15). |
 | **E-52** | A `--src`/`--tests` PATHS element that resolves *inside* `--root` but exists there as neither a directory nor a regular file — a non-existent path, or a broken symlink to nowhere (E-09's containment check already passed) | Exit `2`, message `--<flag>: no such file or directory: <segment>` (D-23). This replaces v1.11's "non-directory → usage error": a directory is descended, a regular file is scanned, and anything else is an error. No reports are written. |
+| **E-53** | `impact --changed` names an id that is not declared in `--spec` (an undeclared conformance id, an unknown decision, or a token that is neither — `X-01`, `R-`, `1234`) | Exit `2`, message `--changed: undeclared id: <element>` naming the first offending element in list order; no reports written (C-13). |
+| **E-54** | `impact` given both `--changed` and `--against`, or neither; or given `--results` or any judge flag | Exit `2`, message `impact: exactly one of --changed, --against is required` (or `impact: --results is not accepted` / `impact: --judge is not accepted`); no reports written. An `--against` file that is unreadable or outside `--root` is the ordinary usage error (E-09); one that fails C-01 is exit `3` with `--against: ` prefixed to the E-01/E-02/E-03 message. |
+| **E-55** | A statement or an *Affects* cell names a retired id | The edge is recorded with `retired: true` (C-12); `impact` walks it like any other, and every report row for a retired id — changed, impact, re-verify — strikes through the ID cell; a retired id in `--changed` is accepted. No Note: retirement is declared, not accidental. |
 
 ---
 
@@ -1128,7 +1331,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 
 | ID | Test |
 | -- | ---- |
-| **T-46** | `fixtures/target/` — a small self-contained project with its own `SPEC.md` ($\geq$ 12 IDs across all six families, 2 retired, one heading-declared contract with a multi-clause body $\geq$ 2,048 bytes per T-76), `src/`, `tests/`, and a checked-in `junit.xml` — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` E, one `FAILING` T, one `SKIPPED` K, one `EXECUTES_ONLY`-only test, one dangling citation, one stale citation, one unattributed result, one file-level citation. The golden reports live in `fixtures/target/golden/` (outside every scan root). `speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --root fixtures/target --out <fresh tmp>` produces files byte-identical to `golden/speccheck.json` and `golden/SPEC_CONFORMANCE_REPORT.md` and exits `1` (Q-003). (all of §2) |
+| **T-46** | `fixtures/target/` — a small self-contained project with its own `SPEC.md` ($\geq$ 12 IDs across all six families, 2 retired, one heading-declared contract with a multi-clause body $\geq$ 2,048 bytes per T-76, a §12 decision table per T-79), `src/`, `tests/`, and a checked-in `junit.xml` — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` E, one `FAILING` T, one `SKIPPED` K, one `EXECUTES_ONLY`-only test, one dangling citation, one stale citation, one unattributed result, one file-level citation. The golden reports live in `fixtures/target/golden/` (outside every scan root). `speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --root fixtures/target --out <fresh tmp>` produces files byte-identical to `golden/speccheck.json` and `golden/SPEC_CONFORMANCE_REPORT.md` and exits `1` (Q-003); `golden/` also holds the `impact` goldens of T-80. (all of §2) |
 | **T-47** | Removing each planted defect in turn flips exactly the expected row and metric (one sub-test per defect). (R-06, R-24) |
 | **T-71** | `fixtures/target-swift/` — a SwiftPM-shaped project with its own `SPEC.md` ($\geq$ 10 IDs across all six families, one carrying `**[port]**` decoration), `Sources/`, `Tests/<Module>/` holding one Swift Testing file (nested suite, parameterized test, disabled test, doc-comment citations) and one XCTest file, and a checked-in `junit.xml` that concatenates the `junit-swift-testing.xml` SwiftPM wrote and an XCTest `<testsuite>` in SwiftPM's shape — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` file-level citation, one `FAILING` T, one `SKIPPED` K (the disabled test), one `EXECUTES_ONLY`-only test, one undelimited `test*` helper (E-43), one unattributed result. With `--judge mock` both reports are byte-identical to `fixtures/target-swift/golden/`, and the summary line is exactly the one recorded in that golden. (R-31, R-32, R-16, R-24) |
 | **T-73** | Both golden fixtures regenerated for v1.7 and, as properties of the current output: each `golden/speccheck.json` carries the C-07 `schema_version` and a `title` per ID; in `fixtures/target/golden/speccheck.json` C-01's `statement` is its `title`, a newline, and `The error message MUST name the dividend.` while C-02's (empty body) equals its `title`; in each `golden/SPEC_CONFORMANCE_REPORT.md` the Statement cell of every §3 row equals that ID's JSON `title`, contains no newline, and no row contains the K-14 marker; the set of IDs in the Markdown equals the set in the JSON; `speccheck/_selfcheck/` is updated in step (T-60) and `--self-check` prints `self-check: ok`. The one-time v1.6 → v1.7 golden diff (only `schema_version` and the `title` keys added, heading-declared `statement`s changed, Markdown unchanged) is recorded in `SPEC_BUILD_REPORT.md`, not asserted by a test (F-302). (R-33, C-07, C-08, T-46, T-71) |
@@ -1152,6 +1355,15 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | -- | ---- |
 | **T-49** *(recorded)* | On the golden fixture's judged edges (each hand-labeled `ASSERTS`/`EXECUTES_ONLY`/`UNRELATED`), the LLM judge's non-`UNKNOWN` verdicts agree with labels at $\geq$ 0.90 accuracy and `unknown_rate` $\leq$ 0.10 in **each** of three independent runs (no pooling; one failing run fails T-49); all three per-run figures are recorded with model name, date, and `judge_prompt_sha256`. The labels live in `fixtures/target/golden/judge_labels.json`, a JSON object mapping `"<ID> <file>::<name>"` (the judged edge) to its label, with at least 20 entries of which at least 6 are edges of a statement over 2,048 bytes (T-76), so that a judge which grades a body by its gist fails the run while one that locates the clause passes; the runner is `tools/eval_judge.py` (not collected by pytest), which runs the check three times and scores each run against the labels (F-210). A run counts toward T-49 only if its recorded `judge_prompt_sha256` equals the SHA-256 of the current C-10 text; a change to C-10, or to C-01's statement rule, therefore voids the recorded runs and requires three fresh ones, and the labels are re-read against the current statements before those runs (F-303). (R-10, R-26) |
 
+### 9.12 Edges and impact (C-12, C-13; v1.13)
+
+| ID | Test |
+| -- | ---- |
+| **T-79** | Edge and decision extraction on the golden fixture, whose `SPEC.md` gains a §12 decision table (header cells in an order other than the template's, so the *Affects* column is found by name) with at least three `D-nn` rows — one whose *Affects* cell names two declared ids, one naming an undeclared id, one naming the retired C-03 — plus one `D-nn` row outside that table and one bold `**D-09**` row inside it (both declare nothing): the regenerated `golden/speccheck.json` carries the C-07 `schema_version` and the `decisions` and `edges` arrays exactly as pinned; `ids`, every status, every metric, `dangling`, `stale`, `notes` other than the new C-12 Notes, and `SPEC_CONFORMANCE_REPORT.md` are byte-identical to their v1.12 values (T-73 property, extended); an obligation whose statement names an undeclared id yields the Note `edge to undeclared id: <X> -> <Y>` and no edge; a T naming a T is `depends_on`; an obligation naming its T and that T naming the obligation yield one `verifies` edge with the T as `src`; the *Affects* cell naming C-03 yields an edge with `retired: true` (E-55) and a `decisions[].affects` entry; `D-8` is reported as `D-08`; a spec whose decision table declares `D-01` twice exits `3` naming both lines (E-02); a spec with no decision table has `decisions: []`; a statement's self-reference and a repeated token add nothing; edges are in C-12 order on every fixture including one whose ids are declared out of order. (R-36, C-01 (c), C-02, C-07, C-12, E-02, E-55) |
+| **T-80** | `speccheck impact --spec SPEC.md --changed K-02 --src src --tests tests --root fixtures/target --out <fresh tmp>` produces `impact.json` and `IMPACT_REPORT.md` byte-identical to `golden/impact.json` and `golden/IMPACT_REPORT.md`, exits `0`, and prints exactly one stdout line matching the C-13 regex whose five numbers equal the JSON's list lengths; the same command with `--depth 0` lists more rows in `impact`, its rows of depth $\leq$ 1 are the default run's rows in the same order with the same `via` (I-013), and the depth-cap Note is present in the default run and absent under `--depth 0`; two runs are byte-identical, and so is a run from a copy of the fixture at another absolute path (I-002); after a prior `check` into the same `--out`, an `impact` run leaves `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical and writes only its two files, and `check` after `impact` leaves the two `impact` files untouched (I-001); `--changed D-01` reaches exactly D-01's *Affects* ids at depth 1 via `affects` edges; `--changed T-05` lists T-05 in re-verify with `verifies: []` and impacts none of the ids T-05 verifies; `--changed K-2` is accepted as `K-02` (I-011); without `--src` §4 reads `Not scanned.` and `recite` is `[]`; without `--tests` `test_cases` is `[]`; the retired C-03 in `--changed` is accepted and its rows are struck through (E-55); `--self-check` is unchanged and still compares only the two `check` goldens. (R-37, C-13, I-001, I-002, I-011, I-013, K-09, E-55) |
+| **T-81** | `--against`: a copy of the fixture spec with one statement reworded, one id newly retired, one id removed, one id added, and one decision's *Affects* cell extended yields a changed set of exactly those five with the C-13 reasons, in C-12 id order, the removed id carrying its line in the `--against` file and appearing in no `impact` row; a byte-identical copy yields an empty changed set, every section `None.`, exit `0`, and the summary `speccheck impact: 0 changed, 0 impacted (depth 1), 0 to re-verify, 0 citations, 0 test cases`; an `--against` file with a duplicate declaration exits `3` with the E-02 message prefixed `--against: `; `--changed R-99`, `--changed X-01`, and `--changed ,` each exit `2` with the E-53 (or `--changed: no ids`) message; `--changed` with `--against`, neither, `--results junit.xml`, and `--judge mock` each exit `2` with the E-54 message; `--depth 1000`, `--depth -1`, `--depth x` exit `2`; in every exit-2/3 case no file is written under `--out` (I-001). (C-13, E-09, E-53, E-54, K-01, I-001) |
+| **T-82** *(recorded)* | The backtest `tools/impact_backtest.py` (D-24; not collected by pytest; needs `git` and this repository's history) on two ranges of `main` — spec `d170433^`..`c0a770a` built by `2a25569`..`2635298`, and spec `2635298`..`c1e3d87` built by `330dd4e`..`dfea1a6` — runs `impact --against` on the two spec versions and compares the predicted set at each depth cutoff $d \in \{1, 2, 3, \infty\}$ with the ids whose citations (per the built tree's `speccheck.json`) lie in the build range's touched hunks; recall and precision per cutoff, the miss list, and the chosen `--depth` default are recorded in `SPEC_BUILD_REPORT.md`; the bar is recall $\geq$ 0.80 at the chosen depth on both ranges, or every miss explained as an edge the prose does not and should not carry. The suite cites this id by a presence check that the script exists and `--help` exits `0`. (R-37, C-13, D-24) |
+
 ---
 
 ## 10. Dependencies and environment
@@ -1159,11 +1371,12 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 - **Runtime:** Python 3.12; `uv` for environment and lockfile. Install: `uv sync --extra dev`; with the model judge: `uv sync --extra dev --extra llm`.
 - **Kernel dependencies:** none beyond the standard library (`re`, `ast`, `xml.etree.ElementTree`, `json`, `argparse`, `pathlib`, `logging`, `hashlib`).
 - **Package data:** `speccheck/judge_prompt.md` (C-10) and `speccheck/_selfcheck/` (a byte-identical copy of `fixtures/target/` including its `golden/` directory, kept in sync by T-60; F-011, F-107), both included in the wheel.
-- **Golden fixture layout:** `fixtures/target/{SPEC.md, src/, tests/, junit.xml, golden/speccheck.json, golden/SPEC_CONFORMANCE_REPORT.md}`; `golden/` is never a scan root and is never written to by a run (Q-003).
+- **Golden fixture layout:** `fixtures/target/{SPEC.md, src/, tests/, junit.xml, golden/speccheck.json, golden/SPEC_CONFORMANCE_REPORT.md, golden/impact.json, golden/IMPACT_REPORT.md}` (the last two since v1.13, T-80); `golden/` is never a scan root and is never written to by a run (Q-003).
 - **`[llm]` extra:** `httpx` (HTTP client with per-request timeout). No provider SDK; the wire format is C-06.
 - **`[dev]` extra:** `pytest`, `pytest-cov`, `hypothesis` (T-28), `ruff`.
 - **Environment variables:** C-09 (only with `--judge llm`). No configuration files are read.
-- **Host prerequisites:** none. No network access is required except with `--judge llm`.
+- **Host prerequisites:** none. No network access is required except with `--judge llm`. The kernel never invokes `git` or any subprocess (D-24).
+- **Tools (not collected by pytest, not part of the wheel):** `tools/bench.py` (T-51), `tools/eval_judge.py` (T-49), `tools/sync_selfcheck.py` (T-60), `tools/impact_backtest.py` (T-82; the only one that needs `git` and the repository history; D-24).
 - **Commands:**
 
 ```bash
@@ -1172,6 +1385,7 @@ uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite; junit
 uv run ruff check src tests
 uv run speccheck --self-check
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock
+uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests               # v1.13; or --against <prior SPEC.md>
 ```
 
 - **Optional items:**
@@ -1222,17 +1436,21 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-33 | `extract.py` (heading title, SECTION BODY, K-14 cap and Note), `report.py` (`title` key; Markdown renders `title`), `judge_llm.py` (statement passthrough) | T-72, T-73, T-74 |
 | R-34 | `judge.py` (clause validation, K-15 matcher, E-48/E-49 coercion), `judge_llm.py` (`clause` in the reply), `judge_mock.py` (prefix clause), `report.py` (`clause` key, §8 column), `speccheck/judge_prompt.md` | T-75, T-76, T-49 |
 | R-35 | `extract.py` (RECORDED marker, `SpecId.recorded`), `graph.py` (step 5 skip, eligible edges), `report.py` (`recorded` key, ID cell) | T-77 |
-| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77 |
-| C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `SpecIndex`) | T-01, T-06, T-72, T-77 |
+| R-36 | `extract.py` (decision-table scan, `Decision`, `Edge`, C-12 edge builder and Notes), `report.py` (`decisions`, `edges`) | T-79 |
+| R-37 | `impact.py` (changed set, `--against` diff, walk, re-verify, re-cite), `cli.py` (`impact` subcommand), `report.py` (C-13 renderers) | T-80, T-81, T-82 |
+| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, decision rows (c), ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77, T-79 |
+| C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `Decision`, `Edge`, `SpecIndex`) | T-01, T-06, T-72, T-77, T-79 |
 | C-03 | `attribute.py` (`TestCase`, `Citation`, `test*` methods, Swift adapter), `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78 |
 | C-04 | `results.py` (two-step `join_name`) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68 |
 | C-05 | `graph.py` (`IdStatus`, `compute_status`, recorded skip in step 5) | T-20, T-21, T-27, T-53, T-77 |
 | C-06 | `judge.py` (`JudgeRequest` with numbered `source` and full statement, `Verdict` with `clause`, validation incl. K-15), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74, T-75 |
-| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59, T-73, T-75, T-77 |
+| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; `decisions`; `edges`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59, T-73, T-75, T-77, T-79 |
 | C-08 | `report.py` (`to_markdown`; Statement cell from `title`; `(recorded)` ID cell; §8 Clause column; em dash and `(file)` renderings) | T-35, T-73, T-75, T-77 |
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
 | C-10 | `speccheck/judge_prompt.md`, `judge_llm.py` (system message) | T-33, T-54, T-74, T-75 |
 | C-11 | `judge.py` (progress line rendering, draw/erase sequences) | T-62 |
+| C-12 | `extract.py` (token pass over `SpecId.text`, direction rules, order, undeclared-target Notes) | T-79 |
+| C-13 | `impact.py` (changed set and reasons, breadth-first walk, `via`, depth cap, REVERIFY, RECITE, TEST_CASES), `report.py` (`impact.json`, `IMPACT_REPORT.md`, summary line) | T-80, T-81 |
 | I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
 | I-003 | `report.py` | T-25, T-35 |
@@ -1245,6 +1463,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | I-010 | `graph.py` (edge selection: PASSING, passed, not recorded), `judge.py` | T-31, T-77 |
 | I-011 | `extract.py` (normalization) | T-02 |
 | I-012 | `extract.py` (deduplicate by resolved path, first-seen `scan_root`, emit by ascending path) | T-78 |
+| I-013 | `impact.py` (breadth-first order, first-reached depth, smallest `via`) | T-80 |
 | K-01 | `cli.py` | T-39, T-40, T-19, T-64 |
 | K-02 | `extract.py` (file filters, binary rule) | T-13 |
 | K-03 | `extract.py` (walker, no symlinks) | T-13 |
@@ -1312,12 +1531,15 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-50 | `extract.py` (marker on a non-T id → Note) | T-77 |
 | E-51 | `graph.py` (steps 1–4 unchanged for recorded ids) | T-77 |
 | E-52 | `cli.py` (a PATHS element inside `--root` but neither a directory nor a file → usage `2`) | T-78 |
+| E-53 | `cli.py` / `impact.py` (`--changed` element validation and message) | T-81 |
+| E-54 | `cli.py` (`impact` flag exclusivity; rejected `check`-only flags; `--against` errors) | T-81 |
+| E-55 | `extract.py` (`Edge.retired`), `report.py` (struck ID cells in the impact report) | T-79, T-80 |
 
 ---
 
 ## 12. Open questions and decisions to confirm
 
-Every row below is a decision the specification's author made on the requester's behalf because `one_sentence_prompt.md` did not settle it. The normative rows assume the default; the reviews checked that the default is precise, not that it is what the requester wanted. Rows are the `D-nn` family (decisions to confirm). A row marked `confirm` is ratified by a human changing its status to `confirmed v1.n`; a row the requester overturns becomes a `fix(speccheck):` change with a version bump.
+Every row below is a decision the specification's author made on the requester's behalf because `one_sentence_prompt.md` did not settle it. The normative rows assume the default; the reviews checked that the default is precise, not that it is what the requester wanted. Rows are the `D-nn` family (decisions to confirm). A row marked `confirm` is ratified by a human changing its status to `confirmed v1.n`; a row the requester overturns becomes a `fix(speccheck):` change with a version bump. Since v1.13 this table is machine-read: it is the C-01 (c) decision table, and each row's *Affects* cell is the normative list of the ids the decision touches — the source of the `affects` edges (C-12) that `impact` walks. An id a decision affects and the cell omits is a defect the T-82 backtest can find.
 
 | ID | Decision | Default taken | Alternatives rejected | Affects | Owner / status |
 | ----- | -------------- | ---------------- | ------------------ | ---------- | ------------ |
@@ -1344,6 +1566,8 @@ Every row below is a decision the specification's author made on the requester's
 | D-21 | How a verdict is tied to the statement | the judge quotes the clause it judged against and the kernel requires it to be LOCATED (whitespace-collapsed substring, 12..280 characters; K-15), coercing an unlocated `ASSERTS`/`EXECUTES_ONLY` to `UNKNOWN` — the same grounding pattern as evidence lines (R-34, E-48) | prompt rewording only, no `clause` field (smaller; unverifiable — the kernel cannot tell a located match from a gist, and the report cannot show which clause was judged); sending only a "relevant" slice of the body (the kernel cannot know which clause a test is about; D-20's rejected alternative); voting across repeated calls (K-06: one request per edge; hides instability); fuzzy clause matching (arguable at the boundary; "quote it" means verbatim, and a model that cannot is the finding) | R-34, C-06, C-07, C-08, C-10, K-15, E-48, E-49, I-005, T-75 | requester / confirmed v1.9 (2026-09-18: "apply proposal 1.9 in full") |
 | D-22 | Recorded-not-gating T ids under an honest judge | v1.10: a `*(recorded)*` marker in the T row's ID cell (C-01) makes the id RECORDED — its citing test still has to exist and pass (C-05 steps 1–4, E-51), but its edges are never judged (step 5, I-010), so a presence check is what it is and the strict LLM gate stays about assertions. This document marks T-48, T-49 and T-51 | no rule (v1.9's state: an honest judge marks the presence check `EXECUTES_ONLY` and `--strict --judge llm` exits 1 on this repository by design — `gemini-3.8-flash` did so to T-48 on 2026-09-18); a stated assertion for the presence check (fragile: what a presence check can honestly assert differs per recorded test); excluding family T from the judge stage entirely (too broad: T ids realized by real tests benefit from the judge) | R-35, C-01, C-02, C-05 step 5, I-010, C-07, C-08, E-50, E-51, T-77 | requester / confirmed v1.10 (2026-09-18: "let's do D-22") |
 | D-23 | `--src`/`--tests` accept a comma-separated list of files and/or directories | each occurrence is split on the literal `,`, every resulting segment is whitespace-trimmed and empty segments are dropped (no Note, no error); the surviving paths are resolved inside `--root` and deduplicated by resolved path — a file reached by more than one element is scanned and cites exactly once (I-012), the emits are in ascending-path order (I-002), and a file's recorded `--src`/`--tests` root, and thus a directly-named `.swift` file's `MODULE` (D-18), is fixed by the first-seen covering element; a directory element is descended and a regular file is scanned as one with every per-file filter applied; the default `src`/`tests` (the directory if it exists) applies only when the flag is entirely absent | a strict "any empty or whitespace-only segment is a usage error" policy (rejected: a trailing `--src a,` or a defensive `a,,b` is common and should not fail a run); extending the same list to `--results` (rejected for D-23: `--results` stays one JUnit file — a documented possible later step); a shared path-list primitive for every path flag, including `--out` (rejected: `--out` is a single destination, and a list of output directories is odd); letting a merely present-but-empty flag fall back to the directory default (rejected: an explicitly-given empty list is the operator's statement "no trees", which is E-19) | R-03, R-04, C-03, §5.1, E-09, E-30, E-52, I-012, I-002, T-40, T-78, D-18 | requester / confirmed 2026-09-19 ("trim + drop empties", scoped to `--src`/`--tests") |
+| D-24 | Where the change-impact backtest lives | `tools/impact_backtest.py`: a script outside the kernel that shells out to `git` for two spec versions and a build range, calls `speccheck impact --against`, and scores the prediction against the touched citations (T-82). The kernel exposes only the pure function of files (`--against FILE`) and never invokes `git` or any subprocess. | a kernel `--since REF` that reads the prior spec from `git` (one command for the operator, but the kernel gains a subprocess, a history-dependent input, and a failure mode per git state; I-001/I-002's "same bytes in, same bytes out" would need a git-state clause) | R-37, C-13, §3.1, §10, T-82, I-002 | requester / confirmed 2026-09-19 (`PROPOSAL_v1.13_impact.md` §5) |
+| D-25 | How decision rows enter the JSON | a separate `decisions` array (C-07) under a declaration-only family D (C-01 (c)): never in `ids`, never a citation target, never in `by_status`, `by_family`, `conformance`, `dangling`, or `stale`; I-003 and every existing golden §3 row are untouched | a seventh family in `ids` with a status of its own (uniform with the other families, but every denominator, the T-46 goldens, and the C-08 table change, `by_family` needs a seventh key, and `UNCITED`/`UNTESTED` are meaningless for a decision) | R-36, C-01, C-02, C-07, C-12, I-003, T-79 | requester / confirmed 2026-09-19 (`PROPOSAL_v1.13_impact.md` §5) |
 
 None of the first fourteen was raised as a question before v1.1; each was decided and reviewed for precision only. That is the defect this section corrects: a specification can be implementation-grade and still not be what was asked for.
 
@@ -1369,3 +1593,4 @@ None of the first fourteen was raised as a question before v1.1; each was decide
 | v1.10 | D-22 settled: RECORDED tests. A T row whose ID cell carries `*(recorded)*` as the first decoration token declares a recorded id (C-01, C-02 `recorded`); its status is computed by C-05 steps 1–4 like any T id (E-51) but its edges are never judged (step 5, I-010) and are not eligible edges for C-11; the marker on a non-T id is ignored with a Note (E-50); JSON gains `recorded` per id (`schema_version` `"1.3"`), the Markdown ID cell reads `T-48 (recorded)` (C-07, C-08); R-35, T-77; T-48, T-49 and T-51 marked in this document. Motivation: under an honest judge the presence checks that keep those ids cited are `EXECUTES_ONLY` by construction, so `--strict --judge llm` was red on this repository for a reason the spec intended but had left implicit. |
 | v1.11 | All seven findings of the v1.10 `SPEC_REVIEW_REPORT.md` applied. P0: F-401 `schema_version` stated once (C-07, §3.3), T-73/T-75/T-77 refer to "the C-07 value". P1: F-402 the C-06 validation list is numbered, first-match, with a non-string `clause` treated as absent and every coerced `UNKNOWN` recording `clause` `""` (C-06, E-16, E-49, T-75); F-403 RECORDED named in the null-`verdict` condition, E-37 owning it (E-37, C-07, T-34); F-404 one marker rule after C-01 (b), the heading title strips it, `~~T-48~~ (recorded)` pinned (C-01, C-08, T-77); F-405 `judge_strength` over `PASSING ∖ RECORDED`, null case stated, T-77 arithmetic (C-07). P2: F-406 K-15 trims the clause (T-75 sub-case); F-407 "the current C-10 text", D-08 measurement moved to its status cell, Status bullet trimmed. No behaviour the build would otherwise get wrong changed; what changed is what the spec pins. |
 | v1.12 | `--src` and `--tests` accept a comma-separated **list of files and/or directories**, requested 2026-09-19 after these flags accepted only directories (D-23): each occurrence is split on `,`, every segment whitespace-trimmed and empty segments dropped, paths resolved inside `--root` and deduplicated by resolved path (a file reached by more than one element is scanned and cites exactly once, I-012; emits are in ascending-path order; a file's recorded `--src`/`--tests` root — and thus a directly-named `.swift` file's `MODULE`, D-18 — is the first-seen covering element). Each directory element is descended and each regular file scanned as one, with every per-file filter applied identically; a path inside `--root` that exists as neither directory nor file is a usage error, `--<flag>: no such file or directory: <segment>`, replacing the former "non-directory → usage error" (E-52, exit `2`). The change is input-acceptance only: two inputs that name the same physical file set produce byte-identical reports (I-002), so the JSON/Markdown schemas, the summary regex, the statuses, the metrics, and the exit codes are unchanged and `schema_version` stays at the C-07 value. R-03 and R-04 reworded for the `--src`/`--tests` list; a C-03 `PATHS` rule and the directly-named-file `MODULE`; §5.1 synopsis, the `--src`/`--tests` rows, and a PATHS note; E-09 and E-30 generalized to PATHS elements; I-012 and E-52 added; T-78; §11 rows; D-18 extended; D-23 confirmed. |
+| v1.13 | Spec-internal edges and the `impact` subcommand (`PROPOSAL_v1.13_impact.md`, 2026-09-19; D-24 and D-25 confirmed). Evidence: in v1.12 of this document 134 of 203 live ids name another id in their statement — 186 `depends_on` and 240 `verifies` edges — and the §12 *Affects* column holds 110 more; following `depends_on` transitively saturates (from 77 of 125 obligations the closure reaches at least 40), so the direct set is the signal and `--depth` defaults to 1 until the T-82 backtest says otherwise. Changes: C-01 (c) decision rows — a declaration-only family D found by the table whose header has an *Affects* cell; C-02 `Decision`, `Edge`, `SpecIndex.decisions`/`edges`; C-12 the edge rules (statement tokens → `depends_on`/`verifies` with normalized direction, *Affects* tokens → `affects`; undeclared targets are Notes; retired targets flagged, E-55; total order); C-07 `decisions` and `edges` after `ids`, `schema_version` `"1.4"`, nothing else in the JSON or the Markdown report changed; C-13 `impact` — `--changed IDS` or `--against FILE` (diff reasons pinned), breadth-first reverse walk with `via` and `--depth` (default 1, 0 unbounded), REVERIFY, RECITE, TEST_CASES, `impact.json` `"1.0"`, `IMPACT_REPORT.md`, a summary line with its regex; §3.1 the `impact` pipeline and its temporaries; §3.3 two artifacts; C-03 exclusions extended; §5.1 synopsis and four rows; §5.4 `impact` codes; §0 two non-goals amended; §1 the Impact walker; R-36, R-37; I-001 and I-002 extended, I-013; E-02 extended, E-53..E-55; §9.12 T-79..T-82 (T-82 recorded: the backtest on two ranges of `main`); §10 tools and goldens; §11 rows; §12 read by machine, D-24, D-25. |
