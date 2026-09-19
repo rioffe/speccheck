@@ -22,6 +22,12 @@ Usage
     ./chatgpt_share_extract.py <url-or-id> [-o OUT] [--json] [--raw]
         [--time-tags|--no-time-tags] [--redacted-blocks|--no-redacted-blocks]
         [--conversation-id-block|--no-conversation-id-block]
+        [--citations|--no-citations] [--attachments|--no-attachments]
+        [--cite-dir DIR]
+
+Client-side citation markers such as "turn0file0L497-L498" are rewritten to
+GitHub-style line-range links ("SPEC.md#L497-L498") by default; place a copy
+of the cited file beside the output for the links to resolve.
 """
 
 from __future__ import annotations
@@ -33,6 +39,7 @@ import re
 import sys
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 
 USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
 
@@ -152,6 +159,50 @@ def find_conversation(table: list) -> dict:
     raise ExtractionError("no conversation object found in the page payload")
 
 
+def collect_citations(message: dict) -> list[dict]:
+    """Extract file citations attached to a message, in document order."""
+    metadata = message.get("metadata") or {}
+    citations = []
+    for cite in metadata.get("citations") or []:
+        info = cite.get("metadata") or {}
+        extra = info.get("extra") or {}
+        line_range = extra.get("line_range") or []
+        if len(line_range) != 2:
+            continue
+        citations.append(
+            {
+                "start_ix": cite.get("start_ix"),
+                "end_ix": cite.get("end_ix"),
+                "name": info.get("name"),
+                "file_id": info.get("id"),
+                "library_file_id": extra.get("library_file_id"),
+                "retrieval_turn": extra.get("retrieval_turn") or 0,
+                "retrieval_file_index": extra.get("retrieval_file_index") or 0,
+                "line_range": list(line_range),
+            }
+        )
+    citations.sort(key=lambda cite: (cite["start_ix"] is None, cite["start_ix"]))
+    return citations
+
+
+def collect_attachments(message: dict) -> list[dict]:
+    """Extract attachment metadata (never content) from a message."""
+    metadata = message.get("metadata") or {}
+    attachments = []
+    for item in metadata.get("attachments") or []:
+        attachments.append(
+            {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "size": item.get("size"),
+                "mime_type": item.get("mime_type"),
+                "library_file_id": item.get("library_file_id"),
+                "is_big_paste": item.get("is_big_paste"),
+            }
+        )
+    return attachments
+
+
 def linearize(conversation: dict) -> list[dict]:
     """Walk parent links from current_node to the root; return ordered messages."""
     mapping = conversation.get("mapping") or {}
@@ -187,12 +238,91 @@ def linearize(conversation: dict) -> list[dict]:
                 "create_time": message.get("create_time"),
                 "content_type": content.get("content_type") or "text",
                 "text": text,
+                "citations": collect_citations(message),
+                "attachments": collect_attachments(message),
             }
         )
     return messages
 
 
 REDACTED_PLACEHOLDER = "The output of this plugin was redacted."
+
+# A client-side citation marker. Fields are separated by U+E202 inside
+# U+E200/U+E201 sentinels:
+#     \ue200filecite\ue202turn0file0\ue202L497-L498\ue201
+# The type field ("filecite", "webcite") and the line-range field are both
+# optional in principle, so the pattern accepts either an empty line range or
+# a "L<start>" / "L<start>-L<end>" span.
+_CITE_TAG_RE = re.compile(
+    r"\ue200(?P<type>[a-z]*)\ue202"
+    r"turn(?P<turn>\d+)file(?P<file>\d+)"
+    r"\ue202(?P<span>L(?P<start>\d+)(?:-L?(?P<end>\d+))?)?\ue201"
+)
+
+# ChatGPT writes LaTeX with escaped delimiters: \[...\] display and \(...\)
+# inline. Both are converted to dollar form unconditionally (see convert_latex).
+_DISPLAY_MATH_RE = re.compile(r"\\\[(.*?)\\\]", re.S)
+_INLINE_MATH_RE = re.compile(r"\\\((.*?)\\\)", re.S)
+# Fenced code is left alone: delimiters there are literal text, not math.
+_FENCE_RE = re.compile(r"(?m)^([ \t]*)(`{3,}|~{3,})[^\n]*\n.*?(?:^\1\2[ \t]*$|\Z)", re.S)
+
+
+def render_citation(citation: dict, target: str | None = None) -> str:
+    """Render one citation as a GitHub-style Markdown line-range link."""
+    name = citation.get("name") or citation.get("file_id") or "citation"
+    start, end = citation["line_range"]
+    fragment = f"#L{start}" + (f"-L{end}" if end != start else "")
+    return f"[{name} L{start}-{end}]({target or name}{fragment})"
+
+
+def rewrite_citations(
+    text: str,
+    citations: list[dict],
+    targets: dict[str, str],
+) -> tuple[str, list[dict]]:
+    """Replace client citation markers with Markdown links.
+
+    Each marker records the turn and file slot that identify its subject; the
+    same turn/file pair may be cited several times with different spans, so
+    markers without a line range are matched to citations in call order.
+
+    Returns the rewritten text and the citations that could not be matched.
+    """
+    by_slot: dict[tuple[int, int], list[dict]] = {}
+    for citation in citations:
+        key = (citation["retrieval_turn"], citation["retrieval_file_index"])
+        by_slot.setdefault(key, []).append(citation)
+
+    for queue in by_slot.values():
+        queue.sort(key=lambda c: (c["line_range"][0], c["line_range"][1]))
+
+    used: set[int] = set()
+    queue_pos: dict[tuple[int, int], int] = {}
+
+    def replace(match: re.Match) -> str:
+        key = (int(match.group("turn")), int(match.group("file")))
+        candidates = [c for c in by_slot.get(key, []) if id(c) not in used]
+        if not candidates:
+            return match.group(0)
+        marker_lines = match.group("start")
+        if marker_lines:
+            want = (
+                int(marker_lines),
+                int(match.group("end") or marker_lines),
+            )
+            chosen = next((c for c in candidates if tuple(c["line_range"]) == want), None)
+        else:
+            chosen = candidates[0]
+        if chosen is None:
+            return match.group(0)
+        used.add(id(chosen))
+        queue_pos[key] = queue_pos.get(key, 0) + 1
+        name = chosen.get("name") or chosen.get("file_id") or ""
+        return render_citation(chosen, targets.get(name))
+
+    rewritten = _CITE_TAG_RE.sub(replace, text)
+    unmatched = [c for c in citations if id(c) not in used]
+    return rewritten, unmatched
 
 
 @dataclass(frozen=True)
@@ -202,6 +332,8 @@ class RenderOptions:
     time_tags: bool = False
     redacted_blocks: bool = False
     conversation_id_block: bool = False
+    citations: bool = True
+    attachments: bool = False
 
 
 def is_redacted(text: str) -> bool:
@@ -209,12 +341,66 @@ def is_redacted(text: str) -> bool:
     return text.strip() == REDACTED_PLACEHOLDER
 
 
+def render_attachments(messages: list[dict]) -> list[str]:
+    """Render an attachments block; metadata only, never content."""
+    lines: list[str] = []
+    for message in messages:
+        for attachment in message.get("attachments") or []:
+            if not lines:
+                lines.append("## Attachments")
+                lines.append("")
+            size = attachment.get("size")
+            size_text = f"{size} bytes" if isinstance(size, int) else "unknown size"
+            detail = ", ".join(
+                part
+                for part in (attachment.get("mime_type"), size_text)
+                if part
+            )
+            lines.append(
+                f"- **{attachment.get('name') or attachment.get('id')}** "
+                f"({detail}) — attached to the {message['role'].upper()} message; "
+                "content is not stored in the shared conversation"
+            )
+    return lines
+
+
+def convert_latex(text: str) -> str:
+    """Convert escaped LaTeX delimiters to dollar delimiters.
+
+    ChatGPT emits ``\\[...\\]`` for display math and ``\\(...\\)`` for inline
+    math, which most Markdown renderers (including GitHub) do not recognise —
+    they render the delimiters literally. ``$$...$$`` and ``$...$`` are what
+    those renderers expect, so the conversion is unconditional, except inside
+    fenced code blocks where the delimiters are literal text.
+    """
+
+    def convert_segment(segment: str) -> str:
+        segment = _DISPLAY_MATH_RE.sub(lambda m: f"$${m.group(1)}$$", segment)
+        return _INLINE_MATH_RE.sub(lambda m: f"${m.group(1)}$", segment)
+
+    out: list[str] = []
+    position = 0
+    for fence in _FENCE_RE.finditer(text):
+        out.append(convert_segment(text[position : fence.start()]))
+        out.append(fence.group(0))
+        position = fence.end()
+    out.append(convert_segment(text[position:]))
+    return "".join(out)
+
+
 def render_markdown(
     conversation: dict,
     messages: list[dict],
     options: RenderOptions = RenderOptions(),
+    targets: dict[str, str] | None = None,
 ) -> str:
-    """Render the conversation as a readable Markdown transcript."""
+    """Render the conversation as a readable Markdown transcript.
+
+    ``targets`` maps a citation's file name to the link target to use for it,
+    so line-range links can point at a local copy of the cited file. Files
+    absent from ``targets`` link to their own name.
+    """
+    targets = targets or {}
     selected = [
         message
         for message in messages
@@ -234,6 +420,7 @@ def render_markdown(
             if value not in (None, ""):
                 lines.append(f"- **{label}:** {value}")
         lines.append("")
+    orphaned: dict[str, list[tuple[int, int]]] = {}
     for message in selected:
         header = f"## {message['role'].upper()}"
         if options.time_tags and message.get("create_time"):
@@ -243,8 +430,49 @@ def render_markdown(
                 if isinstance(stamp, str)
                 else f"  ({float(stamp):.3f})"
             )
-        lines.extend([header, "", message["text"], ""])
+        text = message["text"]
+        if options.citations:
+            text, unmatched = rewrite_citations(
+                text, message.get("citations") or [], targets
+            )
+            for citation in unmatched:
+                name = citation.get("name") or citation.get("file_id") or "citation"
+                orphaned.setdefault(name, []).append(tuple(citation["line_range"]))
+        text = convert_latex(text)
+        lines.extend([header, "", text, ""])
+    if options.attachments:
+        block = render_attachments(selected)
+        if block:
+            lines.extend(block)
+            lines.append("")
+    if orphaned:
+        lines.append("## Citations without an inline marker")
+        lines.append("")
+        for name, ranges in orphaned.items():
+            spans = ", ".join(
+                f"L{start}-{end}" if start != end else f"L{start}" for start, end in ranges
+            )
+            lines.append(f"- {name}: {spans}")
+        lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def citation_targets(messages: list[dict], cite_dir: str = ".") -> dict[str, str]:
+    """Map cited file names that exist under ``cite_dir`` to link targets.
+
+    A cited file is linked by its own (relative) name, so the rendered link
+    resolves when the transcript sits beside a local copy of that file. Names
+    absent here link to the same path and will dangle until a copy is placed
+    there, which is the honest outcome: the script cannot invent a target for
+    a file it does not have.
+    """
+    names: list[str] = []
+    for message in messages:
+        for citation in message.get("citations") or []:
+            name = citation.get("name")
+            if name and name not in names:
+                names.append(name)
+    return {name: name for name in names if (Path(cite_dir) / name).exists()}
 
 
 def extract(url_or_id: str) -> dict:
@@ -280,6 +508,23 @@ def main(argv: list[str] | None = None) -> int:
         default=False,
         help="show the conversation id/model/created/count block in Markdown (default: hidden)",
     )
+    parser.add_argument(
+        "--citations",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="convert inline client citation markers to Markdown line-range links (default: shown)",
+    )
+    parser.add_argument(
+        "--attachments",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="list attachment metadata in Markdown (default: hidden)",
+    )
+    parser.add_argument(
+        "--cite-dir",
+        default=".",
+        help="directory holding local copies of cited files, used to resolve link targets (default: .)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -294,6 +539,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.json:
         payload = json.dumps(conversation, indent=1, ensure_ascii=False)
     else:
+        targets = citation_targets(messages, args.cite_dir) if args.citations else {}
         payload = render_markdown(
             conversation,
             messages,
@@ -301,8 +547,26 @@ def main(argv: list[str] | None = None) -> int:
                 time_tags=args.time_tags,
                 redacted_blocks=args.redacted_blocks,
                 conversation_id_block=args.conversation_id_block,
+                citations=args.citations,
+                attachments=args.attachments,
             ),
+            targets,
         )
+        if args.citations:
+            missing = sorted(
+                {
+                    citation.get("name")
+                    for message in messages
+                    for citation in message.get("citations") or []
+                    if citation.get("name") and citation["name"] not in targets
+                }
+            )
+            for name in missing:
+                print(
+                    f"note: cited file {name!r} not found under {args.cite_dir}; "
+                    "its links will dangle",
+                    file=sys.stderr,
+                )
 
     if args.output:
         with open(args.output, "w", encoding="utf-8") as handle:
