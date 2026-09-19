@@ -10,8 +10,9 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.8, code
-1.8.0) in full, and so is the worked example of the method it serves — together with the four agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` in full (code
+1.8.0 against spec v1.8; `SPEC.md` is now at v1.9 — clause-grounded verdicts, R-34 — whose build
+is next), and so is the worked example of the method it serves — together with the four agent skills that
 write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -393,7 +394,7 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.8; the source of truth; written in the
+SPEC.md                         the specification (v1.9; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
