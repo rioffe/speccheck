@@ -2,6 +2,7 @@
 
 > - **Status:** proposal, 2026-09-18; for `spec-writing` to turn into `SPEC.md` v1.9 rows after the requester settles D-21 below
 > - **Applies to:** `SPEC.md` v1.8 — C-06 (`Verdict`, kernel validation), C-07 (verdict object), C-08 (§8 Judge details), C-10 (judge instruction text), T-46/T-49 (golden fixture and its labels), D-08
+> - **Notation:** unprefixed ids (C-06, T-49, D-08) are speccheck's own. Ids of the project used as evidence are written `mdv:C-06` — a foreign id, in inline code so the PDF cross-reference pass does not link it to speccheck's C-06.
 > - **Evidence:** speccheck 1.8.0 (the v1.7/v1.8 build: bodies sent to the judge) run twice with `openai/gpt-4o-mini` over the 440 edges of the mdv `SPEC.md` v0.11.2 tree, and once each with 1.6.0 (title only) and 1.8.0 over the same tree and `junit.xml`; the 1.8.0 self-application (436 edges); six T-49 runs the same day. Per-edge data in that project's `build/speccheck-1.{6,8}-llm*/speccheck.json` and its `SPEC_BUILD_REPORT.md` §3.1.
 
 ## 1. The problem
@@ -23,17 +24,17 @@ body nearly verbatim. They cluster on the long bodies:
 | Body size | Contract edges | False negatives (one reader) |
 | --- | ---: | ---: |
 | under 2 kB (13 contracts) | 54 | 4 (7 %) |
-| 2–11 kB (C-17, C-06, C-07, C-18) | 47 | 9 (19 %) |
+| 2–11 kB (`mdv:C-17`, `mdv:C-06`, `mdv:C-07`, `mdv:C-18`) | 47 | 9 (19 %) |
 
 Three of them, verbatim from `speccheck.json`:
 
-- **C-18** (11,179 bytes) ← `testBookmarkMenuOrderAndEnablement`, which asserts the seven context-menu items in C-18.9's
-  order, both separators, and every enable/disable rule: *"does not contain any assertions that directly verify the
+- **`mdv:C-18`** (11,179 bytes) ← `testBookmarkMenuOrderAndEnablement`, which asserts the seven context-menu items in
+  `mdv:C-18.9`'s order, both separators, and every enable/disable rule: *"does not contain any assertions that directly verify the
   behavior described in the statement."*
-- **C-07** (4,050 bytes) ← `testCacheKeyedByURL`, which asserts `cacheLimit == 2048` and that one URL is typeset once;
-  C-07.2 reads *"Cache: 2048 entries keyed by the URL"*: *"executes code related to the caching behavior … but does not
+- **`mdv:C-07`** (4,050 bytes) ← `testCacheKeyedByURL`, which asserts `cacheLimit == 2048` and that one URL is typeset once;
+  `mdv:C-07.2` reads *"Cache: 2048 entries keyed by the URL"*: *"executes code related to the caching behavior … but does not
   assert the specific behavior described in the statement."*
-- **E-42** on speccheck's own tree (first Phase B run of the v1.8 build) ← a test asserting E-42's Note and `cases == ()`:
+- **E-42** (speccheck's own, not mdv's) on its own tree (first Phase B run of the v1.8 build) ← a test asserting E-42's Note and `cases == ()`:
   *"does not assert the specific brace depth conditions required by the statement."*
 
 The rationales share a shape — *does not assert the specific behaviour required by the statement regarding **X*** —
@@ -47,7 +48,7 @@ Two consequences. The gate is not at risk — an id is `WEAKLY_PASSING` only whe
 long-bodied contracts have many edges. But §8 of the report, where v1.7's value lives, had ~28 % precision on contract
 flags in this run (5 real of 18), and an operator who finds §8 wrong most of the time stops reading it. And T-49 cannot
 see any of this: its nine labeled edges include no heading-declared contract with more than one sentence of body, so
-all six T-49 runs on 2026-09-18 scored 0.889–1.000 while the same model was mis-judging C-18 minutes earlier.
+all six T-49 runs on 2026-09-18 scored 0.889–1.000 while the same model was mis-judging `mdv:C-18` minutes earlier.
 
 ## 2. The change
 
@@ -116,6 +117,6 @@ visible only through T-49). Part A stands in both branches.
 
 It does not make the judge deterministic, and it does not change the gate: an id with one `ASSERTS` edge stays
 `PASSING` under either branch, exactly as C-05 step 5 says today. It does not decide which model to run; it makes
-that decision measurable. And it does not address the 63 table-row edges the same runs downgraded on the mdv tree —
+that decision measurable. And it does not address the 63 table-row edges the same runs downgraded on the mdv tree (their ids would all be `mdv:` ones) —
 those were not read for this proposal, and the long-body pattern above says nothing about one-line statements, where
 the v1.7 evidence pointed the other way (generous, not strict).
