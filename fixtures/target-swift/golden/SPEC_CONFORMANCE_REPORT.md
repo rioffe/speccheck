@@ -74,17 +74,17 @@ None.
 
 ## 8. Judge details
 
-| ID | Test | Verdict | Evidence | Rationale |
-| --- | --- | --- | --- | --- |
-| R-01 | Tests/CalcTests/CalcTests.swift `add` | ASSERTS | Tests/CalcTests/CalcTests.swift:11 | mock: assertion token on 1 line(s) |
-| R-01 | Tests/CalcTests/LegacyTests.swift `testVersionString` | ASSERTS | Tests/CalcTests/LegacyTests.swift:9, Tests/CalcTests/LegacyTests.swift:10 | mock: assertion token on 2 line(s) |
-| R-02 | Tests/CalcTests/CalcTests.swift `subtract` | ASSERTS | Tests/CalcTests/CalcTests.swift:21 | mock: assertion token on 1 line(s) |
-| C-01 | Tests/CalcTests/CalcTests.swift `divideByZero` | ASSERTS | Tests/CalcTests/CalcTests.swift:31 | mock: assertion token on 1 line(s) |
-| I-001 | Tests/CalcTests/CalcTests.swift `addCommutes` | ASSERTS | Tests/CalcTests/CalcTests.swift:16 | mock: assertion token on 1 line(s) |
-| I-002 | Tests/CalcTests/CalcTests.swift `scaleRuns` | EXECUTES_ONLY | — | mock: no assertion token |
-| E-02 | Tests/CalcTests/CalcTests.swift `scaleEmpty` | ASSERTS | Tests/CalcTests/CalcTests.swift:50 | mock: assertion token on 1 line(s) |
-| T-01 | Tests/CalcTests/CalcTests.swift `add` | ASSERTS | Tests/CalcTests/CalcTests.swift:11 | mock: assertion token on 1 line(s) |
-| T-02 | Tests/CalcTests/CalcTests.swift `divideByZero` | ASSERTS | Tests/CalcTests/CalcTests.swift:31 | mock: assertion token on 1 line(s) |
+| ID | Test | Verdict | Clause | Evidence | Rationale |
+| --- | --- | --- | --- | --- | --- |
+| R-01 | Tests/CalcTests/CalcTests.swift `add` | ASSERTS | `add(a, b)` MUST return the arithmetic sum of `a` and `b`. | Tests/CalcTests/CalcTests.swift:11 | mock: assertion token on 1 line(s) |
+| R-01 | Tests/CalcTests/LegacyTests.swift `testVersionString` | ASSERTS | `add(a, b)` MUST return the arithmetic sum of `a` and `b`. | Tests/CalcTests/LegacyTests.swift:9, Tests/CalcTests/LegacyTests.swift:10 | mock: assertion token on 2 line(s) |
+| R-02 | Tests/CalcTests/CalcTests.swift `subtract` | ASSERTS | `subtract(a, b)` MUST return `a - b`. | Tests/CalcTests/CalcTests.swift:21 | mock: assertion token on 1 line(s) |
+| C-01 | Tests/CalcTests/CalcTests.swift `divideByZero` | ASSERTS | `divide(a, b)` throws `CalcError.divideByZero(dividend:)` when `b == 0` The err… | Tests/CalcTests/CalcTests.swift:31 | mock: assertion token on 1 line(s) |
+| I-001 | Tests/CalcTests/CalcTests.swift `addCommutes` | ASSERTS | `add` is commutative: `add(a, b) == add(b, a)` for all finite inputs. | Tests/CalcTests/CalcTests.swift:16 | mock: assertion token on 1 line(s) |
+| I-002 | Tests/CalcTests/CalcTests.swift `scaleRuns` | EXECUTES_ONLY | `scale` preserves the length of its input. | — | mock: no assertion token |
+| E-02 | Tests/CalcTests/CalcTests.swift `scaleEmpty` | ASSERTS | Empty array passed to `scale` | Tests/CalcTests/CalcTests.swift:50 | mock: assertion token on 1 line(s) |
+| T-01 | Tests/CalcTests/CalcTests.swift `add` | ASSERTS | `add` returns the sum for integers and floats. (R-01) | Tests/CalcTests/CalcTests.swift:11 | mock: assertion token on 1 line(s) |
+| T-02 | Tests/CalcTests/CalcTests.swift `divideByZero` | ASSERTS | `divide` by zero throws with the dividend in the error. (C-01) | Tests/CalcTests/CalcTests.swift:31 | mock: assertion token on 1 line(s) |
 
 ## 9. Notes
 

@@ -1,7 +1,7 @@
 """Grapher: ID -> source-file / ID -> test-case edges, the C-05 status algorithm, C-07 metrics.
 
-Spec IDs realized here (§11): R-02, R-06, R-07, R-08, R-09, R-11, R-16, R-25, C-05, I-002, I-004,
-    I-008, I-010, K-08, E-08, E-19, E-25, E-26.
+Spec IDs realized here (§11): R-02, R-06, R-07, R-08, R-09, R-11, R-16, R-25, R-35, C-05, I-002,
+    I-004, I-008, I-010, K-08, E-08, E-19, E-25, E-26, E-37, E-51.
 """
 
 from __future__ import annotations
@@ -146,10 +146,11 @@ def build_graph(
 
 
 def eligible_edges(graph: Graph) -> list[tuple[IdRecord, TestEdge]]:
-    """I-010: edges of PASSING IDs (after step 4) whose test outcome is `passed`."""
+    """I-010: edges of PASSING IDs (after step 4) whose test outcome is `passed` — never an edge
+    of a RECORDED id (R-35)."""
     out: list[tuple[IdRecord, TestEdge]] = []
     for rec in graph.records:
-        if rec.status != "PASSING":
+        if rec.status != "PASSING" or rec.spec.recorded:
             continue
         for edge in rec.tests:
             if edge.outcome == "passed":
@@ -161,7 +162,7 @@ def apply_verdicts(graph: Graph, verdicts: dict[tuple[TestCase, str], JudgedVerd
     """C-05 step 5: the only place verdicts influence anything (R-11, I-004)."""
     graph.judge_enabled = True
     for rec in graph.records:
-        if rec.status != "PASSING":
+        if rec.status != "PASSING" or rec.spec.recorded:  # R-35: recorded ids skip step 5
             continue
         collected: list[str] = []
         for edge in rec.tests:
@@ -226,8 +227,11 @@ def compute_metrics(graph: Graph) -> Metrics:
                     if edge.verdict.verdict == "UNKNOWN":
                         unknown += 1
         weak = by_status["WEAKLY_PASSING"]
-        strength_ratio = f"{passing}/{passing + weak}"
-        strength = ratio(passing, passing + weak)
+        # C-07: judge_strength is over PASSING \ RECORDED — a recorded id is PASSING without a
+        # judged edge and is outside the population (F-405); conformance keeps it
+        judged_passing = sum(1 for r in records if r.status == "PASSING" and not r.spec.recorded)
+        strength_ratio = f"{judged_passing}/{judged_passing + weak}"
+        strength = ratio(judged_passing, judged_passing + weak)
         unknown_rate = ratio(unknown, judged)
     return Metrics(
         declared,

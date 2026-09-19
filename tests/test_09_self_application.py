@@ -13,8 +13,8 @@ from .conftest import run_cli
 ROOT = Path(__file__).resolve().parent.parent
 
 
-# SPEC.md v1.8 declares 190 ids (33 R, 11 C, 11 I, 14 K, 47 E, 74 T; none retired); bump with the spec
-DECLARED_IDS = 190
+# SPEC.md v1.11 declares 200 ids (35 R, 11 C, 11 I, 15 K, 51 E, 77 T; none retired); bump with the spec
+DECLARED_IDS = 200
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

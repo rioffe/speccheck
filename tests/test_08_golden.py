@@ -8,6 +8,8 @@ from pathlib import Path
 
 import pytest
 
+from speccheck import report
+
 from .conftest import FIXTURE, run_cli
 
 ARGS = [
@@ -94,7 +96,7 @@ REPAIRS = {
             ),
         ),
         {"R-03": "PASSING"},
-        {"UNCITED": 0, "PASSING": 9},
+        {"UNCITED": 0, "PASSING": 14},
     ),
     "C-02 UNTESTED -> PASSING": (
         lambda t: (
@@ -109,7 +111,7 @@ REPAIRS = {
             ),
         ),
         {"C-02": "PASSING"},
-        {"UNTESTED": 0, "PASSING": 9},
+        {"UNTESTED": 0, "PASSING": 14},
     ),
     "E-01 UNVERIFIED -> PASSING": (
         lambda t: _sub(
@@ -118,7 +120,7 @@ REPAIRS = {
             '<testcase classname="tests.test_core" name="test_scale_negative" />\n  </testsuite>',
         ),
         {"E-01": "PASSING"},
-        {"UNVERIFIED": 0, "PASSING": 9},
+        {"UNVERIFIED": 0, "PASSING": 14},
     ),
     "T-03 FAILING -> PASSING": (
         lambda t: _sub(
@@ -127,7 +129,7 @@ REPAIRS = {
             '<testcase classname="tests.test_core" name="test_subtract_precision" />',
         ),
         {"T-03": "PASSING"},
-        {"FAILING": 0, "PASSING": 9},
+        {"FAILING": 0, "PASSING": 14},
     ),
     "K-01 SKIPPED -> PASSING": (
         lambda t: _sub(
@@ -136,7 +138,7 @@ REPAIRS = {
             '<testcase classname="tests.test_core" name="test_divide_fast" />',
         ),
         {"K-01": "PASSING"},
-        {"SKIPPED": 0, "PASSING": 9},
+        {"SKIPPED": 0, "PASSING": 14},
     ),
     "I-002 WEAKLY_PASSING -> PASSING": (
         lambda t: _sub(
@@ -145,7 +147,7 @@ REPAIRS = {
             "    assert len(scale([1, 2, 3], 2)) == 3\n",
         ),
         {"I-002": "PASSING"},
-        {"WEAKLY_PASSING": 0, "PASSING": 9},
+        {"WEAKLY_PASSING": 0, "PASSING": 14},
     ),
     "dangling removed": (
         lambda t: _sub(t / "src/calc/core.py", "R-09 territory", "future territory"),
@@ -191,7 +193,7 @@ def test_removing_each_planted_defect_flips_exactly_its_row(tmp_path: Path, labe
     for status, count in expected_counts.items():
         assert doc["metrics"]["by_status"][status] == count
     passing = doc["metrics"]["by_status"]["PASSING"]
-    assert doc["metrics"]["conformance_ratio"] == f"{passing}/14"
+    assert doc["metrics"]["conformance_ratio"] == f"{passing}/19"  # fixture v1.1: 19 in scope
     if label == "dangling removed":
         assert doc["dangling"] == [] and doc["stale"] == golden["stale"]
     elif label == "stale removed":
@@ -316,13 +318,19 @@ def test_goldens_carry_title_and_markdown_renders_title(tmp_path: Path):
     }
     for fixture, body in expected_bodies.items():
         golden = json.loads((fixture / "golden" / "speccheck.json").read_text(encoding="utf-8"))
-        assert golden["schema_version"] == "1.1"
+        assert golden["schema_version"] == report.SCHEMA_VERSION  # the C-07 value (F-401)
         recs = {r["id"]: r for r in golden["ids"]}
         assert all("title" in r for r in recs.values())
-        assert list(recs["C-01"].keys())[:4] == ["id", "family", "title", "statement"]
+        assert list(recs["C-01"].keys())[:5] == ["id", "family", "recorded", "title", "statement"]
         assert recs["C-01"]["statement"] == recs["C-01"]["title"] + "\n" + body
         assert recs["C-02"]["statement"] == recs["C-02"]["title"]
-        assert all(r["statement"] == r["title"] for i, r in recs.items() if i != "C-01")
+        # every table-declared id and every empty-body heading: statement == title; C-01 (one
+        # sentence) and, in the Python fixture, C-04 (T-76's long body) are the only bodies
+        with_body = {i for i, r in recs.items() if r["statement"] != r["title"]}
+        assert with_body <= {"C-01", "C-04"}
+        assert all(
+            r["statement"].startswith(r["title"] + "\n") for i, r in recs.items() if i in with_body
+        )
         md = (fixture / "golden" / "SPEC_CONFORMANCE_REPORT.md").read_text(encoding="utf-8")
         cells = _md_statement_cells(md)
         assert set(cells) == set(recs)

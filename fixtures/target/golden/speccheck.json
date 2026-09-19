@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1",
+  "schema_version": "1.3",
   "spec": "SPEC.md",
   "judge": "mock",
   "judge_available": true,
@@ -10,6 +10,7 @@
     {
       "id": "R-01",
       "family": "R",
+      "recorded": false,
       "title": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
       "statement": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
       "line": 15,
@@ -45,6 +46,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -54,6 +56,38 @@
             "rationale": "mock: assertion token on 1 line(s)",
             "coerced": false
           }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_module_does_not_change_add",
+          "classname": "tests.test_summary",
+          "lines": [
+            52
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_module_does_not_change_add",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 53
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 54
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
         }
       ],
       "unrun": []
@@ -61,6 +95,7 @@
     {
       "id": "R-02",
       "family": "R",
+      "recorded": false,
       "title": "`subtract(a, b)` MUST return `a - b`.",
       "statement": "`subtract(a, b)` MUST return `a - b`.",
       "line": 16,
@@ -91,6 +126,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "`subtract(a, b)` MUST return `a - b`.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -107,6 +143,7 @@
     {
       "id": "R-03",
       "family": "R",
+      "recorded": false,
       "title": "`multiply(a, b)` MUST return the product of `a` and `b`.",
       "statement": "`multiply(a, b)` MUST return the product of `a` and `b`.",
       "line": 17,
@@ -118,6 +155,7 @@
     {
       "id": "R-04",
       "family": "R",
+      "recorded": false,
       "title": "`modulo(a, b)` MUST return `a % b`. (retired: dropped from the brief)",
       "statement": "`modulo(a, b)` MUST return `a % b`. (retired: dropped from the brief)",
       "line": 18,
@@ -129,6 +167,7 @@
     {
       "id": "C-01",
       "family": "C",
+      "recorded": false,
       "title": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0`",
       "statement": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0`\nThe error message MUST name the dividend.",
       "line": 22,
@@ -159,6 +198,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0` The error message MUST name the dividend.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -175,6 +215,7 @@
     {
       "id": "C-02",
       "family": "C",
+      "recorded": false,
       "title": "`scale(values, factor)` returns a new list and never mutates its input",
       "statement": "`scale(values, factor)` returns a new list and never mutates its input",
       "line": 26,
@@ -193,6 +234,7 @@
     {
       "id": "C-03",
       "family": "C",
+      "recorded": false,
       "title": "`average(values)` returns the arithmetic mean (retired)",
       "statement": "`average(values)` returns the arithmetic mean (retired)",
       "line": 28,
@@ -202,11 +244,236 @@
       "unrun": []
     },
     {
+      "id": "C-04",
+      "family": "C",
+      "recorded": false,
+      "title": "Summary report: `summarize(values)` and the `Summary` shape",
+      "statement": "Summary report: `summarize(values)` and the `Summary` shape\n```python\n@dataclass(frozen=True)\nclass Summary:\n    count: int                 # rule 1: number of input values, including duplicates\n    total: float               # rule 2: the K-02-rounded sum of the inputs\n    mean: float | None         # rule 3: total / count rounded per K-02; None when count == 0\n    ordered: tuple[float, ...] # rule 4: the inputs sorted ascending, ties kept in input order\n    smallest: float | None     # rule 4: ordered[0], or None when empty\n    largest: float | None      # rule 4: ordered[-1], or None when empty\n\ndef summarize(values: list[float]) -> Summary: ...   # pure; never mutates `values`\n```\n\nRules (normative; each is one clause a test may assert on its own):\n\n1. **Shape.** `summarize` returns a `Summary` whose fields are exactly `count`, `total`, `mean`,\n   `ordered`, `smallest`, `largest`, in that order, with the types shown. `count` equals\n   `len(values)`; a value that appears twice is counted twice. The result is immutable\n   (`frozen=True`): assigning a field raises `FrozenInstanceError`.\n2. **Rounding.** `total` is the sum of the inputs rounded per K-02 — `round(sum(values), 2)` — and\n   never the sum of the individually rounded inputs, so `summarize([0.005, 0.005]).total == 0.01`\n   while `add(0.005, 0.0) + add(0.005, 0.0)` would give `0.02`. The rounding is applied once, to\n   the exact sum.\n3. **Mean.** `mean` is `round(total_exact / count, 2)` where `total_exact` is the unrounded sum;\n   it is `None` — not `0.0`, not `NaN` — when `count == 0`. `summarize([1, 2]).mean == 1.5`;\n   `summarize([1, 1, 2]).mean == 1.33`.\n4. **Ordering.** `ordered` is the inputs sorted ascending by value; equal values keep their input\n   order (a stable sort), so `summarize([2.0, 1, 2]).ordered == (1, 2.0, 2)` with the float `2.0`\n   before the int `2`. `smallest` is `ordered[0]` and `largest` is `ordered[-1]`; both are `None`\n   for an empty input. The input list itself is not reordered.\n5. **Error text.** A non-numeric value (anything that is not an `int` or a `float`; `bool` counts\n   as non-numeric here) raises `TypeError` whose message is exactly\n   `summary: non-numeric value at index <i>` for the first offending index; nothing is summed\n   before the check, so a later offending value is never reached.\n6. **Empty input.** `summarize([])` returns `Summary(count=0, total=0.0, mean=None, ordered=(),\n   smallest=None, largest=None)` and does not raise; `total` is the float `0.0`, not the int `0`.\n\nThe contract exists for speccheck's own judge evaluation (its T-49 / T-76): its body is long and has\nseveral independent clauses, so a judge that grades a test against the gist of the whole contract\nrather than against the clause the test asserts is caught by the labels in `golden/judge_labels.json`.",
+      "line": 30,
+      "status": "PASSING",
+      "src": [
+        {
+          "file": "src/calc/summary.py",
+          "lines": [
+            1,
+            21
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_shape",
+          "classname": "tests.test_summary",
+          "lines": [
+            11
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_shape",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 13
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 14
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 15
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 16
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 17
+              }
+            ],
+            "rationale": "mock: assertion token on 5 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_rounds_the_exact_sum_once",
+          "classname": "tests.test_summary",
+          "lines": [
+            22
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_rounds_the_exact_sum_once",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 23
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 24
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_ordering_is_stable_ascending",
+          "classname": "tests.test_summary",
+          "lines": [
+            28
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_ordering_is_stable_ascending",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 30
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 31
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 32
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 35
+              }
+            ],
+            "rationale": "mock: assertion token on 4 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_empty_input",
+          "classname": "tests.test_summary",
+          "lines": [
+            39
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_empty_input",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 41
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 42
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_runs_on_a_mixed_list",
+          "classname": "tests.test_summary",
+          "lines": [
+            46
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_runs_on_a_mixed_list",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "EXECUTES_ONLY",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [],
+            "rationale": "mock: no assertion token",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_module_does_not_change_add",
+          "classname": "tests.test_summary",
+          "lines": [
+            52
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_module_does_not_change_add",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 53
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 54
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
       "id": "I-001",
       "family": "I",
+      "recorded": false,
       "title": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
       "statement": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
-      "line": 34,
+      "line": 77,
       "status": "PASSING",
       "src": [
         {
@@ -234,6 +501,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -250,9 +518,10 @@
     {
       "id": "I-002",
       "family": "I",
+      "recorded": false,
       "title": "`scale` preserves the length of its input list.",
       "statement": "`scale` preserves the length of its input list.",
-      "line": 35,
+      "line": 78,
       "status": "WEAKLY_PASSING",
       "src": [
         {
@@ -280,6 +549,7 @@
           ],
           "verdict": {
             "verdict": "EXECUTES_ONLY",
+            "clause": "`scale` preserves the length of its input list.",
             "evidence": [],
             "rationale": "mock: no assertion token",
             "coerced": false
@@ -291,9 +561,10 @@
     {
       "id": "K-01",
       "family": "K",
+      "recorded": false,
       "title": "`divide` completes in under 1 ms for inputs below 10^6.",
       "statement": "`divide` completes in under 1 ms for inputs below 10^6.",
-      "line": 41,
+      "line": 84,
       "status": "SKIPPED",
       "src": [
         {
@@ -327,9 +598,10 @@
     {
       "id": "K-02",
       "family": "K",
+      "recorded": false,
       "title": "Every result is rounded to two decimal places with `round(x, 2)`.",
       "statement": "Every result is rounded to two decimal places with `round(x, 2)`.",
-      "line": 42,
+      "line": 85,
       "status": "PASSING",
       "src": [
         {
@@ -337,6 +609,12 @@
           "lines": [
             1,
             5
+          ]
+        },
+        {
+          "file": "src/calc/summary.py",
+          "lines": [
+            29
           ]
         }
       ],
@@ -358,6 +636,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "Every result is rounded to two decimal places with `round(x, 2)`.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -367,6 +646,38 @@
             "rationale": "mock: assertion token on 1 line(s)",
             "coerced": false
           }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_rounds_the_exact_sum_once",
+          "classname": "tests.test_summary",
+          "lines": [
+            22
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_rounds_the_exact_sum_once",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Every result is rounded to two decimal places with `round(x, 2)`.",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 23
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 24
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
         }
       ],
       "unrun": []
@@ -374,9 +685,10 @@
     {
       "id": "E-01",
       "family": "E",
+      "recorded": false,
       "title": "Negative inputs to `scale`",
       "statement": "Negative inputs to `scale`",
-      "line": 48,
+      "line": 91,
       "status": "UNVERIFIED",
       "src": [
         {
@@ -409,9 +721,10 @@
     {
       "id": "E-02",
       "family": "E",
+      "recorded": false,
       "title": "Empty list passed to `scale`",
       "statement": "Empty list passed to `scale`",
-      "line": 49,
+      "line": 92,
       "status": "PASSING",
       "src": [
         {
@@ -450,6 +763,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "Empty list passed to `scale`",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -471,9 +785,10 @@
     {
       "id": "T-01",
       "family": "T",
+      "recorded": false,
       "title": "`add` returns the sum for integers and floats. (R-01)",
       "statement": "`add` returns the sum for integers and floats. (R-01)",
-      "line": 55,
+      "line": 98,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -499,6 +814,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "`add` returns the sum for integers and floats. (R-01)",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -515,9 +831,10 @@
     {
       "id": "T-02",
       "family": "T",
+      "recorded": false,
       "title": "`divide` by zero raises with the dividend in the message. (C-01)",
       "statement": "`divide` by zero raises with the dividend in the message. (C-01)",
-      "line": 56,
+      "line": 99,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -538,6 +855,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
+            "clause": "`divide` by zero raises with the dividend in the message. (C-01)",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -554,9 +872,10 @@
     {
       "id": "T-03",
       "family": "T",
+      "recorded": false,
       "title": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
       "statement": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
-      "line": 57,
+      "line": 100,
       "status": "FAILING",
       "src": [],
       "tests": [
@@ -576,6 +895,206 @@
             }
           ],
           "verdict": null
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-04",
+      "family": "T",
+      "recorded": false,
+      "title": "`summarize` returns the pinned `Summary` shape: field names, order, types, `count` including duplicates, frozen. (C-04 rule 1)",
+      "statement": "`summarize` returns the pinned `Summary` shape: field names, order, types, `count` including duplicates, frozen. (C-04 rule 1)",
+      "line": 101,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_shape",
+          "classname": "tests.test_summary",
+          "lines": [
+            11
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_shape",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`summarize` returns the pinned `Summary` shape: field names, order, types, `count` including duplicates, frozen. (C-04 rule 1)",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 13
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 14
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 15
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 16
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 17
+              }
+            ],
+            "rationale": "mock: assertion token on 5 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-05",
+      "family": "T",
+      "recorded": false,
+      "title": "`summarize` rounds the exact sum once: `[0.005, 0.005]` totals `0.01`. (C-04 rule 2, K-02)",
+      "statement": "`summarize` rounds the exact sum once: `[0.005, 0.005]` totals `0.01`. (C-04 rule 2, K-02)",
+      "line": 102,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_rounds_the_exact_sum_once",
+          "classname": "tests.test_summary",
+          "lines": [
+            22
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_rounds_the_exact_sum_once",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`summarize` rounds the exact sum once: `[0.005, 0.005]` totals `0.01`. (C-04 rule 2, K-02)",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 23
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 24
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-06",
+      "family": "T",
+      "recorded": false,
+      "title": "`summarize` orders ascending with a stable sort and reports `smallest`/`largest`. (C-04 rule 4)",
+      "statement": "`summarize` orders ascending with a stable sort and reports `smallest`/`largest`. (C-04 rule 4)",
+      "line": 103,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_ordering_is_stable_ascending",
+          "classname": "tests.test_summary",
+          "lines": [
+            28
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_ordering_is_stable_ascending",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`summarize` orders ascending with a stable sort and reports `smallest`/`largest`. (C-04 rule 4)",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 30
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 31
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 32
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 35
+              }
+            ],
+            "rationale": "mock: assertion token on 4 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
+      "id": "T-07",
+      "family": "T",
+      "recorded": false,
+      "title": "`summarize([])` is the all-empty `Summary` with `mean` `None` and `total` `0.0`. (C-04 rule 6)",
+      "statement": "`summarize([])` is the all-empty `Summary` with `mean` `None` and `total` `0.0`. (C-04 rule 6)",
+      "line": 104,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_empty_input",
+          "classname": "tests.test_summary",
+          "lines": [
+            39
+          ],
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_empty_input",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`summarize([])` is the all-empty `Summary` with `mean` `None` and `total` `0.0`. (C-04 rule 6)",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 41
+              },
+              {
+                "file": "tests/test_summary.py",
+                "line": 42
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
         }
       ],
       "unrun": []
@@ -604,11 +1123,11 @@
   ],
   "notes": [],
   "metrics": {
-    "declared": 16,
+    "declared": 21,
     "retired": 2,
-    "in_scope": 14,
+    "in_scope": 19,
     "by_status": {
-      "PASSING": 8,
+      "PASSING": 13,
       "WEAKLY_PASSING": 1,
       "FAILING": 1,
       "SKIPPED": 1,
@@ -616,8 +1135,8 @@
       "UNTESTED": 1,
       "UNCITED": 1
     },
-    "conformance_ratio": "8/14",
-    "conformance": 0.5714,
+    "conformance_ratio": "13/19",
+    "conformance": 0.6842,
     "by_family": {
       "R": {
         "in_scope": 3,
@@ -625,9 +1144,9 @@
         "ratio": 0.6667
       },
       "C": {
-        "in_scope": 2,
-        "passing": 1,
-        "ratio": 0.5000
+        "in_scope": 3,
+        "passing": 2,
+        "ratio": 0.6667
       },
       "I": {
         "in_scope": 2,
@@ -645,13 +1164,13 @@
         "ratio": 0.5000
       },
       "T": {
-        "in_scope": 3,
-        "passing": 2,
-        "ratio": 0.6667
+        "in_scope": 7,
+        "passing": 6,
+        "ratio": 0.8571
       }
     },
-    "judge_strength_ratio": "8/9",
-    "judge_strength": 0.8889,
+    "judge_strength_ratio": "13/14",
+    "judge_strength": 0.9286,
     "unknown_rate": 0.0000
   },
   "exit_code": 1

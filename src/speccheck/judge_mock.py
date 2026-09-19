@@ -1,6 +1,6 @@
 """Mock judge provider (C-06, R-22): deterministic, configuration-free, no I/O.
 
-Spec IDs realized here (§11): R-10, R-22, C-06.
+Spec IDs realized here (§11): R-10, R-22, R-34, C-06.
 """
 
 from __future__ import annotations
@@ -35,16 +35,23 @@ class MockJudge:
             lineno_text, _tab, text = row.partition("\t")
             if is_assertion_line(text):
                 evidence.append(Evidence(req.testcase.file, int(lineno_text)))
+        # C-06 / R-22: the clause is the whitespace-collapsed statement cut to 280 characters — a
+        # prefix, so it is always LOCATED under K-15; the mock reads no statement semantics
+        clause = " ".join(req.statement.split())[:280]
         if evidence:
             verdict = Verdict(
-                "ASSERTS", tuple(evidence), f"mock: assertion token on {len(evidence)} line(s)"
+                "ASSERTS",
+                clause,
+                tuple(evidence),
+                f"mock: assertion token on {len(evidence)} line(s)",
             )
         else:
-            verdict = Verdict("EXECUTES_ONLY", (), "mock: no assertion token")
+            verdict = Verdict("EXECUTES_ONLY", clause, (), "mock: no assertion token")
         log.debug(
             "judge< %s",
             {
                 "verdict": verdict.verdict,
+                "clause": verdict.clause,
                 "evidence": [e.__dict__ for e in verdict.evidence],
                 "rationale": verdict.rationale,
             },

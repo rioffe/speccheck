@@ -7,7 +7,8 @@ Ollama server, which serves exactly this shape at http://localhost:11434/v1/chat
 `httpx` is imported lazily inside `_httpx_post` so that `--judge none|mock` never loads an HTTP
 client (R-18, I-006).
 
-Spec IDs realized here (§11): R-10, R-18, R-23, R-26, C-06, C-09, C-10, I-007, K-05, K-06, E-14.
+Spec IDs realized here (§11): R-10, R-18, R-23, R-26, R-34, C-06, C-09, C-10, I-007, K-05, K-06,
+    E-14.
 """
 
 from __future__ import annotations
@@ -142,7 +143,8 @@ def parse_answer(text: str) -> Verdict:
             raise JudgeMalformed("evidence line is not an integer")
         evidence.append(Evidence(str(item.get("file", "")), line))
     rationale = obj.get("rationale", "")
-    return Verdict(verdict, tuple(evidence), str(rationale))
+    # `clause` MAY be absent (C-06); a non-string is passed through and treated as "" by validation
+    return Verdict(verdict, obj.get("clause", ""), tuple(evidence), str(rationale))
 
 
 class LlmJudge:

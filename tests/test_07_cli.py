@@ -507,6 +507,7 @@ def test_strict_llm_judge_gate(project, tmp_path: Path, monkeypatch):
         content = json.dumps(
             {
                 "verdict": "UNKNOWN" if unknown else "ASSERTS",
+                "clause": req["statement"][:280],
                 "evidence": [] if unknown else [{"file": req["file"], "line": req["start"] + 2}],
                 "rationale": "r",
             }
@@ -584,6 +585,7 @@ def test_judge_budget(project, monkeypatch):
         content = json.dumps(
             {
                 "verdict": "ASSERTS",
+                "clause": req["statement"][:280],
                 "evidence": [{"file": req["file"], "line": req["start"] + 2}],
                 "rationale": "r",
             }
@@ -731,6 +733,7 @@ def _asserting_stub(delay: float):
         content = json.dumps(
             {
                 "verdict": "ASSERTS",
+                "clause": req["statement"][:280],
                 "evidence": [{"file": req["file"], "line": req["start"] + 2}],
                 "rationale": "r",
             }

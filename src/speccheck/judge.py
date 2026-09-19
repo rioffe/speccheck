@@ -3,8 +3,8 @@ runner that issues at most one call per edge (I-010) under the K-06 / K-12 limit
 
 The judge may only ever make the news worse: its output is consumed solely by C-05 step 5.
 
-Spec IDs realized here (§11): R-10, R-30, C-06, C-11, I-005, I-010, K-07, K-12, K-13, E-14, E-15,
-    E-16, E-17, E-35, E-36, E-40, E-41.
+Spec IDs realized here (§11): R-10, R-30, R-34, C-06, C-11, I-005, I-010, K-07, K-12, K-13, K-15,
+    E-14, E-15, E-16, E-17, E-35, E-36, E-40, E-41, E-48, E-49.
 """
 
 from __future__ import annotations
@@ -59,7 +59,11 @@ class Evidence:
 
 @dataclass(frozen=True)
 class Verdict:
+    """A provider's raw answer (C-06). `clause` is the statement excerpt it judged against (R-34);
+    a provider MAY pass a non-string when its reply lacked one — validation treats it as ""."""
+
     verdict: str
+    clause: object
     evidence: tuple[Evidence, ...]
     rationale: str
 
@@ -69,6 +73,7 @@ class JudgedVerdict:
     """A validated verdict as recorded in the report."""
 
     verdict: str
+    clause: str  # LOCATED excerpt (K-15) for ASSERTS / EXECUTES_ONLY; "" otherwise (E-49)
     evidence: tuple[Evidence, ...]
     rationale: str
     coerced: bool
@@ -129,23 +134,65 @@ def clean_rationale(text: str) -> str:
 
 
 def _unknown(rationale: str, *, call_failed: bool = False, call_made: bool = True) -> JudgedVerdict:
+    # E-49: a verdict coerced to UNKNOWN by any rule records clause ""
     return JudgedVerdict(
-        "UNKNOWN", (), rationale, True, call_failed=call_failed, call_made=call_made
+        "UNKNOWN", "", (), rationale, True, call_failed=call_failed, call_made=call_made
     )
 
 
+CLAUSE_MIN = 12  # K-15
+CLAUSE_MAX = 280  # K-15
+
+
+def collapse_ws(text: str) -> str:
+    return " ".join(text.split())
+
+
+def locate_clause(clause: str, statement: str) -> str | None:
+    """K-15: the LOCATED form of `clause` against `statement`, or None.
+
+    Both strings have every whitespace run collapsed to one space; the clause is trimmed and cut
+    to its first 280 characters (a prefix of a located excerpt is still located); it is LOCATED
+    when it is a case-sensitive substring of the collapsed statement and at least 12 characters
+    long — or the statement itself is shorter than 12 characters and the clause equals it (an
+    empty statement is matched by an empty clause)."""
+    stmt = collapse_ws(statement)
+    cut = collapse_ws(clause)[:CLAUSE_MAX]
+    if len(stmt) < CLAUSE_MIN:
+        return cut if cut == stmt else None
+    if len(cut) >= CLAUSE_MIN and cut in stmt:
+        return cut
+    return None
+
+
 def validate(raw: Verdict, req: JudgeRequest) -> JudgedVerdict:
-    """The C-06 validation applied to every provider's answer (I-005)."""
+    """The C-06 validation applied to every provider's answer (I-005), in the spec's order: the
+    first rule that fires decides the verdict and the rationale (F-402). Rule 1 (provider failure
+    / non-JSON) is `judge_edge`'s; this function starts at rule 2."""
+    # 2. verdict not in the four-value set
     if raw.verdict not in VERDICTS:
         return _unknown("judge: malformed response")
+    # 3. clause absent or not a JSON string -> ""
+    clause = raw.clause if isinstance(raw.clause, str) else ""
+    # 4. UNRELATED / UNKNOWN: clause blanked, done (E-49)
+    if raw.verdict in ("UNRELATED", "UNKNOWN"):
+        evidence = tuple(sorted(set(raw.evidence), key=lambda e: (e.file, e.line)))
+        return JudgedVerdict(raw.verdict, "", evidence, clean_rationale(raw.rationale), False)
+    # 5. ASSERTS / EXECUTES_ONLY: the clause must be LOCATED (K-15, E-48)
+    located = locate_clause(clause, req.statement)
+    if located is None:
+        return _unknown("judge: unlocated clause")
+    # 6. ASSERTS needs evidence (E-16)
+    if raw.verdict == "ASSERTS" and not raw.evidence:
+        return _unknown("judge: ungrounded")
+    # 7. every evidence line inside the span, in the judged file (E-16)
     case = req.testcase
     for ev in raw.evidence:
         if ev.file != case.file or not (case.start <= ev.line <= case.end):
             return _unknown("judge: ungrounded")
-    if raw.verdict == "ASSERTS" and not raw.evidence:
-        return _unknown("judge: ungrounded")
+    # 8. rationale bound (K-07) is applied to whatever rationale results
     evidence = tuple(sorted(set(raw.evidence), key=lambda e: (e.file, e.line)))
-    return JudgedVerdict(raw.verdict, evidence, clean_rationale(raw.rationale), False)
+    return JudgedVerdict(raw.verdict, located, evidence, clean_rationale(raw.rationale), False)
 
 
 def judge_edge(provider: Judge, req: JudgeRequest) -> JudgedVerdict:

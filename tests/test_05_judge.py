@@ -51,8 +51,9 @@ def _req(
     return build_request("R-01", "the statement", case, padded)
 
 
-def _ok(verdict: str, evidence=(), rationale: str = "r") -> Verdict:
-    return Verdict(verdict, tuple(evidence), rationale)
+def _ok(verdict: str, evidence=(), rationale: str = "r", clause: str = "the statement") -> Verdict:
+    """A stub Verdict; the default clause is `_req`'s whole statement, so it is LOCATED (K-15)."""
+    return Verdict(verdict, clause, tuple(evidence), rationale)
 
 
 class StubProvider:
@@ -136,7 +137,7 @@ def _graph_with_edges(verdict_names: list[str | None]) -> tuple[Graph, dict]:
         case = SpecTestCase("tests/test_a.py", f"test_{i}", "tests.test_a", 1 + 3 * i, 3 + 3 * i)
         edges.append(Edge(case, [2 + 3 * i], "passed", []))
         if name is not None:
-            verdicts[(case, "R-01")] = JudgedVerdict(name, (), "r", name == "UNKNOWN")
+            verdicts[(case, "R-01")] = JudgedVerdict(name, "s", (), "r", name == "UNKNOWN")
     rec = IdRecord(spec, "PASSING", [], edges)
     return Graph([rec], [], []), verdicts
 
@@ -474,6 +475,7 @@ def test_llm_response_path_fences_and_prompt_hash(tmp_path: Path, monkeypatch):
     and that file equals the C-10 text. (C-06, C-10, R-26)"""
     answer = {
         "verdict": "ASSERTS",
+        "clause": "a",  # the whole 1-character statement (K-15: a short statement matches itself)
         "evidence": [{"file": "tests/test_a.py", "line": 2}],
         "rationale": "ok",
     }
@@ -593,6 +595,7 @@ def test_llm_request_carries_heading_body_statement(tmp_path: Path, monkeypatch)
         reply=json.dumps(
             {
                 "verdict": "ASSERTS",
+                "clause": "func startRun() -> Bool",  # a clause of the body, verbatim
                 "evidence": [{"file": "tests/test_w.py", "line": 3}],
                 "rationale": "r",
             }
@@ -623,8 +626,82 @@ def test_llm_request_carries_heading_body_statement(tmp_path: Path, monkeypatch)
     assert user["id"] == "C-01" and user["statement"] == expected
     assert run.ids()["C-01"]["statement"] == expected  # the JSON records what the judge saw
     assert run.ids()["C-01"]["title"] == "`Widget` (an `actor`)"
-    # the shipped instruction text carries the v1.7 rule and its hash is what the report records
+    # the shipped instruction text carries the v1.9 clause rule and its hash is what the report records
     shipped = C10_PATH.read_text(encoding="utf-8")
-    assert "a test that asserts any clause\n    of the statement ASSERTS it" in shipped
+    assert 'quote it verbatim in "clause"' in shipped  # the v1.9 C-10 text
     assert body["messages"][0]["content"] == shipped
     assert run.json["judge_prompt_sha256"] == hashlib.sha256(shipped.encode("utf-8")).hexdigest()
+
+
+STATEMENT = (
+    "Report shape\n```python\nclass Summary:\n    count: int   # rule 1\n```\n\n"
+    "1. **Shape.** `summarize` returns a `Summary` whose fields are exactly `count`, `total`.\n"
+    "2. **Rounding.** `total` is the sum rounded per K-02."
+)
+
+
+def _req_with(statement: str, source_lines=("def test_a():", "    assert True")) -> JudgeRequest:
+    case = SpecTestCase("tests/test_a.py", "test_a", "tests.test_a", 1, len(source_lines))
+    return build_request("C-04", statement, case, list(source_lines))
+
+
+def test_clause_grounding_validation():
+    """T-75: an ASSERTS whose clause is a verbatim excerpt differing only in line breaks and
+    indentation is accepted and recorded with the collapsed excerpt; a 300-character excerpt is
+    cut to 280; a paraphrase, an 8-character fragment, a missing key and "" each yield UNKNOWN
+    `judge: unlocated clause` for ASSERTS and EXECUTES_ONLY alike; an UNRELATED with a clause is
+    recorded with "" and not coerced; `"clause": null` on an UNRELATED is "" and not coerced, on
+    an ASSERTS it is E-48; unlocated clause AND out-of-span evidence records `judge: unlocated
+    clause` (rule order); a leading space that otherwise matches is LOCATED (K-15 trims); a
+    9-character statement is matched by itself and by nothing shorter; the mock's clause is the
+    collapsed statement's first 280 characters and "" for an empty statement. (R-34, K-15, E-48,
+    E-49, I-005, C-06, R-22)"""
+    from speccheck.judge import locate_clause
+
+    req = _req_with(STATEMENT)
+    ev = [Evidence("tests/test_a.py", 2)]
+    # verbatim excerpt with different whitespace -> located, recorded collapsed
+    v = validate(_ok("ASSERTS", ev, clause="returns a `Summary`\n   whose fields are exactly"), req)
+    assert (v.verdict, v.coerced, v.clause) == (
+        "ASSERTS",
+        False,
+        "returns a `Summary` whose fields are exactly",
+    )
+    # a long excerpt is cut to its first 280 characters (a prefix of a located excerpt is located)
+    long_stmt = "x" * 10 + " " + "word " * 100
+    v = validate(_ok("EXECUTES_ONLY", clause=long_stmt[:300]), _req_with(long_stmt))
+    assert v.verdict == "EXECUTES_ONLY" and len(v.clause) == 280 and long_stmt.startswith(v.clause)
+    # paraphrase / short fragment / missing / empty -> unlocated, for both verdicts
+    for verdict in ("ASSERTS", "EXECUTES_ONLY"):
+        for bad in ("the summary has count and total fields", "rule 1", "", None):
+            v = validate(_ok(verdict, ev, clause=bad), req)  # type: ignore[arg-type]
+            assert (v.verdict, v.coerced, v.rationale, v.clause) == (
+                "UNKNOWN",
+                True,
+                "judge: unlocated clause",
+                "",
+            ), (verdict, bad)
+    # UNRELATED / UNKNOWN: clause blanked, never coerced for it
+    for verdict in ("UNRELATED", "UNKNOWN"):
+        for supplied in ("Rounding", None, 7):
+            v = validate(_ok(verdict, clause=supplied), req)  # type: ignore[arg-type]
+            assert (v.verdict, v.coerced, v.clause) == (verdict, False, "")
+    # rule order: unlocated clause wins over out-of-span evidence
+    v = validate(_ok("ASSERTS", [Evidence("tests/test_a.py", 99)], clause="nope nope nope"), req)
+    assert v.rationale == "judge: unlocated clause"
+    v = validate(_ok("ASSERTS", [Evidence("tests/test_a.py", 99)], clause="rounded per K-02."), req)
+    assert v.rationale == "judge: ungrounded"
+    # K-15 trims; the 12-character floor; a short statement is matched by itself only
+    assert locate_clause(" Report shape\n```python", STATEMENT) == "Report shape ```python"
+    assert locate_clause("Report shap", STATEMENT) is None  # 11 characters
+    assert locate_clause("Report shape", STATEMENT) == "Report shape"  # 12
+    assert locate_clause("nine char", "nine char") == "nine char"
+    assert locate_clause("nine cha", "nine char") is None
+    assert locate_clause("", "") == ""
+    assert locate_clause("Nine char", "nine char") is None  # case-sensitive
+    # the mock's clause is the collapsed statement's prefix, and "" for an empty statement
+    mock = MockJudge()
+    assert mock.judge(req).clause == " ".join(STATEMENT.split())[:280]
+    assert mock.judge(_req_with(long_stmt)).clause == " ".join(long_stmt.split())[:280]
+    assert mock.judge(_req_with("")).clause == ""
+    assert validate(mock.judge(_req_with("")), _req_with("")).coerced is False

@@ -1,8 +1,8 @@
 """Reporter: the JSON (C-07) and Markdown (C-08) reports, the exit-code rule (§5.4), the summary
 line (§5.1), and the only file writer in the program (§3.1 temp-and-rename; I-001, E-18).
 
-Spec IDs realized here (§11): R-12, R-13, R-16, R-19, R-20, R-24, R-28, C-07, C-08, I-001, I-002,
-    I-003, I-009, K-08, K-09, E-07, E-13, E-18, E-34, E-37, E-38.
+Spec IDs realized here (§11): R-12, R-13, R-16, R-19, R-20, R-24, R-28, R-34, R-35, C-07, C-08,
+    I-001, I-002, I-003, I-009, K-08, K-09, E-07, E-13, E-18, E-34, E-37, E-38.
 """
 
 from __future__ import annotations
@@ -20,7 +20,9 @@ from .extract import FAMILY_ORDER
 from .graph import IN_SCOPE_STATUSES, Graph, Metrics, TestEdge, compute_metrics
 from .results import RawResult
 
-SCHEMA_VERSION = "1.1"  # C-07: "1.0" through v1.6; "1.1" adds `title` per ID (v1.7, R-33)
+SCHEMA_VERSION = (
+    "1.3"  # C-07: "1.0"-v1.6; "1.1" `title` (v1.7); "1.2" `clause` (v1.9); "1.3" `recorded` (v1.10)
+)
 JSON_NAME = "speccheck.json"
 MD_NAME = "SPEC_CONFORMANCE_REPORT.md"
 EM_DASH = "\u2014"
@@ -138,6 +140,7 @@ def _edge_json(edge: TestEdge) -> dict:
     if edge.verdict is not None:
         verdict = {
             "verdict": edge.verdict.verdict,
+            "clause": edge.verdict.clause,  # C-07 / R-34: the LOCATED excerpt, "" per E-49
             "evidence": [{"file": e.file, "line": e.line} for e in edge.verdict.evidence],
             "rationale": edge.verdict.rationale,
             "coerced": edge.verdict.coerced,
@@ -175,6 +178,7 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
         {
             "id": rec.id,
             "family": rec.spec.family,
+            "recorded": rec.spec.recorded,  # C-07 / R-35
             "title": rec.spec.title,  # C-07 / R-33: heading text or table cell (C-08 renders it)
             "statement": rec.spec.text,  # the full statement: title + section body for a heading
             "line": rec.spec.line,
@@ -295,6 +299,8 @@ def render_markdown(report: dict) -> str:
     rows = []
     for rec in report["ids"]:
         ident = f"~~{rec['id']}~~" if rec["status"] == "RETIRED" else rec["id"]
+        if rec["recorded"]:
+            ident += " (recorded)"  # C-08 / R-35: strike the id, then the label
         src = ", ".join(f"{s['file']}:{ln}" for s in rec["src"] for ln in s["lines"]) or EM_DASH
         tests = []
         for t in rec["tests"]:
@@ -356,16 +362,24 @@ def render_markdown(report: dict) -> str:
                 if v is None:
                     continue
                 evidence = ", ".join(f"{e['file']}:{e['line']}" for e in v["evidence"]) or EM_DASH
+                # C-08: the clause tail-truncated to 80 characters, em dash when "" (R-34)
+                clause = v["clause"]
+                clause = (clause[:79] + "\u2026") if len(clause) > 80 else (clause or EM_DASH)
                 judged.append(
                     [
                         rec["id"],
                         f"{t['file']} `{_case_label(t['name'])}`",
                         _verdict_text(v),
+                        clause,
                         evidence,
                         v["rationale"],
                     ]
                 )
-        section("## 8. Judge details", ["ID", "Test", "Verdict", "Evidence", "Rationale"], judged)
+        section(
+            "## 8. Judge details",
+            ["ID", "Test", "Verdict", "Clause", "Evidence", "Rationale"],
+            judged,
+        )
     out.extend(["", "## 9. Notes", ""])
     if report["notes"]:
         out.extend(f"- {_cell(n)}" for n in report["notes"])

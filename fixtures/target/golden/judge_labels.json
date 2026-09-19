@@ -18,5 +18,6 @@
   "T-05 tests/test_summary.py::test_summary_rounds_the_exact_sum_once": "ASSERTS",
   "T-06 tests/test_summary.py::test_summary_ordering_is_stable_ascending": "ASSERTS",
   "T-07 tests/test_summary.py::test_summary_empty_input": "ASSERTS",
-  "R-01 tests/test_summary.py::test_summary_module_does_not_change_add": "ASSERTS"
+  "R-01 tests/test_summary.py::test_summary_module_does_not_change_add": "ASSERTS",
+  "K-02 tests/test_summary.py::test_summary_rounds_the_exact_sum_once": "ASSERTS"
 }

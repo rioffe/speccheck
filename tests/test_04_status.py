@@ -151,9 +151,13 @@ def test_metrics_match_hand_computed_values_on_golden(tmp_path: Path):
         tmp_path / "t",
     )
     m = run.json["metrics"]
-    assert (m["declared"], m["retired"], m["in_scope"]) == (16, 2, 14)
+    assert (m["declared"], m["retired"], m["in_scope"]) == (
+        21,
+        2,
+        19,
+    )  # fixture v1.1: + C-04, T-04..T-07
     assert m["by_status"] == {
-        "PASSING": 8,
+        "PASSING": 13,
         "WEAKLY_PASSING": 1,
         "FAILING": 1,
         "SKIPPED": 1,
@@ -161,18 +165,18 @@ def test_metrics_match_hand_computed_values_on_golden(tmp_path: Path):
         "UNTESTED": 1,
         "UNCITED": 1,
     }
-    assert m["conformance_ratio"] == "8/14" and Decimal(str(m["conformance"])) == Decimal("0.5714")
+    assert m["conformance_ratio"] == "13/19" and Decimal(str(m["conformance"])) == Decimal("0.6842")
     assert m["by_family"] == {
         "R": {"in_scope": 3, "passing": 2, "ratio": 0.6667},
-        "C": {"in_scope": 2, "passing": 1, "ratio": 0.5},
+        "C": {"in_scope": 3, "passing": 2, "ratio": 0.6667},
         "I": {"in_scope": 2, "passing": 1, "ratio": 0.5},
         "K": {"in_scope": 2, "passing": 1, "ratio": 0.5},
         "E": {"in_scope": 2, "passing": 1, "ratio": 0.5},
-        "T": {"in_scope": 3, "passing": 2, "ratio": 0.6667},
+        "T": {"in_scope": 7, "passing": 6, "ratio": 0.8571},
     }
     assert (
-        m["judge_strength_ratio"] == "8/9"
-        and m["judge_strength"] == 0.8889
+        m["judge_strength_ratio"] == "13/14"
+        and m["judge_strength"] == 0.9286
         and m["unknown_rate"] == 0.0
     )
     assert ratio(0, 0) is None and ratio(1, 3) == Decimal("0.3333")
@@ -238,3 +242,156 @@ def test_family_t_semantics(project):
     assert m["in_scope"] == 3 and m["conformance_ratio"] == "2/3"
     assert m["by_family"]["T"] == {"in_scope": 2, "passing": 1, "ratio": 0.5}
     assert json.loads(json.dumps(m["by_status"]))["UNCITED"] == 1
+
+
+def test_recorded_ids_skip_the_judge_and_judge_strength(tmp_path: Path):
+    """T-77 (graph/report half): with --judge mock and a call-counting stub under --judge llm, a
+    recorded T id cited by a passing test with an assertion-free body is PASSING and its edge is
+    never sent to the judge (verdict null, not in unknown_rate's denominator), while the same test
+    cited by a non-recorded T id yields WEAKLY_PASSING; a recorded T id with a failing test is
+    FAILING, with a skipped one SKIPPED, with no citing test UNCITED (E-51); with two recorded
+    PASSING ids, one judged PASSING id and one WEAKLY_PASSING id, judge_strength is 1/2 while
+    conformance counts all three passing; the JSON carries "recorded": true after "family" and
+    the Markdown ID cell reads `T-01 (recorded)` / `~~T-03~~ (recorded)`; schema_version is the
+    C-07 value. (R-35, C-05, C-07, C-08, I-010, E-37, E-51)"""
+    from speccheck import judge_llm, report
+
+    from .conftest import junit, run_cli, write_tree
+
+    spec = "\n".join(
+        [
+            "| ID | Test |",
+            "| -- | ---- |",
+            "| **T-01** *(recorded)* | recorded, passing, no assertion |",
+            "| **T-02** | not recorded, same test |",
+            "| ~~**T-03**~~ *(recorded)* | retired and recorded |",
+            "| **T-04** *(recorded)* | recorded but failing |",
+            "| **T-05** *(recorded)* | recorded but skipped |",
+            "| **T-06** *(recorded)* | recorded but uncited |",
+            "| **T-07** *(recorded)* | second recorded passing id |",
+            "| **R-01** | judged and asserted |",
+        ]
+    )
+    tests_py = "\n".join(
+        [
+            "def test_presence():",
+            "    '''T-01 T-02: runs the recorded artefact'''",
+            "    open('/dev/null')",
+            "",
+            "def test_failing():",
+            "    '''T-04'''",
+            "    assert False",
+            "",
+            "def test_skipped():",
+            "    '''T-05'''",
+            "",
+            "def test_second():",
+            "    '''T-07'''",
+            "    pass",
+            "",
+            "def test_asserted():",
+            "    '''R-01'''",
+            "    assert 1 == 1",
+            "",
+        ]
+    )
+    write_tree(
+        tmp_path,
+        {
+            "SPEC.md": spec,
+            "src/a.py": "# R-01\n",
+            "tests/test_a.py": tests_py,
+            "junit.xml": junit(
+                [
+                    ("tests.test_a", "test_presence", "passed"),
+                    ("tests.test_a", "test_failing", "failed"),
+                    ("tests.test_a", "test_skipped", "skipped"),
+                    ("tests.test_a", "test_second", "passed"),
+                    ("tests.test_a", "test_asserted", "passed"),
+                ]
+            ),
+        },
+    )
+    args = [
+        "check",
+        "--spec",
+        "SPEC.md",
+        "--src",
+        "src",
+        "--tests",
+        "tests",
+        "--results",
+        "junit.xml",
+    ]
+    mock = run_cli(args + ["--judge", "mock"], tmp_path)
+    ids = mock.ids()
+    assert {i: r["status"] for i, r in ids.items()} == {
+        "T-01": "PASSING",
+        "T-02": "WEAKLY_PASSING",
+        "T-03": "RETIRED",
+        "T-04": "FAILING",
+        "T-05": "SKIPPED",
+        "T-06": "UNCITED",
+        "T-07": "PASSING",
+        "R-01": "PASSING",
+    }
+    assert (
+        ids["T-01"]["tests"][0]["verdict"] is None
+        and ids["T-02"]["tests"][0]["verdict"] is not None
+    )
+    assert list(ids["T-01"].keys())[:3] == ["id", "family", "recorded"]
+    assert ids["T-01"]["recorded"] is True and ids["T-02"]["recorded"] is False
+    assert ids["T-03"]["recorded"] is True
+    m = mock.json["metrics"]
+    assert m["judge_strength_ratio"] == "1/2" and m["judge_strength"] == 0.5  # R-01 / (R-01 + T-02)
+    assert m["conformance_ratio"] == "3/7"  # T-01, T-07, R-01 of 7 in scope
+    assert mock.json["schema_version"] == report.SCHEMA_VERSION
+    assert (
+        "| T-01 (recorded) | PASSING |" in mock.md
+        and "| ~~T-03~~ (recorded) | RETIRED |" in mock.md
+    )
+    # a call-counting LLM stub: recorded edges are never sent
+    seen: list[str] = []
+
+    def post(url, headers, body, timeout):
+        import json as _json
+
+        req = _json.loads(_json.loads(body.decode())["messages"][1]["content"])
+        seen.append(req["id"])
+        return 200, _json.dumps(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": _json.dumps(
+                                {
+                                    "verdict": "EXECUTES_ONLY",
+                                    "clause": req["statement"][:40],
+                                    "evidence": [],
+                                    "rationale": "r",
+                                }
+                            )
+                        }
+                    }
+                ]
+            }
+        )
+
+    import pytest
+
+    mp = pytest.MonkeyPatch()
+    mp.setattr(judge_llm, "_httpx_post", post)
+    try:
+        llm = run_cli(
+            args + ["--judge", "llm"],
+            tmp_path,
+            env={
+                "SPECCHECK_JUDGE_URL": "http://localhost:1/v1/chat/completions",
+                "SPECCHECK_JUDGE_MODEL": "m",
+                "SPECCHECK_JUDGE_API_KEY": "k",
+            },
+        )
+    finally:
+        mp.undo()
+    assert sorted(seen) == ["R-01", "T-02"]
+    assert llm.json["metrics"]["unknown_rate"] is not None and llm.status("T-01") == "PASSING"

@@ -37,9 +37,27 @@ TOP_KEYS = [
     "metrics",
     "exit_code",
 ]
-# C-07 key order; `title` before `statement` since schema 1.1 (R-33)
-ID_KEYS = ["id", "family", "title", "statement", "line", "status", "src", "tests", "unrun"]
+# C-07 key order; `title` since schema 1.1 (R-33), `recorded` since 1.3 (R-35)
+ID_KEYS = [
+    "id",
+    "family",
+    "recorded",
+    "title",
+    "statement",
+    "line",
+    "status",
+    "src",
+    "tests",
+    "unrun",
+]
 TEST_KEYS = ["file", "name", "classname", "lines", "outcome", "results", "verdict"]
+VERDICT_KEYS = [
+    "verdict",
+    "clause",
+    "evidence",
+    "rationale",
+    "coerced",
+]  # `clause` since 1.2 (R-34)
 METRIC_KEYS = [
     "declared",
     "retired",
@@ -87,6 +105,12 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
     assert list(doc) == TOP_KEYS
     assert all(list(rec) == ID_KEYS for rec in doc["ids"])
     assert all(list(t) == TEST_KEYS for rec in doc["ids"] for t in rec["tests"])
+    assert all(
+        list(t["verdict"]) == VERDICT_KEYS
+        for rec in doc["ids"]
+        for t in rec["tests"]
+        if t["verdict"] is not None
+    )
     assert list(doc["metrics"]) == METRIC_KEYS + [
         "judge_strength_ratio",
         "judge_strength",
@@ -111,6 +135,7 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
         "C-01",
         "C-02",
         "C-03",
+        "C-04",
         "I-001",
         "I-002",
         "K-01",
@@ -120,6 +145,10 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
         "T-01",
         "T-02",
         "T-03",
+        "T-04",
+        "T-05",
+        "T-06",
+        "T-07",
     ]
     assert raw.endswith("}\n") and raw.startswith(
         f'{{\n  "schema_version": "{report.SCHEMA_VERSION}",\n'
@@ -260,7 +289,7 @@ def test_markdown_layout(tmp_path: Path):
     assert "**Judge:** none · **Strict:** off" in none_run.md.splitlines()[2]
     assert run.stdout.strip() in md
     per_id = md.split("## 3. Per-ID evidence\n\n", 1)[1].split("\n## 4.", 1)[0].splitlines()[2:]
-    assert len(per_id) == len(doc["ids"]) == 16
+    assert len(per_id) == len(doc["ids"]) == 21  # fixture v1.1
     id_cells = [row.split(" | ")[0][2:] for row in per_id]
     assert id_cells == [
         f"~~{r['id']}~~" if r["status"] == "RETIRED" else r["id"] for r in doc["ids"]
