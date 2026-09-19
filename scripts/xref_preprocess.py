@@ -8,11 +8,22 @@ engine + hyperref do the rest; NO raw LaTeX in the user's source).
 
 Anchor resolution
 -----------------
-* ### C-0x sub-headings  get a per-id anchor {#C-0x}  -> exact jump.
-* Every family id (R/I/K/E/T) is defined in its section table col-0, so it
-  resolves to that section's anchor (e.g.  R-* -> #sec-requirements).
-* A referenced-but-undefined id (e.g. C-13) falls back by id PREFIX to its
+* Every DECLARATION gets its own anchor, so a link jumps to the row or heading
+  that declares the id, not to its section:
+    - a table row whose first cell BEGINS with the bold id form -- `**R-07**`,
+      `~~**R-07**~~` or `**~~R-07~~**`, speccheck's own C-01 (a) rule, which is
+      what keeps the plain `R-07` column of a traceability table from becoming
+      a second anchor -- is rewritten to `[**R-07**]{#R-07}` (or, for a struck
+      form, `[]{#R-07}~~**R-07**~~`, since soul's st{} cannot hold a label);
+    - a `### R-07 ...` heading gets `{#R-07}`;
+    - a `| D-01 |` row (plain id, first cell) in the decisions section gets
+      `[D-01]{#D-01}` -- D rows are not bold by convention.
+  pandoc turns the span into phantomsection+label{R-07} and the link into
+  hyperref[R-07]{R-07}; hyperref does the rest.
+* A referenced-but-undeclared id (e.g. C-13) falls back by id PREFIX to its
   family's section anchor -- so a link is never "dead", just coarse.
+* A second declaration of the same id (a spec defect, E-02) keeps the first
+  anchor; the duplicate row is linkified like any other mention.
 
 Left VERBATIM: fenced code blocks (incl. the traceability graph / diagrams),
 inline-code (`...`), and $$...$$ display-math (a link inside LaTeX math is
@@ -64,22 +75,32 @@ def derive(lines):
     c_sub = set()
     fam = {}
     section = None
+    in_fence = False
     for ln in lines:
+        if FENCE.match(ln):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         s = ln.strip()
         if s.startswith("###"):
             m = SUBHDR.match(ln)
             if m:
-                c_sub.add(m.group(1))
+                c_sub.add(m.group(1))          # heading declaration: per-id anchor
             continue
         if s.startswith("## "):
             section = current_section(ln)
             continue
-        if section and s.startswith("|"):
-            for cell in s.strip("|").split("|"):
-                m = TOKEN.search(re.sub(r"[*_`\\]", "", cell.strip()))
-                if m:
-                    fam[m.group(0)] = section
-                    break
+        if s.startswith("|"):
+            decl = declaration_in_row(ln, section)
+            if decl and decl[0] not in c_sub:
+                c_sub.add(decl[0])             # row declaration: per-id anchor (first one wins)
+            elif section:
+                for cell in s.strip("|").split("|"):
+                    m = TOKEN.search(re.sub(r"[*_`\\]", "", cell.strip()))
+                    if m:
+                        fam.setdefault(m.group(0), section)
+                        break
     return c_sub, fam
 
 
@@ -97,6 +118,43 @@ def make_anchor_for(c_sub, fam):
 
 
 STRIKE = re.compile(r"(~~.*?~~)")                            # ~~retired~~ span: never linked
+# C-01 (a): the first cell must BEGIN with one of the three bold forms; whatever follows must be
+# empty or start with whitespace (decoration such as **[port]** or *(recorded)*).
+DECL_CELL = re.compile(
+    r"^(?P<form>\*\*(?P<a>[A-Z]{1,3}-\d{1,3})\*\*"
+    r"|~~\*\*(?P<b>[A-Z]{1,3}-\d{1,3})\*\*~~"
+    r"|\*\*~~(?P<c>[A-Z]{1,3}-\d{1,3})~~\*\*)(?=$|\s)"
+)
+DECISION_CELL = re.compile(r"^(?P<tok>D-\d{1,3})$")
+
+
+def declaration_in_row(line, section):
+    """(token, form, is_struck, is_plain_decision) for a declaring table row, else None."""
+    cells = line.strip().strip("|").split("|")
+    if not cells:
+        return None
+    first = cells[0].strip()
+    m = DECL_CELL.match(first)
+    if m:
+        tok = m.group("a") or m.group("b") or m.group("c")
+        return tok, m.group("form"), m.group("a") is None, False
+    if section == "sec-decisions":
+        m = DECISION_CELL.match(first)
+        if m:
+            return m.group("tok"), first, False, True
+    return None
+
+
+def anchor_row(line, decl):
+    """Rewrite the declaring first cell so it carries the id's anchor."""
+    tok, form, struck, plain = decl
+    if plain:
+        anchored = "[{}]{{#{}}}".format(form, tok)
+    elif struck:
+        anchored = "[]{{#{}}}{}".format(tok, form)
+    else:
+        anchored = "[{}]{{#{}}}".format(form, tok)
+    return line.replace(form, anchored, 1)
 
 
 def linkify(line, anchors, anchor_for, skip_leading=False):
@@ -150,6 +208,9 @@ def main():
     out_lines = []
     c_sub_count = 0
     section_count = 0
+    row_count = 0
+    anchored_ids = set()
+    section_now = None
     in_fence = False
     in_math = False
     for ln in lines:
@@ -170,6 +231,8 @@ def main():
 
         if re.match(r"^#{1,6}\s+", ln):
             key = current_section(ln)
+            if ln.startswith("## "):
+                section_now = key
             sm = SUBHDR.match(ln)
             if sm:
                 key = sm.group(1)
@@ -185,6 +248,16 @@ def main():
             out_lines.append(linked)
             continue
 
+        if ln.lstrip().startswith("|"):
+            decl = declaration_in_row(ln, section_now)
+            if decl and decl[0] not in anchored_ids:
+                anchored_ids.add(decl[0])
+                tok, form = decl[0], decl[1]
+                head, sep, tail = ln.partition(form)
+                # the declaring cell becomes the anchor; the rest of the row is linkified as usual
+                out_lines.append(head + anchor_row(form, decl) + linkify(tail, anchors, anchor_for))
+                row_count += 1
+                continue
         out_lines.append(linkify(ln, anchors, anchor_for, skip_leading=False))
 
     out = os.path.join(os.path.dirname(out_path) or ".", os.path.basename(out_path))
@@ -196,10 +269,10 @@ def main():
     except OSError as exc:
         sys.stderr.write("cannot write {0!r}: {1}\n".format(out, exc))
         return 1
-    msg = "wrote {0}    ({1} C-sub anchors, {2} section anchors, "
-    msg += "known: {3} C-sub + {4} family)\n"
-    sys.stderr.write(msg.format(out, c_sub_count, section_count,
-                                len(c_sub), len(fam)))
+    msg = "wrote {0}    ({1} heading anchors, {2} row anchors, {3} section anchors; "
+    msg += "{4} ids anchored, {5} resolve to a section only)\n"
+    sys.stderr.write(msg.format(out, c_sub_count, row_count, section_count,
+                                len(c_sub), len(set(fam) - c_sub)))
     return 0
 
 

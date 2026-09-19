@@ -19,9 +19,11 @@ Defaults (all on; each can be switched off):
   --mermaid        Render ```mermaid diagrams
                    (needs Chrome/Chromium).              (off: --no-mermaid)
   --click          Requirement-id mentions (R-/C-/I-/K-/E-/T-/D-) become
-                   clickable PDF jump-links; implies --toc and runs xelatex
-                   a 3rd pass so forward links + the TOC resolve. Links are
-                   blue.                                 (off: --no-click)
+                   clickable PDF jump-links to the row or heading that
+                   DECLARES the id (an undeclared id falls back to its
+                   family's section); implies --toc and runs xelatex a 3rd
+                   pass so forward links + the TOC resolve. Links are blue.
+                                                         (off: --no-click)
   --margin MARGIN  Page margin on all sides, default 1in (e.g. 0.5in, 1cm);
                    --margin=MARGIN is accepted too.
 
