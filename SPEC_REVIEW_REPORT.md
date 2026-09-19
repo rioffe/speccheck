@@ -4,6 +4,7 @@
 > - **Review date:** 2026-09-18
 > - **Method:** `spec-review` four-pass method (comprehension, local precision, cross-consistency, implementation simulation) over all 20 dimensions, plus a mechanical cross-check run with the shipped 1.8.0 extractor: 200 declared ids (35 R, 11 C, 11 I, 15 K, 51 E, 77 T; 0 retired; 3 carrying the new `*(recorded)*` marker and still declared under the 1.8.0 grammar), every non-T id has a §11 row (124 rows, none undeclared), every I/K/E id is cited by at least one T row, every T id appears in a §11 "Verified by" cell, no dangling R/C/I/K/E/T/D reference.
 > - **Finding IDs:** `F-401..F-407`. `F-001..F-017`, `F-101..F-110`, `Q-001..Q-011`, `F-201..F-210`, `F-301..F-307` are cited inside `SPEC.md` and are not reused.
+> - **Disposition:** all seven findings applied in `SPEC.md` v1.11 on 2026-09-18 (see its revision history).
 > - **Focus:** v1.8 closed the v1.7 review. This pass re-reads the whole document but concentrates on the two increments since — v1.9 (clause-grounded verdicts: R-34, C-06 `clause`, K-15, E-48, E-49, I-005, C-07 `"1.2"`, C-08 §8, C-10, T-75, T-76; D-21) and v1.10 (recorded tests: R-35, C-01 marker, C-02 `recorded`, C-05 step 5, I-010, C-07 `"1.3"`, C-08 ID cell, E-50, E-51, T-77; D-22) — and on the seams they open with the pre-existing verdict, metric, and golden contracts.
 
 ---
