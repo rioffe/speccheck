@@ -3,7 +3,8 @@
 
 Spec IDs realized here (§11): R-14, R-15, R-17, R-18, R-19, R-21, R-23, R-28, R-29, R-30, I-001,
     I-006, I-007, I-009, K-01, K-06, K-10, K-11, K-12, E-01, E-09, E-19, E-21, E-26, E-32, E-36,
-    E-39, E-41, E-52, C-03 (PATHS list parsing, D-23).
+    E-39, E-41, E-52, C-03 (PATHS list parsing, D-23), R-37, C-13, E-53, E-54 (the `impact`
+    subcommand; v1.13).
 """
 
 from __future__ import annotations
@@ -30,22 +31,39 @@ from .extract import (
     SpecError,
     citations_in_file,
     decode_text,
+    edge_id_key,
     parse_spec,
     scan_roots,
     to_posix_relative,
 )
 from .graph import apply_verdicts, build_graph, eligible_edges
+from .impact import (
+    ChangedError,
+    ReverifyEntry,
+    diff_changed_set,
+    mark_retired,
+    resolve_changed_ids,
+    reverify_set,
+    walk,
+)
 from .judge import JudgeRequest, ProgressLine, build_request, run_judge
 from .judge_llm import LlmConfig, LlmConfigError
 from .report import (
+    IMPACT_JSON_NAME,
+    IMPACT_MD_NAME,
     JSON_NAME,
     MD_NAME,
+    ImpactInputs,
     OutError,
     ReportInputs,
+    build_impact_report,
     build_report,
     dumps,
+    impact_summary_line,
+    render_impact_markdown,
     render_markdown,
     summary_line,
+    write_impact_reports,
     write_reports,
 )
 from .results import ResultsError, join_results, parse_junit
@@ -87,12 +105,33 @@ class Config:
 
 
 @dataclass(frozen=True)
-class Action:
-    """What argv asked for: a check run, a self-check, or nothing more (help/version handled)."""
+class ImpactConfig:
+    """v1.13 / C-13: `impact`'s own config; no results file, no judge."""
 
-    kind: str  # "check" | "self-check"
+    spec: Path
+    changed_raw: str | None
+    against: Path | None
+    src: tuple[Path, ...]
+    tests: tuple[Path, ...]
+    src_given: bool
+    tests_given: bool
+    root: Path
+    out: Path
+    depth: int
+    verbose: str | None
+    spec_arg: str
+    against_arg: str | None
+
+
+@dataclass(frozen=True)
+class Action:
+    """What argv asked for: a check run, an impact run, a self-check, or nothing more
+    (help/version handled)."""
+
+    kind: str  # "check" | "impact" | "self-check"
     verbose: str | None
     config: Config | None = None
+    impact_config: ImpactConfig | None = None
 
 
 def build_parser() -> _Parser:
@@ -117,6 +156,16 @@ def build_parser() -> _Parser:
     check.add_argument("--judge-budget", default="0")
     check.add_argument("--progress", default="auto")
     check.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
+    impact = sub.add_parser("impact", help="report change impact from spec-internal edges")
+    impact.add_argument("--spec", required=True)
+    impact.add_argument("--changed", default=None)
+    impact.add_argument("--against", default=None)
+    impact.add_argument("--src", action="append", default=None)
+    impact.add_argument("--tests", action="append", default=None)
+    impact.add_argument("--root", default=".")
+    impact.add_argument("--out", default=".")
+    impact.add_argument("--depth", default="1")
+    impact.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
     return parser
 
 
@@ -151,6 +200,85 @@ def _resolve_inside(raw: str, root: Path) -> Path:
     return path
 
 
+def _resolve_paths(
+    flag: str, values: list[str] | None, root: Path, default: str | None
+) -> tuple[Path, ...]:
+    """C-03 PATHS / D-23: each occurrence is a comma-separated list of files and/or
+    directories. Split on the literal ',', trim each segment (" " and "\t"), and drop
+    every empty segment (no Note, no error); resolve each surviving segment inside --root
+    (E-09, symlinks resolved to their target per Q-007); and deduplicate the resolved
+    paths so a file reached by two elements is scanned once. A segment resolved inside
+    --root that is neither a directory nor a regular file is a usage error (E-52),
+    replacing the former "not a directory" check. `default` applies only when the flag is
+    entirely absent; `impact` (v1.13) passes `None`, so an absent flag means "not scanned"
+    rather than the `src`/`tests` directory default `check` uses."""
+    if values is None:
+        values = [default] if default is not None and Path(default).is_dir() else []
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for value in values:
+        for raw in value.split(","):
+            segment = raw.strip(" \t")
+            if not segment:
+                continue  # D-23: an empty/whitespace-only segment is dropped, no Note/error
+            path = _resolve_inside(segment, root)  # E-09 containment, after symlink resolve
+            if not (path.is_dir() or path.is_file()):
+                # E-52: resolved inside --root but neither a directory nor a regular file
+                raise UsageError(f"{flag}: no such file or directory: {segment}")
+            if path in seen:  # I-012 / C-03 step 5: deduplicate the resolved paths
+                continue
+            seen.add(path)
+            out.append(path)
+    return tuple(out)
+
+
+def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> ImpactConfig:
+    """v1.13 / C-13: `impact`'s own validation. `--results`/`--judge`/`--strict`/etc. are not
+    defined on this subparser at all, so argparse rejects them as unrecognized arguments (E-54)."""
+    if (args.changed is None) == (args.against is None):
+        raise UsageError("impact: exactly one of --changed, --against is required")  # E-54
+    root = Path(args.root).resolve()
+    if not root.is_dir():
+        raise UsageError(f"--root: not a directory: {args.root}")
+    spec = _resolve_inside(args.spec, root)
+    if not spec.is_file():
+        raise UsageError(f"--spec: not a readable file: {args.spec}")
+    try:
+        with open(spec, "rb"):
+            pass
+    except OSError:
+        raise UsageError(f"--spec: not a readable file: {args.spec}") from None
+    against: Path | None = None
+    if args.against is not None:
+        against = _resolve_inside(args.against, root)
+        if not against.is_file():
+            raise UsageError(f"--against: not a readable file: {args.against}")
+        try:
+            with open(against, "rb"):
+                pass
+        except OSError:
+            raise UsageError(f"--against: not a readable file: {args.against}") from None
+    depth = _int_in_range("--depth", args.depth, 0, 999)
+    src = _resolve_paths("--src", args.src, root, None)
+    tests = _resolve_paths("--tests", args.tests, root, None)
+    out = _resolve_inside(args.out, root)
+    return ImpactConfig(
+        spec=spec,
+        changed_raw=args.changed,
+        against=against,
+        src=src,
+        tests=tests,
+        src_given=args.src is not None,
+        tests_given=args.tests is not None,
+        root=root,
+        out=out,
+        depth=depth,
+        verbose=verbose,
+        spec_arg=args.spec,
+        against_arg=args.against,
+    )
+
+
 def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
     """argv + env -> Action (exit 2 on any usage error; K-01)."""
     parser = build_parser()
@@ -163,6 +291,8 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
     if args.self_check:
         raise UsageError("--self-check cannot be combined with the 'check' subcommand")
     verbose = _validate_verbose(args.verbose) or verbose
+    if args.command == "impact":
+        return Action("impact", verbose, impact_config=_build_impact_config(args, verbose))
     if args.judge not in JUDGE_MODES:
         raise UsageError(f"--judge: invalid value '{args.judge}' (expected none, mock, or llm)")
     try:
@@ -194,36 +324,8 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
     except OSError:
         raise UsageError(f"--spec: not a readable file: {args.spec}") from None
 
-    def paths(flag: str, values: list[str] | None, default: str) -> tuple[Path, ...]:
-        """C-03 PATHS / D-23: each occurrence is a comma-separated list of files and/or
-        directories. Split on the literal ',', trim each segment (" " and "\t"), and drop
-        every empty segment (no Note, no error); resolve each surviving segment inside --root
-        (E-09, symlinks resolved to their target per Q-007); and deduplicate the resolved
-        paths so a file reached by two elements is scanned once. A segment resolved inside
-        --root that is neither a directory nor a regular file is a usage error (E-52),
-        replacing the former "not a directory" check. The default applies only when the flag
-        is entirely absent."""
-        if values is None:
-            values = [default] if Path(default).is_dir() else []
-        out: list[Path] = []
-        seen: set[Path] = set()
-        for value in values:
-            for raw in value.split(","):
-                segment = raw.strip(" \t")
-                if not segment:
-                    continue  # D-23: an empty/whitespace-only segment is dropped, no Note/error
-                path = _resolve_inside(segment, root)  # E-09 containment, after symlink resolve
-                if not (path.is_dir() or path.is_file()):
-                    # E-52: resolved inside --root but neither a directory nor a regular file
-                    raise UsageError(f"{flag}: no such file or directory: {segment}")
-                if path in seen:  # I-012 / C-03 step 5: deduplicate the resolved paths
-                    continue
-                seen.add(path)
-                out.append(path)
-        return tuple(out)
-
-    src = paths("--src", args.src, "src")
-    tests = paths("--tests", args.tests, "tests")
+    src = _resolve_paths("--src", args.src, root, "src")
+    tests = _resolve_paths("--tests", args.tests, root, "tests")
     results: Path | None = None
     if args.results is not None:
         results = _resolve_inside(args.results, root)
@@ -285,6 +387,13 @@ def _excluded_paths(config: Config) -> frozenset[Path]:
     paths = {config.spec, config.out / JSON_NAME, config.out / MD_NAME}
     if config.results is not None:
         paths.add(config.results)
+    return frozenset(paths)
+
+
+def _impact_excluded_paths(config: ImpactConfig) -> frozenset[Path]:
+    paths = {config.spec, config.out / IMPACT_JSON_NAME, config.out / IMPACT_MD_NAME}
+    if config.against is not None:
+        paths.add(config.against)
     return frozenset(paths)
 
 
@@ -412,6 +521,116 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
 
     _emit_line(summary_line(report), stdout)
     return int(report["exit_code"])
+
+
+def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) -> int:
+    """v1.13 / C-13: the `impact` pipeline. Always exits 0 once the reports are written --
+    nothing here is pass/fail."""
+    root = config.root
+    rel_spec = to_posix_relative(config.spec, root)
+    notes: list[str] = []
+
+    spec_text, replaced = decode_text(config.spec.read_bytes())
+    if replaced:
+        notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
+    index = parse_spec(spec_text, rel_spec)
+    notes.extend(index.notes)
+
+    against_path: str | None = None
+    if config.changed_raw is not None:
+        try:
+            changed = resolve_changed_ids(index, config.changed_raw)
+        except ChangedError as exc:
+            raise UsageError(str(exc)) from None
+    else:
+        assert config.against is not None
+        against_path = to_posix_relative(config.against, root)
+        against_text, against_replaced = decode_text(config.against.read_bytes())
+        if against_replaced:
+            notes.append(f"invalid UTF-8 decoded with replacement: {against_path}")
+        try:
+            old_index = parse_spec(against_text, against_path)
+        except SpecError as exc:
+            raise SpecError(f"--against: {exc}") from None
+        changed = diff_changed_set(old_index, index)
+
+    changed_ids = {c.id for c in changed}
+    result = walk(index.edges, changed_ids, config.depth)
+    impact = mark_retired(result.impact, index)
+    if result.beyond_depth:
+        notes.append(
+            f"{result.beyond_depth} further id(s) beyond --depth {config.depth}; "
+            "--depth 0 lists them"
+        )
+    impact_ids = {e.id for e in impact}
+    reverify_raw = reverify_set(index.edges, changed_ids | impact_ids)
+    by_id = index.by_id()
+    reverify = tuple(
+        ReverifyEntry(r.id, by_id[r.id].retired if r.id in by_id else False, r.verifies)
+        for r in reverify_raw
+    )
+    target_ids = changed_ids | impact_ids | {r.id for r in reverify}
+
+    recite: list[dict] = []
+    test_cases: list[dict] = []
+    if config.src_given or config.tests_given:
+        excluded = _impact_excluded_paths(config)
+        counters = ScanCounters()
+        if config.src_given:
+            src_files = scan_roots(config.src, root, excluded, config.out, counters)
+            hits: dict[str, dict[str, set[int]]] = {}
+            for f in src_files:
+                for c in citations_in_file(f):
+                    if c.id in target_ids:
+                        hits.setdefault(c.id, {}).setdefault(f.path, set()).add(c.line)
+            for ident in sorted(hits, key=edge_id_key):
+                for file in sorted(hits[ident]):
+                    recite.append(
+                        {"id": ident, "file": file, "lines": sorted(hits[ident][file])}
+                    )
+        if config.tests_given:
+            test_files = scan_roots(config.tests, root, excluded, config.out, counters)
+            case_rows = []
+            for f in test_files:
+                attributed, file_notes = attribute_file(f)
+                notes.extend(file_notes)
+                all_cases = list(attributed.cases) + [attributed.file_case]
+                for case in all_cases:
+                    cited = {
+                        c.id
+                        for c in attributed.citations
+                        if c.id in target_ids and c.testcase == case
+                    }
+                    ids_here = sorted(cited, key=edge_id_key)
+                    if ids_here:
+                        row = (case.file, case.start, case.name, case.classname, ids_here)
+                        case_rows.append(row)
+            case_rows.sort(key=lambda r: (r[0], r[1]))
+            for file, _start, name, classname, ids_here in case_rows:
+                test_cases.append(
+                    {"file": file, "name": name, "classname": classname, "ids": ids_here}
+                )
+        notes.extend(counters.notes())
+
+    inputs = ImpactInputs(
+        spec_path=rel_spec,
+        against_path=against_path,
+        depth=config.depth,
+        changed=changed,
+        impact=impact,
+        reverify=reverify,
+        recite=recite,
+        test_cases=test_cases,
+        notes=notes,
+    )
+    report = build_impact_report(inputs)
+    json_text = dumps(report)
+    md_text = render_impact_markdown(
+        report, src_given=config.src_given, tests_given=config.tests_given
+    )
+    write_impact_reports(config.out, json_text, md_text)
+    _emit_line(impact_summary_line(report), stdout)
+    return 0
 
 
 def _progress_enabled(config: Config) -> bool:
@@ -566,6 +785,9 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         configure_logging(action.verbose)
         if action.kind == "self-check":
             return self_check(environ=environ)
+        if action.kind == "impact":
+            assert action.impact_config is not None
+            return execute_impact(action.impact_config)
         assert action.config is not None
         return execute(action.config)
     except UsageError as exc:

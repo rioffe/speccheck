@@ -26,6 +26,9 @@ SCHEMA_VERSION = (
 )
 JSON_NAME = "speccheck.json"
 MD_NAME = "SPEC_CONFORMANCE_REPORT.md"
+IMPACT_JSON_NAME = "impact.json"  # C-13; v1.13
+IMPACT_MD_NAME = "IMPACT_REPORT.md"  # C-13; v1.13
+IMPACT_SCHEMA_VERSION = "1.0"  # C-13; v1.13
 EM_DASH = "\u2014"
 
 _NUM_SENTINEL = "\x00NUM:"
@@ -410,14 +413,15 @@ def _replace(src: Path, dst: Path) -> None:
     os.replace(src, dst)
 
 
-def _leftover_temporaries(out_dir: Path) -> list[Path]:
+def _leftover_temporaries(out_dir: Path, names: tuple[str, ...]) -> list[Path]:
     found: list[Path] = []
+    prefixes = tuple(f".{name}." for name in names)
     try:
         for entry in os.scandir(out_dir):
             name = entry.name
             if (
                 name.endswith(".tmp")
-                and (name.startswith(f".{JSON_NAME}.") or name.startswith(f".{MD_NAME}."))
+                and name.startswith(prefixes)
                 and entry.is_file(follow_symlinks=False)
             ):
                 found.append(Path(entry.path))
@@ -426,33 +430,37 @@ def _leftover_temporaries(out_dir: Path) -> list[Path]:
     return sorted(found)
 
 
-def write_reports(out_dir: Path, json_text: str, md_text: str) -> None:
-    """Both reports or neither (§3.1): delete leftovers, write temporaries, rename JSON then
-    Markdown; on any failure remove every temporary and anything already renamed, raise OutError."""
+def write_named_files(out_dir: Path, files: list[tuple[str, str]]) -> None:
+    """§3.1 (extended by v1.13, C-13): all of `files` or none, in the given order (JSON before
+    Markdown, for either subcommand's pair): delete leftovers for exactly these names, write
+    temporaries, rename in order; on any failure remove every temporary and anything already
+    renamed, raise OutError."""
+    names = tuple(name for name, _text in files)
     try:
         out_dir.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         raise OutError(f"out: cannot create {out_dir.name}: {exc.strerror or exc}") from None
-    for leftover in _leftover_temporaries(out_dir):
+    for leftover in _leftover_temporaries(out_dir, names):
         try:
             leftover.unlink()
         except OSError:
             pass
     nonce = _make_nonce()
-    tmp_json = out_dir / f".{JSON_NAME}.{nonce}.tmp"
-    tmp_md = out_dir / f".{MD_NAME}.{nonce}.tmp"
-    final_json = out_dir / JSON_NAME
-    final_md = out_dir / MD_NAME
+    temporaries = [(out_dir / f".{name}.{nonce}.tmp", out_dir / name, text) for name, text in files]
     renamed: list[Path] = []
     try:
-        tmp_json.write_bytes(json_text.encode("utf-8"))
-        tmp_md.write_bytes(md_text.encode("utf-8"))
-        _replace(tmp_json, final_json)
-        renamed.append(final_json)
-        _replace(tmp_md, final_md)
-        renamed.append(final_md)
+        for tmp, _final, text in temporaries:
+            tmp.write_bytes(text.encode("utf-8"))
+        for tmp, final, _text in temporaries:
+            _replace(tmp, final)
+            renamed.append(final)
     except BaseException as exc:  # E-18 for OSError; E-41 (interrupt) cleans up the same way
-        for path in (tmp_json, tmp_md, *renamed):
+        for tmp, _final, _text in temporaries:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        for path in renamed:
             try:
                 path.unlink()
             except OSError:
@@ -460,3 +468,170 @@ def write_reports(out_dir: Path, json_text: str, md_text: str) -> None:
         if isinstance(exc, OSError):
             raise OutError(f"out: {exc.strerror or exc}") from None
         raise
+
+
+def write_reports(out_dir: Path, json_text: str, md_text: str) -> None:
+    """`check`'s pair (§3.1): both reports or neither, JSON renamed before Markdown."""
+    write_named_files(out_dir, [(JSON_NAME, json_text), (MD_NAME, md_text)])
+
+
+# --------------------------------------------------------------------------------------------
+# C-13 `impact.json` / `IMPACT_REPORT.md` (v1.13)
+# --------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ImpactInputs:
+    spec_path: str
+    against_path: str | None
+    depth: int  # 0 = unbounded, as given
+    changed: tuple  # ChangedEntry, in id order
+    impact: tuple  # ImpactEntry, sorted (depth, id order)
+    reverify: tuple  # ReverifyEntry, in id order
+    recite: list  # [{"id", "file", "lines"}], in (id order, file) order
+    test_cases: list  # [{"file", "name", "classname", "ids"}], in (file, start) order
+    notes: list
+
+
+def build_impact_report(inputs: ImpactInputs) -> dict:
+    """C-13: the impact.json object, key order as pinned."""
+    return {
+        "schema_version": IMPACT_SCHEMA_VERSION,
+        "spec": inputs.spec_path,
+        "against": inputs.against_path,
+        "depth": inputs.depth,
+        "changed": [
+            {
+                "id": c.id,
+                "family": c.family,
+                "line": c.line,
+                "retired": c.retired,
+                "reason": c.reason,
+            }
+            for c in inputs.changed
+        ],
+        "impact": [
+            {
+                "id": e.id,
+                "depth": e.depth,
+                "retired": e.retired,
+                "via": {"src": e.via.src, "kind": e.via.kind, "dst": e.via.dst},
+            }
+            for e in inputs.impact
+        ],
+        "reverify": [
+            {"id": r.id, "retired": r.retired, "verifies": list(r.verifies)}
+            for r in inputs.reverify
+        ],
+        "recite": inputs.recite,
+        "test_cases": inputs.test_cases,
+        "notes": sorted(inputs.notes),
+    }
+
+
+def _impact_id_cell(ident: str, retired: bool) -> str:
+    return f"~~{ident}~~" if retired else ident
+
+
+def _impact_scope_line(report: dict) -> str:
+    if report["against"] is not None:
+        scope = f"against `{report['against']}`"
+    else:
+        scope = "changed by `--changed`"
+    depth = "depth unbounded" if report["depth"] == 0 else f"depth {report['depth']}"
+    return f"{report['spec']} · {scope} · {depth}"
+
+
+def render_impact_markdown(report: dict, *, src_given: bool, tests_given: bool) -> str:
+    """C-13: the five sections, every one present, "None." when empty. `src_given`/
+    `tests_given` say whether that scan ran at all (distinct from it finding nothing)."""
+    lines = ["# Impact Report", "", _impact_scope_line(report), ""]
+
+    lines.append("## 1. Changed")
+    lines.append("")
+    if report["changed"]:
+        rows = [
+            [_impact_id_cell(c["id"], c["retired"]), str(c["line"]), c["reason"]]
+            for c in report["changed"]
+        ]
+        lines += _table(["ID", "Line", "Reason"], rows)
+    else:
+        lines.append("None.")
+    lines.append("")
+
+    lines.append("## 2. Impact")
+    lines.append("")
+    if report["impact"]:
+        rows = [
+            [
+                _impact_id_cell(e["id"], e["retired"]),
+                str(e["depth"]),
+                f"{e['via']['src']} -{e['via']['kind']}-> {e['via']['dst']}",
+            ]
+            for e in report["impact"]
+        ]
+        lines += _table(["ID", "Depth", "Via"], rows)
+    else:
+        lines.append("None.")
+    lines.append("")
+
+    lines.append("## 3. Re-verify")
+    lines.append("")
+    if report["reverify"]:
+        rows = [
+            [_impact_id_cell(r["id"], r["retired"]), ", ".join(r["verifies"]) or EM_DASH]
+            for r in report["reverify"]
+        ]
+        lines += _table(["T id", "Verifies"], rows)
+    else:
+        lines.append("None.")
+    if tests_given:
+        lines.append("")
+        if report["test_cases"]:
+            rows = [
+                [c["file"], _case_label(c["name"]), ", ".join(c["ids"])]
+                for c in report["test_cases"]
+            ]
+            lines += _table(["File", "Case", "IDs"], rows)
+        else:
+            lines.append("None.")
+    lines.append("")
+
+    lines.append("## 4. Re-cite")
+    lines.append("")
+    if not src_given:
+        lines.append("Not scanned.")
+    elif report["recite"]:
+        rows = [
+            [_r["id"], _r["file"], ", ".join(str(n) for n in _r["lines"])]
+            for _r in report["recite"]
+        ]
+        lines += _table(["ID", "File", "Lines"], rows)
+    else:
+        lines.append("None.")
+    lines.append("")
+
+    lines.append("## 5. Notes")
+    lines.append("")
+    if report["notes"]:
+        lines += [f"- {n}" for n in report["notes"]]
+    else:
+        lines.append("None.")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def impact_summary_line(report: dict) -> str:
+    """§5.1 (C-13), one physical line, ASCII, no trailing newline."""
+    depth = "unbounded" if report["depth"] == 0 else f"depth {report['depth']}"
+    return (
+        f"speccheck impact: {len(report['changed'])} changed, "
+        f"{len(report['impact'])} impacted ({depth}), "
+        f"{len(report['reverify'])} to re-verify, "
+        f"{len(report['recite'])} citations, {len(report['test_cases'])} test cases"
+    )
+
+
+def write_impact_reports(out_dir: Path, json_text: str, md_text: str) -> None:
+    """`impact`'s pair (§3.1): both reports or neither, JSON renamed before Markdown."""
+    write_named_files(out_dir, [(IMPACT_JSON_NAME, json_text), (IMPACT_MD_NAME, md_text)])

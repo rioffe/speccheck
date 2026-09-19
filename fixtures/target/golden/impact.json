@@ -1,0 +1,166 @@
+{
+  "schema_version": "1.0",
+  "spec": "SPEC.md",
+  "against": null,
+  "depth": 1,
+  "changed": [
+    {
+      "id": "K-02",
+      "family": "K",
+      "line": 85,
+      "retired": false,
+      "reason": "changed"
+    }
+  ],
+  "impact": [
+    {
+      "id": "C-04",
+      "depth": 1,
+      "retired": false,
+      "via": {
+        "src": "C-04",
+        "kind": "depends_on",
+        "dst": "K-02"
+      }
+    }
+  ],
+  "reverify": [
+    {
+      "id": "T-03",
+      "retired": false,
+      "verifies": [
+        "K-02"
+      ]
+    },
+    {
+      "id": "T-04",
+      "retired": false,
+      "verifies": [
+        "C-04"
+      ]
+    },
+    {
+      "id": "T-05",
+      "retired": false,
+      "verifies": [
+        "C-04",
+        "K-02"
+      ]
+    },
+    {
+      "id": "T-06",
+      "retired": false,
+      "verifies": [
+        "C-04"
+      ]
+    },
+    {
+      "id": "T-07",
+      "retired": false,
+      "verifies": [
+        "C-04"
+      ]
+    }
+  ],
+  "recite": [
+    {
+      "id": "C-04",
+      "file": "src/calc/summary.py",
+      "lines": [
+        1,
+        21
+      ]
+    },
+    {
+      "id": "K-02",
+      "file": "src/calc/core.py",
+      "lines": [
+        1,
+        5
+      ]
+    },
+    {
+      "id": "K-02",
+      "file": "src/calc/summary.py",
+      "lines": [
+        29
+      ]
+    }
+  ],
+  "test_cases": [
+    {
+      "file": "tests/test_core.py",
+      "name": "test_subtract_precision",
+      "classname": "tests.test_core",
+      "ids": [
+        "T-03"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_version_string",
+      "classname": "tests.test_core",
+      "ids": [
+        "K-02"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_shape",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04",
+        "T-04"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_rounds_the_exact_sum_once",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04",
+        "K-02",
+        "T-05"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_ordering_is_stable_ascending",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04",
+        "T-06"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_empty_input",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04",
+        "T-07"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_runs_on_a_mixed_list",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_module_does_not_change_add",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04"
+      ]
+    }
+  ],
+  "notes": [
+    "edge to undeclared id: C-04 -> T-49",
+    "edge to undeclared id: C-04 -> T-76",
+    "edge to undeclared id: D-03 -> E-99"
+  ]
+}
