@@ -10,9 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` in full (code
-1.8.0 against spec v1.8; `SPEC.md` is now at v1.11 — clause-grounded verdicts, R-34; recorded tests, R-35 — whose build
-is next), and so is the worked example of the method it serves — together with the four agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.11, code
+1.11.0) in full, and so is the worked example of the method it serves — together with the four agent skills that
 write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -286,7 +285,7 @@ Any other OpenAI-compatible endpoint works the same way; the request body is pin
 line-numbered test source). The SHA-256 of the instruction text is recorded in `speccheck.json` as
 `judge_prompt_sha256`. A missing variable is a usage error; the key never appears in any output.
 
-**What the judge sees as the statement (SPEC v1.7, R-33; built in 1.8.0).** For an ID declared by a table row the
+**What the judge sees as the statement (SPEC v1.7, R-33).** For an ID declared by a table row the
 statement is the row's text. For an ID declared by a heading — `### C-03 <title>` — v1.6 sent only
 the heading's remaining text, which for a contract is its *title* (`Data structures`,
 `` `EstimationWorker` (an `actor`) ``) while the requirement itself is the code block and prose
@@ -303,6 +302,26 @@ cut at a line boundary, ends with `… (statement truncated by speccheck at K-14
 Notes name the ID. `SPEC.md` is parsed with one line model — split on `\n`, a trailing `\r`
 dropped — so a CRLF checkout yields the same bytes as an LF one (C-01, I-002). See
 `PROPOSAL_v1.7_heading_bodies.md` for the evidence behind the change.
+
+**What the judge gives back, and what the kernel checks (SPEC v1.9, R-34).** The reply names the
+clause of the statement it judged against — `{"verdict", "clause", "evidence", "rationale"}` — and
+the kernel treats the clause the way it already treated evidence lines: an `ASSERTS` or
+`EXECUTES_ONLY` whose `clause` is not a verbatim excerpt of the statement (whitespace collapsed,
+trimmed, at least 12 characters, at most 280 — K-15) is discarded as `UNKNOWN` with
+`judge: unlocated clause`, and counts toward `unknown_rate`. So a model that cannot quote the
+statement shows up on the summary line rather than in silently wrong verdicts. The clause is
+recorded in `speccheck.json` and shown in report §8, so a reader sees *which* clause was judged.
+The coercion rules are applied in one fixed order (C-06), so two runs record the same rationale for
+the same reply. See `PROPOSAL_v1.9_clause_grounding.md` for the evidence — a model that graded long
+contracts by their gist, and one that located the clause.
+
+**Recorded tests (SPEC v1.10, R-35).** A test whose proof is a recorded run rather than an assertion
+— speccheck's own T-48 self-application, T-49 judge evaluation and T-51 benchmark — is declared with
+`*(recorded)*` after its id (`| **T-48** *(recorded)* | … |`). It still needs a citing test that
+exists and passes (a presence check), so it is never `UNCITED`; but its edges are never sent to the
+judge, because an honest judge would call a presence check `EXECUTES_ONLY` and fail the strict LLM
+gate for a reason the spec intends. The JSON carries `"recorded": true` and the Markdown ID cell
+reads `T-48 (recorded)`; `judge_strength` leaves recorded ids out of its population.
 
 ### LLM judge via OpenRouter (or any hosted endpoint)
 
@@ -330,14 +349,21 @@ Practical notes:
   that contract's section body (SPEC v1.7, above), typically 1–2 k tokens more and at most ~4 k
   (K-14). `max_tokens` is pinned at 4000 by the spec, which a non-thinking model never
   approaches; a reasoning model may spend it thinking. `--judge-budget` caps wall-clock, not
-  spend. Self-application on this repository at 1.8.0 is 436 judged edges, about 40 of them
+  spend. Self-application on this repository at 1.11.0 is 488 judged edges, about 40 of them
   on heading-declared contracts whose bodies add roughly 160 kB (~40 k tokens) to the run; the
-  whole Phase B run took 35 s at `--judge-concurrency 32` and cost cents on `gpt-4o-mini`.
-- **Model choice.** The judge needs a model that reliably answers with one bare JSON object.
-  `openai/gpt-4o-mini` did so on every edge of this repository's self-application (436 judged
-  at 1.8.0, 0 `UNKNOWN`, 0 weak; recorded in `SPEC_BUILD_REPORT.md` §0c). Any malformed reply is not a failure of
-  the run: it is recorded as `UNKNOWN` with `coerced: true`, and only `--strict` with
-  `unknown_rate > --max-unknown` turns it into exit `1`.
+  quoted `clause` adds 20–60 output tokens per edge. A Phase B run took 29 s at
+  `--judge-concurrency 32` on `gpt-4o-mini` and 5.5 min at `--judge-concurrency 8` on
+  `gemini-3.8-flash` (OpenRouter returns HTTP 429 for gemini at 32; speccheck never retries).
+- **Model choice.** Since v1.9 the judge must also *quote* the clause it judged, and models
+  differ sharply on that. Measured on 2026-09-18 on this repository (488 edges) and on the T-49
+  label set (21 edges), both under the v1.11 prompt: `google/gemini-3.8-flash` — self-application
+  `CONFORMING 200/200`, `unknown_rate 0.0041`, T-49 3/3 at accuracy 1.000; `openai/gpt-4o-mini`
+  — 12 false `WEAKLY_PASSING` ids (it answers `UNRELATED` for tests that plainly assert), 39
+  unlocated clauses (`unknown_rate 0.0799`), T-49 0/3 on `unknown_rate 0.1429` with accuracy
+  1.000 on the edges it did locate — a quoting problem, not a judgment one, but disqualifying for
+  `--strict`. Use gemini (or a model that passes T-49) for Phase B. Any malformed or unquoted
+  reply is recorded as `UNKNOWN` with `coerced: true`; only `--strict` with
+  `unknown_rate > --max-unknown` turns it into exit `1`. Details in `SPEC_BUILD_REPORT.md` §0d.
 - **Reading the result.** `WEAKLY_PASSING` means every passed test citing that ID was judged
   `EXECUTES_ONLY`/`UNRELATED`; report §8 gives the model's rationale per edge. The fix is to
   strengthen the test so it asserts the ID's behavior — the judge only ever downgrades, so an
@@ -385,7 +411,7 @@ renamed JSON-then-Markdown; either both exist afterwards or neither).
 
 | File | Contract | Notes |
 | --- | --- | --- |
-| `speccheck.json` | C-07, `schema_version` `"1.1"` (`title` per ID beside the full `statement`; `"1.0"` through 1.6.0) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
+| `speccheck.json` | C-07, `schema_version` `"1.3"` (`"1.1"` added `title` per ID; `"1.2"` `clause` per verdict; `"1.3"` `recorded` per ID) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections: verdict line, metrics, per-ID evidence (retired rows struck through, `(file)` for file-level cases, `—` for unjudged edges), dangling, stale, unattributed results, unrun citations, judge details (judge enabled only), notes. |
 
 Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
@@ -398,7 +424,7 @@ SPEC.md                         the specification (v1.11; the source of truth; w
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.8.0, mirrors the spec version)
+  __init__.py                   __version__ (1.11.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations
@@ -460,7 +486,7 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (84 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (88 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
