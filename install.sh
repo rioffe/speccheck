@@ -2,8 +2,8 @@
 #
 # install.sh — install the speccheck toolkit for the local user:
 #
-#   1. the four skills (spec-writing, spec-review, spec-plan, spec-build) into the skill
-#      directories of the coding agents you use: Claude Code, Pi, and Oh My Pi;
+#   1. the five skills (spec-writing, spec-review, spec-plan, spec-build, spec-proposal) into
+#      the skill directories of the coding agents you use: Claude Code, Pi, and Oh My Pi;
 #   2. spec2pdf.sh (+ scripts/xref_preprocess.py) onto your PATH, together with
 #      its rendering dependencies (pandoc, XeLaTeX, mermaid-filter, a browser);
 #   3. the speccheck CLI itself, as a uv tool with the [llm] extra, plus the
@@ -18,7 +18,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILLS=(spec-writing spec-review spec-plan spec-build)
+SKILLS=(spec-writing spec-review spec-plan spec-build spec-proposal)
 
 # ---------------------------------------------------------------- defaults --
 DO_SKILLS=0
@@ -44,7 +44,7 @@ usage() {
 Usage: ./install.sh [COMPONENTS] [OPTIONS]
 
 Components (default: all three):
-  --skills             install skills/{spec-writing,spec-review,spec-plan,spec-build}
+  --skills             install skills/{spec-writing,spec-review,spec-plan,spec-build,spec-proposal}
   --spec2pdf           install spec2pdf.sh + scripts/ and its dependencies
   --speccheck          install the speccheck CLI (uv tool, with the [llm] extra)
                        and the LLM judge environment: Ollama, the judge model,
@@ -206,7 +206,7 @@ install_skills() {
         run cp -R "$src" "$dst"
       fi
     done
-    say "    $agent: $dir/{spec-writing,spec-review,spec-plan,spec-build}"
+    say "    $agent: $dir/{spec-writing,spec-review,spec-plan,spec-build,spec-proposal}"
   done
 }
 
@@ -557,7 +557,7 @@ interactive() {
     [[ $DO_SPEC2PDF -eq 1 ]] || d_pdf=n
     [[ $DO_SPECCHECK -eq 1 ]] || d_sc=n
   fi
-  ask_yn "Install the skills (spec-writing, spec-review, spec-plan, spec-build)?" "$d_sk" && DO_SKILLS=1 || DO_SKILLS=0
+  ask_yn "Install the skills (spec-writing, spec-review, spec-plan, spec-build, spec-proposal)?" "$d_sk" && DO_SKILLS=1 || DO_SKILLS=0
   ask_yn "Install spec2pdf.sh (Markdown -> PDF with math, mermaid, clickable ids)?" "$d_pdf" && DO_SPEC2PDF=1 || DO_SPEC2PDF=0
   ask_yn "Install the speccheck CLI (the spec-build conformance gate)?" "$d_sc" && DO_SPECCHECK=1 || DO_SPECCHECK=0
   if [[ $DO_SKILLS -eq 0 && $DO_SPEC2PDF -eq 0 && $DO_SPECCHECK -eq 0 ]]; then

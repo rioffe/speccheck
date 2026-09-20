@@ -11,8 +11,8 @@ and downgrade the verdict when the test merely runs the behavior without asserti
 never upgrade anything.
 
 This repository holds the checker itself — which implements its own `SPEC.md` (v1.13, code
-1.13.0) in full, and so is the worked example of the method it serves — together with the four agent skills that
-write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
+1.13.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
+propose, write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
 installation, usage, the reports it writes, and how to verify the build.
@@ -60,7 +60,7 @@ second, independent reviewer. IDs are never renumbered once cited; an ID is *ret
 it through (`~~R-07~~`), never deleted. Formulas are LaTeX (`$..$`), diagrams are mermaid, and
 `spec2pdf.sh` renders the whole thing with clickable cross-references.
 
-### The four skills
+### The five skills
 
 The skills under `skills/` (installed for Claude Code, Pi, or Oh My Pi by `install.sh`) encode the
 method. Each is a `SKILL.md` an agent loads on request; none needs this tool to run, and this tool
@@ -68,7 +68,8 @@ needs none of them — they share only the `SPEC.md` conventions above.
 
 | Skill | Invoke when you want | Produces |
 | --- | --- | --- |
-| **spec-writing** | a `SPEC.md` written from a brief, a design doc, or a conversation; or an existing spec updated for a change | `SPEC.md`, with §12 listing every defaulted decision, committed in reviewable slices |
+| **spec-proposal** | a scoped, evidence-grounded change to an *existing, already-implemented* `SPEC.md` argued through before anyone edits it — a real defect, metric, or run's output, at least one example read in full, draft rows in the spec's own ID taxonomy, and a decision table for the requester | `PROPOSAL_v<X.Y>_<slug>.md` (or `PROPOSAL_<slug>.md` for a change with no spec version) — the problem from evidence, the change in labeled parts, what it costs, alternatives considered, a `D-nn` decision table, and what it deliberately leaves unfixed |
+| **spec-writing** | a `SPEC.md` written from a brief, a design doc, or a conversation; an existing spec updated for a change; or a confirmed `spec-proposal` decision folded into real rows | `SPEC.md`, with §12 listing every defaulted decision, committed in reviewable slices |
 | **spec-review** | the spec audited before anything is built: completeness, precision, consistency, implementability, verifiability | `SPEC_REVIEW_REPORT.md` — findings `F-nnn` with severity, a 0–5 scorecard, a maturity level 0–4, a P0/P1/P2 remediation plan, and a `READY` / `READY WITH MINOR FIXES` / `NOT READY` verdict |
 | **spec-plan** | the order the spec gets built in: the shape, the dependency waves and their gates, the slice budgets, the rules that prevent this system's known failure modes, and the one fork to settle first | `IMPLEMENTATION_PLAN.md` — verdict, evidence from prior builds, target shape, wave order with a gate per wave, LOC budget with anchors, failure→rule table, and one fork plus a next action; optionally one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (deliverables file-by-file, work items test-first, gate commands, traceability, handoff contract) |
 | **spec-build** | the plan executed: the spec implemented test-first, **wave by wave in the plan's order**, each wave gated with its own commands and committed before the next begins, then the README made to match and conformance proven | `IMPLEMENTATION_PLAN.md` plus one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (Phase 0 runs `spec-plan` if they do not exist), the code and its §9 suite with one commit per wave, an updated `README.md`, `SPEC_BUILD_REPORT.md` with per-ID evidence and the wave ledger, and the two `speccheck` gate lines |
