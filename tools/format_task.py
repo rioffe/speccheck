@@ -13,6 +13,9 @@ tasks. Recognised fields:
     table:
         - `choice` -- `options` list + `criteria` (option -> "when to pick it").
         - `noul`   -- `true`/`false` `criteria` (a yes/no question).
+   * `answers` -- a mapping of question name -> judge response, the response-side sibling of
+     `questions`: a `choice` answer shows its chosen option, probability table and confidence; a
+     `noul` answer shows P(true). Any other shape dumps its fields so nothing is lost.
     Any other question object renders its remaining fields generically so nothing is lost.
   * Any other scalar top-level field (e.g. `recorded_verdict` in the crosscheck tasks) is
     rendered as an extra note under the heading.
@@ -92,6 +95,37 @@ def blockquote(text: str) -> list[str]:
     return out
 
 
+def _type_display(type_name: Any) -> str:
+    """Display name for a question/answer type: 'noul' -> 'yes/no (noul)', 'choice' -> 'choice'."""
+    if type_name is None:
+        return "?"
+    if type_name in _TYPE_DISPLAY:
+        return "choice" if type_name == "choice" else f"{_TYPE_DISPLAY[type_name]} ({type_name})"
+    return f"{type_name} ({type_name})"
+
+
+def _pct(v: Any) -> str:
+    """A 0-1 probability as a percentage (0.75 -> '75%'); bools/out-of-range fall back to scalar."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)) and 0.0 <= v <= 1.0:
+        return f"{v * 100:g}%"
+    return render_scalar(v)
+
+
+def _render_fields(fields: dict[str, Any]) -> list[str]:
+    """Dump leftover fields generically so a new answer shape loses nothing."""
+    out = []
+    for k, v in fields.items():
+        if isinstance(v, dict):
+            out.append(f"- **{humanize(k)}:**")
+            for kk, vv in v.items():
+                out.append(f"   - `{kk}`: {cell(str(vv))}")
+        else:
+            out.append(f"- **{humanize(k)}:** {render_scalar(v)}")
+    return out
+
+
 def render_question(index: int, name: str, q: dict[str, Any]) -> list[str]:
     qtype = q.get("type")
     lines = []
@@ -156,6 +190,61 @@ def render_question(index: int, name: str, q: dict[str, Any]) -> list[str]:
     return lines
 
 
+def render_answer(index: int, name: str, a: dict[str, Any]) -> list[str]:
+    """One judge response -- the response-side mirror of render_question: choice/noul shapes."""
+    atype = a.get("type")
+    lines: list[str] = [f"### {index}. `{name}` — *{_type_display(atype)}*", ""]
+
+    if atype == "choice":
+        known = {"type", "choice", "probabilities", "confidence"}
+        probabilities = a.get("probabilities")
+        if not isinstance(probabilities, dict):
+            probabilities = {}
+        choice = a.get("choice")
+        if choice is not None and choice in probabilities:
+            lines.append(f"**Chosen:** `{choice}` ({_pct(probabilities[choice])})")
+        elif choice is not None:
+            lines.append(f"**Chosen:** `{choice}`")
+        else:
+            lines.append("**Chosen:** _no option recorded_")
+        lines.append("")
+        order = [choice] if choice in probabilities else []
+        order += [k for k in probabilities if k not in order]
+        if order:
+            lines.append("| Option | Probability |")
+            lines.append("| --- | --- |")
+            for opt in order:
+                mark = f"**`{opt}`**" if opt == choice else f"`{opt}`"
+                lines.append(f"| {mark} | {_pct(probabilities[opt])} |")
+            lines.append("")
+        conf = a.get("confidence")
+        if conf is not None:
+            lines.append(f"**Confidence:** {_pct(conf)}")
+            lines.append("")
+    elif atype == "noul":
+        known = {"type", "noul"}
+        val = a.get("noul")
+        if val is None:
+            lines.append("_No answer recorded._")
+        elif isinstance(val, bool):
+            lines.append(f"**Answer:** {render_scalar(val)}")
+        elif isinstance(val, (int, float)) and 0.0 <= val <= 1.0:
+            lines.append(f"**Probability true:** {_pct(val)}")
+        else:
+            lines.append(f"**Answer:** {render_scalar(val)}")
+        lines.append("")
+    else:
+        known = {"type"}
+
+    extra = {k: v for k, v in a.items() if k not in known}
+    if extra:
+        lines.append("**Also recorded:**")
+        lines.append("")
+        lines.extend(_render_fields(extra))
+        lines.append("")
+    return lines
+
+
 def render_task(rec: dict[str, Any]) -> str:
     lines: list[str] = []
 
@@ -206,6 +295,14 @@ def render_task(rec: dict[str, Any]) -> str:
             if not isinstance(q, dict):
                 q = {"value": q}
             lines.extend(render_question(i, name, q))
+    answers = rec.get("answers")
+    if isinstance(answers, dict) and answers:
+        lines.append("## Answers")
+        lines.append("")
+        for i, (name, a) in enumerate(answers.items(), start=1):
+            if not isinstance(a, dict):
+                a = {"value": a}
+            lines.extend(render_answer(i, name, a))
 
     text = "\n".join(lines).rstrip() + "\n"
     return text
@@ -241,10 +338,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if not matches:
         print(f"format_task: no task with id {args.id!r} in {args.tasks}", file=sys.stderr)
-        ids = [t.get("id", "?") for t in tasks]
-        preview = ", ".join(str(i) for i in ids[:30])
-        tail = " …" if len(ids) > 30 else ""
-        print(f"available ids ({len(ids)}): {preview}{tail}", file=sys.stderr)
+        ids = [str(t.get("id", "?")) for t in tasks]
+        print(f"available ids ({len(ids)}):", file=sys.stderr)
+        for start in range(0, len(ids), 8):
+            print("    " + ", ".join(ids[start : start + 8]), file=sys.stderr)
         return 1
 
     if len(matches) > 1:
