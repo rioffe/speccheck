@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -34,7 +35,7 @@ from speccheck.judge import (
 from speccheck.judge_llm import LlmConfig, LlmJudge, parse_answer, strip_fence
 from speccheck.judge_mock import MockJudge
 
-from .conftest import junit, run_cli, spec_table, write_tree
+from .conftest import FIXTURE, junit, run_cli, spec_table, write_tree
 
 C10_PATH = Path(__file__).resolve().parent.parent / "src" / "speccheck" / "judge_prompt.md"
 LLM_ENV = {
@@ -768,6 +769,28 @@ def test_triage_request_shape_and_response_parse():
     for stub in unusable:
         assert jev.JevTriage(config, post=stub).confidence(req) is None
 
+    # K-16: one request per eligible edge, at most `concurrency` in flight
+    in_flight = {"now": 0, "max": 0}
+    lock = threading.Lock()
+
+    class _SlowTriage:
+        def confidence(self, r: JudgeRequest) -> float:
+            with lock:
+                in_flight["now"] += 1
+                in_flight["max"] = max(in_flight["max"], in_flight["now"])
+            time.sleep(0.02)
+            with lock:
+                in_flight["now"] -= 1
+            return float(r.testcase.start)
+
+    requests = [
+        _req(["def test_a():", "    assert True"], start=n, name=f"test_{n}") for n in range(1, 11)
+    ]
+    run = jev.run_triage(_SlowTriage(), requests, concurrency=3)
+    assert len(run.order) == 10 and run.failures == 0
+    assert in_flight["max"] <= 3, in_flight
+    assert [r.testcase.start for r in run.order] == list(range(1, 11))  # ascending p(e)
+
     def post(url, headers, body_bytes, timeout):
         post.seen = (url, dict(headers), body_bytes, timeout)
         return 200, json.dumps({"answers": {"verdict": {"choice": "ASSERTS", "probabilities": {"ASSERTS": 0.5}}}})
@@ -918,6 +941,7 @@ def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path:
     write_tree(tmp_path, _ten_edge_project())
     transport = _jev_transport({f"R-{n:02d}": 0.50 + n / 20 for n in range(1, 11)})
     monkeypatch.setattr(jev, "_httpx_post", transport)
+    real_make_provider = cli._make_provider
     monkeypatch.setattr(cli, "_make_provider", lambda config: (MockJudge(), 1, 0))
 
     # K-16 ignored: no Jev call, no SPECCHECK_JEV_* variable needed, no Note
@@ -955,6 +979,37 @@ def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path:
         env=JEV_ENV,
     )
     assert run.json["notes"] == ["judge budget exhausted: 10 edge(s) unjudged"]
+
+    # E-36: with zero eligible edges no request is sent to either provider
+    empty_dir = tmp_path / "empty"
+    write_tree(
+        empty_dir,
+        {"SPEC.md": spec_table([("R-01", "obligation R-01")]), "src/a.py": "# R-01\n"},
+    )
+    transport.calls.clear()
+    run = run_cli(
+        ["check", "--spec", "SPEC.md", "--src", "src", "--judge", "llm", "--jev-pre-triage",
+         "--judge-budget", "0%"],
+        empty_dir,
+        env=JEV_ENV,
+    )
+    assert run.code == 0 and transport.calls == [] and run.json["notes"] == []
+    assert run.json["judge_available"] is True and run.json["metrics"]["unknown_rate"] is None
+
+    # the golden fixture is byte-identical when the flag is added to a --judge mock run
+    monkeypatch.setattr(cli, "_make_provider", real_make_provider)  # the real MockJudge again
+    target = tmp_path / "golden-target"
+    shutil.copytree(FIXTURE, target)
+    out = target / "fresh-out"
+    run = run_cli(
+        ["check", "--spec", "SPEC.md", "--src", "src", "--tests", "tests", "--results",
+         "junit.xml", "--judge", "mock", "--strict", "--jev-pre-triage",
+         "--root", ".", "--out", str(out)],
+        target,
+    )
+    assert run.code == 1  # the fixture has planted defects (T-46)
+    for name in ("speccheck.json", "SPEC_CONFORMANCE_REPORT.md"):
+        assert (out / name).read_bytes() == (FIXTURE / "golden" / name).read_bytes(), name
 
 
 def test_judge_request_carries_declared_for_the_edge(tmp_path: Path, monkeypatch):

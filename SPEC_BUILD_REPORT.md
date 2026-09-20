@@ -1,8 +1,99 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.14.0 against `SPEC.md` (v1.14)
+# SPEC_BUILD_REPORT — `speccheck` v1.15.0 against `SPEC.md` (v1.15)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f) and to v1.15 (§0g); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0g. v1.15 increment (2026-09-20) — Jev pre-triage (K-16, C-17, I-015, E-58, E-59, K-12 `N%`)
+
+**Why.** `PROPOSAL_v1.16_jev_pre_triage.md`, grounded in a `check --judge llm --strict` run of this
+repository's own tree cross-checked edge-by-edge against `typesafe/jev-1.13`: `--judge-budget`
+already truncated a judge run, but which edges were issued before the deadline was an accident of
+declaration order, so a truncated run spent itself on whatever came first rather than on what was
+hard. Jev's top-choice probability turned out to be a well-calibrated triage signal — monotonic
+across four buckets, and 0 % recall for the only other triage-free signal already in the kernel
+(`--judge mock` answers `ASSERTS` on everything) — and more than half of all judge-eligible edges
+sit at $\geq$ 0.95, headroom a budgeted run was losing. D-29..D-32 (dedicated `SPECCHECK_JEV_*`
+variables, a Note when the pass cannot matter, failure-orders-first, `ceil`) were confirmed in the
+spec before this build; no fork was left for it.
+
+**Plan.** A delta `IMPLEMENTATION_PLAN.md` plus one brief per wave
+(`DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the C-17 provider and the CLI grammar, W2 the
+K-16 ordering pass and K-12's `N%` count, W3 the recorded calibration, the README and the gates.
+The plan's one fork — run T-91's measurement for real, or record it pending — was taken as
+**run it**: the credentials and a judge model are present, and the alternative would have left the
+spec's own calibration claim unchecked.
+
+**Wave ledger.**
+
+| Wave | Gate as run | Result | Commit |
+| --- | --- | --- | --- |
+| W1 — the C-17 provider and the `--jev-pre-triage` grammar (C-17, E-58; T-90) | `pytest tests/test_05_judge.py tests/test_07_cli.py -q`; `ruff check src tests` | 35 passed; clean | `e4b9f2a` |
+| W2 — the triage pass orders and truncates the queue (K-16, K-12 `N%`, I-015, E-59; T-89) | `pytest tests -q --junitxml=junit.xml`; `ruff check src tests`; `speccheck --self-check` | 123 passed; clean; `self-check: ok` (goldens byte-identical — the flags default off) | `5cef24d` |
+| W3 — recorded calibration, README, gates (T-91) | `pytest tests -q --junitxml=junit.xml`; `ruff check src tests`; `speccheck --self-check`; `check … --judge mock --strict`; `check … --judge llm --strict` | 124 passed; clean; `self-check: ok`; `CONFORMING - 233/233 passing (100.0%) … 0 dangling, 0 stale`, exit 0; see §6 | this commit |
+
+**W1, test-first:** `JevConfig.from_env`, `render_state`, `build_body`, `parse_confidence` and
+`JevTriage` were written against T-89's request-shape test (the pinned `state` template, the four
+criteria, the bearer header, `p(e) = max(probabilities)`, and the seven ways a reply is *not*
+usable) and T-90's usage-error test (`N%` without a running triage, the `SECONDS` form still
+accepted-and-ignored under `--judge mock`, `SPECCHECK_JEV_API_KEY` required only when the pass
+runs, no key in any message). C-17's strings are not new text: they are the ones
+`tools/judge_crosscheck_tasks.py` already sends, which is what makes the §1 calibration figures
+reproducible against the kernel's own request.
+
+**W2, test-first:** `run_triage` and `run_judge(issue_count=...)` were written against T-89's
+end-to-end test — ten eligible edges, one C-17 transport stub failing one edge with HTTP 500, one
+judge stub recording the order it was asked in: `30%` issues exactly the three least confident
+(the failed edge first), `100%` all ten, `0%` none with zero judge calls, a total C-17 failure
+leaves `judge_available`/`unknown_rate` as a triage-free run does, and an unlimited budget reorders
+without changing a byte of the report apart from the D-30 Note. The `N%` count lives in
+`run_judge` beside the deadline it mirrors, so `budget_unjudged`, the E-35 Note, `unknown_rate`,
+`judge_available` and the C-11 indicator keep one source. Smoke-tested against the real provider
+path with an unreachable endpoint (695 edges, 695 E-59 failures, `0%` issuing none, indicator
+drawn and erased, report written) — the run in which the E-59 Note and the "no effect" ordering
+were first observed end to end.
+
+**T-91 *(recorded)* — the calibration curve, re-measured.** Run 2026-09-20 against this
+repository's own `SPEC.md` (v1.15) / `src` / `tests`, exactly as the row pins: a
+`check --judge llm --strict` run, its committed verdicts (recorded `UNKNOWN` excluded) bucketed by
+each edge's C-17 $p(e)$ against Jev's own `answers.verdict.choice`.
+
+| Input | Value |
+| --- | --- |
+| Judge | `openai/gpt-4o-mini` via OpenRouter, `--judge-concurrency 8`, 2 m 30 s, `unknown_rate` `0.0978`, 5 `WEAKLY_PASSING` ids (`E-07`, `E-16`, `E-25`, `T-61`, `T-76` — all pre-existing), `judge_prompt_sha256` `f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1` |
+| Triage | `SPECCHECK_JEV_MODEL=~typesafe/jev-latest` (the C-17 default — probed and accepted by the endpoint before the batch), `--concurrency 8`, 695/695 requests succeeded in 17.1 s, 0 failures |
+| Population | 695 judge-eligible edges; the judge committed to 627 (68 recorded `UNKNOWN` excluded) |
+
+| Jev $p(e)$ bucket | committed edges | agreement with the recorded verdict |
+| --- | --- | --- |
+| $\geq$ 0.95 | 306 | 288/306 = 94.12 % |
+| 0.80–0.95 | 102 | 84/102 = 82.35 % |
+| 0.60–0.80 | 106 | 51/106 = 48.11 % |
+| $<$ 0.60 | 113 | 52/113 = 46.02 % |
+
+Overall 475/627 = 75.76 %. The buckets are monotonically non-increasing, so T-91 passes on this
+run. Same shape as the proposal's §1 figures (94.58 / 78.48 / 54.64 / 47.75 % over 582 edges) on a
+larger tree and a different Jev build: the alias is floating by design, which is exactly the drift
+this row exists to watch. Per-label, Jev recovers 104/179 = 58.1 % of the committed `UNRELATED`
+edges — the class `--judge mock` cannot see at all. Artifacts:
+`build/speccheck-llm-v115/speccheck.json`, `build/census/crosscheck-v115/{tasks,results}.jsonl`.
+
+Reproducing it, in the order it ran (the first two commands are the repository's own offline
+cross-check tools, which build the same C-17 `state` the kernel sends):
+
+```bash
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml \
+    --judge llm --strict --judge-concurrency 8 --out build/speccheck-llm-v115
+uv run python tools/judge_crosscheck_tasks.py --report build/speccheck-llm-v115/speccheck.json \
+    --tests tests --out build/census/crosscheck-v115/tasks.jsonl
+uv run python tools/jev_client.py --task-file build/census/crosscheck-v115/tasks.jsonl --id ALL \
+    --model "~typesafe/jev-latest" --concurrency 8 --out build/census/crosscheck-v115/results.jsonl
+# then join each result to its task and bucket by p(e) = max(answers.verdict.probabilities)
+```
+
+**Spec defects found by this build:** none. The re-read found no row of v1.15 disagreeing with the
+implementation, and no earlier row that the triage pass invalidated; `SPEC.md` was not edited by
+this increment.
 
 ## 0f. v1.14 increment (2026-09-20) — declared vs. incidental citations (R-39, C-14, C-15, C-16, I-014, E-56)
 
@@ -622,8 +713,14 @@ row; each is listed so the spec owner can ratify or overturn it.
 | B-15 | R-23 redaction | The raw response is redacted by replacing every occurrence of the key's text with `***` — with the Ollama convention `SPECCHECK_JUDGE_API_KEY=ollama` this also turns Ollama's `system_fingerprint: fp_ollama` into `fp_***` in DEBUG output. | Harmless; the rule is "the key never appears", and it never does. |
 | B-16 | C-16 `declared_ratio` population | The ratio is over **test-kind citations of in-scope, non-retired R/C/I/K/E ids inside attributed (non-file-level) cases**, counted per citation occurrence: `src`-kind citations and file-level citations are outside R-39's own scope ("inside an attributed (non-file-level) test case") and so outside both the numerator and the denominator. | C-16 says "all such citations", and "such" is R-39's population. Including `src` citations would swamp the metric (they are `declared: false` by definition, E-56) and make it uninformative; including file-level citations would mix two different questions. On the golden fixture the two readings coincide for the edges in it except that the file-level and `src` citations are excluded. If the spec owner prefers the whole-citation reading, widen the loop in `graph.build_graph` — the `Citation.declared` values needed are already computed. |
 
+| B-17 | C-17 ordering, $p(e)$ ties | Two edges with the *same* $p(e)$ **and** the same id (two test cases citing one id) are ordered by `(testcase.file, testcase.start)` after the id. | C-17 pins only "ties are broken by ascending id in C-07's id order", which is not a total order across two edges of one id. A total order is what makes T-89's "the three least confident" reproducible and the issue order independent of the pool's completion order. |
+| B-18 | §5.3 DEBUG, C-17 | The triage pass logs its traffic as `jev>` / `jev<` lines (the `state` sent, the raw reply) with the key redacted, and emits one `INFO` stage line plus `jev url=… model=… timeout=…` after the indicator's erase. | §5.3's DEBUG list names only the judge's `judge>`/`judge<`; C-17 says the URL and model MAY appear at INFO but says nothing about the payload. The `state` carries the statement, so it must stay out of INFO (I-007) — DEBUG is where the judge's own prompts already go. |
+| B-19 | K-16 / D-30 with zero eligible edges | The D-30 Note is written only when the pass actually runs, i.e. when there is at least one judge-eligible edge. | E-36 already pins that a run with zero eligible edges sends no request at all (to either provider); "the pass had no effect" would be true but pointless there, and no other stage emits a Note for doing nothing. |
+| B-20 | K-12 `N%` arithmetic | $\lceil N/100 \times E \rceil$ is computed in integer arithmetic (`-(-N*E//100)`), not by floating-point multiplication and `ceil`. | $0.30 \times 10$ is `3.0000000000000004` in binary floating point, which would issue four edges where K-12's own formula says three. The spec's formula is exact; the code matches it. |
+
 Through v1.13 no `SPEC.md` row was edited; v1.14 corrected two of its own rows (F-101 the §3.3
-artifact table's stale `"1.4"` literal, F-102 T-74's stale key list — both recorded in §0f). The
+artifact table's stale `"1.4"` literal, F-102 T-74's stale key list — both recorded in §0f); v1.15
+corrected none. The
 two clauses that disagree (B-01, B-02) remain candidates for a `fix(speccheck):` by the spec
 owner: §5.4 could name the E-19 case explicitly, and T-46's `--out <fresh tmp>` could read
 `--out <fresh dir inside --root>`.
@@ -647,7 +744,12 @@ owner: §5.4 could name the E-19 case explicitly, and T-46's `--out <fresh tmp>`
 | Determinism | I-002 | Golden fixture reports are byte-identical across runs, paths, `--src .`, and planted temporaries (T-36); the goldens in the repository were produced by the tool and re-verified after every refactor |
 | Read-only inputs | I-001 | Hash comparison before/after (T-38); only the two reports appear; `--self-check` leaves no trace (T-43) |
 | Network boundary | I-006 | Socket guard never fires under `none`/`mock` (T-43); `httpx` is imported only inside `_httpx_post`, verified in the fresh venv: `import speccheck.cli` leaves `httpx` out of `sys.modules` |
-| README | Phase 2 | Every command in it was run as written after it was finished (quick start on a fixture copy, the self-application run, the single-test command, `sync_selfcheck.py --check`) |
+| `src/speccheck/jev.py` (v1.15) | C-17, K-16, I-015 | `JevConfig` reads the four `SPECCHECK_JEV_*` variables with the C-17 defaults and validates the timeout `1..300`; `render_state`/`build_body` produce the pinned `{model, state, questions}` body (asserted against the C-17 strings by T-89); `parse_confidence` reads `answers.verdict` and returns `max(probabilities)` or `None`; `run_triage` returns the order and the failure count and nothing else — the module holds no reference to `report.py`, so no triage value can reach a report (I-015) |
+| `judge.run_judge(issue_count=…)` | K-12 `N%`, E-35 | Not-issued requests are marked `call_made=False` before the pool starts, so they take the same `judge: budget` disposition, the same E-35 Note and the same `unknown_rate` population as a deadline miss; `available` ignores them (T-89) |
+| `speccheck` CLI, `--jev-pre-triage` / `N%` (v1.15) | §5.1, E-58 | Both grammars, the E-58 usage error naming both flags, `SPECCHECK_JEV_API_KEY` required only when the pass runs, and no key value in any message (T-90) |
+| Diagnostics, triage (v1.15) | §5.3, I-007 | `jev>`/`jev<` only at DEBUG, key redacted; INFO carries the stage line and the endpoint/model only, never the `state` (B-18) |
+| README | Phase 2 | Every command in it was run as written, including the new `--jev-pre-triage` example against a stub endpoint and the `--judge-budget 0%` form |
+| `ARCHITECTURE.md` | — | **Known pre-existing gap, not this increment's**: the module-by-module design document has not been revised since v1.5 (`2e8db5d`) and so predates v1.6..v1.15 — it does not describe the Swift adapter, the edges/`impact` subcommand, `declared`, or the triage pass. Recorded here rather than partially updated, so the next revision of it is a real one; `README.md` and this report are current. |
 
 Process note for the audit trail: the build was not strictly test-first. Each §9 group's tests
 were written from the spec immediately after the module they exercise; five of them failed on
@@ -718,6 +820,7 @@ id. "Self-app" is the status from the T-48 run.
 | C-14 | `attribute.py` (`_doc_span`, `_declared`, `_python_cases`, Swift `_Line.doc` via `delimit_swift`), `graph.py` (edge-level `declared`) | T-85 `test_02_attribution::test_declared_vs_incidental_classification`; T-86 `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
 | C-15 | `judge.py` (`JudgeRequest.declared`, `build_request`, `to_json`), `judge_llm.py` (system message), `src/speccheck/judge_prompt.md` (field definition + skepticism rule), `cli.py` (passes `edge.declared`) | `test_05_judge::test_judge_request_carries_declared_for_the_edge`; `test_05_judge::test_llm_response_path_fences_and_prompt_hash`; `test_05_judge::test_llm_request_carries_heading_body_statement`; T-87 (§0f, recorded) | PASSING |
 | C-16 | `report.py` (`tests[].declared`, `metrics.declared_ratio`, `SCHEMA_VERSION` "1.5"), `graph.py` (`declared_counts`, `Metrics.declared_ratio`) | T-86 `test_08_golden::test_fixture_gains_one_incidental_citation`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode`; `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys` | PASSING |
+| C-17 | `jev.py` (`JevConfig.from_env`, `render_state`, `build_body`, `parse_confidence`, `JevTriage`), `cli.py` (`_make_triage_provider`, the env read) | T-89 `test_05_judge::test_triage_request_shape_and_response_parse`; T-90 `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
 | I-001 | `cli.py`, `report.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing`; T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | I-002 | `attribute.py`, `extract.py`, `graph.py`, `report.py`, `results.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | I-003 | `report.py` | T-25 `test_04_status::test_retired_ids_excluded_from_denominators_but_listed_once`; T-35 `test_06_reports::test_markdown_layout` | PASSING |
@@ -731,6 +834,7 @@ id. "Self-app" is the status from the T-48 run.
 | I-011 | `extract.py` | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
 | I-013 | `impact.py` (`walk`: unbounded computation, depth-limited as a filter) | `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_impact_cli_against_golden_fixture` | PASSING |
 | I-014 | `attribute.py` (`declared` is a pure function of the source/test trees), `graph.py` / `report.py` (`declared_ratio`) | T-85 `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode` | PASSING |
+| I-015 | `jev.py` (`run_triage` returns the order and nothing else; no report import), `report.py` (no triage field) | T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; T-89 `test_05_judge::test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget` | PASSING |
 | K-01 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak`; T-19 `test_03_results::test_malformed_xml_and_nameless_testcase_exit_3`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | K-02 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
 | K-03 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
@@ -742,10 +846,11 @@ id. "Self-app" is the status from the T-48 run.
 | K-09 | `report.py` | T-34 `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys` | PASSING |
 | K-10 | `cli.py` | T-50 `test_07_cli::test_version_flag` | PASSING |
 | K-11 | `cli.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
-| K-12 | `cli.py`, `judge.py` | T-61 `test_07_cli::test_judge_budget` | PASSING |
+| K-12 | `cli.py`, `judge.py` (`issue_count`, the `N%` count) | T-61 `test_07_cli::test_judge_budget`; T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; T-90 `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
 | K-13 | `judge.py` | T-62 `test_07_cli::test_progress_indicator_format_cadence_and_isolation` | PASSING |
 | K-14 | `cli.py`, `extract.py` | `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model`; `test_08_golden::test_goldens_carry_title_and_markdown_renders_title` | PASSING |
 | K-15 | `judge.py`, `judge_mock.py` | `test_05_judge::test_clause_grounding_validation`; `test_05_judge::test_llm_response_path_fences_and_prompt_hash` | PASSING |
+| K-16 | `cli.py` (the pass runs before the first judge request, the D-30 Note), `jev.py` (`run_triage`, the K-16 order), `judge.py` (the issue order) | T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; T-90 `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
 | E-01 | `cli.py`, `extract.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing` | PASSING |
 | E-02 | `extract.py` | T-06 `test_01_extraction::test_duplicate_declaration_exits_3_naming_both_lines` | PASSING |
 | E-03 | `extract.py` | T-04 `test_01_extraction::test_strikethrough_is_retired_and_mixed_redeclaration_exits_3` | PASSING |
@@ -780,7 +885,7 @@ id. "Self-app" is the status from the T-48 run.
 | E-32 | `cli.py`, `report.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | E-33 | `extract.py` | T-57 `test_02_attribution::test_ignore_markers` | PASSING |
 | E-34 | `extract.py`, `report.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename` | PASSING |
-| E-35 | `judge.py` | T-61 `test_07_cli::test_judge_budget` | PASSING |
+| E-35 | `judge.py` (budget, both forms) | T-61 `test_07_cli::test_judge_budget`; T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue` | PASSING |
 | E-36 | `cli.py`, `judge.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | E-37 | `graph.py`, `report.py` | `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength`; `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys`; `test_06_reports::test_markdown_layout` | PASSING |
 | E-38 | `report.py` | T-34 `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys` | PASSING |
@@ -791,6 +896,8 @@ id. "Self-app" is the status from the T-48 run.
 | E-54 | `cli.py` (`_build_impact_config`; unrecognized-flag rejection by omission) | T-81 `test_11_impact::test_impact_usage_and_input_errors` | PASSING |
 | E-55 | `extract.py` (`Edge.retired`), `report.py` (struck ID cells in `IMPACT_REPORT.md`) | `test_10_edges::test_edge_to_retired_id_is_flagged_and_self_reference_is_ignored`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
 | E-56 | `attribute.py` (`_declared`: `case.is_file_level` → `false`; `cli.py` constructs `src` citations with `declared=False`) | T-85 `test_02_attribution::test_declared_vs_incidental_classification` (file-level); T-86 `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
+| E-58 | `cli.py` (`_parse_budget`, the E-58 check in `parse_config`) | T-90 `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
+| E-59 | `jev.py` (`JevTriage.confidence` never raises; `TriageRun.notes`), `cli.py` (the Note) | T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue` | PASSING |
 | T-01 | — | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement` | PASSING |
 | T-02 | — | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
 | T-03 | — | T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids` | PASSING |
@@ -876,17 +983,53 @@ id. "Self-app" is the status from the T-48 run.
 | T-86 | — | `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
 | T-87 *(recorded)* | — | `test_09_self_application::test_t87_recorded_rerun_is_measured_and_recorded` (presence check); the real run is §0f above | PASSING |
 | T-88 | — | `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode` | PASSING |
+| T-89 | — | `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; `test_05_judge::test_triage_request_shape_and_response_parse`; `test_05_judge::test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget` | PASSING |
+| T-90 | — | `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
+| T-91 *(recorded)* | — | `test_09_self_application::test_t91_recorded_calibration_is_measured_and_recorded` (presence check); the real run is §0g above | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 225/225 IDs realized (0 deferred)
-speccheck (mock): speccheck: CONFORMING - 225/225 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: CONFORMING - 225/225 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-20, judge_available true, judge_strength 1.0 (220/220), unknown_rate 0.0137, judge_prompt_sha256 f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1 (the v1.14 C-10 text)]
+Spec coverage: 233/233 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 233/233 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: CONFORMING - 233/233 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-20, --judge-concurrency 8, 8 m 14 s, judge_available true, judge_strength 1.0 (229/229), unknown_rate 0.0029, declared_ratio 0.3961, judge_prompt_sha256 f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1 (the v1.14 C-10 text)]
 Observed: no rendered surface (§5.2)
 Readiness: BUILT
 Conformance: PASS WITH NOTES
 ```
+
+v1.15's deliverable (K-16, C-17, I-015, E-58, E-59, K-12's `N%`, T-89..T-91) is green on both
+gates, and nothing earlier moved: the fixture goldens are byte-identical (T-46/T-71/T-60), the
+mock gate is 233/233, and `--jev-pre-triage` under `--judge mock` is inert by construction — T-89
+asserts the fixture's own goldens are unchanged when the flag is added to that run. The three
+`SPEC.md` v1.15 rows that amend earlier ones (K-12, E-35, E-36) are realized by the same code paths
+their earlier tests already cover, extended rather than replaced: T-61 still pins the `SECONDS`
+deadline and now sits beside T-89's `N%` count.
+
+The notes are:
+
+- §3's **B-17..B-20** — the four places this increment had to choose where the rows left a choice:
+  the third ordering key for two edges of one id, `jev>`/`jev<` at DEBUG, the D-30 Note's
+  population, and integer arithmetic for $\lceil N/100 \times E \rceil$.
+- **T-91's recorded outcome** (§0g), which is an observation about a second model's calibration on
+  one codebase, not a conformance condition — its own row calls it non-gating.
+- **`ARCHITECTURE.md`'s pre-existing drift** (§4), disclosed rather than partially patched.
+
+Phase B model note. The gate line above uses `google/gemini-3.8-flash`, the model D-08 names as
+this project's trusted self-application judge (`unknown_rate` 0.0029, no `WEAKLY_PASSING` id). The
+T-91 measurement's judge run used `openai/gpt-4o-mini`, the environment's configured judge, which
+on the same tree records `unknown_rate` 0.0978 and 5 `WEAKLY_PASSING` ids — `E-07`, `E-16`, `E-25`,
+`T-61`, `T-76`, all pre-existing and none of them this increment's — the same D-07/D-08
+model-choice characteristic §0d and §0f already record, not a v1.15 regression. No id this
+increment added is downgraded by either model, which is the expected shape: K-16, C-17, I-015,
+E-58, E-59 and T-89..T-91 are asserted by tests that check the ordering, the wire body, the usage
+errors and the Notes directly rather than by a model's reading of them.
+
+Nothing in the specification was scoped out: the triage provider (C-17) is built behind
+`--jev-pre-triage` and the `[llm]` extra, like the judge behind `--judge llm`, and both are
+incapable of upgrading a status. The §11 matrix is fully traced from `speccheck.json` (§5 above,
+no dangling edge); the earlier increments' records (§0..§0f) are unaffected by this one.
+
 
 v1.14's deliverable (R-39, C-14, C-15, C-16, I-014, E-56, T-85..T-88) is green on both gates. The
 notes are: B-16's `declared_ratio` population reading (R-39's own scope, recorded for ratification,

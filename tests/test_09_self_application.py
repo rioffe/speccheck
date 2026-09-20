@@ -156,6 +156,27 @@ def test_obligation_census_script_and_labels_are_well_formed():
     assert set(labels) <= live, sorted(set(labels) - live)
 
 
+def test_t91_recorded_calibration_is_measured_and_recorded():
+    """T-91 (recorded): the §1 calibration measurement of `PROPOSAL_v1.16_jev_pre_triage.md` was
+    re-run against this repository's own `SPEC.md`/`src`/`tests` and its bucket table is recorded
+    in `SPEC_BUILD_REPORT.md` with the C-17 model name, the date and `judge_prompt_sha256`; the
+    run itself is the recorded evidence (non-gating, like T-49 and T-87) — this check proves only
+    that the artefact exists and has the shape the row pins. (K-16, C-17, D-32)"""
+    report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
+    marker = "T-91 *(recorded)*"
+    assert marker in report, "SPEC_BUILD_REPORT.md does not record T-91"
+    body = report.split(marker, 1)[1].split("\n## ", 1)[0]
+    rows = [
+        line
+        for line in body.splitlines()
+        if line.startswith("|") and "%" in line and "---" not in line
+    ]
+    assert len(rows) >= 3, rows
+    assert "judge_prompt_sha256" in body
+    assert "SPECCHECK_JEV_MODEL" in body or "~typesafe/jev-latest" in body
+    assert "p(e)" in body or "confidence" in body
+
+
 def test_t87_recorded_rerun_is_measured_and_recorded():
     """T-87 (recorded): the three real edges named in `PROPOSAL_v1.15_declared_vs_incidental_
     citations.md`'s evidence were re-run under the v1.14 C-10 text with the same model, and the

@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.14, code
-1.14.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.15, code
+1.15.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
 propose, write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -169,7 +169,7 @@ Run the checker on a copy of the golden fixture that ships in this repository:
 ```bash
 cp -r fixtures/target /tmp/calc && cd /tmp/calc
 uv run --project "$OLDPWD" speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out reports
-# speccheck: NOT CONFORMING - 8/14 passing (57.1%), 1 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 1 dangling, 1 stale; judge=mock
+# speccheck: NOT CONFORMING - 13/19 passing (68.4%), 1 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 1 dangling, 1 stale; judge=mock
 ```
 
 (The fixture is *meant* to fail: it plants one example of every status and defect the checker
@@ -181,7 +181,7 @@ same check on this repository itself:
 ```bash
 uv run python -m pytest tests -q --junitxml=junit.xml
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out build/selfapp
-# speccheck: CONFORMING - 183/183 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
+# speccheck: CONFORMING - 233/233 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
 ```
 
 For a Swift package, run `swift test --xunit-output junit.xml` (SwiftPM writes the Swift Testing
@@ -198,8 +198,8 @@ uv run --project "$OLDPWD" speccheck check --spec SPEC.md --src Sources --tests 
 ```text
 speccheck check --spec SPEC.md [--src DIR]... [--tests DIR]... [--results junit.xml]
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
-                [--max-unknown FRACTION] [--judge-concurrency N] [--judge-budget SECONDS]
-                [--progress auto|always|never] [--verbose [INFO|DEBUG]]
+                [--max-unknown FRACTION] [--judge-concurrency N] [--judge-budget SECONDS|N%]
+                [--jev-pre-triage] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src DIR]... [--tests DIR]...
                  [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
@@ -219,9 +219,10 @@ speccheck --help
 | `--strict` | Exit `1` unless every in-scope ID is `PASSING` and there are no dangling or stale citations; with `--judge llm`, also requires an available judge and `unknown_rate <= --max-unknown`. |
 | `--max-unknown` | Decimal in `[0, 1]`, default `0.2`; only consulted under `--strict --judge llm`. |
 | `--judge-concurrency N` | `1..32`, default `4`; LLM requests in flight at once. |
-| `--judge-budget SECONDS` | `0..86400`, default `0` (unlimited); wall-clock bound on the judge stage. Edges not started before the deadline become `UNKNOWN` (`judge: budget`). |
+| `--judge-budget SECONDS\|N%` | Default `0`. `SECONDS` (`0..86400`): wall-clock bound on the judge stage; edges not started before the deadline become `UNKNOWN` (`judge: budget`). `N%` (`0..100`, v1.15): issue exactly `ceil(N/100 × E)` of the `E` judge-eligible edges, least-confident first (requires `--jev-pre-triage` under `--judge llm`, else exit `2`); `0%` is a pure triage run, `100%` every edge. |
+| `--jev-pre-triage` | v1.15. Ask the C-17 Jev endpoint for one confidence per judge-eligible edge *before* the judge runs, and order the judge's queue by it (K-16). Ignored unless `--judge llm`; needs `SPECCHECK_JEV_API_KEY` when it runs. Jev never supplies a verdict (I-015). |
 | `--progress MODE` | Progress indicator for the judge stage, LLM judge only. `auto` (default): shown when stderr is a terminal and verbosity is not `DEBUG`; `always`: shown even when stderr is redirected (still not at `DEBUG`); `never`. See below. |
-| `--verbose [LEVEL]` | Diagnostics to stderr. Bare = `INFO` (stage counts, timings, judge URL/model, notes). `DEBUG` adds every judge request (`judge>`) and raw response (`judge<`) with the API key redacted. Nothing else is written to stderr, except the progress indicator while it is displayed. |
+| `--verbose [LEVEL]` | Diagnostics to stderr. Bare = `INFO` (stage counts, timings, judge URL/model, notes). `DEBUG` adds every judge request (`judge>`) and raw response (`judge<`) — and, with `--jev-pre-triage`, every triage request (`jev>`) and reply (`jev<`) — with the API keys redacted. Nothing else is written to stderr, except the progress indicator while it is displayed. |
 | `--self-check` | Copies the packaged fixture to a temporary directory, installs a socket guard, runs the pinned `check` in-process, compares the output byte-for-byte with the packaged goldens, removes the directory, and prints `self-check: ok`. |
 
 **Statuses** (one per declared ID): `RETIRED` (struck-through declaration; excluded from
@@ -391,6 +392,47 @@ because a clause is locatable and some assertion exists nearby (Part B — no co
 See `PROPOSAL_v1.15_declared_vs_incidental_citations.md` and `JUDGE_CROSSCHECK_REPORT.md` §2b for
 the evidence.
 
+### Jev pre-triage — spend a truncated budget on the edges Jev is least sure about (v1.15)
+
+`--judge-budget` truncates a judge run, and before v1.15 the edges that got judged first were an
+accident of declaration order. `--jev-pre-triage` asks a second, much cheaper model — Jev, on
+OpenRouter's typed decisions API — for one confidence per judge-eligible edge *before* any
+real-judge request is issued, and orders the judge's queue by ascending top-choice probability, so
+a truncated run spends itself on the edges that needed the real judge. Measured on this
+repository's own tree (judge `openai/gpt-4o-mini`, Jev `typesafe/jev-1.13`, 2026-09-20): the
+confidence bucket agrees with the recorded verdict 94.6 % of the time at p ≥ 0.95, 78.5 % at
+0.80–0.95, 55.0 % at 0.60–0.80 and 50.5 % below 0.60 — see `SPEC_BUILD_REPORT.md` §0g.
+
+```bash
+export SPECCHECK_JEV_URL=https://openrouter.ai/api/alpha/decisions   # optional; this is the default
+export SPECCHECK_JEV_MODEL=~typesafe/jev-latest                      # optional; the default (a floating alias)
+export SPECCHECK_JEV_API_KEY=sk-or-...                               # required; an OpenRouter key
+export SPECCHECK_JEV_TIMEOUT=30                                      # optional, seconds, 1..300
+
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml \
+    --judge llm --jev-pre-triage --judge-budget 30% --out build/speccheck-triage
+```
+
+- **Two budget grammars.** `--judge-budget SECONDS` is unchanged (a wall-clock deadline);
+  `--judge-budget N%` issues exactly `ceil(N/100 × E)` of the `E` judge-eligible edges, in the
+  triage's order. The rest take the same disposition a deadline miss gets (`UNKNOWN`,
+  `judge: budget`, `coerced: true`, one Note). `0%` is a pure triage run — zero judge calls — and
+  `100%` is every edge. `N%` requires a running triage (`--jev-pre-triage` under `--judge llm`);
+  without it, exit `2` before any request. `--jev-pre-triage` under `--judge none|mock` is
+  ignored: no request, no credential needed.
+- **Jev is advisory, always (I-015).** Its answer is read once, for the order, and discarded: no
+  verdict, clause, status, or `speccheck.json` field ever comes from it, and `judge_available` /
+  `unknown_rate` describe the real judge alone. With `--judge-budget 0` the pass only reorders the
+  queue — the report is unchanged apart from a Note that says so.
+- **A Jev failure is not a run failure.** A timeout, a non-2xx status, or a reply that is not one
+  of the four verdict tokens with numeric probabilities orders that edge first, as if it were the
+  least certain, and one Note counts how many edges that happened to.
+- **Request shape.** One task per judge-eligible edge, at most `--judge-concurrency` in flight,
+  carrying the same statement and line-numbered test source the real judge gets (the C-06 request
+  object, rendered as the `state` text the offline `tools/judge_crosscheck_tasks.py` also builds).
+  At `--verbose DEBUG` the traffic is logged as `jev>` / `jev<` with the key redacted; nothing
+  about it is logged at `INFO` beyond the endpoint and model.
+
 ### LLM judge via OpenRouter (or any hosted endpoint)
 
 [OpenRouter](https://openrouter.ai) fronts many vendors' models behind the same chat-completions
@@ -489,11 +531,11 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.14; the source of truth; written in the
+SPEC.md                         the specification (v1.15; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.14.0, mirrors the spec version)
+  __init__.py                   __version__ (1.15.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
                                 the `impact` subparser and its execute_impact pipeline (v1.13)
@@ -507,6 +549,8 @@ src/speccheck/
   graph.py                      status algorithm (C-05), edge selection for the judge, metrics (C-07) incl.
                                 `declared_ratio` (C-16, v1.14)
   judge.py                      JudgeRequest/Verdict types, validation, concurrency + budget runner, progress indicator
+  jev.py                        the C-17 Jev triage provider and the K-16 ordering pass (v1.15): one
+                                confidence per eligible edge, used only to order the judge's queue (I-015)
   judge_mock.py                 deterministic assertion-token judge
   judge_llm.py                  OpenAI-compatible/Ollama provider, env config, response parsing
   judge_prompt.md               the normative C-10 instruction text (package data)
@@ -524,11 +568,11 @@ tests/
   test_02_attribution.py        §9.2  T-08..T-14, T-56, T-57, T-65..T-67, T-85
   test_03_results.py            §9.3  T-15..T-19, T-52, T-58, T-68
   test_04_status.py             §9.4  T-20..T-25, T-53
-  test_05_judge.py              §9.5  T-26..T-33, T-54, T-69 (and T-85's C-15 request check)
+  test_05_judge.py              §9.5  T-26..T-33, T-54, T-69, T-89 (and T-85's C-15 request check)
   test_06_reports.py            §9.6  T-34..T-38
-  test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61
+  test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61, T-90
   test_08_golden.py             §9.8  T-46, T-47, T-71, T-86, T-88
-  test_09_self_application.py   §9.9  T-48; §9.10 T-51 and §9.11 T-49, T-87 presence checks
+  test_09_self_application.py   §9.9  T-48; §9.10 T-51 and §9.11 T-49, T-87, T-91 presence checks
   test_10_edges.py              §9.12 T-79 — decision-table grammar and C-12 edge extraction
   test_11_impact.py             §9.12 T-80, T-81 — the impact CLI, changed set, walk, reverify
   data/markers/                 the only files that contain the literal ignore markers
@@ -566,11 +610,12 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (112 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (124 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*: Ollama or a hosted endpoint)
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --jev-pre-triage --judge-budget 0% --out build/speccheck-triage   # v1.15: triage only, no judge call (needs SPECCHECK_JEV_*)
 uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests --out build/impact              # v1.13, not gated
 uv run python tools/bench.py                               # K-08 (recorded)
 uv run python tools/eval_judge.py --runs 3                 # T-49 (opt-in; model/URL from SPECCHECK_JUDGE_*, default qwen3:8b on Ollama)
@@ -583,7 +628,9 @@ Run one test with `uv run python -m pytest tests/test_04_status.py::test_family_
 ## Scope
 
 The full specification is implemented; nothing was scoped out. The optional LLM judge (O-1) is
-built behind the `--judge llm` flag and the `[llm]` extra. Test-case adapters exist for Python
+built behind the `--judge llm` flag and the `[llm]` extra, and so is the optional Jev triage
+provider (C-17, v1.15) behind `--jev-pre-triage` — both fully specified, both gated, neither able
+to upgrade a status. Test-case adapters exist for Python
 (`ast`) and, since v1.6, Swift (Swift Testing and XCTest, delimited by lines — R-31, D-17); the
 remaining language adapters (O-2) and non-CLI surfaces (O-3) are, as the spec states, not part
 of v1.8: other test files get file-level attribution. Since v1.13, `speccheck check` also records
