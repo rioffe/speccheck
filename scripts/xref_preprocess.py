@@ -38,7 +38,7 @@ import sys
 
 FENCE = re.compile(r"^\s*```")
 SUBHDR = re.compile(r"^###\s+([A-Z]{1,3}-\d+[A-Za-z]*)")            # ### C-01 ...
-INLINE = re.compile(r"`[^`]*`")                             # inline code: plain
+INLINE = re.compile(r"(`[^`]*`)")                           # inline code, capturing (for splitting)
 TOKEN = re.compile(r"([A-Z]{1,3}-\d{1,3}[A-Za-z]*)")                # a KNOWN-id token
 
 # Level-2 family / contracts section headings -> their unique PDF anchor.
@@ -163,19 +163,44 @@ def linkify(line, anchors, anchor_for, skip_leading=False):
     Tokens inside a ~~strikethrough~~ span are left alone: a struck-through id
     is a RETIRED declaration, not a reference, and pandoc renders the span with
     soul's \\st{}, which cannot contain a \\hyperref (xelatex: "Package soul
-    Error: Reconstruction failed")."""
+    Error: Reconstruction failed").
+
+    Tokens inside a `...` inline-code span are left alone too: a code span is
+    verbatim to pandoc, so a `[ID](#anchor)` link inserted inside one does not
+    become a hyperlink -- it renders as that literal bracket-and-paren text in
+    the PDF (observed for `` `--tests` `` in a decision row). Split on code
+    spans first and only linkify what is outside them."""
     if "~~" in line and len(pieces := STRIKE.split(line)) > 1:
         # len == 1 means no closed ~~span~~ on this line (e.g. a literal `~~~` fence
         # marker); fall through, or the recursion below never terminates.
         return "".join(seg if i % 2 else linkify(seg, anchors, anchor_for, skip_leading and i == 0)
                        for i, seg in enumerate(pieces))
+    if "`" in line and len(pieces := INLINE.split(line)) > 1:
+        # len == 1 means no closed `span` on this line (a lone stray backtick);
+        # fall through to plain linkification rather than mis-split on it.
+        out = []
+        leading = skip_leading
+        for i, seg in enumerate(pieces):
+            if i % 2:
+                out.append(seg)                    # inside `...`: verbatim, never linkified
+            else:
+                out.append(_linkify_plain(seg, anchors, anchor_for, leading))
+                if TOKEN.search(seg):
+                    leading = False                # skip_leading applies to the line's first token only
+        return "".join(out)
+    return _linkify_plain(line, anchors, anchor_for, skip_leading)
+
+
+def _linkify_plain(line, anchors, anchor_for, skip_leading):
+    """linkify's actual token-replacement pass, over text already known to
+    contain no ~~strikethrough~~ or `inline code` spans."""
     parts = TOKEN.split(line)
     if len(parts) == 1:
         return line
     out = []
     for i, seg in enumerate(parts):
         if i % 2 == 0:
-            out.append(INLINE.sub(lambda m: m.group(0), seg))
+            out.append(seg)
         elif seg in anchors:
             if skip_leading and i == 1:
                 out.append(seg)
