@@ -414,6 +414,7 @@ def test_llm_provider_wire_format_timeout_and_concurrency():
         {
             "id": "R-01",
             "statement": "the statement",
+            "declared": False,  # C-15 (v1.14); `_req` builds an unclassified request
             "file": "tests/test_a.py",
             "start": 17,
             "end": 18,
@@ -558,9 +559,10 @@ def test_llm_response_path_fences_and_prompt_hash(tmp_path: Path, monkeypatch):
 def test_llm_request_carries_heading_body_statement(tmp_path: Path, monkeypatch):
     """T-74 (extends T-33): for a heading-declared ID with a body, the LLM request's user message
     carries `statement` equal to `SpecId.text` — title, newline, body with its fenced block and
-    indentation, byte for byte — under the unchanged keys {id, statement, file, start, end,
+    indentation, byte for byte — under the keys {id, statement, declared, file, start, end,
     source} and the unchanged system message; the shipped C-10 file contains the v1.7 any-clause
-    rule and `judge_prompt_sha256` is its SHA-256 (recorded HTTP stub). (R-33, C-06, C-10, R-26)"""
+    rule and `judge_prompt_sha256` is its SHA-256 (recorded HTTP stub). (R-33, C-06, C-15, C-10,
+    R-26)"""
     from speccheck.extract import parse_spec
 
     spec = "\n".join(
@@ -622,7 +624,7 @@ def test_llm_request_carries_heading_body_statement(tmp_path: Path, monkeypatch)
     assert run.code == 0 and len(post.requests) == 1
     body = json.loads(post.requests[0][2].decode("utf-8"))
     user = json.loads(body["messages"][1]["content"])
-    assert list(user) == ["id", "statement", "file", "start", "end", "source"]
+    assert list(user) == ["id", "statement", "declared", "file", "start", "end", "source"]
     assert user["id"] == "C-01" and user["statement"] == expected
     assert run.ids()["C-01"]["statement"] == expected  # the JSON records what the judge saw
     assert run.ids()["C-01"]["title"] == "`Widget` (an `actor`)"
@@ -705,3 +707,44 @@ def test_clause_grounding_validation():
     assert mock.judge(_req_with(long_stmt)).clause == " ".join(long_stmt.split())[:280]
     assert mock.judge(_req_with("")).clause == ""
     assert validate(mock.judge(_req_with("")), _req_with("")).coerced is False
+
+
+def test_judge_request_carries_declared_for_the_edge(tmp_path: Path, monkeypatch):
+    """T-85 (C-15): the LLM request's user message carries `declared` for the specific
+    (id, testcase) edge — `true` for an id the test's own docstring names, `false` for one that
+    appears only in the test body as example data — under the C-06 key order
+    `{id, statement, declared, file, start, end, source}`; the value is read-only context and
+    coerces no verdict (D-26, R-39, C-06, C-15, C-16)."""
+    write_tree(
+        tmp_path,
+        {
+            "SPEC.md": spec_table([("R-01", "adds"), ("R-02", "subtracts")]),
+            "tests/test_a.py": (
+                "def test_a():\n"
+                '    """R-01: the docstring declaration."""\n'
+                '    label = "R-02"\n'
+                "    assert label\n"
+            ),
+            "junit.xml": junit([("tests.test_a", "test_a", "passed")]),
+        },
+    )
+    post = RecordingPost()
+    monkeypatch.setattr(judge_llm, "_httpx_post", post)
+    run = run_cli(
+        ["check", "--spec", "SPEC.md", "--tests", "tests", "--results", "junit.xml",
+         "--judge", "llm"],
+        tmp_path,
+        env=LLM_ENV,
+    )
+    assert run.code == 0
+    users = {
+        json.loads(body["messages"][1]["content"])["id"]: json.loads(
+            body["messages"][1]["content"]
+        )
+        for _, _, raw, _ in post.requests
+        for body in [json.loads(raw.decode("utf-8"))]
+    }
+    assert set(users) == {"R-01", "R-02"}
+    assert list(users["R-01"]) == ["id", "statement", "declared", "file", "start", "end", "source"]
+    assert users["R-01"]["declared"] is True
+    assert users["R-02"]["declared"] is False

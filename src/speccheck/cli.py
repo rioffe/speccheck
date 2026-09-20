@@ -466,7 +466,13 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
         requests: list[JudgeRequest] = []
         for rec, edge in eligible_edges(graph):
             requests.append(
-                build_request(rec.id, rec.spec.text, edge.case, file_lines[edge.case.file])
+                build_request(
+                    rec.id,
+                    rec.spec.text,
+                    edge.case,
+                    file_lines[edge.case.file],
+                    edge.declared,  # C-15: DECLARED vs INCIDENTAL for this edge
+                )
             )
         progress = None
         if requests and _progress_enabled(config):

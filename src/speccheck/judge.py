@@ -33,14 +33,16 @@ class JudgeRequest:
     id: str
     statement: str
     testcase: TestCase
+    declared: bool  # C-15/R-39 (v1.14): DECLARED vs INCIDENTAL (C-14) for this edge; read-only
     source: str  # lines start..end, each prefixed "<lineno>\t" (F-109)
 
     def to_json(self) -> str:
-        """The user-message payload (C-06): {id, statement, file, start, end, source}."""
+        """The user-message payload (C-06): {id, statement, declared, file, start, end, source}."""
         return json.dumps(
             {
                 "id": self.id,
                 "statement": self.statement,
+                "declared": self.declared,
                 "file": self.testcase.file,
                 "start": self.testcase.start,
                 "end": self.testcase.end,
@@ -120,9 +122,11 @@ def numbered_source(lines: Iterable[str], start: int, end: int) -> str:
 
 
 def build_request(
-    ident: str, statement: str, case: TestCase, file_lines: Iterable[str]
+    ident: str, statement: str, case: TestCase, file_lines: Iterable[str], declared: bool = False
 ) -> JudgeRequest:
-    return JudgeRequest(ident, statement, case, numbered_source(file_lines, case.start, case.end))
+    return JudgeRequest(
+        ident, statement, case, declared, numbered_source(file_lines, case.start, case.end)
+    )
 
 
 def clean_rationale(text: str) -> str:
