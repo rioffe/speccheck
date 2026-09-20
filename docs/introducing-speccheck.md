@@ -54,8 +54,10 @@ document — and proves it did.
 
 ## How to do it with agents
 
-The method is encoded as four skills — small instruction files an agent loads on request —
-and the whole loop is a handful of prompts:
+The method is encoded as five skills — small instruction files an agent loads on request —
+and the whole loop is a handful of prompts. Four of them are the write/review/plan/build loop
+below; the fifth, `spec-proposal`, is for later: an evidence-grounded case for a change to a spec
+that is already built, argued through and decided before `spec-writing` touches a row.
 
 ```mermaid
 flowchart TD
