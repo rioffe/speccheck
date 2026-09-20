@@ -11,7 +11,7 @@ from pathlib import Path
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from speccheck import jev, judge_llm
+from speccheck import cli, jev, judge_llm
 from speccheck.attribute import TestCase as SpecTestCase
 from speccheck.extract import SpecId
 from speccheck.graph import Graph, IdRecord, apply_verdicts, eligible_edges
@@ -43,6 +43,7 @@ LLM_ENV = {
     "SPECCHECK_JUDGE_API_KEY": "sk-secret-key",
 }
 JEV_ENV = {
+    **LLM_ENV,
     "SPECCHECK_JEV_URL": "http://localhost:9/decisions",
     "SPECCHECK_JEV_MODEL": "~typesafe/jev-latest",
     "SPECCHECK_JEV_API_KEY": "sk-jev",
@@ -796,6 +797,164 @@ def test_triage_request_shape_and_response_parse():
     defaults = jev.JevConfig.from_env({"SPECCHECK_JEV_API_KEY": "sk-jev"})
     assert defaults.url == "https://openrouter.ai/api/alpha/decisions"
     assert defaults.model == "~typesafe/jev-latest" and defaults.timeout == 30
+
+
+def _ten_edge_project():
+    """A spec with ten ids, one passing test per id: ten judge-eligible edges (I-010)."""
+    ids = [f"R-{n:02d}" for n in range(1, 11)]
+    spec = spec_table([(ident, f"obligation {ident}") for ident in ids])
+    tests = "".join(
+        f"def test_r{n:02d}():\n    '''{ident}'''\n    assert True\n\n"
+        for n, ident in enumerate(ids, start=1)
+    )
+    results = junit([("tests.test_a", f"test_r{n:02d}", "passed") for n in range(1, 11)])
+    return {"SPEC.md": spec, "tests/test_a.py": tests, "junit.xml": results}
+
+
+class _RecordingJudge:
+    """A judge stub that records the order it was asked in (concurrency 1) and answers ASSERTS."""
+
+    prompt_sha256 = "0" * 64  # R-26: the cli records this as judge_prompt_sha256
+
+    def __init__(self) -> None:
+        self.order: list[str] = []
+
+    def judge(self, req: JudgeRequest) -> Verdict:
+        self.order.append(req.id)
+        return _ok("ASSERTS", [Evidence(req.testcase.file, req.testcase.start)], clause=req.statement)
+
+
+def _jev_transport(confidences: dict[str, float], failing: set[str] = frozenset()):
+    """A C-17 transport stub: one fixed confidence per id, or HTTP 500 for a named edge."""
+    calls: list[str] = []
+
+    def post(url, headers, body, timeout):
+        state = json.loads(body)["state"]
+        ident = state.split("\n", 1)[0].removeprefix("Specification obligation ").rstrip(".")
+        calls.append(ident)
+        if ident in failing:
+            return 503, "unavailable"
+        payload = {
+            "answers": {
+                "verdict": {
+                    "choice": "ASSERTS",
+                    "probabilities": {"ASSERTS": confidences[ident], "UNRELATED": 1 - confidences[ident]},
+                }
+            }
+        }
+        return 200, json.dumps(payload)
+
+    post.calls = calls
+    return post
+
+
+def test_triage_orders_and_truncates_the_judge_queue(tmp_path: Path, monkeypatch):
+    """T-89: with --judge llm --jev-pre-triage over ten judge-eligible edges, a stub C-17
+    provider returning fixed confidences (one edge failing with HTTP 500) and a stub judge
+    recording every edge it is asked about, --judge-budget 30% issues exactly
+    ceil(0.30 x 10) = 3 edges — the three with the lowest p(e), the failing edge first among
+    them — in ascending-confidence order, and the other 7 are UNKNOWN with rationale
+    `judge: budget` and coerced: true, with one Note reporting 7 and one reporting the single
+    E-59 failure; --judge-budget 100% issues all 10; --judge-budget 0% issues none (judge call
+    count 0) while still running the triage pass, with judge_available true; a stub that fails
+    every C-17 call leaves judge_available and unknown_rate exactly as a triage-free run does.
+    (K-16, K-12, C-17, I-015, E-35, E-59, I-006, D-30, D-32)"""
+    write_tree(tmp_path, _ten_edge_project())
+    # p(e) is the max over the returned labels (C-17), so every stub confidence stays >= 0.5
+    confidences = {f"R-{n:02d}": 0.50 + n / 20 for n in range(1, 11)}
+    transport = _jev_transport(confidences, failing={"R-05"})
+    monkeypatch.setattr(jev, "_httpx_post", transport)
+    judge = _RecordingJudge()
+    monkeypatch.setattr(cli, "_make_provider", lambda config: (judge, 1, 0))
+    base = ["check", "--spec", "SPEC.md", "--tests", "tests", "--results", "junit.xml",
+            "--judge", "llm", "--jev-pre-triage"]
+
+    run = run_cli([*base, "--judge-budget", "30%"], tmp_path, env=JEV_ENV)
+    assert run.code == 0, run.stderr
+    # the three least confident, the failed edge first, then ascending p(e)
+    assert judge.order == ["R-05", "R-01", "R-02"]
+    assert len(transport.calls) == 10 and sorted(transport.calls) == sorted(confidences)
+    verdicts = {t["name"]: t["verdict"] for t in run.ids()["R-01"]["tests"]}
+    assert verdicts["test_r01"]["verdict"] == "ASSERTS"
+    doc = run.json
+    for ident in ("R-03", "R-04", "R-06", "R-07", "R-08", "R-09", "R-10"):
+        row = next(i for i in doc["ids"] if i["id"] == ident)
+        verdict = row["tests"][0]["verdict"]
+        assert verdict["verdict"] == "UNKNOWN" and verdict["coerced"] is True
+        assert verdict["rationale"] == "judge: budget" and verdict["evidence"] == []
+    assert doc["notes"] == [
+        "jev triage failed: 1 edge(s) ordered first",
+        "judge budget exhausted: 7 edge(s) unjudged",
+    ]
+    assert doc["metrics"]["unknown_rate"] == 0.7 and doc["judge_available"] is True
+
+    judge.order.clear()
+    run = run_cli([*base, "--judge-budget", "100%"], tmp_path, env=JEV_ENV)
+    assert judge.order == ["R-05", "R-01", "R-02", "R-03", "R-04", "R-06", "R-07", "R-08",
+                           "R-09", "R-10"]
+    assert run.json["metrics"]["unknown_rate"] == 0.0
+    assert run.json["notes"] == ["jev triage failed: 1 edge(s) ordered first"]
+
+    judge.order.clear()
+    run = run_cli([*base, "--judge-budget", "0%"], tmp_path, env=JEV_ENV)
+    assert judge.order == [] and run.json["judge_available"] is True
+    assert run.json["metrics"]["unknown_rate"] == 1.0
+
+    # a total C-17 failure changes nothing the judge records (E-59)
+    monkeypatch.setattr(jev, "_httpx_post", _jev_transport(confidences, failing=set(confidences)))
+    judge.order.clear()
+    run = run_cli([*base, "--judge-budget", "100%"], tmp_path, env=JEV_ENV)
+    assert len(judge.order) == 10 and run.json["judge_available"] is True
+    assert run.json["metrics"]["unknown_rate"] == 0.0
+    assert run.json["notes"] == ["jev triage failed: 10 edge(s) ordered first"]
+
+
+def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path: Path, monkeypatch):
+    """T-89: K-16 is ignored unless --judge llm — under --judge mock --jev-pre-triage no C-17
+    request is made and no C-17 variable is read (I-006) — and with --judge-budget 0 (the
+    SECONDS form's unlimited value) the pass reorders the queue but changes no report content,
+    with the D-30 Note recording that it had no effect; 0% is a real truncation and gets no such
+    Note. (K-16, K-12, C-17, I-015, E-35, D-30)"""
+    write_tree(tmp_path, _ten_edge_project())
+    transport = _jev_transport({f"R-{n:02d}": 0.50 + n / 20 for n in range(1, 11)})
+    monkeypatch.setattr(jev, "_httpx_post", transport)
+    monkeypatch.setattr(cli, "_make_provider", lambda config: (MockJudge(), 1, 0))
+
+    # K-16 ignored: no Jev call, no SPECCHECK_JEV_* variable needed, no Note
+    run = run_cli(
+        ["check", "--spec", "SPEC.md", "--tests", "tests", "--results", "junit.xml",
+         "--judge", "mock", "--jev-pre-triage", "--judge-budget", "30"],
+        tmp_path,
+    )
+    assert run.code == 0 and transport.calls == []
+    assert run.json["notes"] == []
+    clean = run.json
+
+    # under --judge llm with an unlimited SECONDS budget the pass reorders the queue but changes
+    # no report content, and the D-30 Note records that it had no effect
+    judge = _RecordingJudge()
+    monkeypatch.setattr(cli, "_make_provider", lambda config: (judge, 1, 0))
+    base = ["check", "--spec", "SPEC.md", "--tests", "tests", "--results", "junit.xml",
+            "--judge", "llm", "--judge-budget", "0"]
+    triaged = run_cli([*base, "--jev-pre-triage"], tmp_path, env=JEV_ENV)
+    triaged_doc = triaged.json
+    assert judge.order == [f"R-{n:02d}" for n in range(1, 11)]  # ascending p(e)
+    judge.order.clear()
+    plain = run_cli(base, tmp_path, env=JEV_ENV)
+    assert triaged_doc["notes"] == ["jev-pre-triage had no effect: --judge-budget is unlimited"]
+    assert plain.json["notes"] == []
+    assert {k: v for k, v in triaged_doc.items() if k != "notes"} == {
+        k: v for k, v in plain.json.items() if k != "notes"
+    }
+    assert plain.json["metrics"] == clean["metrics"]
+
+    run = run_cli(
+        ["check", "--spec", "SPEC.md", "--tests", "tests", "--results", "junit.xml",
+         "--judge", "llm", "--jev-pre-triage", "--judge-budget", "0%"],
+        tmp_path,
+        env=JEV_ENV,
+    )
+    assert run.json["notes"] == ["judge budget exhausted: 10 edge(s) unjudged"]
 
 
 def test_judge_request_carries_declared_for_the_edge(tmp_path: Path, monkeypatch):

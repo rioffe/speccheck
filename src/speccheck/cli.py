@@ -46,7 +46,7 @@ from .impact import (
     reverify_set,
     walk,
 )
-from .jev import JevConfig, JevConfigError, JevTriage
+from .jev import JevConfig, JevConfigError, JevTriage, run_triage
 from .judge import JudgeRequest, ProgressLine, build_request, run_judge
 from .judge_llm import LlmConfig, LlmConfigError
 from .report import (
@@ -515,6 +515,30 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
         progress = None
         if requests and _progress_enabled(config):
             progress = ProgressLine(sys.stderr, len(requests))
+        # K-16 (v1.15): the triage pass runs before any real-judge request is issued, and its
+        # answer is used for the issue order and nothing else (I-015).
+        if config.triage and requests:
+            triage_stage = _Stage("triage")
+            triage = run_triage(
+                _make_triage_provider(config), requests, concurrency=concurrency
+            )
+            requests = triage.order
+            notes.extend(triage.notes())
+            assert config.jev is not None
+            log.info(
+                "jev url=%s model=%s timeout=%s",
+                config.jev.url,
+                config.jev.model,
+                config.jev.timeout,
+            )
+            triage_stage.done(edges=len(requests), failed=triage.failures)
+            if config.budget_percent is None and config.judge_budget == 0:
+                # D-30: the pass paid Jev's cost for no effect on the report.
+                notes.append("jev-pre-triage had no effect: --judge-budget is unlimited")
+        # K-12's N% form: exactly ceil(N/100 x E) of the E eligible edges are issued.
+        issue_count = None
+        if config.budget_percent is not None:
+            issue_count = -(-config.budget_percent * len(requests) // 100)
         # K-13 / F-201: the logger is silent while the indicator is displayed, so every judge
         # INFO line — including the mode/URL/model line — is emitted after run_judge returns.
         run = run_judge(
@@ -522,6 +546,7 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             requests,
             concurrency=concurrency,
             budget_seconds=budget,
+            issue_count=issue_count,
             progress=progress,
         )
         if config.judge == "llm":

@@ -346,16 +346,22 @@ def run_judge(
     *,
     concurrency: int = 1,
     budget_seconds: int = 0,
+    issue_count: int | None = None,
     clock: Callable[[], float] = time.monotonic,
     progress: ProgressLine | None = None,
 ) -> JudgeRun:
     """Judge every request exactly once (I-010). K-06: at most `concurrency` in flight.
     K-12: no request is issued at or after `start + budget`; in-flight requests complete.
+    K-12's `N%` form: `issue_count`, when given, is the number of requests issued at all — the
+    requests after it in the given (K-16) order are budget-skipped before the stage starts and
+    take the same disposition as a deadline miss (UNKNOWN, "judge: budget", coerced).
     R-30: `progress`, if given, is advanced once per determined verdict; it is entered before
     the first request is issued and exited (erased) when the stage ends, exception or not."""
     verdicts: dict[tuple[TestCase, str], JudgedVerdict] = {}
     if not requests:
         return JudgeRun(verdicts, True, 0)
+    issued = requests if issue_count is None else requests[:issue_count]
+    skipped = [] if issue_count is None else requests[issue_count:]
     lock = threading.Lock()
     state = {"deadline": None}
 
@@ -372,35 +378,42 @@ def run_judge(
             progress.advance()
         return req, verdict
 
-    results: list[tuple[JudgeRequest, JudgedVerdict]]
+    results: list[tuple[JudgeRequest, JudgedVerdict]] = [
+        (req, _unknown("judge: budget", call_made=False)) for req in skipped
+    ]
     abort = getattr(provider, "abort", None)  # E-41: LlmJudge exposes a threading.Event
     with progress if progress is not None else _NoProgress():
-        if concurrency <= 1:
-            results = [work(r) for r in requests]
-        else:
-            pool = ThreadPoolExecutor(max_workers=concurrency)
-            try:
-                # Poll with a timeout rather than block on each result: an untimed lock wait is
-                # not interruptible by SIGINT on every platform (macOS CPython), so a bare
-                # pool.map() would only notice Ctrl-C once a request happened to finish.
-                futures = [pool.submit(work, r) for r in requests]
-                pending = set(futures)
-                while pending:
-                    done, pending = wait(pending, timeout=POLL_INTERVAL)
-                    for f in done:
-                        exc = f.exception()
-                        if exc is not None:
-                            raise exc
-                results = [f.result() for f in futures]
-            except BaseException:
-                # E-41: an interrupt (or any failure) in the main thread must not wait for the
-                # in-flight requests — tell every waiting worker to give up, drop the queued
-                # edges, and only then join the pool, which now returns within one poll.
-                if abort is not None:
-                    abort.set()
-                pool.shutdown(wait=True, cancel_futures=True)
-                raise
-            pool.shutdown(wait=True)
+        if progress is not None:
+            # C-11: the N% form's unissued edges are already determined when the stage starts
+            for _ in skipped:
+                progress.advance()
+        if issued:
+            if concurrency <= 1:
+                results += [work(r) for r in issued]
+            else:
+                pool = ThreadPoolExecutor(max_workers=concurrency)
+                try:
+                    # Poll with a timeout rather than block on each result: an untimed lock wait is
+                    # not interruptible by SIGINT on every platform (macOS CPython), so a bare
+                    # pool.map() would only notice Ctrl-C once a request happened to finish.
+                    futures = [pool.submit(work, r) for r in issued]
+                    pending = set(futures)
+                    while pending:
+                        done, pending = wait(pending, timeout=POLL_INTERVAL)
+                        for f in done:
+                            exc = f.exception()
+                            if exc is not None:
+                                raise exc
+                    results += [f.result() for f in futures]
+                except BaseException:
+                    # E-41: an interrupt (or any failure) in the main thread must not wait for the
+                    # in-flight requests — tell every waiting worker to give up, drop the queued
+                    # edges, and only then join the pool, which now returns within one poll.
+                    if abort is not None:
+                        abort.set()
+                    pool.shutdown(wait=True, cancel_futures=True)
+                    raise
+                pool.shutdown(wait=True)
 
     calls_made = 0
     calls_ok = 0
