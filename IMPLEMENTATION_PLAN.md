@@ -1,33 +1,38 @@
-# Implementation plan — SPEC.md v1.13 delta (C-12 edges, C-13 `impact`)
+# Implementation plan — SPEC.md v1.14 delta (declared vs. incidental citations)
 
-> Scope: this is a **delta plan** on top of the working v1.12 implementation (203 ids, `speccheck
-> check` CONFORMING). It covers only the ids v1.13 added: R-36, R-37, C-12, C-13, I-013, E-53,
-> E-54, E-55, T-79..T-82, D-24, D-25. Not a greenfield plan; no target-shape or LOC-budget section
-> is needed because the shape (Extractor / Grapher / Reporter / CLI, deterministic kernel) is
-> already built and unchanged.
+> Scope: a **delta plan** on top of the working v1.13 implementation (215 ids, `speccheck check
+> --judge mock --strict` CONFORMING). It covers only the ids v1.14 added: R-39, C-14, C-15, C-16,
+> I-014, E-56, T-85, T-86, T-87, T-88, D-26, D-27. Not a greenfield plan; the target shape
+> (Extractor / Attributor / Grapher / Judge / Reporter / CLI) is already built and unchanged.
 
 ## Verdict
 
-Two waves, in dependency order, each gated by the existing `speccheck check --judge mock
---strict` self-check plus the new ids' own tests. `impact` (C-13) reads the edges C-12 produces,
-so C-12 must exist and be tested first. The recorded backtest (T-82, D-24) is a third, non-gating
-wave since it needs `git` history and touches nothing already-built.
+Three waves, in dependency order, each gated by the existing `speccheck check --judge mock
+--strict` self-check plus the new ids' own tests. The fact (Part A) is computed in the
+Attributor and is the only input the judge (Part B) and the report (Part C) consume, so Part A
+must exist and be tested first. T-87 is a recorded, non-gating LLM re-run of three real edges
+(the proposal's own falsifiable claim); it needs no kernel change and is measured with the
+existing `check --judge llm` path.
 
-- **W1 — C-12 spec-internal edges.** `extract.py`: `Decision`, `Edge` dataclasses; the C-01 (c)
-  decision-table grammar; the edge-extraction pass (statement tokens → `depends_on`/`verifies`,
-  *Affects* cells → `affects`); `SpecIndex.decisions`/`edges`. `report.py`: `decisions` and
-  `edges` keys in `speccheck.json` after `ids`, `schema_version` → `"1.4"`. Fixture: extend
-  `fixtures/target/SPEC.md` with a decision table (T-79's three rows). No change to any existing
-  status, metric, or the Markdown report.
-- **W2 — C-13 `impact` subcommand.** New `impact.py`: changed-set resolution (`--changed`,
-  `--against` diff with its six reasons), the breadth-first reverse walk with `--depth` and
-  `via`, REVERIFY, RECITE, TEST_CASES. `cli.py`: the `impact` subparser, E-53/E-54 validation,
-  wiring into `main`. `report.py`: `impact.json` / `IMPACT_REPORT.md` renderers and the summary
-  line. Golden fixtures: `fixtures/target/golden/{impact.json,IMPACT_REPORT.md}` (T-80), the
-  `--against` fixture pair (T-81).
-- **W3 — the backtest (recorded, non-gating).** `tools/impact_backtest.py` (D-24): git plumbing
-  outside the kernel, run once against `main`'s own history for T-82. Does not block W1/W2's
-  gate.
+- **W1 — Part A: the `declared` fact.** `attribute.py`: `Citation.declared` (C-03/C-14), the
+  Python docstring-span (`ast.get_docstring`'s `Expr` node) and whole-line-comment rule, the
+  Swift reuse of `_Line.doc` (R-31); `swift.py`: expose the per-line doc flags `delimit_swift`
+  already computes; `graph.py`: `TestEdge.declared` (true iff any citation line of the edge is
+  DECLARED) and the per-citation declared counters for `declared_ratio`; `cli.py`: the `"src"`
+  citation constructor (always `false`, E-56). New edge semantics only — no status changes
+  (I-014). Closes R-39, C-14, E-56, I-014; T-85.
+- **W2 — Part B: the judge is told.** `judge.py`: `JudgeRequest.declared` after `testcase`
+  (C-06/C-15), `build_request` gaining the parameter, `to_json` gaining the key after
+  `statement`; `cli.py`: pass `edge.declared`; `judge_prompt.md`: the field's definition and the
+  skepticism rule, byte-for-byte the C-10 text (whose `judge_prompt_sha256` changes). Advisory
+  only — no coercion rule, K-15/E-48/E-49/I-004/I-005 untouched (D-26). Closes C-15; extends
+  T-33/T-54/T-74; T-87 recorded.
+- **W3 — Part C: visibility.** `report.py`: `SDHEMA`-version → `"1.5"`, `tests[].declared` after
+  `lines`, `metrics.declared_ratio` last (C-07/C-16); `fixtures/target/`: one new test whose
+  docstring declares one id while its body reuses an existing id as example data (T-86) plus its
+  `junit.xml` result and `judge_labels.json` labels; regenerate `fixtures/target/golden/`,
+  `fixtures/target-swift/golden/`, then `src/speccheck/_selfcheck/` via `tools/sync_selfcheck.py`
+  (T-60/T-73). Closes C-16; T-86, T-88.
 
 ## Gates
 
@@ -37,14 +42,24 @@ uv run ruff check src tests
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck
 ```
 
-W2 additionally exercises `speccheck impact` against the golden fixture and against this
-repository's own `SPEC.md` (a real `--changed`/`--against` run, by hand, as evidence for
-`SPEC_BUILD_REPORT.md`).
+W3 additionally pins the fixture goldens byte-for-byte and runs `speccheck --self-check`
+(`self-check: ok`). T-87 is run by hand against the three named edges with the configured LLM
+judge and recorded in `SPEC_BUILD_REPORT.md`; it does not block any gate (advisory instruction,
+falsifiable claim — T-49's caveat applies).
 
 ## The one fork
 
-None open. D-24 and D-25 are already confirmed in `SPEC.md` §12; there is no remaining decision
-for the user to make before implementing.
+None open. D-26 (advisory only, not coercion) and D-27 (whole-line-comment detection, not
+token-level) are already confirmed in `SPEC.md` §12; there is no remaining decision for the user
+to make before implementing.
+
+## Spec defects found while planning (fixed under `fix(spec)` in Phase 3)
+
+Two stale spots the v1.15 edit left behind; both are document-only, no id semantics:
+`§3.3`'s artifact table still pins `schema_version: "1.4"` for `speccheck.json` (C-07 says
+`"1.5"`), and T-74's "unchanged keys `{id, statement, file, start, end, source}`" predates
+C-06's `declared`. Recorded as F-101/F-102 in `SPEC_BUILD_REPORT.md` and corrected in
+`SPEC.md` (version header unchanged; these are corrections to v1.14's own rows).
 
 ## Next action
 

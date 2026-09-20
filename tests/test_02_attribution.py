@@ -459,3 +459,60 @@ def test_swift_brace_fallback_and_braces_in_strings_and_comments():
     assert [(c.name, c.start, c.end) for c in attributed.cases] == [("a", 1, 9), ("b", 10, 11)]
     owners = {(c.id, c.line): c.testcase.name for c in attributed.citations}
     assert owners == {("R-01", 1): "a", ("R-02", 8): "a", ("R-03", 10): "b"}
+
+
+PY_DECLARED = "\n".join(
+    [
+        '"""Module docstring citing R-09 (a file-level citation, E-56)."""',
+        "",
+        "",
+        "def test_case():",
+        '    """T-85: DECLARED on the first docstring line (R-01) and',
+        '    on the second docstring line (R-02)."""',
+        "    # whole-line comment citing R-03",
+        '    value = "R-04 in a string literal"',
+        "    assert value  # R-05 trailing comment",
+        "",
+    ]
+)
+
+SWIFT_DECLARED = "\n".join(
+    [
+        "import Testing",
+        "",
+        "/// T-85: doc-comment line naming R-01.",
+        "/** R-02 inside a doc block opened and closed on this line. */",
+        "@Test func declaredCase() {",
+        '    #expect("R-03" == "R-04")  // R-04 trailing',
+        "}",
+        "",
+    ]
+)
+
+
+def test_declared_vs_incidental_classification():
+    """T-85: DECLARED/INCIDENTAL classification (C-14): a citation on the case's own docstring
+    line and one on a whole-line `#` comment are DECLARED; a citation inside a string literal and
+    one on a code line with a trailing comment (`x = 1  # R-02`) are INCIDENTAL; a citation
+    attributed to the file-level fallback case is INCIDENTAL with no Note (E-56); a multi-line
+    docstring whose citation is on its second line is DECLARED; the Swift adapter's doc-comment
+    recognition (`///`, `/** … */`) classifies an equivalent Swift example the same way. (R-39,
+    C-03, C-14, E-56, I-014)"""
+    attributed, notes = attribute_file(_scanned("tests/test_d.py", PY_DECLARED))
+    flags = {(c.id, c.line): c.declared for c in attributed.citations}
+    assert flags[("R-01", 5)] is True  # first docstring line
+    assert flags[("R-02", 6)] is True  # second line of a multi-line docstring
+    assert flags[("R-03", 7)] is True  # whole-line `#` comment
+    assert flags[("R-04", 8)] is False  # inside a string literal
+    assert flags[("R-05", 9)] is False  # code line with a trailing comment
+    assert flags[("R-09", 1)] is False  # file-level case (E-56)
+    assert notes == []  # E-56 is definitional, not an anomaly
+    swift, swift_notes = attribute_file(_scanned("tests/CalcTests.swift", SWIFT_DECLARED))
+    sflags = {(c.id, c.line): c.declared for c in swift.citations}
+    assert sflags[("R-01", 3)] is True  # `///` doc-comment line
+    assert sflags[("R-02", 4)] is True  # `/** ... */` line
+    assert sflags[("R-03", 6)] is False and sflags[("R-04", 6)] is False  # body line
+    assert swift_notes == []
+
+
+

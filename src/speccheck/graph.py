@@ -1,7 +1,7 @@
 """Grapher: ID -> source-file / ID -> test-case edges, the C-05 status algorithm, C-07 metrics.
 
-Spec IDs realized here (§11): R-02, R-06, R-07, R-08, R-09, R-11, R-16, R-25, R-35, C-05, I-002,
-    I-004, I-008, I-010, K-08, E-08, E-19, E-25, E-26, E-37, E-51.
+Spec IDs realized here (§11): R-02, R-06, R-07, R-08, R-09, R-11, R-16, R-25, R-35, R-39, C-05,
+    C-14, C-16, I-002, I-004, I-008, I-010, K-08, E-08, E-19, E-25, E-26, E-37, E-51.
 """
 
 from __future__ import annotations
@@ -45,6 +45,7 @@ class TestEdge:
     outcome: str | None  # None -> unrun (E-08)
     results: list[RawResult]
     verdict: JudgedVerdict | None = None  # None -> not judged (Q-001)
+    declared: bool = False  # C-14/C-16 (v1.14): true iff any citation line of this edge is DECLARED
 
 
 @dataclass
@@ -69,6 +70,9 @@ class Graph:
     dangling: list[Citation]
     stale: list[Citation]
     judge_enabled: bool = False
+    # C-16 (v1.14): (DECLARED, all) citations of in-scope R/C/I/K/E ids inside attributed
+    # non-file-level test cases — R-39's population, for `metrics.declared_ratio`.
+    declared_counts: tuple[int, int] = (0, 0)
 
 
 def deterministic_status(
@@ -104,7 +108,7 @@ def build_graph(
     dangling: list[Citation] = []
     stale: list[Citation] = []
     src_by_id: dict[str, dict[str, list[int]]] = {}
-    tests_by_id: dict[str, dict[TestCase, list[int]]] = {}
+    tests_by_id: dict[str, dict[TestCase, list[tuple[int, bool]]]] = {}
     for cit in list(src_citations) + list(test_citations):
         spec = declared.get(cit.id)
         if spec is None:
@@ -117,20 +121,24 @@ def build_graph(
             src_by_id.setdefault(cit.id, {}).setdefault(cit.file, []).append(cit.line)
         else:
             assert cit.testcase is not None
-            tests_by_id.setdefault(cit.id, {}).setdefault(cit.testcase, []).append(cit.line)
+            tests_by_id.setdefault(cit.id, {}).setdefault(cit.testcase, []).append(
+                (cit.line, cit.declared)
+            )
 
     records: list[IdRecord] = []
     for spec in index.ids:
         src = [(f, sorted(set(lines))) for f, lines in sorted(src_by_id.get(spec.id, {}).items())]
         tests: list[TestEdge] = []
-        for case, lines in tests_by_id.get(spec.id, {}).items():
+        for case, flagged in tests_by_id.get(spec.id, {}).items():
             outcome = outcomes.get(case)
+            lines = sorted({ln for ln, _ in flagged})
             tests.append(
                 TestEdge(
                     case,
-                    sorted(set(lines)),
+                    lines,
                     outcome.outcome if outcome else None,
                     list(outcome.results) if outcome else [],
+                    declared=any(is_dec for _, is_dec in flagged),
                 )
             )
         tests.sort(key=lambda t: (t.case.file, t.case.start, t.case.name))
@@ -142,7 +150,16 @@ def build_graph(
 
     dangling.sort(key=cit_key)
     stale.sort(key=cit_key)
-    return Graph(records, dangling, stale)
+    # C-16: R-39's population — in-scope R/C/I/K/E ids, attributed non-file-level test cases.
+    ratio_ids = {s.id for s in index.ids if not s.retired and s.family != "T"}
+    declared_hits = 0
+    population = 0
+    for cit in test_citations:
+        if cit.id not in ratio_ids or cit.testcase is None or cit.testcase.is_file_level:
+            continue
+        population += 1
+        declared_hits += cit.declared
+    return Graph(records, dangling, stale, declared_counts=(declared_hits, population))
 
 
 def eligible_edges(graph: Graph) -> list[tuple[IdRecord, TestEdge]]:
@@ -195,6 +212,7 @@ class Metrics:
     unknown_rate: Decimal | None
     judged_edges: int
     unknown_edges: int
+    declared_ratio: Decimal | None  # C-16 (v1.14): DECLARED / all, null at a zero denominator
 
 
 def compute_metrics(graph: Graph) -> Metrics:
@@ -246,6 +264,7 @@ def compute_metrics(graph: Graph) -> Metrics:
         unknown_rate,
         judged,
         unknown,
+        ratio(*graph.declared_counts),
     )
 
 

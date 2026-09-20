@@ -146,9 +146,14 @@ def _attribute_lines(lines: list[_Line]) -> list[bool]:
     return flags
 
 
-def delimit_swift(lines: tuple[str, ...]) -> tuple[list[SwiftCase], list[str]]:
-    """Return (cases, undelimited `Chain.name` list). Raises SwiftParseError (E-42)."""
+def delimit_swift(
+    lines: tuple[str, ...],
+) -> tuple[list[SwiftCase], list[str], list[bool]]:
+    """Return (cases, undelimited `Chain.name` list, per-line doc-comment flags). Raises
+    SwiftParseError (E-42). The flags are `_Line.doc` for every line (R-31) — the C-14 DECLARED
+    test reuses this line model rather than re-detecting doc comments."""
     parsed = _strip(lines)
+    doc_lines = [line.doc for line in parsed]
     attr = _attribute_lines(parsed)
     cases: list[SwiftCase] = []
     undelimited: list[str] = []
@@ -207,7 +212,7 @@ def delimit_swift(lines: tuple[str, ...]) -> tuple[list[SwiftCase], list[str]]:
         if end is None:
             continue
         cases.append(SwiftCase(name, chain, start + 1, end + 1))
-    return cases, undelimited
+    return cases, undelimited, doc_lines
 
 
 def swift_module(path: str, scan_root: str) -> str:

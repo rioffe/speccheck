@@ -418,8 +418,9 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
     src_files = scan_roots(config.src, root, excluded, config.out, counters)
     src_citations: list[Citation] = []
     for f in src_files:
+        # E-56: a "src"-kind citation is never DECLARED
         src_citations.extend(
-            Citation(c.id, c.file, c.line, "src", None) for c in citations_in_file(f)
+            Citation(c.id, c.file, c.line, "src", None, False) for c in citations_in_file(f)
         )
     stage.done(files=len(src_files), citations=len(src_citations))
 
