@@ -1,66 +1,96 @@
-# Implementation plan — SPEC.md v1.14 delta (declared vs. incidental citations)
+# Implementation plan — SPEC.md v1.15 delta (Jev pre-triage)
 
-> Scope: a **delta plan** on top of the working v1.13 implementation (215 ids, `speccheck check
-> --judge mock --strict` CONFORMING). It covers only the ids v1.14 added: R-39, C-14, C-15, C-16,
-> I-014, E-56, T-85, T-86, T-87, T-88, D-26, D-27. Not a greenfield plan; the target shape
-> (Extractor / Attributor / Grapher / Judge / Reporter / CLI) is already built and unchanged.
+> Scope: a **delta plan** on top of the working v1.14 implementation (225 ids, `speccheck check
+> --judge mock --strict` CONFORMING). It covers only the ids v1.15 added: K-16, C-17, I-015,
+> E-58, E-59, T-89, T-90, T-91, and the two amended rows K-12 (`N%`) and E-35/E-36. Not a
+> greenfield plan; the target shape (Extractor / Attributor / Grapher / Judge / Reporter / CLI)
+> is already built, and this change adds one provider beside the judge plus one ordering stage.
 
 ## Verdict
 
-Three waves, in dependency order, each gated by the existing `speccheck check --judge mock
---strict` self-check plus the new ids' own tests. The fact (Part A) is computed in the
-Attributor and is the only input the judge (Part B) and the report (Part C) consume, so Part A
-must exist and be tested first. T-87 is a recorded, non-gating LLM re-run of three real edges
-(the proposal's own falsifiable claim); it needs no kernel change and is measured with the
-existing `check --judge llm` path.
+Three waves, in dependency order. The ordering fact (K-16) has exactly one source (C-17's
+per-edge confidence) and exactly one consumer (`run_judge`'s issue order and K-12's `N%` count),
+so the provider contract must exist and be tested before anything is wired to it, and the
+truncation must be expressed where the budget already lives (`run_judge`) rather than in a second
+place that could drift from K-12's bookkeeping.
 
-- **W1 — Part A: the `declared` fact.** `attribute.py`: `Citation.declared` (C-03/C-14), the
-  Python docstring-span (`ast.get_docstring`'s `Expr` node) and whole-line-comment rule, the
-  Swift reuse of `_Line.doc` (R-31); `swift.py`: expose the per-line doc flags `delimit_swift`
-  already computes; `graph.py`: `TestEdge.declared` (true iff any citation line of the edge is
-  DECLARED) and the per-citation declared counters for `declared_ratio`; `cli.py`: the `"src"`
-  citation constructor (always `false`, E-56). New edge semantics only — no status changes
-  (I-014). Closes R-39, C-14, E-56, I-014; T-85.
-- **W2 — Part B: the judge is told.** `judge.py`: `JudgeRequest.declared` after `testcase`
-  (C-06/C-15), `build_request` gaining the parameter, `to_json` gaining the key after
-  `statement`; `cli.py`: pass `edge.declared`; `judge_prompt.md`: the field's definition and the
-  skepticism rule, byte-for-byte the C-10 text (whose `judge_prompt_sha256` changes). Advisory
-  only — no coercion rule, K-15/E-48/E-49/I-004/I-005 untouched (D-26). Closes C-15; extends
-  T-33/T-54/T-74; T-87 recorded.
-- **W3 — Part C: visibility.** `report.py`: `SDHEMA`-version → `"1.5"`, `tests[].declared` after
-  `lines`, `metrics.declared_ratio` last (C-07/C-16); `fixtures/target/`: one new test whose
-  docstring declares one id while its body reuses an existing id as example data (T-86) plus its
-  `junit.xml` result and `judge_labels.json` labels; regenerate `fixtures/target/golden/`,
-  `fixtures/target-swift/golden/`, then `src/speccheck/_selfcheck/` via `tools/sync_selfcheck.py`
-  (T-60/T-73). Closes C-16; T-86, T-88.
+- **W1 — C-17, the provider.** New `jev.py`: `JevConfig.from_env` (four variables, E-21-style
+  message, key never echoed), `render_state` (the C-17 template, byte-identical to
+  `tools/judge_crosscheck_tasks.py`'s), `build_body` (model/state/questions with the four pinned
+  criteria), `parse_confidence` (`answers.verdict` → $p(e)$, or "unusable"), and `JevTriage`
+  (bearer header, K-05-shaped timeout, abortable transport, `judge>`/`judge<`-style DEBUG lines).
+  `cli.py`: `--jev-pre-triage`, the `SECONDS|N%` grammar, E-58's usage error, `Config.jev`,
+  `_make_triage_provider`. Closes C-17, E-58; T-90, and T-89's request-shape half.
+- **W2 — K-16 + K-12 `N%`.** `jev.py`: `run_triage` (one request per eligible edge at
+  `--judge-concurrency`, ascending $p(e)$, ties by C-07's id order, failures first, one Note).
+  `judge.py`: `run_judge(issue_count=...)` so the not-issued edges take today's exact K-12
+  disposition and count as budget-skipped. `cli.py`: order the requests, the D-30 Note, the
+  triage stage line and INFO line, E-59's Note. Closes K-16, I-015, E-59; extends K-12, E-35,
+  E-36, C-11; T-89.
+- **W3 — evidence and docs.** README (the flag, the two grammars, C-17's variables, what triage
+  does not do), the T-91 presence check in the suite, the recorded T-91 measurement on this
+  repository's own tree, the final gates, and `SPEC_BUILD_REPORT.md`. Closes T-91.
 
-## Gates
+## Evidence (measured, not assumed)
 
-```bash
-uv run python -m pytest tests -q --junitxml=junit.xml
-uv run ruff check src tests
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck
+- Starting tree: v1.14 is green — `check --judge mock --strict` exits 0 with 233/233 once this
+  change's ids are cited; before it, 225/225, `build/speccheck/`.
+- The eight new ids are `UNCITED` today (the spec change landed without code): confirmed by
+  running the v1.15 spec against the v1.14 tree (`8 uncited`, 0 dangling, 0 stale).
+- `tools/judge_crosscheck_tasks.py` + `tools/jev_client.py` already implement the request shape
+  and the `answers.verdict` path C-17 pins, and the v1.16 proposal's calibration was measured
+  with them — so C-17's strings are copied from working code, not invented.
+- The environment has `OPENROUTER_API_KEY` and `SPECCHECK_JUDGE_{URL,MODEL,KEY,TIMEOUT}`
+  (`openai/gpt-4o-mini`), so T-91's recorded run and the Phase B gate can both be executed.
+
+**Systemic failure modes this delta must not repeat** (both were found in the v1.14 build):
+
+| Failure | Structural rule that makes it impossible here |
+| --- | --- |
+| A pinned string (the C-10 text) drifting from the code that ships it | C-17's `state` template, `instructions` and four `criteria` strings live in **one** module constant each, and T-89 asserts the wire body against them |
+| A second bookkeeping path for the same number (budget-skipped edges) | the `N%` count is a parameter of the one function that already counts budget-skipped edges (`run_judge`), so `budget_unjudged`, the Note, `unknown_rate` and `available` stay single-sourced |
+
+## Target shape
+
+```
+src/speccheck/jev.py     C-17 provider + K-16 ordering pass   (new)
+src/speccheck/judge.py   run_judge gains issue_count          (K-12 N%)
+src/speccheck/cli.py     flags, grammar, wiring, notes        (E-58, K-16)
+tests/test_05_judge.py   T-89 (ordering, truncation, request shape)
+tests/test_07_cli.py     T-90 (usage errors, secret hygiene)
+tests/test_09_self_application.py  T-91 presence check
 ```
 
-W3 additionally pins the fixture goldens byte-for-byte and runs `speccheck --self-check`
-(`self-check: ok`). T-87 is run by hand against the three named edges with the configured LLM
-judge and recorded in `SPEC_BUILD_REPORT.md`; it does not block any gate (advisory instruction,
-falsifiable claim — T-49's caveat applies).
+One-way direction: `cli.py` → `jev.py` → `judge.py`'s `JudgeRequest`/`TestCase` types. `jev.py`
+never imports `cli.py`, `report.py`, or `graph.py`; nothing in the report path imports `jev.py`
+(I-015: no triage field can reach a report because the reporter cannot see the module).
+
+## Order, gates, budgets
+
+| Wave | Gate (all commands, real exit codes recorded in `SPEC_BUILD_REPORT.md`) | Budget |
+| --- | --- | --- |
+| W1 | `pytest tests/test_05_judge.py tests/test_07_cli.py -q`; `ruff check src tests` | ~170 LOC `jev.py`, ~40 LOC `cli.py` |
+| W2 | the same two files, then the whole suite + `speccheck --self-check` | ~90 LOC `jev.py`, ~50 LOC `cli.py`, ~15 LOC `judge.py` |
+| W3 | the full Phase 1 exit gate: `pytest tests -q --junitxml=junit.xml`; `ruff check src tests`; `speccheck --self-check`; `check --judge mock --strict`; `check --judge llm --strict` | docs only |
+
+Anchors: the smallest complete build of this delta is ~300 LOC of production code (one provider
+module, one parameter, one wiring block). Anything above that is structure named in the report.
 
 ## The one fork
 
-None open. D-26 (advisory only, not coercion) and D-27 (whole-line-comment detection, not
-token-level) are already confirmed in `SPEC.md` §12; there is no remaining decision for the user
-to make before implementing.
+**T-91's recorded measurement: run it for real, or record it pending?** Recommendation, taken:
+**run it** — the credentials and a judge model are present, the measurement is the spec's own
+evidence for the calibration claim, and it is the only way T-91 is more than a presence check.
+The alternative (record "pending: no reachable judge") would be honest but weaker; the run is
+re-runnable, so the choice is reversible. Recorded in `SPEC_BUILD_REPORT.md` §0g with the model,
+the date and the bucket figures.
 
-## Spec defects found while planning (fixed under `fix(spec)` in Phase 3)
+## Spec defects found while planning
 
-Two stale spots the v1.15 edit left behind; both are document-only, no id semantics:
-`§3.3`'s artifact table still pins `schema_version: "1.4"` for `speccheck.json` (C-07 says
-`"1.5"`), and T-74's "unchanged keys `{id, statement, file, start, end, source}`" predates
-C-06's `declared`. Recorded as F-101/F-102 in `SPEC_BUILD_REPORT.md` and corrected in
-`SPEC.md` (version header unchanged; these are corrections to v1.14's own rows).
+None. v1.15's own rows are consistent with the implementation shape above; the two v1.14
+document corrections (F-101/F-102) were already applied in the previous increment.
 
 ## Next action
 
-Execute W1 test-first, gate, commit; then W2; then W3.
+Execute W1 test-first (`test_jev_pre_triage_usage_errors_and_secret_hygiene`, then
+`test_triage_request_shape_and_response_parse`), gate, commit; then W2, then W3.

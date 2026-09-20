@@ -32,6 +32,12 @@ LLM_ENV = {
     "SPECCHECK_JUDGE_MODEL": "m",
     "SPECCHECK_JUDGE_API_KEY": "sk-very-secret",
 }
+JEV_ENV = {
+    **LLM_ENV,
+    "SPECCHECK_JEV_URL": "http://localhost:11434/api/alpha/decisions",
+    "SPECCHECK_JEV_MODEL": "~typesafe/jev-latest",
+    "SPECCHECK_JEV_API_KEY": "sk-jev-very-secret",
+}
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -616,6 +622,41 @@ def test_judge_budget(project, monkeypatch):
     assert (
         len(issued) == 6 and run.json["notes"] == [] and run.json["metrics"]["unknown_rate"] == 0.0
     )
+
+
+def test_jev_pre_triage_usage_errors_and_secret_hygiene(project, monkeypatch):
+    """T-90: --judge-budget 30% without --jev-pre-triage exits 2 with a message naming both
+    flags, before any request of either kind is issued (both stubs record zero calls) and with
+    no report written; so does --judge-budget 30% --jev-pre-triage --judge mock; --judge-budget
+    30 (the SECONDS form) under --judge mock is still accepted and ignored, exactly as before
+    v1.15; --judge-budget 30% --jev-pre-triage --judge llm with SPECCHECK_JEV_API_KEY unset exits
+    2 naming that variable; no C-09 or C-17 key value appears in any of these messages, and
+    --judge-budget 101% and --judge-budget % each exit 2 as bad values. (E-58, E-21, K-12, K-16,
+    I-007)"""
+    proj = project(SIMPLE_PROJECT)
+    calls: list[tuple] = []
+    monkeypatch.setattr(judge_llm, "_httpx_post", lambda *a: calls.append(a) or (200, _ok_reply()))
+    run = proj.check("--judge", "llm", "--judge-budget", "30%", env=LLM_ENV)
+    assert run.code == 2, run.stderr
+    assert "--jev-pre-triage" in run.stderr and "--judge-budget" in run.stderr
+    assert run.stdout == "" and calls == []
+    assert not (proj.path / "speccheck.json").exists()
+    run = proj.check("--judge", "mock", "--judge-budget", "30%", "--jev-pre-triage")
+    assert run.code == 2, run.stderr
+    assert "--jev-pre-triage" in run.stderr and "--judge" in run.stderr
+    assert calls == []
+    # the SECONDS form is untouched: accepted and ignored unless --judge llm (K-12)
+    run = proj.check("--judge", "mock", "--judge-budget", "30")
+    assert run.code in (0, 1) and "judge=mock" in run.stdout, run.stderr
+    assert calls == []
+    # the C-17 credential is required only when the pass actually runs (C-17, E-21)
+    env = {k: v for k, v in JEV_ENV.items() if k != "SPECCHECK_JEV_API_KEY"}
+    run = proj.check("--judge", "llm", "--judge-budget", "30%", "--jev-pre-triage", env=env)
+    assert run.code == 2 and "SPECCHECK_JEV_API_KEY" in run.stderr, run.stderr
+    for bad in ("101%", "%", "1.5%", "30%%"):
+        run = proj.check("--judge", "llm", "--judge-budget", bad, "--jev-pre-triage", env=JEV_ENV)
+        assert run.code == 2 and "--judge-budget" in run.stderr, (bad, run.stderr)
+    assert "sk-jev-very-secret" not in run.stderr and "sk-very-secret" not in run.stderr
 
 
 def test_out_failures_and_temp_and_rename(project, monkeypatch):

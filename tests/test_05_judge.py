@@ -11,12 +11,13 @@ from pathlib import Path
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from speccheck import judge_llm
+from speccheck import jev, judge_llm
 from speccheck.attribute import TestCase as SpecTestCase
 from speccheck.extract import SpecId
 from speccheck.graph import Graph, IdRecord, apply_verdicts, eligible_edges
 from speccheck.graph import TestEdge as Edge
 from speccheck.judge import (
+    VERDICTS,
     Evidence,
     JudgedVerdict,
     JudgeHttpError,
@@ -40,6 +41,11 @@ LLM_ENV = {
     "SPECCHECK_JUDGE_URL": "http://localhost:11434/v1/chat/completions",
     "SPECCHECK_JUDGE_MODEL": "m",
     "SPECCHECK_JUDGE_API_KEY": "sk-secret-key",
+}
+JEV_ENV = {
+    "SPECCHECK_JEV_URL": "http://localhost:9/decisions",
+    "SPECCHECK_JEV_MODEL": "~typesafe/jev-latest",
+    "SPECCHECK_JEV_API_KEY": "sk-jev",
 }
 
 
@@ -707,6 +713,89 @@ def test_clause_grounding_validation():
     assert mock.judge(_req_with(long_stmt)).clause == " ".join(long_stmt.split())[:280]
     assert mock.judge(_req_with("")).clause == ""
     assert validate(mock.judge(_req_with("")), _req_with("")).coerced is False
+
+
+def test_triage_request_shape_and_response_parse():
+    """T-89 (C-17): the triage request is exactly `{model, state, questions}` — `state` built from
+    the C-06 request object by C-17's template, `questions.verdict` a choice question whose
+    criteria are the four C-06 tokens, no clause and no evidence anywhere — sent with the bearer
+    key; the answer is read from `answers.verdict` and the edge's confidence is
+    $p(e) = \\max \\mathrm{probabilities}$; a non-200, a non-JSON body, a missing
+    `answers.verdict`, a `choice` outside the four tokens, and empty or non-numeric
+    `probabilities` are each a per-edge failure (`None`), not an exception; the config's own repr
+    and every error message never carry the key. (C-17, K-16, I-015)"""
+    req = _req(["def test_a():", "    assert True"], start=3)
+    body = json.loads(jev.build_body(req, "~typesafe/jev-latest"))
+    assert list(body) == ["model", "state", "questions"]
+    assert body["model"] == "~typesafe/jev-latest"
+    assert body["state"] == (
+        "Specification obligation R-01.\n\nStatement:\nthe statement\n\n"
+        "Test file tests/test_a.py, lines 3-4:\n3\tdef test_a():\n4\t    assert True"
+    )
+    question = body["questions"]["verdict"]
+    assert question["type"] == "choice" and set(question["criteria"]) == set(VERDICTS)
+    # the request carries no clause and no evidence field at any level (C-17)
+    assert list(question) == ["type", "instructions", "criteria"]
+    assert list(body["questions"]) == ["verdict"]
+
+    def answer(choice: str, probabilities: object, status: int = 200, text: str | None = None):
+        payload = text
+        if payload is None:
+            payload = json.dumps(
+                {"answers": {"verdict": {"choice": choice, "probabilities": probabilities}}}
+            )
+        return lambda *a: (status, payload)
+
+    config = jev.JevConfig("http://localhost:9/decisions", "~typesafe/jev-latest", "sk-jev", 30)
+    assert "sk-jev" not in config.redacted() and "***" in config.redacted()
+    cases = [
+        answer("ASSERTS", {"ASSERTS": 0.7, "UNRELATED": 0.3}),
+        answer("UNRELATED", {"UNRELATED": 0.99}),
+    ]
+    assert jev.JevTriage(config, post=cases[0]).confidence(req) == 0.7
+    assert jev.JevTriage(config, post=cases[1]).confidence(req) == 0.99
+    unusable = [
+        answer("ASSERTS", {"ASSERTS": 0.9}, status=503),
+        answer("ASSERTS", {}, text="not json"),
+        answer("ASSERTS", {}, text='{"answers": {}}'),
+        answer("MAYBE", {"MAYBE": 0.9}),
+        answer("ASSERTS", {}),
+        answer("ASSERTS", {"ASSERTS": "high"}),
+        answer("ASSERTS", [], text='{"answers": {"verdict": {"choice": "ASSERTS", "probabilities": []}}}'),
+        lambda *a: (_ for _ in ()).throw(RuntimeError("boom")),
+    ]
+    for stub in unusable:
+        assert jev.JevTriage(config, post=stub).confidence(req) is None
+
+    def post(url, headers, body_bytes, timeout):
+        post.seen = (url, dict(headers), body_bytes, timeout)
+        return 200, json.dumps({"answers": {"verdict": {"choice": "ASSERTS", "probabilities": {"ASSERTS": 0.5}}}})
+
+    post.seen = None
+    jev.JevTriage(config, post=post).confidence(req)
+    url, headers, body_bytes, timeout = post.seen
+    assert url == "http://localhost:9/decisions" and timeout == 30.0
+    assert headers["Authorization"] == "Bearer sk-jev"
+    assert json.loads(body_bytes)["model"] == "~typesafe/jev-latest"
+
+    # C-17: the key is required; the URL and the model are optional and default
+    env = {k: v for k, v in JEV_ENV.items() if k != "SPECCHECK_JEV_API_KEY"}
+    try:
+        jev.JevConfig.from_env(env)
+    except jev.JevConfigError as exc:
+        assert "SPECCHECK_JEV_API_KEY" in str(exc) and "sk-jev" not in str(exc)
+    else:
+        raise AssertionError("missing key accepted")
+    env = {**JEV_ENV, "SPECCHECK_JEV_TIMEOUT": "0"}
+    try:
+        jev.JevConfig.from_env(env)
+    except jev.JevConfigError as exc:
+        assert "SPECCHECK_JEV_TIMEOUT" in str(exc)
+    else:
+        raise AssertionError("timeout 0 accepted")
+    defaults = jev.JevConfig.from_env({"SPECCHECK_JEV_API_KEY": "sk-jev"})
+    assert defaults.url == "https://openrouter.ai/api/alpha/decisions"
+    assert defaults.model == "~typesafe/jev-latest" and defaults.timeout == 30
 
 
 def test_judge_request_carries_declared_for_the_edge(tmp_path: Path, monkeypatch):

@@ -4,7 +4,7 @@
 Spec IDs realized here (§11): R-14, R-15, R-17, R-18, R-19, R-21, R-23, R-28, R-29, R-30, I-001,
     I-006, I-007, I-009, K-01, K-06, K-10, K-11, K-12, E-01, E-09, E-19, E-21, E-26, E-32, E-36,
     E-39, E-41, E-52, C-03 (PATHS list parsing, D-23), R-37, C-13, E-53, E-54 (the `impact`
-    subcommand; v1.13).
+    subcommand; v1.13), E-58 (`--judge-budget N%` requires a running triage; v1.15).
 """
 
 from __future__ import annotations
@@ -46,6 +46,7 @@ from .impact import (
     reverify_set,
     walk,
 )
+from .jev import JevConfig, JevConfigError, JevTriage
 from .judge import JudgeRequest, ProgressLine, build_request, run_judge
 from .judge_llm import LlmConfig, LlmConfigError
 from .report import (
@@ -102,6 +103,9 @@ class Config:
     llm: LlmConfig | None
     spec_arg: str
     progress: str = "auto"
+    triage: bool = False  # K-16 (v1.15): --jev-pre-triage, ignored unless --judge llm
+    budget_percent: int | None = None  # K-12's N% form; None for the SECONDS form
+    jev: JevConfig | None = None  # C-17, read only when the triage pass runs
 
 
 @dataclass(frozen=True)
@@ -154,6 +158,7 @@ def build_parser() -> _Parser:
     check.add_argument("--max-unknown", default="0.2")
     check.add_argument("--judge-concurrency", default="4")
     check.add_argument("--judge-budget", default="0")
+    check.add_argument("--jev-pre-triage", action="store_true")
     check.add_argument("--progress", default="auto")
     check.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
     impact = sub.add_parser("impact", help="report change impact from spec-internal edges")
@@ -187,6 +192,21 @@ def _int_in_range(flag: str, text: str, low: int, high: int) -> int:
     if not low <= value <= high:
         raise UsageError(f"{flag}: invalid value '{text}' (expected an integer {low}..{high})")
     return value
+
+
+def _parse_budget(text: str) -> tuple[int, int | None]:
+    """K-12 (v1.15): `SECONDS` (integer 0..86400) or `N%` (integer 0..100 followed by '%').
+    Returns (seconds, percent); exactly one is meaningful, the other is its zero value."""
+    if text.endswith("%"):
+        digits = text[:-1]
+        expected = "expected SECONDS or an integer N% in 0..100"
+        if not digits.isdigit():
+            raise UsageError(f"--judge-budget: invalid value '{text}' ({expected})")
+        percent = int(digits)
+        if not 0 <= percent <= 100:
+            raise UsageError(f"--judge-budget: invalid value '{text}' ({expected})")
+        return 0, percent
+    return _int_in_range("--judge-budget", text, 0, 86400), None
 
 
 def _inside(path: Path, root: Path) -> bool:
@@ -306,7 +326,12 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
             f"--max-unknown: invalid value '{args.max_unknown}' (expected a decimal in [0, 1])"
         )
     concurrency = _int_in_range("--judge-concurrency", args.judge_concurrency, 1, 32)
-    budget = _int_in_range("--judge-budget", args.judge_budget, 0, 86400)
+    budget, budget_percent = _parse_budget(args.judge_budget)
+    triage = bool(args.jev_pre_triage)
+    if budget_percent is not None and not (triage and args.judge == "llm"):
+        # E-58: the N% form has no ordering to issue in — either the flag is absent, or K-16
+        # ignores it under --judge none/mock. The SECONDS form keeps its own rule below.
+        raise UsageError("--judge-budget N% requires --jev-pre-triage with --judge llm")
     if args.progress not in PROGRESS_MODES:
         raise UsageError(
             f"--progress: invalid value '{args.progress}' (expected auto, always, or never)"
@@ -347,6 +372,16 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
         if importlib.util.find_spec("httpx") is None:
             raise UsageError("--judge llm requires the [llm] extra (httpx is not installed)")
 
+    # C-17: the four JEV variables are read only when the triage pass actually runs, so
+    # --jev-pre-triage under --judge none/mock needs no credential (K-16).
+    jev: JevConfig | None = None
+    triage_runs = triage and args.judge == "llm"
+    if triage_runs:
+        try:
+            jev = JevConfig.from_env(environ)
+        except JevConfigError as exc:
+            raise UsageError(str(exc)) from None
+
     config = Config(
         spec=spec,
         src=src,
@@ -363,6 +398,9 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
         llm=llm,
         spec_arg=args.spec,
         progress=args.progress,
+        triage=triage_runs,
+        budget_percent=budget_percent,
+        jev=jev,
     )
     return Action("check", verbose, config)
 
@@ -661,6 +699,12 @@ def _make_provider(config: Config):
 
     assert config.llm is not None
     return LlmJudge(config.llm), config.judge_concurrency, config.judge_budget
+
+
+def _make_triage_provider(config: Config) -> JevTriage:
+    """K-16's provider seam; tests replace this to feed fixed confidences."""
+    assert config.jev is not None
+    return JevTriage(config.jev)
 
 
 def _emit_line(line: str, stream: io.TextIOBase | None) -> None:

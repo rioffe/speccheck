@@ -22,7 +22,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # (D-25).  speccheck:ignore (this range notation is not a deliberate citation of every id)
 # SPEC.md v1.14 declares 225 ids (38 R, 15 C, 14 I, 15 K, 56 E, 87 T; none retired); v1.14 added
 # R-39, C-14..C-16, I-014, E-56 and T-85..T-88 for declared vs. incidental citations
-DECLARED_IDS = 225
+# SPEC.md v1.15 declares 233 ids (38 R, 17 C, 15 I, 16 K, 58 E, 89 T; none retired); v1.15 added
+# K-16, C-17, I-015, E-58, E-59 and T-89..T-91 for the Jev pre-triage pass
+DECLARED_IDS = 233
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):
