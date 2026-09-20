@@ -1,0 +1,12 @@
+{
+  "K-14": {"form": "expr", "checker": "test", "scope_stated": true, "why": "a byte bound, a truncation rule, a marker line -- all closed over the statement's bytes"},
+  "K-15": {"form": "expr", "checker": "ast", "scope_stated": true, "why": "whitespace-collapsed substring, 12 <= len <= 280; judge.py:143 is the expression"},
+  "I-008": {"form": "expr", "checker": "test", "scope_stated": true, "why": "every ratio in [0, 1] or null; no raise on zero denominator"},
+  "I-011": {"form": "expr", "checker": "test", "scope_stated": true, "why": "normalization injective within a family"},
+  "C-07": {"form": "struct", "checker": "schema", "scope_stated": true, "why": "a pinned JSON object: keys, order, schema_version"},
+  "R-26": {"form": "struct", "checker": "ast", "scope_stated": true, "why": "exactly the C-10 text; the SHA-256 recorded"},
+  "E-52": {"form": "behavior", "checker": "test", "scope_stated": true, "why": "a PATHS element that is neither file nor directory -> exit 2, that message, no reports"},
+  "R-05": {"form": "behavior", "checker": "test", "scope_stated": true, "why": "JUnit read, <testcase> joined, outcome recorded per C-04 (scope: --results given)"},
+  "I-002": {"form": "behavior", "checker": "test", "scope_stated": true, "why": "byte-identical output for identical inputs -- observable only by running twice (scope: --judge none/mock)"},
+  "R-01": {"form": "behavior", "checker": "test", "scope_stated": false, "why": "read a spec, extract ids -- an observable input/output behavior; T-01 tests exactly this. Corrected 2026-09-19: the seed label originally read this as prose/llm (\"the obligation is the grammar, which lives in C-01\"); three independent models (gpt-4o-mini, gemini-3.8-flash, qwen3:8b), 3/3 runs each, unanimously read it as behavior instead -- the label, not the models, was wrong."}
+}

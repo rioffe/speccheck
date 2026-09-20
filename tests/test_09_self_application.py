@@ -114,3 +114,39 @@ def test_llm_eval_labels_cover_every_judged_edge():
     assert set(labels.values()) <= {"ASSERTS", "EXECUTES_ONLY", "UNRELATED"}
     assert (ROOT / "tools" / "eval_judge.py").is_file()
     assert shutil.which("python3") is not None
+
+
+def test_obligation_census_script_and_labels_are_well_formed():
+    """PROPOSAL_obligation_census.md: tools/census.py exists, parses, and exposes both CLI modes
+    (a fresh run, and --ratify over a hand-edited census.json); tools/census_prompt.md is
+    non-empty; tools/census_labels.json's ten seed labels each name a live R/C/I/K/E id of this
+    project's own SPEC.md with a valid form/checker (opt-in, no network here, not run in CI)."""
+    source = (ROOT / "tools" / "census.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    names = {n.name for n in tree.body if isinstance(n, ast.FunctionDef)}
+    assert {
+        "main",
+        "do_run",
+        "do_ratify",
+        "load_subjects",
+        "recommend",
+        "consensus_value",
+        "score_against_labels",
+        "render_census_md",
+    } <= names
+    assert (ROOT / "tools" / "census_prompt.md").stat().st_size > 0
+
+    labels = json.loads(
+        (ROOT / "tools" / "census_labels.json").read_text(encoding="utf-8")
+    )
+    assert len(labels) == 10
+    for label in labels.values():
+        assert label["form"] in {"expr", "struct", "behavior", "prose"}
+        assert label["checker"] in {"ast", "schema", "test", "llm"}
+        assert isinstance(label["scope_stated"], bool)
+
+    from speccheck.extract import parse_spec
+
+    index = parse_spec((ROOT / "SPEC.md").read_text(encoding="utf-8"), "SPEC.md")
+    live = {s.id for s in index.ids if not s.retired and s.family in {"R", "C", "I", "K", "E"}}
+    assert set(labels) <= live, sorted(set(labels) - live)
