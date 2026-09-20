@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.13, code
-1.13.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.14, code
+1.14.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
 propose, write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -371,6 +371,26 @@ judge, because an honest judge would call a presence check `EXECUTES_ONLY` and f
 gate for a reason the spec intends. The JSON carries `"recorded": true` and the Markdown ID cell
 reads `T-48 (recorded)`; `judge_strength` leaves recorded ids out of its population.
 
+**Declared vs. incidental citations (SPEC v1.14, R-39 / C-14 / C-15 / C-16).** Citation matching is
+literal: a test that mentions `R-03` as example data cites `R-03` exactly as a test that proves it
+does (F-013), and a model can credit `ASSERTS` on a token that happens to share the citation
+mechanism with the obligation. This project's tests are expected to name the ids they prove in
+their own docstring or a comment, so the kernel can tell the two apart mechanically, from data it
+already has. A citation of an in-scope R/C/I/K/E id inside an attributed (non-file-level) test case
+is **DECLARED** when its line sits inside that case's own docstring or is a whole-line comment
+(Python `#`; Swift the `///` / `/** … */` doc-comment line the adapter already tracks), and
+**INCIDENTAL** otherwise — including a citation on a code line with a trailing comment, a string
+literal, a `"src"`-kind citation, and one attributed to a file-level case (`declared: false`;
+E-56). The fact is computed identically under every `--judge` mode, needs no results file, judge
+call, or network access, and changes no status (I-014). It has two consumers, neither requiring
+the other: `speccheck.json` records `"declared"` on every `tests[]` entry and a
+`declared_ratio` metric over the in-scope R/C/I/K/E citations (Part C — visible from a plain
+`--judge none` run), and the LLM judge's request carries `declared` as read-only context, with one
+advisory rule in the instruction text: when `declared` is false, do not credit `ASSERTS` merely
+because a clause is locatable and some assertion exists nearby (Part B — no coercion rule, D-26).
+See `PROPOSAL_v1.15_declared_vs_incidental_citations.md` and `JUDGE_CROSSCHECK_REPORT.md` §2b for
+the evidence.
+
 ### LLM judge via OpenRouter (or any hosted endpoint)
 
 [OpenRouter](https://openrouter.ai) fronts many vendors' models behind the same chat-completions
@@ -459,7 +479,7 @@ renamed JSON-then-Markdown; either both exist afterwards or neither).
 
 | File | Contract | Notes |
 | --- | --- | --- |
-| `speccheck.json` | C-07, `schema_version` `"1.4"` (`"1.1"` added `title` per ID; `"1.2"` `clause` per verdict; `"1.3"` `recorded` per ID; `"1.4"` `decisions` and `edges`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. `decisions`/`edges` (v1.13, C-12) are read from the spec's own cross-references — never a citation, never a status/metric input. |
+| `speccheck.json` | C-07, `schema_version` `"1.5"` (`"1.1"` added `title` per ID; `"1.2"` `clause` per verdict; `"1.3"` `recorded` per ID; `"1.4"` `decisions` and `edges`; `"1.5"` `declared` per test edge and `declared_ratio` in `metrics`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged) and a `declared` bool (`true` when the edge's own docstring or a whole-line comment names the ID); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. `decisions`/`edges` (v1.13, C-12) are read from the spec's own cross-references — never a citation, never a status/metric input. `declared`/`declared_ratio` (v1.14, C-14/C-16) are pure functions of the source and test trees, present under every `--judge` mode including `none`. |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections: verdict line, metrics, per-ID evidence (retired rows struck through, `(file)` for file-level cases, `—` for unjudged edges), dangling, stale, unattributed results, unrun citations, judge details (judge enabled only), notes. |
 | `impact.json` / `IMPACT_REPORT.md` | C-13 (v1.13; written by `impact`, not `check`) | `schema_version` `"1.0"`. Same atomic-write discipline, its own file pair — a `check` run never touches these and vice versa. |
 
@@ -469,21 +489,23 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.13; the source of truth; written in the
+SPEC.md                         the specification (v1.14; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.13.0, mirrors the spec version)
+  __init__.py                   __version__ (1.14.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
                                 the `impact` subparser and its execute_impact pipeline (v1.13)
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations,
                                 the decision-table grammar and C-12 edge extraction (v1.13)
   impact.py                     the C-13 changed set, breadth-first walk, and reverify (v1.13)
-  attribute.py                  test-case delimitation (Python `ast`, Swift via swift.py, fallback) and citation attribution
+  attribute.py                  test-case delimitation (Python `ast`, Swift via swift.py, fallback), citation
+                                attribution, and the C-14 DECLARED/INCIDENTAL classification (v1.14)
   swift.py                      the Swift adapter: line-based @Test / XCTest delimiting, brace spans, MODULE (R-31)
   results.py                    JUnit XML parsing and the classname/join_name join
-  graph.py                      status algorithm (C-05), edge selection for the judge, metrics (C-07)
+  graph.py                      status algorithm (C-05), edge selection for the judge, metrics (C-07) incl.
+                                `declared_ratio` (C-16, v1.14)
   judge.py                      JudgeRequest/Verdict types, validation, concurrency + budget runner, progress indicator
   judge_mock.py                 deterministic assertion-token judge
   judge_llm.py                  OpenAI-compatible/Ollama provider, env config, response parsing
@@ -499,14 +521,14 @@ fixtures/target-swift/          Swift golden fixture (T-71): Package.swift, Sour
 tests/
   conftest.py                   in-process CLI runner and project builder
   test_01_extraction.py         §9.1  T-01..T-07, T-55, T-70
-  test_02_attribution.py        §9.2  T-08..T-14, T-56, T-57, T-65..T-67
+  test_02_attribution.py        §9.2  T-08..T-14, T-56, T-57, T-65..T-67, T-85
   test_03_results.py            §9.3  T-15..T-19, T-52, T-58, T-68
   test_04_status.py             §9.4  T-20..T-25, T-53
-  test_05_judge.py              §9.5  T-26..T-33, T-54, T-69
+  test_05_judge.py              §9.5  T-26..T-33, T-54, T-69 (and T-85's C-15 request check)
   test_06_reports.py            §9.6  T-34..T-38
   test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61
-  test_08_golden.py             §9.8  T-46, T-47, T-71
-  test_09_self_application.py   §9.9  T-48; §9.10 T-51 and §9.11 T-49 presence checks
+  test_08_golden.py             §9.8  T-46, T-47, T-71, T-86, T-88
+  test_09_self_application.py   §9.9  T-48; §9.10 T-51 and §9.11 T-49, T-87 presence checks
   test_10_edges.py              §9.12 T-79 — decision-table grammar and C-12 edge extraction
   test_11_impact.py             §9.12 T-80, T-81 — the impact CLI, changed set, walk, reverify
   data/markers/                 the only files that contain the literal ignore markers

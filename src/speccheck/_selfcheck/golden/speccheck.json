@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "spec": "SPEC.md",
   "judge": "mock",
   "judge_available": true,
@@ -31,6 +31,7 @@
           "lines": [
             15
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -64,6 +65,7 @@
           "lines": [
             52
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -116,6 +118,7 @@
           "lines": [
             25
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -134,6 +137,39 @@
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_divide_error_names_the_dividend_example",
+          "classname": "tests.test_core",
+          "lines": [
+            70
+          ],
+          "declared": false,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_divide_error_names_the_dividend_example",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`subtract(a, b)` MUST return `a - b`.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 71
+              },
+              {
+                "file": "tests/test_core.py",
+                "line": 73
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
             "coerced": false
           }
         }
@@ -188,6 +224,7 @@
           "lines": [
             35
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -206,6 +243,39 @@
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_divide_error_names_the_dividend_example",
+          "classname": "tests.test_core",
+          "lines": [
+            69
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_divide_error_names_the_dividend_example",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`divide(a, b)` raises `ZeroDivisionError` when `b == 0` The error message MUST name the dividend.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 71
+              },
+              {
+                "file": "tests/test_core.py",
+                "line": 73
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
             "coerced": false
           }
         }
@@ -268,6 +338,7 @@
           "lines": [
             11
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -312,6 +383,7 @@
           "lines": [
             22
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -344,6 +416,7 @@
           "lines": [
             28
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -384,6 +457,7 @@
           "lines": [
             39
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -416,6 +490,7 @@
           "lines": [
             46
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -439,6 +514,7 @@
           "lines": [
             52
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -491,6 +567,7 @@
           "lines": [
             20
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -539,6 +616,7 @@
           "lines": [
             47
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -582,6 +660,7 @@
           "lines": [
             42
           ],
+          "declared": true,
           "outcome": "skipped",
           "results": [
             {
@@ -626,6 +705,7 @@
           "lines": [
             62
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -654,6 +734,7 @@
           "lines": [
             22
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -706,6 +787,7 @@
           "lines": [
             52
           ],
+          "declared": true,
           "outcome": null,
           "results": [],
           "verdict": null
@@ -742,6 +824,7 @@
           "lines": [
             1
           ],
+          "declared": false,
           "outcome": null,
           "results": [],
           "verdict": null
@@ -753,6 +836,7 @@
           "lines": [
             57
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -799,6 +883,7 @@
           "lines": [
             15
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -845,6 +930,7 @@
           "lines": [
             35
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -886,6 +972,7 @@
           "lines": [
             30
           ],
+          "declared": true,
           "outcome": "failed",
           "results": [
             {
@@ -916,6 +1003,7 @@
           "lines": [
             11
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -973,6 +1061,7 @@
           "lines": [
             22
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -1018,6 +1107,7 @@
           "lines": [
             28
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -1071,6 +1161,7 @@
           "lines": [
             39
           ],
+          "declared": true,
           "outcome": "passed",
           "results": [
             {
@@ -1277,7 +1368,8 @@
     },
     "judge_strength_ratio": "13/14",
     "judge_strength": 0.9286,
-    "unknown_rate": 0.0000
+    "unknown_rate": 0.0000,
+    "declared_ratio": 0.9474
   },
   "exit_code": 1
 }

@@ -52,7 +52,16 @@ ID_KEYS = [
     "tests",
     "unrun",
 ]
-TEST_KEYS = ["file", "name", "classname", "lines", "outcome", "results", "verdict"]
+TEST_KEYS = [
+    "file",
+    "name",
+    "classname",
+    "lines",
+    "declared",  # since 1.5 (C-16, R-39)
+    "outcome",
+    "results",
+    "verdict",
+]
 VERDICT_KEYS = [
     "verdict",
     "clause",
@@ -117,6 +126,7 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
         "judge_strength_ratio",
         "judge_strength",
         "unknown_rate",
+        "declared_ratio",  # since 1.5 (C-16, R-39); last, present under every judge mode
     ]
     assert list(doc["metrics"]["by_family"]) == ["R", "C", "I", "K", "E", "T"]
     assert list(doc["metrics"]["by_status"]) == [
@@ -171,10 +181,12 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
     )
     assert not re.search(r"20\d\d-\d\d-\d\d", raw)
     assert re.findall(
-        r'"(?:conformance|ratio|judge_strength|unknown_rate|max_unknown)": (\S+?),?\n', raw
+        r'"(?:conformance|ratio|judge_strength|unknown_rate|declared_ratio|max_unknown)": (\S+?),?\n',
+        raw,
     )
     for num in re.findall(
-        r'"(?:conformance|ratio|judge_strength|unknown_rate|max_unknown)": ([0-9.]+)', raw
+        r'"(?:conformance|ratio|judge_strength|unknown_rate|declared_ratio|max_unknown)": ([0-9.]+)',
+        raw,
     ):
         assert re.fullmatch(r"[01]\.[0-9]{4}", num), num
     by_id = {r["id"]: r for r in doc["ids"]}
@@ -264,7 +276,7 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
 
 
 def test_decisions_and_edges_in_json(tmp_path: Path):
-    """T-79: `speccheck.json` carries `decisions` and `edges` after `ids` (schema "1.4"); an
+    """T-79: `speccheck.json` carries `decisions` and `edges` after `ids` (schema "1.5"); an
     edge's shape is {src, kind, dst, retired}; a decision's is {id, line, affects}; a spec with
     no decision table has both as []; the Markdown report is untouched by their presence.
     (R-36, C-07, C-12)"""
@@ -275,7 +287,7 @@ def test_decisions_and_edges_in_json(tmp_path: Path):
     write_tree(tmp_path / "p", {"SPEC.md": spec})
     run = run_cli(["check", "--spec", "SPEC.md"], tmp_path / "p")
     doc = run.json
-    assert doc["schema_version"] == "1.4" == report.SCHEMA_VERSION
+    assert doc["schema_version"] == "1.5" == report.SCHEMA_VERSION
     assert doc["decisions"] == [{"id": "D-01", "line": 12, "affects": ["R-01", "C-01"]}]
     # order: (edge_id_key(src), kind, edge_id_key(dst)); D sorts last among families
     assert doc["edges"] == [

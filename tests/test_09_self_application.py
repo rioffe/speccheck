@@ -20,7 +20,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # new requirements/contracts/an invariant/edge cases/tests for spec-internal edges and the
 # impact walk; its own decision table is not counted here — decisions are never in `ids`
 # (D-25).  speccheck:ignore (this range notation is not a deliberate citation of every id)
-DECLARED_IDS = 215
+# SPEC.md v1.14 declares 225 ids (38 R, 15 C, 14 I, 15 K, 56 E, 87 T; none retired); v1.14 added
+# R-39, C-14..C-16, I-014, E-56 and T-85..T-88 for declared vs. incidental citations
+DECLARED_IDS = 225
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):
@@ -150,3 +152,22 @@ def test_obligation_census_script_and_labels_are_well_formed():
     index = parse_spec((ROOT / "SPEC.md").read_text(encoding="utf-8"), "SPEC.md")
     live = {s.id for s in index.ids if not s.retired and s.family in {"R", "C", "I", "K", "E"}}
     assert set(labels) <= live, sorted(set(labels) - live)
+
+
+def test_t87_recorded_rerun_is_measured_and_recorded():
+    """T-87 (recorded): the three real edges named in `PROPOSAL_v1.15_declared_vs_incidental_
+    citations.md`'s evidence were re-run under the v1.14 C-10 text with the same model, and the
+    three verdicts plus `judge_prompt_sha256` are recorded in `SPEC_BUILD_REPORT.md`; the shipped
+    C-10 text carries the skepticism rule. Non-gating (a live model's compliance with an advisory
+    instruction). (C-10, C-15, R-39)"""
+    report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
+    assert "T-87" in report
+    assert "f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1" in report
+    for edge in (
+        "test_fenced_code_blocks_are_ignored",
+        "test_row_and_heading_grammar_edge_cases",
+        "test_judge_called_once_per_eligible_edge_only",
+    ):
+        assert edge in report
+    shipped = (ROOT / "src" / "speccheck" / "judge_prompt.md").read_text(encoding="utf-8")
+    assert "When declared is false" in shipped

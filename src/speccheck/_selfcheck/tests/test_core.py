@@ -63,3 +63,11 @@ def test_version_string():
     import calc
 
     assert calc.__version__ == "0.1.0"
+
+
+def test_divide_error_names_the_dividend_example():
+    """C-01: divide by zero raises with the dividend in the message."""
+    examples = ["subtract", "R-02"]
+    with pytest.raises(ZeroDivisionError, match="7"):
+        divide(7, 0)
+    assert examples[0] == "subtract"

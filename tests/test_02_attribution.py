@@ -516,3 +516,28 @@ def test_declared_vs_incidental_classification():
 
 
 
+
+
+def test_declared_is_present_and_constant_across_judge_modes(project):
+    """T-85 (continued): `declared` is present under `--judge none` and does not change with
+    `--judge`; `tests[].declared` is true iff any citation line of the edge is DECLARED (I-014)."""
+    spec = spec_table([(f"R-{i:02d}", f"s{i}") for i in range(1, 6)] + [("R-09", "file-level only")])
+    files = {
+        "SPEC.md": spec,
+        "tests/test_d.py": PY_DECLARED,
+        "junit.xml": junit([("tests.test_d", "test_case", "passed")]),
+    }
+
+    def edge_flags(run):
+        return {
+            (rec["id"], t["name"], tuple(t["lines"])): t["declared"]
+            for rec in run.json["ids"]
+            for t in rec["tests"]
+        }
+
+    none = edge_flags(project(files).check("--judge", "none"))
+    mock = edge_flags(project(files).check("--judge", "mock"))
+    assert none == mock
+    assert none[("R-01", "test_case", (5,))] is True
+    assert none[("R-05", "test_case", (9,))] is False
+    assert none[("R-09", "", (1,))] is False

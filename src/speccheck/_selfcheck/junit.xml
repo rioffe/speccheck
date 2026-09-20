@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-  <testsuite name="pytest" tests="17" failures="1" errors="0" skipped="1">
+  <testsuite name="pytest" tests="18" failures="1" errors="0" skipped="1">
     <testcase classname="tests.test_core" name="test_add[1-2-3]" />
     <testcase classname="tests.test_core" name="test_add[0.1-0.2-0.3]" />
     <testcase classname="tests.test_core" name="test_add_commutes" />
@@ -15,6 +15,7 @@
     <testcase classname="tests.test_core" name="test_scale_runs" />
     <testcase classname="tests.test_core" name="test_scale_empty" />
     <testcase classname="tests.test_core" name="test_version_string" />
+    <testcase classname="tests.test_core" name="test_divide_error_names_the_dividend_example" />
     <testcase classname="tests.test_summary" name="test_summary_shape" />
     <testcase classname="tests.test_summary" name="test_summary_rounds_the_exact_sum_once" />
     <testcase classname="tests.test_summary" name="test_summary_ordering_is_stable_ascending" />

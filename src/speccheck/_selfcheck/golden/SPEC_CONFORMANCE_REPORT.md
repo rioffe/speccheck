@@ -38,10 +38,10 @@ speccheck: NOT CONFORMING - 13/19 passing (68.4%), 1 failing, 1 skipped, 1 weak,
 | ID | Status | Statement | Source citations | Test citations (outcome · verdict) |
 | --- | --- | --- | --- | --- |
 | R-01 | PASSING | `add(a, b)` MUST return the arithmetic sum of `a` and `b`. | src/calc/core.py:10 | `test_add` tests/test_core.py:15 (passed · ASSERTS); `test_summary_module_does_not_change_add` tests/test_summary.py:52 (passed · ASSERTS) |
-| R-02 | PASSING | `subtract(a, b)` MUST return `a - b`. | src/calc/core.py:15 | `test_subtract` tests/test_core.py:25 (passed · ASSERTS) |
+| R-02 | PASSING | `subtract(a, b)` MUST return `a - b`. | src/calc/core.py:15 | `test_subtract` tests/test_core.py:25 (passed · ASSERTS); `test_divide_error_names_the_dividend_example` tests/test_core.py:70 (passed · ASSERTS) |
 | R-03 | UNCITED | `multiply(a, b)` MUST return the product of `a` and `b`. | — | — |
 | ~~R-04~~ | RETIRED | `modulo(a, b)` MUST return `a % b`. (retired: dropped from the brief) | — | — |
-| C-01 | PASSING | `divide(a, b)` raises `ZeroDivisionError` when `b == 0` | src/calc/core.py:20 | `test_divide_by_zero` tests/test_core.py:35 (passed · ASSERTS) |
+| C-01 | PASSING | `divide(a, b)` raises `ZeroDivisionError` when `b == 0` | src/calc/core.py:20 | `test_divide_by_zero` tests/test_core.py:35 (passed · ASSERTS); `test_divide_error_names_the_dividend_example` tests/test_core.py:69 (passed · ASSERTS) |
 | C-02 | UNTESTED | `scale(values, factor)` returns a new list and never mutates its input | src/calc/core.py:27 | — |
 | ~~C-03~~ | RETIRED | `average(values)` returns the arithmetic mean (retired) | — | — |
 | C-04 | PASSING | Summary report: `summarize(values)` and the `Summary` shape | src/calc/summary.py:1, src/calc/summary.py:21 | `test_summary_shape` tests/test_summary.py:11 (passed · ASSERTS); `test_summary_rounds_the_exact_sum_once` tests/test_summary.py:22 (passed · ASSERTS); `test_summary_ordering_is_stable_ascending` tests/test_summary.py:28 (passed · ASSERTS); `test_summary_empty_input` tests/test_summary.py:39 (passed · ASSERTS); `test_summary_runs_on_a_mixed_list` tests/test_summary.py:46 (passed · EXECUTES_ONLY); `test_summary_module_does_not_change_add` tests/test_summary.py:52 (passed · ASSERTS) |
@@ -91,7 +91,9 @@ speccheck: NOT CONFORMING - 13/19 passing (68.4%), 1 failing, 1 skipped, 1 weak,
 | R-01 | tests/test_core.py `test_add` | ASSERTS | `add(a, b)` MUST return the arithmetic sum of `a` and `b`. | tests/test_core.py:16 | mock: assertion token on 1 line(s) |
 | R-01 | tests/test_summary.py `test_summary_module_does_not_change_add` | ASSERTS | `add(a, b)` MUST return the arithmetic sum of `a` and `b`. | tests/test_summary.py:53, tests/test_summary.py:54 | mock: assertion token on 2 line(s) |
 | R-02 | tests/test_core.py `test_subtract` | ASSERTS | `subtract(a, b)` MUST return `a - b`. | tests/test_core.py:26 | mock: assertion token on 1 line(s) |
+| R-02 | tests/test_core.py `test_divide_error_names_the_dividend_example` | ASSERTS | `subtract(a, b)` MUST return `a - b`. | tests/test_core.py:71, tests/test_core.py:73 | mock: assertion token on 2 line(s) |
 | C-01 | tests/test_core.py `test_divide_by_zero` | ASSERTS | `divide(a, b)` raises `ZeroDivisionError` when `b == 0` The error message MUST … | tests/test_core.py:36 | mock: assertion token on 1 line(s) |
+| C-01 | tests/test_core.py `test_divide_error_names_the_dividend_example` | ASSERTS | `divide(a, b)` raises `ZeroDivisionError` when `b == 0` The error message MUST … | tests/test_core.py:71, tests/test_core.py:73 | mock: assertion token on 2 line(s) |
 | C-04 | tests/test_summary.py `test_summary_shape` | ASSERTS | Summary report: `summarize(values)` and the `Summary` shape ```python @dataclas… | tests/test_summary.py:13, tests/test_summary.py:14, tests/test_summary.py:15, tests/test_summary.py:16, tests/test_summary.py:17 | mock: assertion token on 5 line(s) |
 | C-04 | tests/test_summary.py `test_summary_rounds_the_exact_sum_once` | ASSERTS | Summary report: `summarize(values)` and the `Summary` shape ```python @dataclas… | tests/test_summary.py:23, tests/test_summary.py:24 | mock: assertion token on 2 line(s) |
 | C-04 | tests/test_summary.py `test_summary_ordering_is_stable_ascending` | ASSERTS | Summary report: `summarize(values)` and the `Summary` shape ```python @dataclas… | tests/test_summary.py:30, tests/test_summary.py:31, tests/test_summary.py:32, tests/test_summary.py:35 | mock: assertion token on 4 line(s) |

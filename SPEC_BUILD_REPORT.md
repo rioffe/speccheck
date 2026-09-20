@@ -1,8 +1,103 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.13.0 against `SPEC.md` (v1.13)
+# SPEC_BUILD_REPORT — `speccheck` v1.14.0 against `SPEC.md` (v1.14)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0f. v1.14 increment (2026-09-20) — declared vs. incidental citations (R-39, C-14, C-15, C-16, I-014, E-56)
+
+**Why.** `PROPOSAL_v1.15_declared_vs_incidental_citations.md`, grounded in `JUDGE_CROSSCHECK_REPORT.md`
+§2b: a `check --judge llm` run of this repository's own tree with `gpt-4o-mini`, cross-checked
+edge-by-edge against an independent second model, found 153/613 genuine conflicts (both models
+committed and disagreed), 60 of them concentrated in five ids reused as generic fixture data
+(`R-01` 36/57, `C-01` 7/34, `R-07` 6/7, `C-06` 6/7, `C-03` 5/12) but 93/496 (18.8%) still
+conflicting once those are excluded. Three non-`R-01` conflicts read in full all showed a test
+citing an id as placeholder data while proving something else, with neither its own docstring nor
+any comment naming that id. The spec already states the mitigation — §9's preamble requires every
+test to cite its own ids "in its docstring or a comment" — and the kernel already had the data to
+apply it; it was throwing the distinction away before the judge ever saw the edge. D-26 (advisory
+only, no coercion) and D-27 (whole-line-comment detection, no token-level parsing) were confirmed
+in the spec before this build; no fork was left for it.
+
+**Plan.** A compact `IMPLEMENTATION_PLAN.md` delta, three waves in dependency order: W1 the
+`declared` fact (Attributor + Grapher), W2 the judge request and the C-10 instruction text, W3 the
+report visibility (`tests[].declared`, `metrics.declared_ratio`) and the regenerated goldens. T-87
+is the recorded, non-gating re-run of the proposal's three evidence edges.
+
+**Wave ledger.**
+
+| Wave | Gate as run | Result | Commit |
+| --- | --- | --- | --- |
+| W1 — the `declared` fact (R-39, C-14, E-56, I-014) | `pytest tests/test_02_attribution.py -q`; full suite; `ruff check src tests` | new T-85 unit tests green; full suite green except the two pre-existing stale rows (T-48's id count, the shipped-prompt hash) the spec edit had already made red by design | `5e17dae` |
+| W2 — the judge is told (C-15, C-10) | `pytest tests/test_05_judge.py -q`; full suite; ruff | 13/13 judge tests green incl. the new C-15 request check and T-54's C-10 byte-equality; full suite green except T-48's stale count | `5f7d818` |
+| W3 — visibility and goldens (C-16, T-86, T-88) | `pytest tests -q --junitxml=junit.xml`; `ruff check src tests`; `speccheck --self-check`; `speccheck check … --judge mock --strict` | 119/119 green; clean; `self-check: ok`; `CONFORMING - 225/225 passing (100.0%) … 0 dangling, 0 stale`, exit 0 | this commit |
+
+**W1, test-first:** the classification was written against T-85's unit half, which asks the
+Attributor directly (`attribute_file` on a `ScannedFile`) for `Citation.declared` on a docstring
+line, a multi-line docstring's *second* line, a whole-line `#` comment, a string literal, a code
+line with a trailing comment, the file-level case, and the Swift `///` / `/** … */` equivalents. The
+Swift half exposed a design question the plan had already answered: `delimit_swift` now returns the
+per-line `_Line.doc` flags it always computed (alongside cases and undelimited names) rather than a
+second doc-comment detector being written next to it — C-14's "reused rather than re-detected",
+enforced by keeping the detector singular. `TestEdge.declared` is true iff *any* citation line of
+the edge is DECLARED (C-14's last paragraph), and the same pass counts R-39's population for the
+metric — test-kind citations of in-scope R/C/I/K/E ids inside attributed non-file-level cases.
+The one interpretation this build had to fix where the contract left a choice is recorded in §3
+below (B-16).
+
+**W2, test-first:** `JudgeRequest.declared` (after `testcase`) and `to_json`'s key order were
+written against a new test that drives `check --judge llm` through the recorded HTTP stub and reads
+`declared` `true` for a docstring-declared edge and `false` for a citation that is only example
+data; `build_request` gained the parameter and `cli.py` passes `edge.declared`. The shipped C-10
+text gained the field definition and the skepticism rule; T-54's existing byte-equality assertion
+(comparing `src/speccheck/judge_prompt.md` to the C-10 block in `SPEC.md`) is what caught the text
+staying in step, and `judge_prompt_sha256` moved to
+`f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1`. T-33 and T-74 were updated for
+the new key (`declared` between `statement` and `file`), not the reverse: the request shape is
+`C-06`'s, and T-74's "unchanged keys" wording was stale — see F-102.
+
+**W3, test-first:** `tests[].declared` and `metrics.declared_ratio` were written against T-86
+(the fixture's new incidental edge) and T-88 (present under `--judge none` and `mock`, recomputable
+from the report's own evidence, identical under both modes). `SCHEMA_VERSION` went to `"1.5"` and
+T-79's literal was updated with it. The fixture gained one test whose docstring names C-01 while
+its body cites R-02 only as example data (T-86), its `junit.xml` result, and the two
+`judge_labels.json` entries T-49's exact-coverage assertion requires; both goldens and then
+`_selfcheck/` were regenerated. The regenerated Python fixture reports `declared_ratio` `0.9474`
+(18 of 19 R-39 citations DECLARED — the new edge is the one INCIDENTAL); the Swift fixture reports
+`1.0` (every citation is a doc-comment line). The one-time v1.13 → v1.14 golden diff is exactly the
+`schema_version` bump, one `declared` bool per `tests[]` entry, the `declared_ratio` metric, and
+the two rows the new T-86 test touches in §3/§7/§8 of the Markdown — plus the C-12 Notes, which do
+not change.
+
+**Spec defects found by this build (fixed as `fix(spec)`, document-only).**
+
+| F-nnn | Where | What | Fix |
+| --- | --- | --- | --- |
+| F-101 | `SPEC.md` §3.3 artifact table | still pinned `speccheck.json` at `schema_version: "1.4"` while C-07 (the same edit) says `"1.5"` | the row now reads `"1.5"` and names `declared`/`declared_ratio`; no id semantics changed, `SPEC.md`'s version header stays v1.14 (this corrects v1.14's own rows; the next version number is reserved) |
+| F-102 | `SPEC.md` T-74 | "under the unchanged keys `{id, statement, file, start, end, source}`" predated C-15's `declared`, which the same v1.14 edit added to C-06 | T-74 now reads `{id, statement, declared, file, start, end, source}` and cites C-15; the test was updated with it |
+
+Neither changes a requirement, contract, or status; both are text that v1.14's own edit should have
+carried. No other disagreement between the spec's diagrams, rows, and formulas was found on the
+re-read.
+
+**T-87 *(recorded)* — the advisory instruction's effect, measured.** The three edges the proposal
+named were re-run under the v1.14 C-10 text with the same model (`openai/gpt-4o-mini` via
+OpenRouter), each through the kernel's own `build_request` with the C-14 `declared` value, on
+2026-09-20; `judge_prompt_sha256`
+`f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1`:
+
+| Edge | `declared` | pre-v1.14 (`gpt-4o-mini`) | Jev (independent) | v1.14 (`gpt-4o-mini`) |
+| --- | --- | --- | --- | --- |
+| `R-03` / `test_fenced_code_blocks_are_ignored` | false | `ASSERTS` | `UNRELATED` | `UNRELATED` |
+| `R-03` / `test_row_and_heading_grammar_edge_cases` | false | `ASSERTS` | `UNRELATED` | `UNRELATED` |
+| `R-02` / `test_judge_called_once_per_eligible_edge_only` | false | `ASSERTS` | `UNRELATED` | `ASSERTS` |
+
+The honest outcome is "moved on some": two of three now agree with the independent model, the third
+still credits `ASSERTS`. Per the proposal's §3 that outcome does not by itself force D-26's `no`
+branch (which stays the fallback if a later run shows the instruction moves nothing), and it does
+not gate this build — T-87 is a recorded observation about a live model's compliance with an
+advisory instruction, exactly the caveat T-49 already carries. Part C is independent of it and
+costs nothing under `--judge none`.
 
 ## 0e. v1.13 increment (2026-09-19) — spec-internal edges (C-12) and the `impact` subcommand (C-13)
 
@@ -525,21 +620,24 @@ row; each is listed so the spec owner can ratify or overturn it.
 | B-13 | T-49 / T-51 in-suite | Deterministic guards stand in for the recorded runs: the label file covers exactly the judged edges, and `tools/bench.py` / `tools/eval_judge.py` exist and parse. The runs themselves are recorded in §2. | So that `T-49` and `T-51` are cited by a passing test (T-48 needs every T id `PASSING`) without running an LLM or a benchmark in CI. |
 | B-14 | `fixtures/target/golden/` | Holds a third file, `judge_labels.json` (T-49 labels), beside the two goldens. | The self-check compares only the two report files; T-60 keeps the whole directory in sync. |
 | B-15 | R-23 redaction | The raw response is redacted by replacing every occurrence of the key's text with `***` — with the Ollama convention `SPECCHECK_JUDGE_API_KEY=ollama` this also turns Ollama's `system_fingerprint: fp_ollama` into `fp_***` in DEBUG output. | Harmless; the rule is "the key never appears", and it never does. |
+| B-16 | C-16 `declared_ratio` population | The ratio is over **test-kind citations of in-scope, non-retired R/C/I/K/E ids inside attributed (non-file-level) cases**, counted per citation occurrence: `src`-kind citations and file-level citations are outside R-39's own scope ("inside an attributed (non-file-level) test case") and so outside both the numerator and the denominator. | C-16 says "all such citations", and "such" is R-39's population. Including `src` citations would swamp the metric (they are `declared: false` by definition, E-56) and make it uninformative; including file-level citations would mix two different questions. On the golden fixture the two readings coincide for the edges in it except that the file-level and `src` citations are excluded. If the spec owner prefers the whole-citation reading, widen the loop in `graph.build_graph` — the `Citation.declared` values needed are already computed. |
 
-No `SPEC.md` row was edited. The two clauses that disagree (B-01, B-02) are candidates for a
-`fix(speccheck):` by the spec owner: §5.4 could name the E-19 case explicitly, and T-46's
-`--out <fresh tmp>` could read `--out <fresh dir inside --root>`.
+Through v1.13 no `SPEC.md` row was edited; v1.14 corrected two of its own rows (F-101 the §3.3
+artifact table's stale `"1.4"` literal, F-102 T-74's stale key list — both recorded in §0f). The
+two clauses that disagree (B-01, B-02) remain candidates for a `fix(speccheck):` by the spec
+owner: §5.4 could name the E-19 case explicitly, and T-46's `--out <fresh tmp>` could read
+`--out <fresh dir inside --root>`.
 
 ## 4. Artifact cross-check (§3.2 of `spec-build`)
 
 | Artifact | Checked against | Result |
 | --- | --- | --- |
 | `src/speccheck/extract.py` `SpecId`/`SpecIndex` | C-02 | Same fields, same sort order (family order R,C,I,K,E,T then number); the `(family, number)` uniqueness invariant is enforced by E-02/E-03 |
-| `src/speccheck/attribute.py` `TestCase`/`Citation` | C-03 | Same fields; `classname` rule for Python and fallback; `kind` ∈ {src, test} |
-| `src/speccheck/judge.py` `JudgeRequest`/`Evidence`/`Verdict`/`Judge` | C-06 | Same fields; `source` is line-numbered with TAB (F-109); validation is in `judge.py`, not in the providers |
-| `src/speccheck/judge_prompt.md` | C-10 | Byte-equal to the fenced text in `SPEC.md` (T-54 asserts it; SHA-256 `21ec7849…77fdf7`) |
-| `src/speccheck/judge_llm.py` request body | C-06 | `{"model","temperature":0,"max_tokens":4000,"messages":[system,user]}` (4000 since SPEC v1.2 / D-07) in that key order, `ensure_ascii=False`; user content is the K-09-formatted request JSON; T-33 compares the bytes |
-| `speccheck.json` | C-07 | Key order, seven statuses, six families, four-decimal Decimals via the `_Num` sentinel, `verdict` key always present, notes sorted by code point, no volatile fields (T-34) |
+| `src/speccheck/attribute.py` `TestCase`/`Citation` | C-03, C-14 | Same fields; `classname` rule for Python and fallback; `kind` ∈ {src, test}; `Citation.declared` is DECLARED iff the line is in the case's docstring or a whole-line comment (Python `#`, Swift `_Line.doc`), `false` for `src` and file-level (E-56, T-85) |
+| `src/speccheck/judge.py` `JudgeRequest`/`Evidence`/`Verdict`/`Judge` | C-06, C-15 | Same fields plus `declared` after `testcase`; the user JSON is `{id, statement, declared, file, start, end, source}`; `source` is line-numbered with TAB (F-109); validation is in `judge.py`, not in the providers, and reads no `declared` (no coercion rule, D-26) |
+| `src/speccheck/judge_prompt.md` | C-10 | Byte-equal to the fenced text in `SPEC.md` (T-54 asserts it; SHA-256 `f6b124bd…2bcfd1`, the v1.14 text with the `declared` definition and the skepticism rule) |
+| `src/speccheck/judge_llm.py` request body | C-06 | `{"model","temperature":0,"max_tokens":4000,"messages":[system,user]}` (4000 since SPEC v1.2 / D-07) in that key order, `ensure_ascii=False`; user content is the K-09-formatted request JSON carrying `declared`; T-33 compares the bytes |
+| `speccheck.json` | C-07, C-16 | Key order, seven statuses, six families, four-decimal Decimals via the `_Num` sentinel, `verdict` key always present, `declared` on every `tests[]` entry, `declared_ratio` last in `metrics` under every judge mode, notes sorted by code point, no volatile fields (T-34, T-88) |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections in order; retired ID cell struck; `(file)` and `—` renderings (T-35) |
 | `speccheck` CLI | §5.1 | Every flag, default, range, and exit code in the table; `--self-check` runs the pinned argv in-process (T-43 records the `Config`) |
 | Diagnostics | §5.3 | Logger `speccheck`, one stderr handler, `%(levelname)s %(message)s`, `ERROR` default; nothing at `WARNING`; DEBUG `judge>`/`judge<` (T-41, T-42) |
@@ -603,6 +701,7 @@ id. "Self-app" is the status from the T-48 run.
 | R-35 | `extract.py`, `graph.py`, `report.py` | `test_01_extraction::test_recorded_marker_declarations`; `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength` | PASSING |
 | R-36 | `extract.py` (decision table, edge extraction), `report.py` (`decisions`/`edges` keys) | `test_10_edges::test_statement_tokens_yield_depends_on_and_verifies_edges`; `test_10_edges::test_decision_table_found_by_affects_header_cell_case_insensitively`; `test_06_reports::test_decisions_and_edges_in_json` | PASSING |
 | R-37 | `impact.py` (changed set, walk, reverify), `cli.py` (`impact` subcommand) | `test_11_impact::test_impact_cli_against_golden_fixture`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
+| R-39 | `attribute.py` (`_doc_span`, `_declared`; the Python docstring-span and whole-line-comment rule, the Swift `_Line.doc` reuse), `graph.py` (`TestEdge.declared`, `declared_counts`) | T-85 `test_02_attribution::test_declared_vs_incidental_classification`, `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-86 `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
 | C-01 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-02 `test_01_extraction::test_numbers_normalize_within_family`; T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids`; T-04 `test_01_extraction::test_strikethrough_is_retired_and_mixed_redeclaration_exits_3`; T-05 `test_01_extraction::test_fenced_code_blocks_are_ignored`; T-55 `test_01_extraction::test_row_and_heading_grammar_edge_cases`; T-57 `test_02_attribution::test_ignore_markers`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-02 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-06 `test_01_extraction::test_duplicate_declaration_exits_3_naming_both_lines`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-03 | `attribute.py`, `extract.py` | T-09 `test_02_attribution::test_python_test_citations_attributed_to_enclosing_case`; T-10 `test_02_attribution::test_module_docstring_and_helper_citations_are_file_level`; T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks`; T-14 `test_02_attribution::test_several_citations_in_one_case_yield_one_edge`; T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; T-56 `test_02_attribution::test_class_recognition_and_async_and_undelimited` | PASSING |
@@ -616,6 +715,9 @@ id. "Self-app" is the status from the T-48 run.
 | C-11 | `judge.py` | T-62 `test_07_cli::test_progress_indicator_format_cadence_and_isolation` | PASSING |
 | C-12 | `extract.py` (`_decision_rows`, `_build_decisions_and_edges`, `edge_id_key`) | T-79 `test_10_edges` (all nine functions) | PASSING |
 | C-13 | `impact.py`, `report.py` (`build_impact_report`, `render_impact_markdown`, `impact_summary_line`) | T-80 `test_11_impact::test_impact_cli_against_golden_fixture`; T-81 `test_11_impact::test_diff_changed_set_reasons_in_fixed_order`, `test_11_impact::test_impact_usage_and_input_errors` | PASSING |
+| C-14 | `attribute.py` (`_doc_span`, `_declared`, `_python_cases`, Swift `_Line.doc` via `delimit_swift`), `graph.py` (edge-level `declared`) | T-85 `test_02_attribution::test_declared_vs_incidental_classification`; T-86 `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
+| C-15 | `judge.py` (`JudgeRequest.declared`, `build_request`, `to_json`), `judge_llm.py` (system message), `src/speccheck/judge_prompt.md` (field definition + skepticism rule), `cli.py` (passes `edge.declared`) | `test_05_judge::test_judge_request_carries_declared_for_the_edge`; `test_05_judge::test_llm_response_path_fences_and_prompt_hash`; `test_05_judge::test_llm_request_carries_heading_body_statement`; T-87 (§0f, recorded) | PASSING |
+| C-16 | `report.py` (`tests[].declared`, `metrics.declared_ratio`, `SCHEMA_VERSION` "1.5"), `graph.py` (`declared_counts`, `Metrics.declared_ratio`) | T-86 `test_08_golden::test_fixture_gains_one_incidental_citation`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode`; `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys` | PASSING |
 | I-001 | `cli.py`, `report.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing`; T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | I-002 | `attribute.py`, `extract.py`, `graph.py`, `report.py`, `results.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | I-003 | `report.py` | T-25 `test_04_status::test_retired_ids_excluded_from_denominators_but_listed_once`; T-35 `test_06_reports::test_markdown_layout` | PASSING |
@@ -628,6 +730,7 @@ id. "Self-app" is the status from the T-48 run.
 | I-010 | `graph.py`, `judge.py` | `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength`; `test_05_judge::test_judge_called_once_per_eligible_edge_only` | PASSING |
 | I-011 | `extract.py` | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
 | I-013 | `impact.py` (`walk`: unbounded computation, depth-limited as a filter) | `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_impact_cli_against_golden_fixture` | PASSING |
+| I-014 | `attribute.py` (`declared` is a pure function of the source/test trees), `graph.py` / `report.py` (`declared_ratio`) | T-85 `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode` | PASSING |
 | K-01 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak`; T-19 `test_03_results::test_malformed_xml_and_nameless_testcase_exit_3`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | K-02 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
 | K-03 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
@@ -687,6 +790,7 @@ id. "Self-app" is the status from the T-48 run.
 | E-53 | `cli.py`, `impact.py` (`resolve_changed_ids`) | T-81 `test_11_impact::test_resolve_changed_ids_normalizes_and_validates`, `test_11_impact::test_impact_usage_and_input_errors` | PASSING |
 | E-54 | `cli.py` (`_build_impact_config`; unrecognized-flag rejection by omission) | T-81 `test_11_impact::test_impact_usage_and_input_errors` | PASSING |
 | E-55 | `extract.py` (`Edge.retired`), `report.py` (struck ID cells in `IMPACT_REPORT.md`) | `test_10_edges::test_edge_to_retired_id_is_flagged_and_self_reference_is_ignored`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
+| E-56 | `attribute.py` (`_declared`: `case.is_file_level` → `false`; `cli.py` constructs `src` citations with `declared=False`) | T-85 `test_02_attribution::test_declared_vs_incidental_classification` (file-level); T-86 `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
 | T-01 | — | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement` | PASSING |
 | T-02 | — | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
 | T-03 | — | T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids` | PASSING |
@@ -768,30 +872,47 @@ id. "Self-app" is the status from the T-48 run.
 | T-80 | — | `test_11_impact::test_impact_cli_against_golden_fixture`; `test_11_impact::test_walk_reverse_depends_on_and_affects_with_shortest_via`; `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_reverify_set` | PASSING |
 | T-81 | — | `test_11_impact::test_diff_changed_set_reasons_in_fixed_order`; `test_11_impact::test_impact_usage_and_input_errors`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
 | T-82 *(recorded)* | — | `test_11_impact::test_impact_backtest_script_exists` (presence check); the real run is §0e below | PASSING |
+| T-85 | — | `test_02_attribution::test_declared_vs_incidental_classification`; `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; `test_05_judge::test_judge_request_carries_declared_for_the_edge` | PASSING |
+| T-86 | — | `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
+| T-87 *(recorded)* | — | `test_09_self_application::test_t87_recorded_rerun_is_measured_and_recorded` (presence check); the real run is §0f above | PASSING |
+| T-88 | — | `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode` | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 215/215 IDs realized (0 deferred)
-speccheck (mock): speccheck: CONFORMING - 215/215 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: NOT CONFORMING - 215/215 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm (unknown_rate 0.9706 > max_unknown 0.2000)  [qwen3:8b via Ollama, local, 2026-09-19, judge_available true, judge_strength 1.0 (every verdict the model did give was ASSERTS, 0 weak), judge_prompt_sha256 6a05eb0dede74b3108322fdca58652b7e9e8bde328e02293c3be4d47df775052 (unchanged from v1.11 — no prompt or C-06 change in v1.13); superseded by gemini-3.8-flash's 0.0041 in §0d, not re-run here]
+Spec coverage: 225/225 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 225/225 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: CONFORMING - 225/225 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-20, judge_available true, judge_strength 1.0 (220/220), unknown_rate 0.0137, judge_prompt_sha256 f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1 (the v1.14 C-10 text)]
 Observed: no rendered surface (§5.2)
 Readiness: BUILT
 Conformance: PASS WITH NOTES
 ```
 
-v1.13's own deliverable (R-36, R-37, C-12, C-13, I-013, E-53..E-55, T-79..T-82) is unaffected by
-the Phase B result above: the judge is not shown edges/decisions, and none of the new ids are
-R/C/I/K/E obligations the judge downgrades — they are `PASSING` from citation and result alone,
-and Phase A (`--judge mock --strict`) is the gate that governs them, which is clean. The Phase B
-note is a pre-existing model-choice characteristic, not a v1.13 defect: `qwen3:8b` is a thinking
-model, and this project's own history (D-07/D-08, §0d) already records that such models answer a
-minority of edges and should be judged on `judge_strength` (here 1.0, i.e. correct whenever it
-answered) rather than on `unknown_rate` alone — `gemini-3.8-flash`'s 0.0041 stands as this
-project's evidence for R-26/T-49 (§0d) and was not re-run for this delta, since nothing in v1.13
-touches the judge, `C-06`, or `C-10`.
+v1.14's deliverable (R-39, C-14, C-15, C-16, I-014, E-56, T-85..T-88) is green on both gates. The
+notes are: B-16's `declared_ratio` population reading (R-39's own scope, recorded for ratification,
+not a defect); F-101/F-102, the two document-only corrections to v1.14's own rows; and T-87's
+recorded "moved on some" outcome, which is an observation about a model's compliance with an
+advisory instruction, not a conformance condition. `declared_ratio` on this repository's own tree
+is `0.3773` — low exactly in the way the proposal predicted for a suite that reuses ids as fixture
+data; it is visible here from the `--judge none` run with no model call at all.
 
-The other notes are §3 (B-01..B-15: interpretations for the spec owner to ratify) and §0d's model
+Phase B model note. The gate line above uses `google/gemini-3.8-flash`, the model §0d and D-08
+name as this project's trusted self-application judge (the same model whose 0.0041 stands for
+R-26/T-49). A first Phase B run with `openai/gpt-4o-mini` — the proposal's own evidence model —
+also completed cleanly on citations (`unknown_rate 0.1096`, within the default bound) but recorded
+5 `WEAKLY_PASSING` ids: `E-07`, `E-22`, `T-61`, `T-76` (all four pre-existing, their tests
+unchanged by v1.14) and `E-56`, whose `UNKNOWN` on T-85 is the K-15 quoting failure §0d already
+documents for this model, plus one incidental citation of `E-56` from a T-88 comment that v1.14's
+own spec traceability does not need and which was removed. Gemini credits all five `ASSERTS`; the
+kernel, not the model, decides which ids exist — this is the same D-07/D-08 model-choice record as
+before, not a v1.14 regression.
+
+v1.13's own deliverable (R-36, R-37, C-12, C-13, I-013, E-53..E-55, T-79..T-82) is unaffected:
+the judge is not shown edges/decisions, and none of those ids are R/C/I/K/E obligations the judge
+downgrades — they are `PASSING` from citation and result alone. The earlier Phase B note in §0e
+(`qwen3:8b`, 2026-09-19) remains a model-choice characteristic recorded there with its reason.
+
+The other notes are §3 (B-01..B-16: interpretations for the spec owner to ratify) and §0d's model
 record (D-08 answered by `gemini-3.8-flash`). This report's own §5 has a known, disclosed gap
 (v1.12's ids and E-42..E-52 were never backfilled — §0e) that predates and is out of scope for
 this build. Nothing in the specification was scoped out; O-1 is built behind its flag and extra,

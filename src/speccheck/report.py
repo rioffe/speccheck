@@ -21,8 +21,8 @@ from .graph import IN_SCOPE_STATUSES, Graph, Metrics, TestEdge, compute_metrics
 from .results import RawResult
 
 SCHEMA_VERSION = (
-    "1.4"  # C-07: "1.0"-v1.6; "1.1" `title` (v1.7); "1.2" `clause` (v1.9); "1.3" `recorded`
-    # (v1.10); "1.4" `decisions`/`edges` (v1.13)
+    "1.5"  # C-07: "1.0"-v1.6; "1.1" `title` (v1.7); "1.2" `clause` (v1.9); "1.3" `recorded`
+    # (v1.10); "1.4" `decisions`/`edges` (v1.13); "1.5" `declared`/`declared_ratio` (v1.14)
 )
 JSON_NAME = "speccheck.json"
 MD_NAME = "SPEC_CONFORMANCE_REPORT.md"
@@ -156,6 +156,7 @@ def _edge_json(edge: TestEdge) -> dict:
         "name": edge.case.name,
         "classname": edge.case.classname,
         "lines": list(edge.lines),
+        "declared": edge.declared,  # C-16 / C-14 (v1.14): DECLARED vs INCIDENTAL for this edge
         "outcome": edge.outcome,
         "results": [{"name": r.name, "param": r.param, "outcome": r.outcome} for r in edge.results],
         "verdict": verdict,
@@ -228,6 +229,7 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
         m["judge_strength_ratio"] = metrics.judge_strength_ratio
         m["judge_strength"] = _num(metrics.judge_strength)
         m["unknown_rate"] = _num(metrics.unknown_rate)
+    m["declared_ratio"] = _num(metrics.declared_ratio)  # C-16: present under every --judge mode
     report["metrics"] = m
     report["strict_judge_failure"] = strict_judge_failure(report)
     report["exit_code"] = exit_code_for(report)

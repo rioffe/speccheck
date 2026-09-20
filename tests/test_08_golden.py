@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import shutil
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from speccheck import report
+from speccheck.graph import ratio
 
 from .conftest import FIXTURE, run_cli
 
@@ -389,3 +391,85 @@ def test_fixture_long_body_contract_and_labels():
     judged = {f"{contract.id} {t['file']}::{t['name']}" for t in rec["tests"] if t["verdict"]}
     assert set(on_contract) == judged
     assert all(t["name"] for t in rec["tests"]), "attributed to their own cases, not file-level"
+
+
+def test_fixture_gains_one_incidental_citation(tmp_path: Path):
+    """T-86: `fixtures/target/` gains one test whose own docstring names C-01 (its DECLARED
+    citation) while its body cites R-02 only as fixture/example data: under `--judge none`
+    `speccheck.json` records `declared: false` for that second edge and `true` for the docstring
+    edge, the fixture's `declared_ratio` reflects it (18 of 19 citations DECLARED), and
+    `SPEC_CONFORMANCE_REPORT.md` renders no `declared` (C-16's Part C is JSON-only; every other
+    T-46 row is unchanged). (C-14, C-16, R-39, T-46)"""
+    target = _copy(tmp_path)
+    run = run_cli(
+        [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "src",
+            "--tests",
+            "tests",
+            "--results",
+            "junit.xml",
+            "--judge",
+            "none",
+        ],
+        target,
+    )
+    doc = run.json
+    by_id = {r["id"]: r for r in doc["ids"]}
+    name = "test_divide_error_names_the_dividend_example"
+    c01 = next(t for t in by_id["C-01"]["tests"] if t["name"] == name)
+    r02 = next(t for t in by_id["R-02"]["tests"] if t["name"] == name)
+    assert c01["declared"] is True and r02["declared"] is False
+    assert doc["metrics"]["declared_ratio"] == 0.9474  # 18/19
+    assert "declared_ratio" not in run.md  # Part C changes the JSON only
+    golden = json.loads((FIXTURE / "golden" / "speccheck.json").read_text(encoding="utf-8"))
+    assert golden["metrics"]["declared_ratio"] == 0.9474
+
+
+def test_declared_ratio_is_present_and_recomputable_under_every_judge_mode(tmp_path: Path):
+    """T-88: `speccheck.json` under `--judge none` and `--judge mock` carries `declared_ratio` in
+    `metrics` and `"declared"` on every `tests[]` entry, `schema_version` `"1.5"`; `declared_ratio`
+    is recomputable from the report's own evidence — the DECLARED citations of in-scope R/C/I/K/E
+    ids inside attributed cases over all such citations — and is identical under both modes
+    (I-014). (C-07, C-16, R-39)"""
+    ratios = {}
+    for judge in ("none", "mock"):
+        target = tmp_path / judge
+        shutil.copytree(FIXTURE, target)
+        run = run_cli(
+            [
+                "check",
+                "--spec",
+                "SPEC.md",
+                "--src",
+                "src",
+                "--tests",
+                "tests",
+                "--results",
+                "junit.xml",
+                "--judge",
+                judge,
+            ],
+            target,
+        )
+        doc = run.json
+        assert doc["schema_version"] == "1.5" == report.SCHEMA_VERSION
+        assert all(
+            isinstance(t["declared"], bool) for rec in doc["ids"] for t in rec["tests"]
+        )
+        num = den = 0
+        for rec in doc["ids"]:
+            if rec["status"] == "RETIRED" or rec["family"] == "T":
+                continue
+            for t in rec["tests"]:
+                if t["name"] == "":  # file-level citations are outside R-39's scope
+                    continue
+                den += len(t["lines"])
+                num += len(t["lines"]) if t["declared"] else 0
+        assert Decimal(str(doc["metrics"]["declared_ratio"])) == ratio(num, den) == Decimal("0.9474")
+        assert "declared_ratio" not in run.md
+        ratios[judge] = doc["metrics"]["declared_ratio"]
+    assert ratios["none"] == ratios["mock"]
