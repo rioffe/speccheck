@@ -1,8 +1,8 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.13 — the edges this document already carries become data, and a second subcommand walks them (`PROPOSAL_v1.13_impact.md`, 2026-09-19; D-24 and D-25 confirmed). Every `check` run now records in `speccheck.json` the typed edges between declared ids — `depends_on` between two obligations and `verifies` between a T id and an obligation, both read from the id tokens inside statement text — and the §12 decision rows with the ids their *Affects* cell names (`affects`), under a new declaration-only family **D** (C-01 (c), C-02, C-12; C-07 `decisions` and `edges`, `schema_version` `"1.4"`; R-36). `speccheck impact --changed IDS | --against OLD_SPEC.md` reports the ids reached from a changed set by `affects` and by reverse `depends_on` edges at their shortest depth (default `--depth 1`), the T ids that verify them, and — with `--src`/`--tests` — every citation to re-cite and test case to re-run, in `impact.json` and `IMPACT_REPORT.md` (C-13, R-37, I-013, E-53..E-55, T-79..T-82). Statuses, metrics, the conformance report and the gate are unchanged. v1.12 made `--src`/`--tests` comma-separated lists of files and/or directories (D-23, I-012, E-52); v1.11 applied F-401..F-407; v1.10 settled D-22 (R-35); v1.9 added clause-grounded verdicts (R-34). Earlier versions: see the revision history.
+> - **Status:** v1.14 — a citation's own words now tell the checker, and the judge, whether a test *declares* an id or merely *reuses* it (`PROPOSAL_v1.15_declared_vs_incidental_citations.md`, 2026-09-20; D-26 and D-27 confirmed). A citation of an in-scope R/C/I/K/E id inside an attributed test case is **DECLARED** when its line sits inside that case's own docstring or is a whole-line comment, and **INCIDENTAL** otherwise (C-03, C-14; R-39); `Citation.declared` and a new `JudgeRequest.declared` (C-06, C-15) carry the fact into the judge, and `C-10`'s instruction text asks the model not to credit `ASSERTS` on an INCIDENTAL citation without checking the assertion is actually about that clause — advisory only, no new coercion rule (D-26's `yes` branch). `speccheck.json` gains `tests[].declared` and `metrics.declared_ratio` under every `--judge` mode, including `none` (C-07, C-16, `schema_version` `"1.5"`). Detection is whole-line-comment only, reusing the doc-comment-line recognition the Swift adapter already has rather than adding token-level parsing (D-27's `yes` branch; E-56, I-014). Statuses, the mock judge, and the Markdown report are unchanged. v1.13 made the edges this document already carries into data and added a second subcommand that walks them (D-24, D-25); v1.12 made `--src`/`--tests` comma-separated lists of files and/or directories (D-23, I-012, E-52); v1.11 applied F-401..F-407; v1.10 settled D-22 (R-35); v1.9 added clause-grounded verdicts (R-34). Earlier versions: see the revision history.
 > - **Language / stack:** Python 3.12 | standard library for the deterministic kernel (`re`, `ast`, `xml.etree`, `json`, `argparse`, `pathlib`) | CLI only; optional model-backed judge behind an `[llm]` extra
-> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (one file, rewritten per review: v0.1 → F-001..F-017, v1.3 → F-201..F-210, v1.7 → F-301..F-307, v1.10 → F-401..F-407; all cited below); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20); `PROPOSAL_v1.9_clause_grounding.md` (the v1.9 change, its two-model evidence, D-21, and the D-22 question); `PROPOSAL_v1.13_impact.md` (the v1.13 change, its measurement of the edges in this document — 186 `depends_on`, 240 `verifies`, 110 `affects` in v1.12 — and D-24, D-25)
+> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `SPEC_REVIEW_REPORT.md` (one file, rewritten per review: v0.1 → F-001..F-017, v1.3 → F-201..F-210, v1.7 → F-301..F-307, v1.10 → F-401..F-407; all cited below); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20); `PROPOSAL_v1.9_clause_grounding.md` (the v1.9 change, its two-model evidence, D-21, and the D-22 question); `PROPOSAL_v1.13_impact.md` (the v1.13 change, its measurement of the edges in this document — 186 `depends_on`, 240 `verifies`, 110 `affects` in v1.12 — and D-24, D-25); `PROPOSAL_v1.15_declared_vs_incidental_citations.md` (the v1.14 change; `JUDGE_CROSSCHECK_REPORT.md` §2b's cross-model evidence — 153/613 genuine judge conflicts on this document's own `check --judge llm` run, concentrated in ids reused as generic fixture data — and D-26, D-27)
 > - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code. Since v1.13 it also specifies the typed edges between declared ids that the kernel records (C-12) and the `impact` walk over them (C-13); it does not specify what an edge *means* — an edge records that one statement names another id, nothing more.
 > - **Normative language:** MUST/MUST NOT/SHALL/SHALL NOT = normative; SHOULD = strong recommendation; MAY = optional.
 > - **Principle:** *The model may only ever make the news worse.* Every status is computed deterministically from evidence the operator can `grep`; the judge is permitted to downgrade a status with cited evidence, never to upgrade one, and every claim in the report points at a file and line.
@@ -95,6 +95,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-35** | A T id declared with the literal marker `*(recorded)*` immediately after its ID form (C-01) is RECORDED: the checker MUST compute its status by C-05 steps 1–4 exactly as for any other T id — it still needs a citing test case with a passed outcome to be `PASSING` — and MUST NOT send any of its edges to the judge, so that C-05 step 5 never applies to it; the marker MUST be carried into both reports (C-07 `recorded`, C-08). On a non-T id the marker is ignored with a Note (E-50). | D-22: the recorded tests of this document (T-48, T-49, T-51) are cited by presence checks so that they are not `UNCITED`; an honest judge reads such a check as `EXECUTES_ONLY` — `gemini-3.8-flash` did so to T-48 on 2026-09-18 — and `--strict --judge llm` went red for a reason the spec intended but had not written down |
 | **R-36** | The checker MUST extract, from every declared id's statement, the ids it names, and record them as typed edges — `depends_on` between two R/C/I/K/E ids, `verifies` between a T id and an R/C/I/K/E id, `depends_on` between two T ids — together with every §12 decision row (family D, declaration-only) and the ids its *Affects* cell names as `affects` edges, in `speccheck.json` (C-12, C-07 `decisions`, `edges`). An edge whose target is undeclared is a Note, not an error; an edge whose target is retired is recorded with `retired: true` (E-55). D ids are never citation targets, never appear in `ids`, and count in no metric. | `PROPOSAL_v1.13_impact.md` §1: in v1.12 of this document 134 of 203 live ids name another id (434 tokens; 186 `depends_on`, 240 `verifies`, 110 `affects` edges), and nothing read them |
 | **R-37** | The checker MUST provide an `impact` subcommand that, given a changed set — the ids of `--changed`, or the ids whose declarations differ between `--spec` and a prior version named by `--against` — reports every id reached from that set by `affects` edges and by *reverse* `depends_on` edges (dependents, never what the changed id itself depends on), each at its shortest depth with the edge that first reached it, up to `--depth`; the T ids that verify any id of the set; and, when `--src`/`--tests` are given, every source citation and every test case citing any of them; as `impact.json` and `IMPACT_REPORT.md` under `--out` (C-13), deterministically (I-002) and under I-001's write discipline. `impact` never consults a results file or the judge and has no gate. | `PROPOSAL_v1.13_impact.md` §2 Part B; D-24 |
+| **R-39** | The checker MUST compute, for every citation of an in-scope R/C/I/K/E id inside an attributed (non-file-level) test case, whether it is DECLARED (a citation line inside the case's own docstring, or a whole-line comment) or INCIDENTAL (C-03, C-14); the fact MUST be available under every `--judge` mode, including `none`, and MUST NOT depend on the results file, the judge, or any network access (I-014). | `PROPOSAL_v1.15_declared_vs_incidental_citations.md` §1–2 |
 
 ---
 
@@ -289,6 +290,9 @@ Retirement — a declaration whose ID token is wrapped in ~~ ~~ :
 Citation (in --src / --tests files) — every TOKEN occurrence in a text file is a citation,
   regardless of comments, strings, or code. Fenced code blocks are NOT excluded in source files
   (only in SPEC.md). ID numbers are compared numerically: R-7 and R-07 and R-007 are the same ID.
+  Since v1.14, a citation inside an attributed test case additionally carries a DECLARED/INCIDENTAL
+  fact (C-03, C-14): this changes nothing about what counts as a citation, only what the judge and
+  the report are told about it.
 
 Ignore markers (F-013), matched literally and case-sensitively:
   speccheck:ignore        anywhere on a line  -> that line yields no citations (the line still
@@ -370,6 +374,23 @@ class Citation:
     line: int
     kind: str            # "src" | "test"
     testcase: TestCase | None     # for kind=="test": the enclosing case, or the file-level case
+    declared: bool        # kind=="test" only (v1.14, C-14, R-39); DECLARED vs INCIDENTAL, below
+
+DECLARED vs INCIDENTAL (v1.14; R-39; C-14). For a "test"-kind citation of id X inside test case
+  T's span, X is DECLARED in T when at least one citation line of X within [T.start, T.end] is:
+    - inside T's own docstring (Python: the line range of the `Expr` node `ast.get_docstring`
+      reads — the node, not its text; a multi-line docstring's later lines count too), or
+    - a whole-line comment: the first non-whitespace character on that citation's own line is
+      "#" for Python; for Swift, a line whose first non-space characters are "///", or that
+      lies inside a "/** ... */" block — the doc-comment line kind the ATTRIBUTE BLOCK rule
+      (below) already recognizes, reused here rather than re-detected.
+  Otherwise X is INCIDENTAL in T — including a citation on a code line that also carries a
+  trailing comment (`x = 1  # R-02`; a deliberate simplification, no column tracking). A "src"-kind
+  citation, and a "test"-kind citation attributed to a file-level case (T.name == ""), are always
+  INCIDENTAL (`declared: false`; E-56) — there is no per-test declaration of intent to check
+  against a file, or a case that was never delimited. `declared` is computed the same way
+  regardless of `--judge` mode, needs no results file, no judge call, and no network access
+  (I-014).
 
 Python adapter (files ending .py under a --tests root):
   * parse with `ast`; a test case is (F-007):
@@ -575,6 +596,7 @@ class JudgeRequest:
     id: str                 # "R-07"
     statement: str          # SpecId.text — for a heading-declared ID: title, newline, section body (R-33); may be multi-line
     testcase: TestCase
+    declared: bool          # v1.14, C-15, R-39: DECLARED vs INCIDENTAL (C-14) for this (id, testcase) edge; read-only context
     source: str             # lines testcase.start..testcase.end, each prefixed "<lineno>\t" (F-109)
 
 @dataclass(frozen=True)
@@ -618,8 +640,9 @@ LLM provider wire format (judge_llm.py; F-004) — an OpenAI-compatible chat-com
                 "max_tokens": 4000,
                 "messages": [
                   { "role": "system", "content": <the C-10 instruction text, verbatim> },
-                  { "role": "user",   "content": <JSON object {id, statement, file, start, end, source}, K-09 formatting;
-                                                     statement = SpecId.text verbatim — body, fenced blocks and
+                  { "role": "user",   "content": <JSON object {id, statement, declared, file, start, end, source}, K-09
+                                                     formatting; declared = Citation.declared for this edge (v1.14, C-14,
+                                                     C-15); statement = SpecId.text verbatim — body, fenced blocks and
                                                      indentation included for a heading-declared ID (R-33, T-74);
                                                      source = the span with every line prefixed by its absolute
                                                      1-based line number and one TAB (F-109)> } ] }
@@ -641,11 +664,11 @@ Mock provider (judge_mock.py):
              semantics and stays deterministic (R-16, R-22)
 ```
 
-### C-07 JSON report (`speccheck.json`, `schema_version` "1.4")
+### C-07 JSON report (`speccheck.json`, `schema_version` "1.5")
 
 ```json
 {
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "spec": "SPEC.md",
   "judge": "none | mock | llm",
   "judge_available": null,
@@ -666,7 +689,8 @@ Mock provider (judge_mock.py):
       "tests": [
         {
           "file": "tests/test_core.py", "name": "test_zero_rate", "classname": "tests.test_core",
-          "lines": [17], "outcome": "passed",
+          "lines": [17], "declared": true,
+          "outcome": "passed",
           "results": [ {"name": "test_zero_rate[0]", "param": "0", "outcome": "passed"},
                        {"name": "test_zero_rate[1]", "param": "1", "outcome": "passed"} ],
           "verdict": {"verdict": "ASSERTS", "clause": "returns the arithmetic sum of `a` and `b`",
@@ -691,7 +715,8 @@ Mock provider (judge_mock.py):
     "conformance_ratio": "50/59",   "conformance": 0.8475,
     "by_family": { "R": {"in_scope": 24, "passing": 22, "ratio": 0.9167}, "C": {"…": "…"}, "I": {"in_scope": 0, "passing": 0, "ratio": null}, "K": {"…": "…"}, "E": {"…": "…"}, "T": {"…": "…"} },
     "judge_strength_ratio": "50/53", "judge_strength": 0.9434,
-    "unknown_rate": 0.0000
+    "unknown_rate": 0.0000,
+    "declared_ratio": 0.9821
   },
   "exit_code": 1
 }
@@ -716,8 +741,9 @@ Title and statement (R-33): `title` is `SpecId.title` and `statement` is `SpecId
   K-14 when over the cap — and `title` is the heading text alone. `schema_version` was `"1.0"`
   through v1.6, `"1.1"` from v1.7 (`title` added), and `"1.2"` from v1.9 (`clause` added to every verdict
   object, after `verdict`; R-34), and `"1.3"` from v1.10 (`recorded` added to every id record, after
-  `family`; R-35 — `true` only for a T id carrying the C-01 marker), and `"1.4"` from v1.13 (`decisions`
-  and `edges` after `ids`; R-36); no other key changed.
+  `family`; R-35 — `true` only for a T id carrying the C-01 marker), `"1.4"` from v1.13 (`decisions`
+  and `edges` after `ids`; R-36), and `"1.5"` from v1.14 (`declared` added to every `tests[]` entry,
+  after `lines`, and `declared_ratio` added to `metrics`; R-39, C-14); no other key changed.
   The literal is stated in this contract (heading and example) and in §3.3 only; no §9 row repeats
   it — a test asserts "the C-07 value" (F-401).
 Verdict field (Q-001): every `tests[]` entry has the key `verdict`. It is a verdict object when
@@ -741,8 +767,12 @@ Metrics:
                        RECORDED ids are PASSING without a judged edge and are outside this population — F-405;
                        `conformance` and `by_family` DO include them, since they are PASSING by citation and result)
   unknown_rate       = |edges with verdict UNKNOWN| / |judged edges| (judge enabled only; else absent)
+  declared_ratio     = |DECLARED citations of in-scope R/C/I/K/E ids| / |all such citations|   (v1.14,
+                       C-14, R-39; present under every --judge mode, including none; a T id's own
+                       citations are outside this count, matching R-39's scope)
 Zero denominators: ratio = null (JSON) / "n/a" (Markdown); the "a/b" string is still emitted ("0/0");
-  `judge_strength` is null when every PASSING id is RECORDED and nothing is WEAKLY_PASSING (F-405).
+  `judge_strength` is null when every PASSING id is RECORDED and nothing is WEAKLY_PASSING (F-405);
+  `declared_ratio` is null when no in-scope R/C/I/K/E id has any citation (E-19's shape).
   in_scope == 0 is E-01 (exit 3), so `conformance` itself is always defined on exit 0/1.
 Shape rules (F-016): `by_family` ALWAYS has exactly the six keys R, C, I, K, E, T in that order,
   each with in_scope/passing/ratio, even when in_scope is 0. `by_status` ALWAYS has exactly the
@@ -801,7 +831,7 @@ and error messages (redact to "***").
 
 ### C-10 Judge instruction text (normative; F-004)
 
-The file `speccheck/judge_prompt.md` is shipped as package data and its content is exactly the text below (trailing newline, `\n` line endings). It is sent verbatim as the system message (C-06). Changing it is a spec change: bump this document's version and the file together (v1.7 added the any-clause rule for statements that carry a section body — R-33, D-20; v1.9 made the question clause-first and added the `clause` field — R-34, D-21).
+The file `speccheck/judge_prompt.md` is shipped as package data and its content is exactly the text below (trailing newline, `\n` line endings). It is sent verbatim as the system message (C-06). Changing it is a spec change: bump this document's version and the file together (v1.7 added the any-clause rule for statements that carry a section body — R-33, D-20; v1.9 made the question clause-first and added the `clause` field — R-34, D-21; v1.14 added the `declared` field and the skepticism rule below — R-39, C-15, D-26).
 
 ```text
 You are a test-strength judge for a specification conformance checker.
@@ -811,6 +841,9 @@ You will receive one JSON object with these fields:
   statement - the normative text of that ID: its title on the first line and, for an ID declared
               by a heading, the section beneath it - prose, tables, and code blocks. A statement
               may have several clauses: a pinned interface, numbered rules, table rows.
+  declared  - true when this test's own docstring or a comment names this ID - the convention
+              this project's tests are expected to follow; false when the ID appears only
+              elsewhere in the test body.
   file      - the path of one test file
   start     - the first line number of one test case in that file
   end       - the last line number of that test case (inclusive)
@@ -842,6 +875,9 @@ Rules:
   - rationale is one sentence, at most 280 characters.
   - Judge only the given test case. Do not assume what other tests do.
   - A test that mentions the ID in a comment or string is not evidence of asserting it.
+  - When declared is false, do not credit ASSERTS merely because a clause is locatable and some
+    assertion exists nearby: check that the assertion's own subject is unambiguously this
+    obligation, not a token reused as example or fixture data for a different one.
 ```
 
 ### C-11 Judge progress indicator (R-30)
@@ -1024,6 +1060,63 @@ Summary line (stdout, exactly one line, on exit 0 only; pure ASCII, single trail
   the respective root was not given.
 ```
 
+### C-14 Declared vs. incidental citations (v1.14; R-39)
+
+```text
+For a "test"-kind Citation of id X inside test case T's span (C-03), X is DECLARED when at least
+one citation line of X within [T.start, T.end] is:
+  - inside T's own docstring (Python: the line range of the `Expr` node ast.get_docstring reads,
+    not the text it returns; a multi-line docstring's second and later lines count), or
+  - a whole-line comment: the first non-whitespace character on that citation's own line is "#"
+    for Python; for Swift, a line whose first non-space characters are "///", or that lies inside
+    a "/** ... */" block -- the doc-comment line kind the C-03 ATTRIBUTE BLOCK rule already
+    recognizes, reused here rather than re-detected.
+Otherwise X is INCIDENTAL -- including a citation on a code line that also carries a trailing
+comment (`x = 1  # R-02`; a deliberate simplification: line ranges only, no column tracking, and
+every real DECLARED citation found while drafting this rule was a whole-line comment or a
+docstring line). A "src"-kind citation, and a "test"-kind citation attributed to a file-level case
+(T.name == ""), are always INCIDENTAL (E-56) -- there is no per-test declaration of intent to
+check a file-level citation, or a case that was never delimited, against.
+
+`Citation.declared` (C-03) carries this fact for every citation; where a report or a judge request
+needs one bool per (id, testcase) edge rather than per citation line (C-07's `tests[].declared`,
+C-15's `JudgeRequest.declared`), the edge's value is true iff any of its citation lines is DECLARED.
+It is computed identically under every --judge mode, including none, and depends on nothing but
+the source and test trees already read for attribution -- no results file, no judge call, no
+network access (I-014).
+```
+
+### C-15 `declared` in the judge request; the instruction text is advisory (v1.14; R-39)
+
+```text
+`JudgeRequest` (C-06) gains `declared: bool`, inserted after `testcase`, computed per C-14 for the
+specific (id, testcase) edge about to be judged. The field is read-only context: no C-06 validation
+rule inspects it, it changes no coercion rule (K-15, E-48, E-49 apply exactly as before), and I-004
+and I-005 are untouched.
+
+`C-10`'s instruction text gains the field's definition and one rule: when `declared` is false, the
+model MUST NOT credit ASSERTS merely because a clause is locatable and some assertion exists
+nearby -- it MUST check that the assertion's own subject is unambiguously this obligation, not a
+token reused as example or fixture data for a different one. This is advisory, not a coercion rule
+(D-26): the model MAY still return ASSERTS on an INCIDENTAL citation -- the docstring convention is
+not literally enforced on every test, and E-56 does not apply outside C-14's own scope -- and no
+mechanical rule downgrades a verdict for carrying `declared: false`. Changing C-10's text changes
+`judge_prompt_sha256` (R-26) exactly as any other wording change does.
+```
+
+### C-16 `declared` and `declared_ratio` in the JSON report (v1.14; R-39)
+
+```text
+`speccheck.json` (C-07) gains, on every `tests[]` entry, `"declared": bool` per C-14 (true iff any
+of the edge's citation lines is DECLARED), present after `"lines"` under every --judge mode
+including none. `metrics` gains `"declared_ratio"`: DECLARED citations of in-scope R/C/I/K/E ids
+over all such citations (a T id's own citations are outside this count, matching R-39's scope),
+computed as every other ratio is (Decimal, Q-009), null when the denominator is zero.
+`schema_version` becomes "1.5". This contract is JSON-only: `SPEC_CONFORMANCE_REPORT.md` (C-08)
+is unchanged (Part C of the proposal that motivated this; the report's cost stays zero under
+--judge none/mock).
+```
+
 ---
 
 ## 5. Interface specification
@@ -1131,6 +1224,7 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **I-011** | **Family-safe numbering.** ID normalization is injective within a family: `R-7`, `R-07`, `R-007` map to one ID; `R-07` and `C-07` never collide. |
 | **I-012** | **One scan per physical file (D-23).** For the `--src` list, and separately for the `--tests` list, every physical file reached by the PATHS elements is scanned and produces citations at most once (C-03 PATHS deduplication): a file reached by two overlapping elements, or named directly and also covered by a directory element, is deduplicated by resolved path. Where a direct file and a directory element both cover a file, that file's recorded `--src`/`--tests` root — and therefore a directly-named `.swift` file's `MODULE` (D-18) — is the FIRST element in the effective-list order that covers it; the emitted citation order is by ascending resolved path, independent of the order in which paths were named. Two inputs that name the same physical file set produce byte-identical reports (I-002). |
 | **I-013** | **The direct set is exact; depth is a prefix (v1.13).** In every `impact` report, an id is at depth 1 if and only if it is the `dst` of an `affects` edge whose `src` is a changed D id, or the `src` of a `depends_on` edge whose `dst` is a changed id, and it is not itself in the changed set; and for every $N \geq 1$ the `impact` list under `--depth N` is exactly the rows of the `--depth 0` list whose depth is $\leq N$, in the same order with the same `via`. |
+| **I-014** | **`declared` is a pure function of the source and test trees (v1.14).** `Citation.declared` and every value derived from it (`JudgeRequest.declared`, `tests[].declared`, `declared_ratio`) depend only on the bytes of the files under `--src`/`--tests` and their citations; two runs with identical source and test trees produce identical `declared` values and `declared_ratio` regardless of `--judge` mode, `--results`, or network access — extending I-002's determinism guarantee to this fact. |
 
 ---
 
@@ -1215,12 +1309,13 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 | **E-53** | `impact --changed` names an id that is not declared in `--spec` (an undeclared conformance id, an unknown decision, or a token that is neither — `X-01`, `R-`, `1234`) | Exit `2`, message `--changed: undeclared id: <element>` naming the first offending element in list order; no reports written (C-13). |
 | **E-54** | `impact` given both `--changed` and `--against`, or neither; or given `--results` or any judge flag | Exit `2`, message `impact: exactly one of --changed, --against is required` (or `impact: --results is not accepted` / `impact: --judge is not accepted`); no reports written. An `--against` file that is unreadable or outside `--root` is the ordinary usage error (E-09); one that fails C-01 is exit `3` with `--against: ` prefixed to the E-01/E-02/E-03 message. |
 | **E-55** | A statement or an *Affects* cell names a retired id | The edge is recorded with `retired: true` (C-12); `impact` walks it like any other, and every report row for a retired id — changed, impact, re-verify — strikes through the ID cell; a retired id in `--changed` is accepted. No Note: retirement is declared, not accidental. |
+| **E-56** | A citation of family R/C/I/K/E has no test-case span to check for declaration — a `"src"`-kind citation, or a `"test"`-kind citation attributed to a file-level case (no enclosing named test case delimited it) | Always `declared: false`; no Note (this is definitional, not an anomaly — there is no per-test declaration of intent to check a file or an undelimited case against). |
 
 ---
 
 ## 9. Acceptance criteria, tests, and evals
 
-Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E ids it proves, so that `speccheck` can check itself (§9.9; F-001). Test inputs that contain the literal marker strings of C-01 (`speccheck:ignore`, `speccheck:ignore-file`) MUST live in data files under `tests/data/`, never inline in a test module, so self-application cannot ignore its own tests (F-109). Groups are ordered by pipeline stage.
+Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E ids it proves, so that `speccheck` can check itself (§9.9; F-001) — and, since v1.14, that citation is what `declared` (C-14) checks mechanically: an id cited only elsewhere in a test's body is not this convention's declaration, whatever else it may be evidence of (R-39). Test inputs that contain the literal marker strings of C-01 (`speccheck:ignore`, `speccheck:ignore-file`) MUST live in data files under `tests/data/`, never inline in a test module, so self-application cannot ignore its own tests (F-109). Groups are ordered by pipeline stage.
 
 ### 9.1 Extraction (C-01, C-02)
 
@@ -1253,6 +1348,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-65** | Swift Testing attribution: a `.swift` file with a doc-commented `@Test func` at file scope, a `@Suite struct Outer` holding a `@Test("named") func`, a `@Test(arguments: [...])` attribute spread over two lines, a nested `@Suite struct Inner` with a `@Test func`, a plain helper, and a `func testHelper()` with no `@Test`, plus a `@testable import`: the cases are named by identifier, their classnames are `<Module>`, `<Module>.Outer`, `<Module>.Outer.Inner`, each span starts on the first doc-comment line above its attribute and ends on the function's closing brace; a citation on a doc-comment line, on an attribute continuation line and on a body line is attributed to that case; the helper's citation is file-level; the Note lists `Outer.testHelper` (E-43); `@testable` is not `@Test`. MODULE is the first path component under the `--tests` root, or the root's own name for a file directly under it. (R-31, C-03, E-43) |
 | **T-66** | XCTest attribution: `final class LegacyTests: XCTestCase` with `func testAddition()` and `func helper()`, a class nested inside it with a `test*` method, and a `class Plain` (no `XCTestCase`) with `func testFoo()`: `testAddition` is a case named `testAddition` with classname `<Module>.LegacyTests` and a span from its doc comment to its closing brace; the nested and the `Plain` methods are undelimited with one Note naming `LegacyTests.Nested.testNested, Plain.testFoo`; `helper` produces no Note. (R-31, C-03, E-43) |
 | **T-67** | A `.swift` file with an unclosed `{` is one file-level case with Note `parse fallback: <path>`; a file with a stray `}` likewise; a file whose only extra braces are inside `"{"`, `"""…}…"""` and `// }` delimits its cases correctly. (E-42, C-03) |
+| **T-85** | DECLARED/INCIDENTAL classification (C-14): a citation on the case's own docstring line is DECLARED; a citation on a whole-line `#` comment inside the span is DECLARED; a citation inside a string literal, and one on a code line with a trailing comment (`x = 1  # R-02`), are INCIDENTAL; a citation attributed to the file-level fallback case is INCIDENTAL with no Note (E-56); a multi-line docstring whose citation is on its second line is DECLARED; the Swift adapter's doc-comment-line recognition (`///`, `/** … */`) classifies an equivalent Swift example the same way the Python path does. `declared` is present under `--judge none` and does not change with `--judge`. (R-39, C-03, C-14, E-56, I-014) |
 
 ### 9.3 Results mapping (C-04)
 
@@ -1306,6 +1402,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-36** | Two runs on the golden fixture with `--judge mock` produce byte-identical reports and summary lines; the same holds after copying the fixture to a different absolute path, and with `--src .` and `--out` inside the source root (the previous run's reports and the spec itself produce no citations), and with a planted `.speccheck.json.deadbeef.tmp` and `.SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp` under `--out` before the run (never scanned, deleted by the run). (R-16, I-002, E-23, E-34) |
 | **T-37** | Every metric in the report is recomputable from the report's own evidence table plus the results file (the test recomputes them independently). (R-24) |
 | **T-38** | Only the two report files are created; input trees are byte-identical before and after (hash comparison). (R-19, I-001) |
+| **T-88** | `speccheck.json` under `--judge none` and `--judge mock` on the golden fixture (T-46) carries `declared_ratio` in `metrics` and `"declared"` on every `tests[]` entry, `schema_version` `"1.5"`; the Markdown report is byte-identical to its pre-v1.14 form apart from what T-86 changes; `declared_ratio` is recomputable by hand from the evidence table exactly as R-24 requires of every other metric. (C-07, C-16, R-39) |
 
 ### 9.7 CLI, exit codes, diagnostics, boundary (§5)
 
@@ -1336,6 +1433,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-71** | `fixtures/target-swift/` — a SwiftPM-shaped project with its own `SPEC.md` ($\geq$ 10 IDs across all six families, one carrying `**[port]**` decoration), `Sources/`, `Tests/<Module>/` holding one Swift Testing file (nested suite, parameterized test, disabled test, doc-comment citations) and one XCTest file, and a checked-in `junit.xml` that concatenates the `junit-swift-testing.xml` SwiftPM wrote and an XCTest `<testsuite>` in SwiftPM's shape — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` file-level citation, one `FAILING` T, one `SKIPPED` K (the disabled test), one `EXECUTES_ONLY`-only test, one undelimited `test*` helper (E-43), one unattributed result. With `--judge mock` both reports are byte-identical to `fixtures/target-swift/golden/`, and the summary line is exactly the one recorded in that golden. (R-31, R-32, R-16, R-24) |
 | **T-73** | Both golden fixtures regenerated for v1.7 and, as properties of the current output: each `golden/speccheck.json` carries the C-07 `schema_version` and a `title` per ID; in `fixtures/target/golden/speccheck.json` C-01's `statement` is its `title`, a newline, and `The error message MUST name the dividend.` while C-02's (empty body) equals its `title`; in each `golden/SPEC_CONFORMANCE_REPORT.md` the Statement cell of every §3 row equals that ID's JSON `title`, contains no newline, and no row contains the K-14 marker; the set of IDs in the Markdown equals the set in the JSON; `speccheck/_selfcheck/` is updated in step (T-60) and `--self-check` prints `self-check: ok`. The one-time v1.6 → v1.7 golden diff (only `schema_version` and the `title` keys added, heading-declared `statement`s changed, Markdown unchanged) is recorded in `SPEC_BUILD_REPORT.md`, not asserted by a test (F-302). (R-33, C-07, C-08, T-46, T-71) |
 | **T-76** | `fixtures/target/SPEC.md` declares one heading-declared contract whose SECTION BODY is at least 2,048 bytes and consists of a fenced code block pinning a struct with field comments followed by at least five numbered rules; `tests/` holds four tests that each assert exactly one of those rules or the struct's shape and cite the contract, one test that calls the code and asserts nothing about it while citing the contract, and one test that asserts a different ID's behaviour while citing the contract; the six are attributed to their own cases and appear in `golden/judge_labels.json` as `ASSERTS` ×4, `EXECUTES_ONLY` ×1, `UNRELATED` ×1; the label file has at least 20 entries of which at least 6 are edges of an ID whose statement exceeds 2,048 bytes; under `--judge mock` the contract is `PASSING` and the T-46 goldens are byte-identical. (T-46, T-49, R-34) |
+| **T-86** | `fixtures/target/` gains one test whose own docstring names a different id (its DECLARED citation) but whose body also cites an existing id only as fixture/example data (mirroring the real `R-01`/`R-02`/`R-03` pattern `JUDGE_CROSSCHECK_REPORT.md` §2b found): under `--judge none`, `speccheck.json` records `declared: false` for that second edge and the fixture's `declared_ratio` reflects it; `SPEC_CONFORMANCE_REPORT.md` is unchanged by this test (C-16's Part C is JSON-only), and every other T-46 row stays byte-identical. (C-14, C-16, R-39, T-46) |
 
 ### 9.9 Self-application (recorded, not gating)
 
@@ -1354,6 +1452,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | ID | Test |
 | -- | ---- |
 | **T-49** *(recorded)* | On the golden fixture's judged edges (each hand-labeled `ASSERTS`/`EXECUTES_ONLY`/`UNRELATED`), the LLM judge's non-`UNKNOWN` verdicts agree with labels at $\geq$ 0.90 accuracy and `unknown_rate` $\leq$ 0.10 in **each** of three independent runs (no pooling; one failing run fails T-49); all three per-run figures are recorded with model name, date, and `judge_prompt_sha256`. The labels live in `fixtures/target/golden/judge_labels.json`, a JSON object mapping `"<ID> <file>::<name>"` (the judged edge) to its label, with at least 20 entries of which at least 6 are edges of a statement over 2,048 bytes (T-76), so that a judge which grades a body by its gist fails the run while one that locates the clause passes; the runner is `tools/eval_judge.py` (not collected by pytest), which runs the check three times and scores each run against the labels (F-210). A run counts toward T-49 only if its recorded `judge_prompt_sha256` equals the SHA-256 of the current C-10 text; a change to C-10, or to C-01's statement rule, therefore voids the recorded runs and requires three fresh ones, and the labels are re-read against the current statements before those runs (F-303). (R-10, R-26) |
+| **T-87** *(recorded)* | Re-run the three real edges named in `PROPOSAL_v1.15_declared_vs_incidental_citations.md`'s evidence (`R-03`/`test_fenced_code_blocks_are_ignored`, `R-03`/`test_row_and_heading_grammar_edge_cases`, `R-02`/`test_judge_called_once_per_eligible_edge_only`, all recorded `ASSERTS` by `gpt-4o-mini` under the pre-v1.14 `C-10` text and `UNRELATED` by an independent second model) under the v1.14 `C-10` text with the same model, and record the three verdicts and `judge_prompt_sha256` in `SPEC_BUILD_REPORT.md`. Not gating: the claim this proposal makes is falsifiable, and this is the test of it — the honest possible outcomes are "moved on all three," "on some," or "on none," and D-26 is revisited if the answer is the last (§3 of that proposal). (R-39, C-15, D-26) |
 
 ### 9.12 Edges and impact (C-12, C-13; v1.13)
 
@@ -1438,19 +1537,23 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-35 | `extract.py` (RECORDED marker, `SpecId.recorded`), `graph.py` (step 5 skip, eligible edges), `report.py` (`recorded` key, ID cell) | T-77 |
 | R-36 | `extract.py` (decision-table scan, `Decision`, `Edge`, C-12 edge builder and Notes), `report.py` (`decisions`, `edges`) | T-79 |
 | R-37 | `impact.py` (changed set, `--against` diff, walk, re-verify, re-cite), `cli.py` (`impact` subcommand), `report.py` (C-13 renderers) | T-80, T-81, T-82 |
+| R-39 | `attribute.py` (docstring-span and whole-line-comment detection, Python and Swift), `report.py` (`declared`, `declared_ratio`) | T-85, T-86, T-88 |
 | C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, decision rows (c), ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77, T-79 |
 | C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `Decision`, `Edge`, `SpecIndex`) | T-01, T-06, T-72, T-77, T-79 |
-| C-03 | `attribute.py` (`TestCase`, `Citation`, `test*` methods, Swift adapter), `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78 |
+| C-03 | `attribute.py` (`TestCase`, `Citation` incl. `declared`, `test*` methods, Swift adapter), `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78, T-85 |
 | C-04 | `results.py` (two-step `join_name`) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68 |
 | C-05 | `graph.py` (`IdStatus`, `compute_status`, recorded skip in step 5) | T-20, T-21, T-27, T-53, T-77 |
-| C-06 | `judge.py` (`JudgeRequest` with numbered `source` and full statement, `Verdict` with `clause`, validation incl. K-15), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74, T-75 |
-| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; `decisions`; `edges`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59, T-73, T-75, T-77, T-79 |
+| C-06 | `judge.py` (`JudgeRequest` with numbered `source`, full statement and `declared`, `Verdict` with `clause`, validation incl. K-15), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74, T-75, T-87 |
+| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; `decisions`; `edges`; `declared`; `declared_ratio`; Decimal quantization; `verdict: null`; Note order) | T-34, T-37, T-59, T-73, T-75, T-77, T-79, T-86, T-88 |
 | C-08 | `report.py` (`to_markdown`; Statement cell from `title`; `(recorded)` ID cell; §8 Clause column; em dash and `(file)` renderings) | T-35, T-73, T-75, T-77 |
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
-| C-10 | `speccheck/judge_prompt.md`, `judge_llm.py` (system message) | T-33, T-54, T-74, T-75 |
+| C-10 | `speccheck/judge_prompt.md` (incl. `declared` field and skepticism rule), `judge_llm.py` (system message) | T-33, T-54, T-74, T-75, T-87 |
 | C-11 | `judge.py` (progress line rendering, draw/erase sequences) | T-62 |
 | C-12 | `extract.py` (token pass over `SpecId.text`, direction rules, order, undeclared-target Notes) | T-79 |
 | C-13 | `impact.py` (changed set and reasons, breadth-first walk, `via`, depth cap, REVERIFY, RECITE, TEST_CASES), `report.py` (`impact.json`, `IMPACT_REPORT.md`, summary line) | T-80, T-81 |
+| C-14 | `attribute.py` (docstring-span and whole-line-comment classification, Python and Swift) | T-85, T-86 |
+| C-15 | `judge.py` (`JudgeRequest.declared`), `judge_llm.py` (`declared` in the request body), `speccheck/judge_prompt.md` (field definition, skepticism rule) | T-87 |
+| C-16 | `report.py` (`tests[].declared`, `metrics.declared_ratio`) | T-86, T-88 |
 | I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
 | I-003 | `report.py` | T-25, T-35 |
@@ -1464,6 +1567,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | I-011 | `extract.py` (normalization) | T-02 |
 | I-012 | `extract.py` (deduplicate by resolved path, first-seen `scan_root`, emit by ascending path) | T-78 |
 | I-013 | `impact.py` (breadth-first order, first-reached depth, smallest `via`) | T-80 |
+| I-014 | `attribute.py` (`declared` is a pure function of the source/test trees), `report.py` (`declared_ratio`) | T-85, T-88 |
 | K-01 | `cli.py` | T-39, T-40, T-19, T-64 |
 | K-02 | `extract.py` (file filters, binary rule) | T-13 |
 | K-03 | `extract.py` (walker, no symlinks) | T-13 |
@@ -1534,6 +1638,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-53 | `cli.py` / `impact.py` (`--changed` element validation and message) | T-81 |
 | E-54 | `cli.py` (`impact` flag exclusivity; rejected `check`-only flags; `--against` errors) | T-81 |
 | E-55 | `extract.py` (`Edge.retired`), `report.py` (struck ID cells in the impact report) | T-79, T-80 |
+| E-56 | `attribute.py` (`declared: false` for a `"src"`-kind or file-level citation) | T-85, T-86 |
 
 ---
 
@@ -1568,6 +1673,8 @@ Every row below is a decision the specification's author made on the requester's
 | D-23 | `--src`/`--tests` accept a comma-separated list of files and/or directories | each occurrence is split on the literal `,`, every resulting segment is whitespace-trimmed and empty segments are dropped (no Note, no error); the surviving paths are resolved inside `--root` and deduplicated by resolved path — a file reached by more than one element is scanned and cites exactly once (I-012), the emits are in ascending-path order (I-002), and a file's recorded `--src`/`--tests` root, and thus a directly-named `.swift` file's `MODULE` (D-18), is fixed by the first-seen covering element; a directory element is descended and a regular file is scanned as one with every per-file filter applied; the default `src`/`tests` (the directory if it exists) applies only when the flag is entirely absent | a strict "any empty or whitespace-only segment is a usage error" policy (rejected: a trailing `--src a,` or a defensive `a,,b` is common and should not fail a run); extending the same list to `--results` (rejected for D-23: `--results` stays one JUnit file — a documented possible later step); a shared path-list primitive for every path flag, including `--out` (rejected: `--out` is a single destination, and a list of output directories is odd); letting a merely present-but-empty flag fall back to the directory default (rejected: an explicitly-given empty list is the operator's statement "no trees", which is E-19) | R-03, R-04, C-03, §5.1, E-09, E-30, E-52, I-012, I-002, T-40, T-78, D-18 | requester / confirmed 2026-09-19 ("trim + drop empties", scoped to `--src`/`--tests") |
 | D-24 | Where the change-impact backtest lives | `tools/impact_backtest.py`: a script outside the kernel that shells out to `git` for two spec versions and a build range, calls `speccheck impact --against`, and scores the prediction against the touched citations (T-82). The kernel exposes only the pure function of files (`--against FILE`) and never invokes `git` or any subprocess. | a kernel `--since REF` that reads the prior spec from `git` (one command for the operator, but the kernel gains a subprocess, a history-dependent input, and a failure mode per git state; I-001/I-002's "same bytes in, same bytes out" would need a git-state clause) | R-37, C-13, §3.1, §10, T-82, I-002 | requester / confirmed 2026-09-19 (`PROPOSAL_v1.13_impact.md` §5) |
 | D-25 | How decision rows enter the JSON | a separate `decisions` array (C-07) under a declaration-only family D (C-01 (c)): never in `ids`, never a citation target, never in `by_status`, `by_family`, `conformance`, `dangling`, or `stale`; I-003 and every existing golden §3 row are untouched | a seventh family in `ids` with a status of its own (uniform with the other families, but every denominator, the T-46 goldens, and the C-08 table change, `by_family` needs a seventh key, and `UNCITED`/`UNTESTED` are meaningless for a decision) | R-36, C-01, C-02, C-07, C-12, I-003, T-79 | requester / confirmed 2026-09-19 (`PROPOSAL_v1.13_impact.md` §5) |
+| D-26 | Whether `declared: false` changes the judge's verdict on its own | advisory only (Part B as written): `C-10`'s instruction text tells the model `declared` and asks it not to credit `ASSERTS` on an INCIDENTAL citation without checking the assertion's subject, but no C-06 rule coerces the verdict — preserves the model's judgment for the real, undocumented-but-correct cases; T-87 measures whether the text alone is enough | hard coercion: `declared: false` forces `ASSERTS` to `EXECUTES_ONLY` automatically, no model discretion — stronger and fully deterministic, but risks false downgrades on tests that simply predate or don't follow the docstring convention perfectly; kept as the fallback if T-87 shows the advisory text moves nothing | C-06, C-10, C-15, T-87 | requester / confirmed 2026-09-20 (`PROPOSAL_v1.15_declared_vs_incidental_citations.md` §5) |
+| D-27 | How a citation line is classified DECLARED | whole-line-comment detection: the first non-whitespace character on the citation's own line is `#` (Python) or the line is a doc-comment line by the Swift adapter's existing recognition (C-14) — no new parsing machinery, matches every real DECLARED example found while drafting the proposal | full token-level comment detection (via `tokenize`, distinguishing a trailing comment from code): more precise (would credit `x = 1  # R-02` as DECLARED) but needs column-accurate token classification the citation scanner does not carry today, for a case that did not appear once in the real evidence read for the proposal; left for a later proposal if it proves necessary | C-03, C-14, T-85 | requester / confirmed 2026-09-20 (`PROPOSAL_v1.15_declared_vs_incidental_citations.md` §5) |
 
 None of the first fourteen was raised as a question before v1.1; each was decided and reviewed for precision only. That is the defect this section corrects: a specification can be implementation-grade and still not be what was asked for.
 
@@ -1594,3 +1701,4 @@ None of the first fourteen was raised as a question before v1.1; each was decide
 | v1.11 | All seven findings of the v1.10 `SPEC_REVIEW_REPORT.md` applied. P0: F-401 `schema_version` stated once (C-07, §3.3), T-73/T-75/T-77 refer to "the C-07 value". P1: F-402 the C-06 validation list is numbered, first-match, with a non-string `clause` treated as absent and every coerced `UNKNOWN` recording `clause` `""` (C-06, E-16, E-49, T-75); F-403 RECORDED named in the null-`verdict` condition, E-37 owning it (E-37, C-07, T-34); F-404 one marker rule after C-01 (b), the heading title strips it, `~~T-48~~ (recorded)` pinned (C-01, C-08, T-77); F-405 `judge_strength` over `PASSING ∖ RECORDED`, null case stated, T-77 arithmetic (C-07). P2: F-406 K-15 trims the clause (T-75 sub-case); F-407 "the current C-10 text", D-08 measurement moved to its status cell, Status bullet trimmed. No behaviour the build would otherwise get wrong changed; what changed is what the spec pins. |
 | v1.12 | `--src` and `--tests` accept a comma-separated **list of files and/or directories**, requested 2026-09-19 after these flags accepted only directories (D-23): each occurrence is split on `,`, every segment whitespace-trimmed and empty segments dropped, paths resolved inside `--root` and deduplicated by resolved path (a file reached by more than one element is scanned and cites exactly once, I-012; emits are in ascending-path order; a file's recorded `--src`/`--tests` root — and thus a directly-named `.swift` file's `MODULE`, D-18 — is the first-seen covering element). Each directory element is descended and each regular file scanned as one, with every per-file filter applied identically; a path inside `--root` that exists as neither directory nor file is a usage error, `--<flag>: no such file or directory: <segment>`, replacing the former "non-directory → usage error" (E-52, exit `2`). The change is input-acceptance only: two inputs that name the same physical file set produce byte-identical reports (I-002), so the JSON/Markdown schemas, the summary regex, the statuses, the metrics, and the exit codes are unchanged and `schema_version` stays at the C-07 value. R-03 and R-04 reworded for the `--src`/`--tests` list; a C-03 `PATHS` rule and the directly-named-file `MODULE`; §5.1 synopsis, the `--src`/`--tests` rows, and a PATHS note; E-09 and E-30 generalized to PATHS elements; I-012 and E-52 added; T-78; §11 rows; D-18 extended; D-23 confirmed. |
 | v1.13 | Spec-internal edges and the `impact` subcommand (`PROPOSAL_v1.13_impact.md`, 2026-09-19; D-24 and D-25 confirmed). Evidence: in v1.12 of this document 134 of 203 live ids name another id in their statement — 186 `depends_on` and 240 `verifies` edges — and the §12 *Affects* column holds 110 more; following `depends_on` transitively saturates (from 77 of 125 obligations the closure reaches at least 40), so the direct set is the signal and `--depth` defaults to 1 until the T-82 backtest says otherwise. Changes: C-01 (c) decision rows — a declaration-only family D found by the table whose header has an *Affects* cell; C-02 `Decision`, `Edge`, `SpecIndex.decisions`/`edges`; C-12 the edge rules (statement tokens → `depends_on`/`verifies` with normalized direction, *Affects* tokens → `affects`; undeclared targets are Notes; retired targets flagged, E-55; total order); C-07 `decisions` and `edges` after `ids`, `schema_version` `"1.4"`, nothing else in the JSON or the Markdown report changed; C-13 `impact` — `--changed IDS` or `--against FILE` (diff reasons pinned), breadth-first reverse walk with `via` and `--depth` (default 1, 0 unbounded), REVERIFY, RECITE, TEST_CASES, `impact.json` `"1.0"`, `IMPACT_REPORT.md`, a summary line with its regex; §3.1 the `impact` pipeline and its temporaries; §3.3 two artifacts; C-03 exclusions extended; §5.1 synopsis and four rows; §5.4 `impact` codes; §0 two non-goals amended; §1 the Impact walker; R-36, R-37; I-001 and I-002 extended, I-013; E-02 extended, E-53..E-55; §9.12 T-79..T-82 (T-82 recorded: the backtest on two ranges of `main`); §10 tools and goldens; §11 rows; §12 read by machine, D-24, D-25. |
+| v1.14 | Declared vs. incidental citations (`PROPOSAL_v1.15_declared_vs_incidental_citations.md`, 2026-09-20; D-26 and D-27 confirmed). Evidence: `JUDGE_CROSSCHECK_REPORT.md` §2b — a `check --judge llm` run of this document's own tree with `gpt-4o-mini`, cross-checked edge-by-edge against an independent second model, found 153/613 genuine conflicts (both models committed and disagreed), 60 concentrated in five ids reused as generic fixture data (`R-01` 36/57, `C-01` 7/34, `R-07` 6/7, `C-06` 6/7, `C-03` 5/12) but 93/496 (18.8%) still conflicting once those are excluded; three non-`R-01` conflicts read in full all showed a test citing an id as placeholder data while proving something else, with neither its own docstring nor any comment naming that id. Changes: C-14 the DECLARED/INCIDENTAL rule — a citation is DECLARED when a citation line of it lies inside the citing test case's own docstring or is a whole-line comment (Python: `#`; Swift: the adapter's existing doc-comment-line recognition, reused rather than duplicated — D-27), INCIDENTAL otherwise, always INCIDENTAL for a `"src"`-kind or file-level citation (E-56); C-03 `Citation.declared`; C-15 `JudgeRequest.declared` (read-only context; no coercion rule reads it — D-26) and `C-10`'s instruction text gains the field and a skepticism rule for `declared: false` (advisory only, D-26); C-16 / C-07 `tests[].declared` and `metrics.declared_ratio` after `unknown_rate`, present under every `--judge` mode including `none`, `schema_version` `"1.5"`; §9's preamble sentence now names what `declared` mechanically checks; I-014 extends I-002's determinism guarantee; R-39; §9.2 T-85; §9.6 T-88; §9.8 T-86; §9.11 T-87 (recorded: re-running the three real conflicting edges under the new `C-10` text); §11 rows; §12 D-26, D-27. Statuses, the mock judge, `--judge` coercion rules (K-15, E-48, E-49), I-004, I-005, and the Markdown report are unchanged. |
