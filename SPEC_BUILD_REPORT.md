@@ -1136,7 +1136,7 @@ owner: §5.4 could name the E-19 case explicitly, and T-46's `--out <fresh tmp>`
 | `speccheck` CLI, `--jev-pre-triage` / `N%` (v1.15) | §5.1, E-58 | Both grammars, the E-58 usage error naming both flags, `SPECCHECK_JEV_API_KEY` required only when the pass runs, and no key value in any message (T-90) |
 | Diagnostics, triage (v1.15) | §5.3, I-007 | `jev>`/`jev<` only at DEBUG, key redacted; INFO carries the stage line and the endpoint/model only, never the `state` (B-18) |
 | README | Phase 2 | Every command in it was run as written, including the new `--jev-pre-triage` example against a stub endpoint and the `--judge-budget 0%` form |
-| `ARCHITECTURE.md` | — | **Known pre-existing gap, not this increment's**: the module-by-module design document has not been revised since v1.5 (`2e8db5d`) and so predates v1.6..v1.15 — it does not describe the Swift adapter, the edges/`impact` subcommand, `declared`, or the triage pass. Recorded here rather than partially updated, so the next revision of it is a real one; `README.md` and this report are current. |
+| `ARCHITECTURE.md` | v1.18 (2026-09-21) | **Was a known pre-existing gap, now closed** — the module-by-module design document had not been revised since v1.5 (`2e8db5d`) and so predated v1.6..v1.18. It is rewritten to this build (F-5 below): the increment table, the triage pass and the three renderers in the flow, `Edge`/`Decision`/`WalkResult`/`ImpactEntry`/`ReverifyEntry` and `declared`/`related` in the data model, §10.4 for `jev.py`, C-13/C-18 in the reporting section, the help contract in the CLI section, the fixture's 20 in-scope ids and 40 labels, the 127 test functions / 136 collected cases, and the tools table. Its twelve mermaid diagrams were each rendered and looked at. |
 
 Process note for the audit trail: the build was not strictly test-first. Each §9 group's tests
 were written from the spec immediately after the module they exercise; five of them failed on
@@ -1201,6 +1201,34 @@ verdict-bearing edges in `build/speccheck-llm/speccheck.json` when the recorded 
 the current mock run, with no additions and no removals — because this change's only test-tree delta
 is an uncited test, and the article, the HTML and the PDF are not scanned. Phase A is green on the
 final tree (`CONFORMING - 252/252`, exit 0).
+
+### F-5 — `ARCHITECTURE.md` rewritten to the v1.18 build (2026-09-21)
+
+The document had been frozen at v1.5 since 2026-09-14 and every increment since disclosed the gap
+rather than patching it (the §4 row above, and §0g's verdict note). It is now a description of this
+build: the version and the eleven-increment table, the triage pass and the three renderers in §1/§3,
+`_run_stages` in §3.1, the v1.6–v1.18 data model, §10.4 for `jev.py`, C-13 and C-18 in §11, the help
+contract and the four surfaces in §12, the fixture's current contents in §14, the 13 test files and
+the tools in §15, and the rejected alternatives (no `--help-json`, no `--check-env`, no
+report-as-input) in §16.
+
+**Two defects the rewrite found in itself, both by looking at the render rather than the text:**
+
+1. `SPEC.pdf`'s sibling `ARCHITECTURE.pdf` failed to build at all — `mermaid-filter` exited 1 — and
+   `spec2pdf.sh` left the *previous* PDF in place, so a green-looking file was three versions stale.
+   Two diagrams were the cause: the import graph used `graph` as a node name (`graph` is the mermaid
+   diagram-type keyword; the v1.5 document had aliased it as `graphm` for exactly this reason), and a
+   triage sequence message contained a `;`, which ends the statement. Both fixed, then all twelve
+   diagrams were rendered one at a time to confirm.
+2. The §1 diagram was *parseable but illegible*: laid out left-to-right with two subgraphs, it
+   rendered ~1600×400 px, so scaling it to the page width left the node text unreadable. Rebuilt
+   vertically (a single kernel column with the model-backed box beside `graph`), it renders
+   780×750 px and reads at body size. The other eleven were measured and are within 1.8:1.
+
+**Why nothing caught it:** a documentation artifact has no gate. `SPEC_BUILD_REPORT.md`'s §4
+cross-check is where it was recorded, and `spec2pdf.sh` exiting non-zero while leaving a stale PDF
+behind is the kind of silent failure the §5.4 discipline exists to prevent elsewhere. The rewrite
+was verified the way a rendered surface has to be — by rendering it and looking at the pages.
 
 ## 5. Traceability matrix (§11, filled from the build)
 
