@@ -35,13 +35,18 @@ class JudgeRequest:
     testcase: TestCase
     declared: bool  # C-15/R-39 (v1.14): DECLARED vs INCIDENTAL (C-14) for this edge; read-only
     source: str  # lines start..end, each prefixed "<lineno>\t" (F-109)
+    # R-38 (v1.16): the titles of the statement's C-12 `depends_on` neighbourhood, built by
+    # judge_llm.related_titles. Request-side only: no report field, no coercion rule (T-83).
+    related: tuple[str, ...] = ()
 
     def to_json(self) -> str:
-        """The user-message payload (C-06): {id, statement, declared, file, start, end, source}."""
+        """The user-message payload (C-06): `{id, statement, related, declared, file, start,
+        end, source}` — the C-07 formatting of K-09."""
         return json.dumps(
             {
                 "id": self.id,
                 "statement": self.statement,
+                "related": list(self.related),
                 "declared": self.declared,
                 "file": self.testcase.file,
                 "start": self.testcase.start,
@@ -122,10 +127,20 @@ def numbered_source(lines: Iterable[str], start: int, end: int) -> str:
 
 
 def build_request(
-    ident: str, statement: str, case: TestCase, file_lines: Iterable[str], declared: bool = False
+    ident: str,
+    statement: str,
+    case: TestCase,
+    file_lines: Iterable[str],
+    declared: bool = False,
+    related: tuple[str, ...] = (),
 ) -> JudgeRequest:
     return JudgeRequest(
-        ident, statement, case, declared, numbered_source(file_lines, case.start, case.end)
+        ident,
+        statement,
+        case,
+        declared,
+        numbered_source(file_lines, case.start, case.end),
+        related,
     )
 
 

@@ -98,11 +98,14 @@ class JevConfig:
 
 
 def render_state(req: JudgeRequest) -> str:
-    """C-17's `state` template, applied to the C-06 request object for this edge."""
+    """C-17's `state` template, applied to the C-06 request object for this edge — including the
+    D-28b `Related obligations:` section, built from the same R-38 neighbourhood the real judge
+    is sent (a blank line when the id has no neighbour)."""
     payload = json.loads(req.to_json())
     return (
         f"Specification obligation {payload['id']}.\n\n"
         f"Statement:\n{payload['statement']}\n\n"
+        f"Related obligations:\n{chr(10).join(payload['related'])}\n\n"
         f"Test file {payload['file']}, lines {payload['start']}-{payload['end']}:\n"
         f"{payload['source']}"
     )

@@ -23,6 +23,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from importlib import resources
 
+from .extract import SpecId, SpecIndex
 from .judge import (
     Evidence,
     JudgeHttpError,
@@ -83,6 +84,52 @@ def load_prompt() -> str:
 
 def prompt_sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+# --------------------------------------------------------------------------------------------
+# R-38 (v1.16): the `related` neighbourhood of a judged edge
+# --------------------------------------------------------------------------------------------
+
+RELATED_MAX = 8  # R-38: at most eight entries
+RELATED_TITLE_MAX = 160  # R-38: each a whitespace-collapsed title, tail-truncated to 160
+ELLIPSIS = "\u2026"  # R-38's truncation mark
+RETIRED_TAG = " (retired)"  # E-57: a retired neighbour keeps its title, tagged
+_RELATED_FAMILIES = frozenset("RCIKE")  # R-38: in-scope R/C/I/K/E ids only; never a T id
+_FAMILY_ORDER = {family: rank for rank, family in enumerate("RCIKET")}  # C-07's id order
+
+
+def _id_order(ident: str) -> tuple[int, int]:
+    family, number = ident.split("-")
+    return (_FAMILY_ORDER[family], int(number))
+
+
+def _related_title(spec: SpecId) -> str:
+    """One `related` entry: the title, tail-truncated with `…`, plus `(retired)` when retired."""
+    title = spec.title
+    if len(title) > RELATED_TITLE_MAX:
+        title = title[: RELATED_TITLE_MAX - 1] + ELLIPSIS
+    return title + RETIRED_TAG if spec.retired else title
+
+
+def related_titles(ident: str, index: SpecIndex) -> tuple[str, ...]:
+    """R-38: the titles of the obligations the statement names and of those that name it — the
+    C-12 `depends_on` neighbourhood, both directions, in-scope R/C/I/K/E ids only, the statement's
+    own references first, at most RELATED_MAX total in C-07's id order, each title
+    whitespace-collapsed and tail-truncated to RELATED_TITLE_MAX with `…`, a retired neighbour
+    tagged `(retired)` (E-57), and `()` when the id has no neighbour."""
+    by_id = index.by_id()
+    own = [e.dst for e in index.edges if e.kind == "depends_on" and e.src == ident]
+    named = [e.src for e in index.edges if e.kind == "depends_on" and e.dst == ident]
+    out: list[str] = []
+    seen = {ident}
+    for group in (own, named):  # the statement's own references first, then its dependents
+        for other in sorted(set(group), key=_id_order):
+            spec = by_id.get(other)
+            if spec is None or other in seen or spec.family not in _RELATED_FAMILIES:
+                continue
+            seen.add(other)
+            out.append(_related_title(spec))
+    return tuple(out[:RELATED_MAX])
 
 
 def _httpx_post(

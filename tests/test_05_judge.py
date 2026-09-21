@@ -422,6 +422,7 @@ def test_llm_provider_wire_format_timeout_and_concurrency():
         {
             "id": "R-01",
             "statement": "the statement",
+            "related": [],  # R-38 (v1.16); `_req` builds a request with no neighbourhood
             "declared": False,  # C-15 (v1.14); `_req` builds an unclassified request
             "file": "tests/test_a.py",
             "start": 17,
@@ -632,7 +633,16 @@ def test_llm_request_carries_heading_body_statement(tmp_path: Path, monkeypatch)
     assert run.code == 0 and len(post.requests) == 1
     body = json.loads(post.requests[0][2].decode("utf-8"))
     user = json.loads(body["messages"][1]["content"])
-    assert list(user) == ["id", "statement", "declared", "file", "start", "end", "source"]
+    assert list(user) == [
+        "id",
+        "statement",
+        "related",
+        "declared",
+        "file",
+        "start",
+        "end",
+        "source",
+    ]
     assert user["id"] == "C-01" and user["statement"] == expected
     assert run.ids()["C-01"]["statement"] == expected  # the JSON records what the judge saw
     assert run.ids()["C-01"]["title"] == "`Widget` (an `actor`)"
@@ -732,6 +742,7 @@ def test_triage_request_shape_and_response_parse():
     assert body["model"] == "~typesafe/jev-latest"
     assert body["state"] == (
         "Specification obligation R-01.\n\nStatement:\nthe statement\n\n"
+        "Related obligations:\n\n\n"  # D-28b (v1.16): a blank line when `related` is []
         "Test file tests/test_a.py, lines 3-4:\n3\tdef test_a():\n4\t    assert True"
     )
     question = body["questions"]["verdict"]
@@ -1048,6 +1059,142 @@ def test_judge_request_carries_declared_for_the_edge(tmp_path: Path, monkeypatch
         for body in [json.loads(raw.decode("utf-8"))]
     }
     assert set(users) == {"R-01", "R-02"}
-    assert list(users["R-01"]) == ["id", "statement", "declared", "file", "start", "end", "source"]
+    assert list(users["R-01"]) == [
+        "id",
+        "statement",
+        "related",
+        "declared",
+        "file",
+        "start",
+        "end",
+        "source",
+    ]
     assert users["R-01"]["declared"] is True
     assert users["R-02"]["declared"] is False
+
+
+class _CapturingJudge:
+    """A judge stub that records every request object it is asked about (C-06)."""
+
+    prompt_sha256 = "0" * 64
+
+    def __init__(self) -> None:
+        self.requests: list[JudgeRequest] = []
+
+    def judge(self, req: JudgeRequest) -> Verdict:
+        self.requests.append(req)
+        return _ok("ASSERTS", [Evidence(req.testcase.file, req.testcase.start)], clause=req.statement)
+
+
+def _state_transport(states: list[str]):
+    """A C-17 transport stub that records every `state` it is sent and answers one confidence."""
+
+    def post(url, headers, body, timeout):
+        states.append(json.loads(body)["state"])
+        payload = {
+            "answers": {"verdict": {"choice": "ASSERTS", "probabilities": {"ASSERTS": 0.9}}}
+        }
+        return 200, json.dumps(payload)
+
+    return post
+
+
+def test_t83_related_neighbourhood_on_request_and_triage_state(tmp_path: Path, monkeypatch):
+    """T-83: for a judged edge the C-06 request's user message carries `related` — the
+    whitespace-collapsed titles (each at most 160 characters) of the obligations the statement
+    names and that name it, its own references first, at most eight in C-07 id order, a retired
+    neighbour keeping its `(retired)` title (E-57), and the empty list when the id has no
+    neighbour — a request-side field like `declared`: absent from `speccheck.json` and from the
+    Markdown report and not inspected by any C-06 coercion rule or by C-08; the triage `state`
+    (C-17) carries the same `related` section. (R-38, C-06, C-10, D-28, E-57)"""
+    from speccheck.extract import parse_spec
+    from speccheck.judge_llm import related_titles
+
+    long_title = "x" * 200  # R-38: a title over 160 characters is cut to 159 + the marker
+    index = parse_spec(
+        spec_table(
+            [
+                ("R-01", "names C-01, K-02 and E-02."),
+                ("C-01", "the interface."),
+                ("K-02", "a bound."),
+                ("E-02", "an edge."),
+                ("R-02", "second, per R-01."),
+                ("R-03", "third, per R-01."),
+                ("R-04", "fourth, per R-01."),
+                ("R-05", "fifth, per R-01."),
+                ("R-06", "sixth, per R-01."),
+                ("R-07", "seventh, per R-01."),
+                ("R-08", "eighth, per R-01."),
+                ("I-001", "no references here."),
+                ("K-03", "reads E-01."),
+                ("E-01", long_title),
+                ("R-09", "names C-02."),
+                ("C-02", "the retired neighbour."),
+                ("T-01", "proves R-01."),
+            ],
+            retired={"C-02"},
+        ),
+        "SPEC.md",
+    )
+    # own references first (C-07 order), then the ids that name it (C-07 order), capped at 8:
+    # the own three, then R-02..R-06 — R-07 and R-08 are dropped, and the T id never appears
+    assert related_titles("R-01", index) == (
+        "the interface.",
+        "a bound.",
+        "an edge.",
+        "second, per R-01.",
+        "third, per R-01.",
+        "fourth, per R-01.",
+        "fifth, per R-01.",
+        "sixth, per R-01.",
+    )
+    # the reverse direction alone: R-08 names R-01, so R-01 is its neighbourhood
+    assert related_titles("R-08", index) == ("names C-01, K-02 and E-02.",)
+    assert related_titles("I-001", index) == ()  # [] when the id has no neighbour (R-38)
+    # a retired neighbour keeps its title with `(retired)` appended (E-57)
+    assert related_titles("R-09", index) == ("the retired neighbour. (retired)",)
+    # a 200-character title is whitespace-collapsed and cut to 160 with the R-38 ellipsis
+    (truncated,) = related_titles("K-03", index)
+    assert truncated == "x" * 159 + "\u2026" and len(truncated) == 160
+
+    # end to end: the same list in the LLM user message and in the C-17 triage `state`
+    write_tree(
+        tmp_path,
+        {
+            "SPEC.md": spec_table([("R-01", "names C-01."), ("C-01", "the interface.")]),
+            "tests/test_a.py": "def test_r01():\n    '''R-01'''\n    assert True\n",
+            "junit.xml": junit([("tests.test_a", "test_r01", "passed")]),
+        },
+    )
+    judge = _CapturingJudge()
+    monkeypatch.setattr(cli, "_make_provider", lambda config: (judge, 1, 0))
+    states: list[str] = []
+    monkeypatch.setattr(jev, "_httpx_post", _state_transport(states))
+    run = run_cli(
+        [
+            "check", "--spec", "SPEC.md", "--tests", "tests", "--results", "junit.xml",
+            "--judge", "llm", "--jev-pre-triage",
+        ],
+        tmp_path,
+        env=JEV_ENV,
+    )
+    assert run.code == 0, run.stderr
+    (req,) = judge.requests
+    assert req.related == ("the interface.",)
+    user = json.loads(req.to_json())
+    assert list(user) == [
+        "id",
+        "statement",
+        "related",
+        "declared",
+        "file",
+        "start",
+        "end",
+        "source",
+    ]
+    assert user["related"] == ["the interface."]
+    (state,) = states
+    assert "Related obligations:\nthe interface.\n\nTest file tests/test_a.py, lines 1-3:" in state
+    # request-side only: neither report carries it, and no C-06 rule or C-08 section reads it
+    raw = (tmp_path / "speccheck.json").read_text(encoding="utf-8")
+    assert '"related"' not in raw and "related" not in run.md

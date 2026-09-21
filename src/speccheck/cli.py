@@ -48,7 +48,7 @@ from .impact import (
 )
 from .jev import JevConfig, JevConfigError, JevTriage, run_triage
 from .judge import JudgeRequest, ProgressLine, build_request, run_judge
-from .judge_llm import LlmConfig, LlmConfigError
+from .judge_llm import LlmConfig, LlmConfigError, related_titles
 from .report import (
     IMPACT_JSON_NAME,
     IMPACT_MD_NAME,
@@ -510,6 +510,7 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
                     edge.case,
                     file_lines[edge.case.file],
                     edge.declared,  # C-15: DECLARED vs INCIDENTAL for this edge
+                    related_titles(rec.id, index),  # R-38: the C-12 neighbourhood's titles
                 )
             )
         progress = None
