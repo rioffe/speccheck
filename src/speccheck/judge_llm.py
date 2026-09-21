@@ -100,7 +100,7 @@ _FAMILY_ORDER = {family: rank for rank, family in enumerate("RCIKET")}  # C-07's
 
 def _id_order(ident: str) -> tuple[int, int]:
     family, number = ident.split("-")
-    return (_FAMILY_ORDER[family], int(number))
+    return (_FAMILY_ORDER.get(family, len(_FAMILY_ORDER)), int(number))
 
 
 def _related_title(spec: SpecId) -> str:

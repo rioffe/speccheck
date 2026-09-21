@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -24,7 +25,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # R-39, C-14..C-16, I-014, E-56 and T-85..T-88 for declared vs. incidental citations
 # SPEC.md v1.15 declares 233 ids (38 R, 17 C, 15 I, 16 K, 58 E, 89 T; none retired); v1.15 added
 # K-16, C-17, I-015, E-58, E-59 and T-89..T-91 for the Jev pre-triage pass
-DECLARED_IDS = 233
+# SPEC.md v1.16 declares 237 ids (39 R, 17 C, 15 I, 16 K, 59 E, 91 T; none retired); v1.16 added
+# R-38, E-57, T-83 and T-84 *(recorded)* for the obligation-aware judge (D-28/D-28b)
+DECLARED_IDS = 237
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):
@@ -194,3 +197,44 @@ def test_t87_recorded_rerun_is_measured_and_recorded():
         assert edge in report
     shipped = (ROOT / "src" / "speccheck" / "judge_prompt.md").read_text(encoding="utf-8")
     assert "When declared is false" in shipped
+
+
+def test_t84_recorded_adjacent_subset_is_measured_and_recorded():
+    """T-84 *(recorded)*: the golden fixture's adjacent subset — the judged edges that cite an id
+    but assert only a fact about an id that id's statement names — was measured under the shipped
+    v1.16 C-10 text and under the pre-v1.16 text, and both arms are recorded in
+    `SPEC_BUILD_REPORT.md` with the model, the date, each text's `judge_prompt_sha256` and the
+    per-run downgrade count; the run itself is the recorded evidence (non-gating, like T-49 and
+    T-91) — this check proves only that the artefact exists with the shape the row pins. (R-38,
+    C-10, D-28, T-76)"""
+    report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
+    marker = "T-84 *(recorded)*"
+    assert marker in report, "SPEC_BUILD_REPORT.md does not record T-84"
+    body = report.split(marker, 1)[1].split("\n## ", 1)[0]
+    assert "google/gemini-3.8-flash" in body
+    assert "judge_prompt_sha256" in body
+    shipped = hashlib.sha256(
+        (ROOT / "src" / "speccheck" / "judge_prompt.md").read_bytes()
+    ).hexdigest()
+    assert shipped in body, "the v1.16 arm's prompt digest is not recorded"
+    assert "f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1" in body, (
+        "the pre-v1.16 arm's prompt digest is not recorded"
+    )
+    for edge in (
+        "test_add_rounding_fact",
+        "test_subtract_rounding_fact",
+        "test_scale_empty_input_is_not_mutated",
+        "test_add_rounding_of_a_half_cent",
+        "test_add_commutes_on_plain_sum",
+        "test_add_commutes_rounding_fact",
+        "test_summary_total_rounding_fact",
+        "test_summary_mean_rounding_fact",
+    ):
+        assert edge in body, edge
+    rows = [
+        ln
+        for ln in body.splitlines()
+        if ln.startswith(("| v1.16 shipped", "| pre-v1.16")) and "/8" in ln
+    ]
+    assert len(rows) >= 6, rows  # three runs per prompt text
+    assert (ROOT / "tools" / "adjacent_eval.py").is_file()

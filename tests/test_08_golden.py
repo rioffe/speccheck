@@ -391,28 +391,31 @@ def test_fixture_long_body_contract_and_labels():
         "C-04 tests/test_summary.py::test_summary_module_does_not_change_add": "UNRELATED",
     }
     assert {k: labels.get(k) for k in t76_six} == t76_six
-    # the adjacent subset (T-76/T-84): each cites an id whose own statement names another id and
-    # asserts only that neighbour's fact, so `related` is what can tell them apart
+    # the adjacent subset (T-76/T-84): each cites an id whose own statement names another id,
+    # runs that id's code, and asserts only the neighbour's fact — so C-10's vocabulary makes it
+    # EXECUTES_ONLY (it does exercise the statement's code), not UNRELATED (F-1)
     adjacent_eight = {
         "R-01 tests/test_core.py::test_add_rounding_fact",
+        "R-01 tests/test_core.py::test_add_rounding_of_a_half_cent",
         "R-02 tests/test_core.py::test_subtract_rounding_fact",
         "E-02 tests/test_core.py::test_scale_empty_input_is_not_mutated",
-        "E-03 tests/test_core.py::test_zero_division_message_names_the_dividend",
         "I-001 tests/test_core.py::test_add_commutes_on_plain_sum",
         "I-001 tests/test_core.py::test_add_commutes_rounding_fact",
         "C-04 tests/test_summary.py::test_summary_total_rounding_fact",
         "C-04 tests/test_summary.py::test_summary_mean_rounding_fact",
     }
     assert {k: labels.get(k) for k in adjacent_eight} == dict.fromkeys(
-        adjacent_eight, "UNRELATED"
+        adjacent_eight, "EXECUTES_ONLY"
     )
-    # T-76's mechanical reading (an UNRELATED label on an id that carries a depends_on edge) is
+    # T-76's mechanical reading (a downgraded label on an id that carries a depends_on edge) is
     # at least as wide as those eight
     dep_sources = {e.src for e in index.edges if e.kind == "depends_on"}
-    adjacent = {
-        k for k, v in labels.items() if v == "UNRELATED" and k.split(" ")[0] in dep_sources
+    downgraded = {
+        k
+        for k, v in labels.items()
+        if v in ("EXECUTES_ONLY", "UNRELATED") and k.split(" ")[0] in dep_sources
     }
-    assert adjacent_eight <= adjacent and len(adjacent) >= 8, sorted(adjacent)
+    assert adjacent_eight <= downgraded and len(downgraded) >= 8, sorted(downgraded)
     # every labeled edge on the contract is a real, attributed test case with a result, and the
     # contract is PASSING under the mock judge
     target = _copy(Path(__import__("tempfile").mkdtemp()))
@@ -430,7 +433,7 @@ def test_fixture_gains_one_incidental_citation(tmp_path: Path):
     """T-86: `fixtures/target/` gains one test whose own docstring names C-01 (its DECLARED
     citation) while its body cites R-02 only as fixture/example data: under `--judge none`
     `speccheck.json` records `declared: false` for that second edge and `true` for the docstring
-    edge, the fixture's `declared_ratio` reflects it (34 of 35 citations DECLARED), and
+    edge, the fixture's `declared_ratio` reflects it (35 of 36 citations DECLARED), and
     `SPEC_CONFORMANCE_REPORT.md` renders no `declared` (C-16's Part C is JSON-only; every other
     T-46 row is unchanged). (C-14, C-16, R-39, T-46)"""
     target = _copy(tmp_path)
@@ -456,10 +459,10 @@ def test_fixture_gains_one_incidental_citation(tmp_path: Path):
     c01 = next(t for t in by_id["C-01"]["tests"] if t["name"] == name)
     r02 = next(t for t in by_id["R-02"]["tests"] if t["name"] == name)
     assert c01["declared"] is True and r02["declared"] is False
-    assert doc["metrics"]["declared_ratio"] == 0.9714  # 34/35
+    assert doc["metrics"]["declared_ratio"] == 0.9722  # 35/36
     assert "declared_ratio" not in run.md  # Part C changes the JSON only
     golden = json.loads((FIXTURE / "golden" / "speccheck.json").read_text(encoding="utf-8"))
-    assert golden["metrics"]["declared_ratio"] == 0.9714
+    assert golden["metrics"]["declared_ratio"] == 0.9722
 
 
 def test_declared_ratio_is_present_and_recomputable_under_every_judge_mode(tmp_path: Path):
@@ -502,7 +505,7 @@ def test_declared_ratio_is_present_and_recomputable_under_every_judge_mode(tmp_p
                     continue
                 den += len(t["lines"])
                 num += len(t["lines"]) if t["declared"] else 0
-        assert Decimal(str(doc["metrics"]["declared_ratio"])) == ratio(num, den) == Decimal("0.9714")
+        assert Decimal(str(doc["metrics"]["declared_ratio"])) == ratio(num, den) == Decimal("0.9722")
         assert "declared_ratio" not in run.md
         ratios[judge] = doc["metrics"]["declared_ratio"]
     assert ratios["none"] == ratios["mock"]

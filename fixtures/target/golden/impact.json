@@ -230,6 +230,14 @@
     },
     {
       "file": "tests/test_core.py",
+      "name": "test_add_rounding_of_a_half_cent",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-01"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
       "name": "test_add_commutes_on_floats",
       "classname": "tests.test_core",
       "ids": [

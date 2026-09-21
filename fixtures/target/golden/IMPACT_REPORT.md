@@ -40,6 +40,7 @@ SPEC.md · changed by `--changed` · depth 1
 | tests/test_core.py | test_add_rounding_fact | R-01 |
 | tests/test_core.py | test_subtract_result | R-02 |
 | tests/test_core.py | test_subtract_rounding_fact | R-02 |
+| tests/test_core.py | test_add_rounding_of_a_half_cent | R-01 |
 | tests/test_core.py | test_add_commutes_on_floats | I-001 |
 | tests/test_core.py | test_add_commutes_on_plain_sum | I-001 |
 | tests/test_core.py | test_add_commutes_rounding_fact | I-001 |

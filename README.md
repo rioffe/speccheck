@@ -169,7 +169,7 @@ Run the checker on a copy of the golden fixture that ships in this repository:
 ```bash
 cp -r fixtures/target /tmp/calc && cd /tmp/calc
 uv run --project "$OLDPWD" speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out reports
-# speccheck: NOT CONFORMING - 13/19 passing (68.4%), 1 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 1 dangling, 1 stale; judge=mock
+# speccheck: NOT CONFORMING - 14/20 passing (70.0%), 1 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 1 dangling, 1 stale; judge=mock
 ```
 
 (The fixture is *meant* to fail: it plants one example of every status and defect the checker
@@ -392,6 +392,24 @@ because a clause is locatable and some assertion exists nearby (Part B — no co
 See `PROPOSAL_v1.15_declared_vs_incidental_citations.md` and `JUDGE_CROSSCHECK_REPORT.md` §2b for
 the evidence.
 
+### The obligation-aware judge — `related` (v1.16, R-38 / D-28)
+
+`JUDGE_CROSSCHECK_REPORT.md` §2b found the mirror-image failure: a test that cites an id while
+asserting only a fact about an id that id's *statement* names. The assertion is real and the
+clause is locatable, so a judge with no context grades it `ASSERTS` — it cannot tell "this test
+proves this obligation" from "this test proves a neighbour this obligation refers to". Since
+v1.16 the request carries that context: `related`, the titles of the C-12 `depends_on`
+neighbourhood of the judged edge — the ids its statement names and the ids whose statements name
+it, in-scope R/C/I/K/E ids only, the statement's own references first, at most eight in C-07's id
+order, each a whitespace-collapsed title of at most 160 characters (a retired neighbour keeps its
+title with `(retired)` appended, E-57), and `[]` when the id has no neighbour. The instruction
+text defines one advisory rule for it (C-10): an assertion corresponding only to a related
+obligation is not evidence that this statement holds — no coercion rule reads it, exactly as with
+`declared` (D-26/D-28). The same list rides the C-17 triage `state` (D-28b), so Jev ranks the
+request the real judge is about to receive. `related` is request-side only: it appears in no
+report field, no metric, and no `schema_version`. The fixture's eight adjacent edges and their
+measurement under both C-10 texts are recorded in `SPEC_BUILD_REPORT.md` §0h (T-84).
+
 ### Jev pre-triage — spend a truncated budget on the edges Jev is least sure about (v1.15)
 
 `--judge-budget` truncates a judge run, and before v1.15 the edges that got judged first were an
@@ -485,10 +503,13 @@ Every answer is validated by the kernel: an unknown verdict, an `ASSERTS` withou
 evidence outside the judged span is coerced to `UNKNOWN` (`coerced: true`), and a provider
 failure yields `UNKNOWN` with `judge: unavailable | timeout | http <code> | malformed response`.
 
-To evaluate a model on the golden fixture's hand-labeled edges (T-49; three independent runs):
+To evaluate a model on the golden fixture's hand-labeled edges (T-49; three independent runs;
+39 labels, of which the eight adjacent edges of T-84 are the ones a judge without `related` is
+expected to over-credit):
 
 ```bash
 uv run python tools/eval_judge.py --model qwen3:8b --runs 3 --verbose
+uv run python tools/adjacent_eval.py --model google/gemini-3.8-flash --runs 3 --verbose   # T-84: both C-10 texts
 ```
 
 #### Thinking models and `max_tokens` (D-07, resolved in v1.2)
@@ -531,11 +552,11 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.15; the source of truth; written in the
+SPEC.md                         the specification (v1.16; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.15.0, mirrors the spec version)
+  __init__.py                   __version__ (1.16.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
                                 the `impact` subparser and its execute_impact pipeline (v1.13)
@@ -552,14 +573,16 @@ src/speccheck/
   jev.py                        the C-17 Jev triage provider and the K-16 ordering pass (v1.15): one
                                 confidence per eligible edge, used only to order the judge's queue (I-015)
   judge_mock.py                 deterministic assertion-token judge
-  judge_llm.py                  OpenAI-compatible/Ollama provider, env config, response parsing
+  judge_llm.py                  OpenAI-compatible/Ollama provider, env config, response parsing, and
+                                the R-38 `related` neighbourhood builder (v1.16)
   judge_prompt.md               the normative C-10 instruction text (package data)
   report.py                     JSON and Markdown renderers, summary line, exit rule, atomic writer;
                                 the impact.json/IMPACT_REPORT.md renderers (v1.13)
   _selfcheck/                   byte-identical copy of fixtures/target/ (package data for --self-check)
-fixtures/target/                golden fixture: SPEC.md (a §12 decision table since v1.2), src/, tests/,
-                                junit.xml, golden/{speccheck.json, SPEC_CONFORMANCE_REPORT.md,
-                                impact.json, IMPACT_REPORT.md, judge_labels.json}
+fixtures/target/                golden fixture: SPEC.md (a §12 decision table since v1.2, the eight
+                                adjacent pairs of T-76/T-84 since v1.3), src/, tests/, junit.xml,
+                                golden/{speccheck.json, SPEC_CONFORMANCE_REPORT.md,
+                                impact.json, IMPACT_REPORT.md, judge_labels.json (39 edges)}
 fixtures/target-swift/          Swift golden fixture (T-71): Package.swift, Sources/, Tests/CalcTests/ (Swift
                                 Testing + XCTest), junit.xml as SwiftPM wrote it, golden/{…, summary.txt}
 tests/
@@ -568,17 +591,19 @@ tests/
   test_02_attribution.py        §9.2  T-08..T-14, T-56, T-57, T-65..T-67, T-85
   test_03_results.py            §9.3  T-15..T-19, T-52, T-58, T-68
   test_04_status.py             §9.4  T-20..T-25, T-53
-  test_05_judge.py              §9.5  T-26..T-33, T-54, T-69, T-89 (and T-85's C-15 request check)
+  test_05_judge.py              §9.5  T-26..T-33, T-54, T-69, T-83, T-89 (and T-85's C-15 request check)
   test_06_reports.py            §9.6  T-34..T-38
   test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61, T-90
-  test_08_golden.py             §9.8  T-46, T-47, T-71, T-86, T-88
-  test_09_self_application.py   §9.9  T-48; §9.10 T-51 and §9.11 T-49, T-87, T-91 presence checks
+  test_08_golden.py             §9.8  T-46, T-47, T-71, T-76, T-86, T-88
+  test_09_self_application.py   §9.9  T-48, T-84; §9.10 T-51 and §9.11 T-49, T-87, T-91 presence checks
   test_10_edges.py              §9.12 T-79 — decision-table grammar and C-12 edge extraction
   test_11_impact.py             §9.12 T-80, T-81 — the impact CLI, changed set, walk, reverify
   data/markers/                 the only files that contain the literal ignore markers
 tools/
   bench.py                      K-08 benchmark (T-51; recorded, not CI-gated)
   eval_judge.py                 T-49 LLM evaluation against Ollama (opt-in)
+  adjacent_eval.py              T-84 (recorded): the fixture's adjacent subset under the shipped
+                                and the pre-v1.16 C-10 texts; opt-in, not collected by pytest
   sync_selfcheck.py             copies fixtures/target/ into src/speccheck/_selfcheck/ (guarded by T-60)
   impact_backtest.py            T-82 (recorded): scores `impact --against` on two ranges of this
                                 repository's own history; needs `git`; not collected by pytest (D-24)
@@ -610,7 +635,7 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (124 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (125 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
@@ -619,6 +644,7 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
 uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests --out build/impact              # v1.13, not gated
 uv run python tools/bench.py                               # K-08 (recorded)
 uv run python tools/eval_judge.py --runs 3                 # T-49 (opt-in; model/URL from SPECCHECK_JUDGE_*, default qwen3:8b on Ollama)
+uv run python tools/adjacent_eval.py --runs 3              # T-84 (recorded; both C-10 texts, same env)
 uv run python tools/impact_backtest.py                     # T-82 (recorded; needs git and this repository's history)
 uv run python tools/sync_selfcheck.py --check              # _selfcheck/ still equals fixtures/target/
 ```
@@ -637,6 +663,9 @@ of v1.8: other test files get file-level attribution. Since v1.13, `speccheck ch
 the spec's own cross-references as typed edges (`decisions`/`edges` in `speccheck.json`), and a
 second subcommand, `impact`, walks them for change-impact analysis — a decision aid, gated behind
 no flag because it has no gate: it never marks anything failed, stale, or non-conformant.
+Since v1.16 the judge request carries the `related` neighbourhood of the edge it is judging
+(R-38), so a test that asserts a neighbouring obligation's fact while citing this one can be told
+apart from one that proves it — request-side only, so no status, metric or report field moves.
 Interpretations the build had to make where the spec was silent or inconsistent are listed in
 `SPEC_BUILD_REPORT.md` §3.
 

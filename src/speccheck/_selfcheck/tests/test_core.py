@@ -116,10 +116,16 @@ def test_zero_division_propagates():
 
 
 def test_zero_division_message_names_the_dividend():
-    """E-03: exercises the propagation, then asserts the message rule's own fact."""
+    """E-03: the propagation reaches a caller, with the error's own message intact."""
     with pytest.raises(ZeroDivisionError) as exc:
         divide(7, 0)
     assert "7" in str(exc.value)
+
+
+def test_add_rounding_of_a_half_cent():
+    """R-01: exercises add, then asserts the rounding rule's own fact for another value."""
+    add(2.675, 0.0)
+    assert round(2.675, 2) == 2.67
 
 
 def test_add_commutes_on_floats():

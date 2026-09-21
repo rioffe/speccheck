@@ -117,6 +117,35 @@
           }
         },
         {
+          "file": "tests/test_core.py",
+          "name": "test_add_rounding_of_a_half_cent",
+          "classname": "tests.test_core",
+          "lines": [
+            126
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add_rounding_of_a_half_cent",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 128
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
           "file": "tests/test_summary.py",
           "name": "test_summary_module_does_not_change_add",
           "classname": "tests.test_summary",
@@ -855,7 +884,7 @@
           "name": "test_add_commutes_on_floats",
           "classname": "tests.test_core",
           "lines": [
-            126
+            132
           ],
           "declared": true,
           "outcome": "passed",
@@ -872,7 +901,7 @@
             "evidence": [
               {
                 "file": "tests/test_core.py",
-                "line": 127
+                "line": 133
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
@@ -884,7 +913,7 @@
           "name": "test_add_commutes_on_plain_sum",
           "classname": "tests.test_core",
           "lines": [
-            131
+            137
           ],
           "declared": true,
           "outcome": "passed",
@@ -901,7 +930,7 @@
             "evidence": [
               {
                 "file": "tests/test_core.py",
-                "line": 134
+                "line": 140
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
@@ -913,7 +942,7 @@
           "name": "test_add_commutes_rounding_fact",
           "classname": "tests.test_core",
           "lines": [
-            138
+            144
           ],
           "declared": true,
           "outcome": "passed",
@@ -930,7 +959,7 @@
             "evidence": [
               {
                 "file": "tests/test_core.py",
-                "line": 141
+                "line": 147
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
@@ -1900,7 +1929,7 @@
     "judge_strength_ratio": "14/15",
     "judge_strength": 0.9333,
     "unknown_rate": 0.0000,
-    "declared_ratio": 0.9714
+    "declared_ratio": 0.9722
   },
   "exit_code": 1
 }
