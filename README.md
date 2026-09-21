@@ -666,7 +666,7 @@ src/speccheck/
 fixtures/target/                golden fixture: SPEC.md (a §12 decision table since v1.2, the eight
                                 adjacent pairs of T-76/T-84 since v1.3), src/, tests/, junit.xml,
                                 golden/{speccheck.json, SPEC_CONFORMANCE_REPORT.md,
-                                impact.json, IMPACT_REPORT.md, judge_labels.json (39 edges)}
+                                impact.json, IMPACT_REPORT.md, judge_labels.json (40 labeled edges)}
 fixtures/target-swift/          Swift golden fixture (T-71): Package.swift, Sources/, Tests/CalcTests/ (Swift
                                 Testing + XCTest), junit.xml as SwiftPM wrote it, golden/{…, summary.txt}
 tests/
@@ -723,7 +723,7 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (134 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (135 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
