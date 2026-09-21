@@ -52,3 +52,30 @@ def test_summary_module_does_not_change_add():
     """R-01 still holds with the summary module imported (cites C-04 for the import only)."""
     assert add(1, 2) == 3
     assert add(0.1, 0.2) == 0.3
+
+
+def test_summary_total_result():
+    """C-04 rule 2: total is the exact sum rounded once (genuine partner of the rounding fact)."""
+    assert summarize([0.005, 0.005]).total == 0.01
+
+
+def test_summary_total_rounding_fact():
+    """C-04 (rule 2): exercises summarize, then asserts the rounding rule's own fact."""
+    summarize([1.0])
+    assert round(0.005 + 0.005, 2) == 0.01
+
+
+def test_summary_mean_result():
+    """C-04 rule 3: mean is the rounded exact mean (genuine partner of the rounding fact)."""
+    assert summarize([1, 1, 2]).mean == 1.33
+
+
+def test_summary_mean_uses_exact_total():
+    """C-04 rule 3: the mean divides the unrounded total (genuine partner)."""
+    assert summarize([1, 2]).mean == 1.5
+
+
+def test_summary_mean_rounding_fact():
+    """C-04 (rule 3): exercises summarize, then asserts the rounding rule's own fact."""
+    summarize([1, 1, 2])
+    assert round(1 / 3, 2) == 0.33

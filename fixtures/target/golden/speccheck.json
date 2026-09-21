@@ -11,8 +11,8 @@
       "id": "R-01",
       "family": "R",
       "recorded": false,
-      "title": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
-      "statement": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
+      "title": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.",
+      "statement": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.",
       "line": 15,
       "status": "PASSING",
       "src": [
@@ -47,11 +47,69 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
-            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
+            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
                 "line": 16
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add_result",
+          "classname": "tests.test_core",
+          "lines": [
+            77
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add_result",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 78
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add_rounding_fact",
+          "classname": "tests.test_core",
+          "lines": [
+            82
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add_rounding_fact",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 84
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
@@ -76,7 +134,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
-            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`.",
+            "clause": "`add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.",
             "evidence": [
               {
                 "file": "tests/test_summary.py",
@@ -98,8 +156,8 @@
       "id": "R-02",
       "family": "R",
       "recorded": false,
-      "title": "`subtract(a, b)` MUST return `a - b`.",
-      "statement": "`subtract(a, b)` MUST return `a - b`.",
+      "title": "`subtract(a, b)` MUST return `a - b`, rounded per K-02.",
+      "statement": "`subtract(a, b)` MUST return `a - b`, rounded per K-02.",
       "line": 16,
       "status": "PASSING",
       "src": [
@@ -129,7 +187,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
-            "clause": "`subtract(a, b)` MUST return `a - b`.",
+            "clause": "`subtract(a, b)` MUST return `a - b`, rounded per K-02.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -158,7 +216,7 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
-            "clause": "`subtract(a, b)` MUST return `a - b`.",
+            "clause": "`subtract(a, b)` MUST return `a - b`, rounded per K-02.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
@@ -170,6 +228,64 @@
               }
             ],
             "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_subtract_result",
+          "classname": "tests.test_core",
+          "lines": [
+            88
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_subtract_result",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`subtract(a, b)` MUST return `a - b`, rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 89
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_subtract_rounding_fact",
+          "classname": "tests.test_core",
+          "lines": [
+            93
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_subtract_rounding_fact",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`subtract(a, b)` MUST return `a - b`, rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 95
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
             "coerced": false
           }
         }
@@ -539,6 +655,151 @@
             "rationale": "mock: assertion token on 2 line(s)",
             "coerced": false
           }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_total_result",
+          "classname": "tests.test_summary",
+          "lines": [
+            58
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_total_result",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 59
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_total_rounding_fact",
+          "classname": "tests.test_summary",
+          "lines": [
+            63
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_total_rounding_fact",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 65
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_mean_result",
+          "classname": "tests.test_summary",
+          "lines": [
+            69
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_mean_result",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 70
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_mean_uses_exact_total",
+          "classname": "tests.test_summary",
+          "lines": [
+            74
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_mean_uses_exact_total",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 75
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_summary.py",
+          "name": "test_summary_mean_rounding_fact",
+          "classname": "tests.test_summary",
+          "lines": [
+            79
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_summary_mean_rounding_fact",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Summary report: `summarize(values)` and the `Summary` shape ```python @dataclass(frozen=True) class Summary: count: int # rule 1: number of input values, including duplicates total: float # rule 2: the K-02-rounded sum of the inputs mean: float | None # rule 3: total / count roun",
+            "evidence": [
+              {
+                "file": "tests/test_summary.py",
+                "line": 81
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
         }
       ],
       "unrun": []
@@ -547,8 +808,8 @@
       "id": "I-001",
       "family": "I",
       "recorded": false,
-      "title": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
-      "statement": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
+      "title": "`add` is commutative, per R-01: `add(a, b) == add(b, a)` for all finite inputs; both calls are rounded per K-02.",
+      "statement": "`add` is commutative, per R-01: `add(a, b) == add(b, a)` for all finite inputs; both calls are rounded per K-02.",
       "line": 77,
       "status": "PASSING",
       "src": [
@@ -578,11 +839,98 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
-            "clause": "`add` is commutative: `add(a, b) == add(b, a)` for all finite inputs.",
+            "clause": "`add` is commutative, per R-01: `add(a, b) == add(b, a)` for all finite inputs; both calls are rounded per K-02.",
             "evidence": [
               {
                 "file": "tests/test_core.py",
                 "line": 21
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add_commutes_on_floats",
+          "classname": "tests.test_core",
+          "lines": [
+            126
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add_commutes_on_floats",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`add` is commutative, per R-01: `add(a, b) == add(b, a)` for all finite inputs; both calls are rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 127
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add_commutes_on_plain_sum",
+          "classname": "tests.test_core",
+          "lines": [
+            131
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add_commutes_on_plain_sum",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`add` is commutative, per R-01: `add(a, b) == add(b, a)` for all finite inputs; both calls are rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 134
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_add_commutes_rounding_fact",
+          "classname": "tests.test_core",
+          "lines": [
+            138
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_add_commutes_rounding_fact",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "`add` is commutative, per R-01: `add(a, b) == add(b, a)` for all finite inputs; both calls are rounded per K-02.",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 141
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
@@ -596,8 +944,8 @@
       "id": "I-002",
       "family": "I",
       "recorded": false,
-      "title": "`scale` preserves the length of its input list.",
-      "statement": "`scale` preserves the length of its input list.",
+      "title": "`scale` (C-02) preserves the length of its input list.",
+      "statement": "`scale` (C-02) preserves the length of its input list.",
       "line": 78,
       "status": "WEAKLY_PASSING",
       "src": [
@@ -627,7 +975,7 @@
           ],
           "verdict": {
             "verdict": "EXECUTES_ONLY",
-            "clause": "`scale` preserves the length of its input list.",
+            "clause": "`scale` (C-02) preserves the length of its input list.",
             "evidence": [],
             "rationale": "mock: no assertion token",
             "coerced": false
@@ -804,8 +1152,8 @@
       "id": "E-02",
       "family": "E",
       "recorded": false,
-      "title": "Empty list passed to `scale`",
-      "statement": "Empty list passed to `scale`",
+      "title": "Empty list passed to `scale` (per C-02)",
+      "statement": "Empty list passed to `scale` (per C-02)",
       "line": 92,
       "status": "PASSING",
       "src": [
@@ -847,11 +1195,69 @@
           ],
           "verdict": {
             "verdict": "ASSERTS",
-            "clause": "Empty list passed to `scale`",
+            "clause": "Empty list passed to `scale` (per C-02)",
             "evidence": [
               {
                 "file": "tests/test_core.py",
                 "line": 58
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_scale_empty_result",
+          "classname": "tests.test_core",
+          "lines": [
+            99
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_scale_empty_result",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Empty list passed to `scale` (per C-02)",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 100
+              }
+            ],
+            "rationale": "mock: assertion token on 1 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_scale_empty_input_is_not_mutated",
+          "classname": "tests.test_core",
+          "lines": [
+            104
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_scale_empty_input_is_not_mutated",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "Empty list passed to `scale` (per C-02)",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 107
               }
             ],
             "rationale": "mock: assertion token on 1 line(s)",
@@ -867,12 +1273,95 @@
       ]
     },
     {
+      "id": "E-03",
+      "family": "E",
+      "recorded": false,
+      "title": "A `ZeroDivisionError` raised by `divide`, per C-01, reached from a caller",
+      "statement": "A `ZeroDivisionError` raised by `divide`, per C-01, reached from a caller",
+      "line": 93,
+      "status": "PASSING",
+      "src": [],
+      "tests": [
+        {
+          "file": "tests/test_core.py",
+          "name": "test_zero_division_propagates",
+          "classname": "tests.test_core",
+          "lines": [
+            111
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_zero_division_propagates",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "A `ZeroDivisionError` raised by `divide`, per C-01, reached from a caller",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 112
+              },
+              {
+                "file": "tests/test_core.py",
+                "line": 114
+              },
+              {
+                "file": "tests/test_core.py",
+                "line": 115
+              }
+            ],
+            "rationale": "mock: assertion token on 3 line(s)",
+            "coerced": false
+          }
+        },
+        {
+          "file": "tests/test_core.py",
+          "name": "test_zero_division_message_names_the_dividend",
+          "classname": "tests.test_core",
+          "lines": [
+            119
+          ],
+          "declared": true,
+          "outcome": "passed",
+          "results": [
+            {
+              "name": "test_zero_division_message_names_the_dividend",
+              "param": null,
+              "outcome": "passed"
+            }
+          ],
+          "verdict": {
+            "verdict": "ASSERTS",
+            "clause": "A `ZeroDivisionError` raised by `divide`, per C-01, reached from a caller",
+            "evidence": [
+              {
+                "file": "tests/test_core.py",
+                "line": 120
+              },
+              {
+                "file": "tests/test_core.py",
+                "line": 122
+              }
+            ],
+            "rationale": "mock: assertion token on 2 line(s)",
+            "coerced": false
+          }
+        }
+      ],
+      "unrun": []
+    },
+    {
       "id": "T-01",
       "family": "T",
       "recorded": false,
       "title": "`add` returns the sum for integers and floats. (R-01)",
       "statement": "`add` returns the sum for integers and floats. (R-01)",
-      "line": 98,
+      "line": 99,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -919,7 +1408,7 @@
       "recorded": false,
       "title": "`divide` by zero raises with the dividend in the message. (C-01)",
       "statement": "`divide` by zero raises with the dividend in the message. (C-01)",
-      "line": 99,
+      "line": 100,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -961,7 +1450,7 @@
       "recorded": false,
       "title": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
       "statement": "`subtract` of floats keeps two-decimal precision. (R-02, K-02)",
-      "line": 100,
+      "line": 101,
       "status": "FAILING",
       "src": [],
       "tests": [
@@ -992,7 +1481,7 @@
       "recorded": false,
       "title": "`summarize` returns the pinned `Summary` shape: field names, order, types, `count` including duplicates, frozen. (C-04 rule 1)",
       "statement": "`summarize` returns the pinned `Summary` shape: field names, order, types, `count` including duplicates, frozen. (C-04 rule 1)",
-      "line": 101,
+      "line": 102,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -1050,7 +1539,7 @@
       "recorded": false,
       "title": "`summarize` rounds the exact sum once: `[0.005, 0.005]` totals `0.01`. (C-04 rule 2, K-02)",
       "statement": "`summarize` rounds the exact sum once: `[0.005, 0.005]` totals `0.01`. (C-04 rule 2, K-02)",
-      "line": 102,
+      "line": 103,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -1096,7 +1585,7 @@
       "recorded": false,
       "title": "`summarize` orders ascending with a stable sort and reports `smallest`/`largest`. (C-04 rule 4)",
       "statement": "`summarize` orders ascending with a stable sort and reports `smallest`/`largest`. (C-04 rule 4)",
-      "line": 103,
+      "line": 104,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -1150,7 +1639,7 @@
       "recorded": false,
       "title": "`summarize([])` is the all-empty `Summary` with `mean` `None` and `total` `0.0`. (C-04 rule 6)",
       "statement": "`summarize([])` is the all-empty `Summary` with `mean` `None` and `total` `0.0`. (C-04 rule 6)",
-      "line": 104,
+      "line": 105,
       "status": "PASSING",
       "src": [],
       "tests": [
@@ -1194,7 +1683,7 @@
   "decisions": [
     {
       "id": "D-01",
-      "line": 114,
+      "line": 115,
       "affects": [
         "C-04",
         "K-02"
@@ -1202,22 +1691,64 @@
     },
     {
       "id": "D-02",
-      "line": 115,
+      "line": 116,
       "affects": [
         "C-03"
       ]
     },
     {
       "id": "D-03",
-      "line": 116,
+      "line": 117,
       "affects": []
     }
   ],
   "edges": [
     {
+      "src": "R-01",
+      "kind": "depends_on",
+      "dst": "K-02",
+      "retired": false
+    },
+    {
+      "src": "R-02",
+      "kind": "depends_on",
+      "dst": "K-02",
+      "retired": false
+    },
+    {
       "src": "C-04",
       "kind": "depends_on",
       "dst": "K-02",
+      "retired": false
+    },
+    {
+      "src": "I-001",
+      "kind": "depends_on",
+      "dst": "R-01",
+      "retired": false
+    },
+    {
+      "src": "I-001",
+      "kind": "depends_on",
+      "dst": "K-02",
+      "retired": false
+    },
+    {
+      "src": "I-002",
+      "kind": "depends_on",
+      "dst": "C-02",
+      "retired": false
+    },
+    {
+      "src": "E-02",
+      "kind": "depends_on",
+      "dst": "C-02",
+      "retired": false
+    },
+    {
+      "src": "E-03",
+      "kind": "depends_on",
+      "dst": "C-01",
       "retired": false
     },
     {
@@ -1320,11 +1851,11 @@
     "edge to undeclared id: D-03 -> E-45"
   ],
   "metrics": {
-    "declared": 21,
+    "declared": 22,
     "retired": 2,
-    "in_scope": 19,
+    "in_scope": 20,
     "by_status": {
-      "PASSING": 13,
+      "PASSING": 14,
       "WEAKLY_PASSING": 1,
       "FAILING": 1,
       "SKIPPED": 1,
@@ -1332,8 +1863,8 @@
       "UNTESTED": 1,
       "UNCITED": 1
     },
-    "conformance_ratio": "13/19",
-    "conformance": 0.6842,
+    "conformance_ratio": "14/20",
+    "conformance": 0.7000,
     "by_family": {
       "R": {
         "in_scope": 3,
@@ -1356,9 +1887,9 @@
         "ratio": 0.5000
       },
       "E": {
-        "in_scope": 2,
-        "passing": 1,
-        "ratio": 0.5000
+        "in_scope": 3,
+        "passing": 2,
+        "ratio": 0.6667
       },
       "T": {
         "in_scope": 7,
@@ -1366,10 +1897,10 @@
         "ratio": 0.8571
       }
     },
-    "judge_strength_ratio": "13/14",
-    "judge_strength": 0.9286,
+    "judge_strength_ratio": "14/15",
+    "judge_strength": 0.9333,
     "unknown_rate": 0.0000,
-    "declared_ratio": 0.9474
+    "declared_ratio": 0.9714
   },
   "exit_code": 1
 }

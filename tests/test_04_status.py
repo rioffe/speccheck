@@ -152,12 +152,12 @@ def test_metrics_match_hand_computed_values_on_golden(tmp_path: Path):
     )
     m = run.json["metrics"]
     assert (m["declared"], m["retired"], m["in_scope"]) == (
-        21,
+        22,
         2,
-        19,
-    )  # fixture v1.1: + C-04, T-04..T-07
+        20,
+    )  # fixture v1.3: + C-04/T-04..T-07 (v1.1), + E-03 (v1.3)
     assert m["by_status"] == {
-        "PASSING": 13,
+        "PASSING": 14,
         "WEAKLY_PASSING": 1,
         "FAILING": 1,
         "SKIPPED": 1,
@@ -165,18 +165,18 @@ def test_metrics_match_hand_computed_values_on_golden(tmp_path: Path):
         "UNTESTED": 1,
         "UNCITED": 1,
     }
-    assert m["conformance_ratio"] == "13/19" and Decimal(str(m["conformance"])) == Decimal("0.6842")
+    assert m["conformance_ratio"] == "14/20" and Decimal(str(m["conformance"])) == Decimal("0.7")
     assert m["by_family"] == {
         "R": {"in_scope": 3, "passing": 2, "ratio": 0.6667},
         "C": {"in_scope": 3, "passing": 2, "ratio": 0.6667},
         "I": {"in_scope": 2, "passing": 1, "ratio": 0.5},
         "K": {"in_scope": 2, "passing": 1, "ratio": 0.5},
-        "E": {"in_scope": 2, "passing": 1, "ratio": 0.5},
+        "E": {"in_scope": 3, "passing": 2, "ratio": 0.6667},
         "T": {"in_scope": 7, "passing": 6, "ratio": 0.8571},
     }
     assert (
-        m["judge_strength_ratio"] == "13/14"
-        and m["judge_strength"] == 0.9286
+        m["judge_strength_ratio"] == "14/15"
+        and m["judge_strength"] == 0.9333
         and m["unknown_rate"] == 0.0
     )
     assert ratio(0, 0) is None and ratio(1, 3) == Decimal("0.3333")

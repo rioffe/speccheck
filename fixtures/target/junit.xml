@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-  <testsuite name="pytest" tests="18" failures="1" errors="0" skipped="1">
+  <testsuite name="pytest" tests="34" failures="1" errors="0" skipped="1">
     <testcase classname="tests.test_core" name="test_add[1-2-3]" />
     <testcase classname="tests.test_core" name="test_add[0.1-0.2-0.3]" />
     <testcase classname="tests.test_core" name="test_add_commutes" />
@@ -16,12 +16,28 @@
     <testcase classname="tests.test_core" name="test_scale_empty" />
     <testcase classname="tests.test_core" name="test_version_string" />
     <testcase classname="tests.test_core" name="test_divide_error_names_the_dividend_example" />
+    <testcase classname="tests.test_core" name="test_add_result" />
+    <testcase classname="tests.test_core" name="test_add_rounding_fact" />
+    <testcase classname="tests.test_core" name="test_subtract_result" />
+    <testcase classname="tests.test_core" name="test_subtract_rounding_fact" />
+    <testcase classname="tests.test_core" name="test_scale_empty_result" />
+    <testcase classname="tests.test_core" name="test_scale_empty_input_is_not_mutated" />
+    <testcase classname="tests.test_core" name="test_zero_division_propagates" />
+    <testcase classname="tests.test_core" name="test_zero_division_message_names_the_dividend" />
+    <testcase classname="tests.test_core" name="test_add_commutes_on_floats" />
+    <testcase classname="tests.test_core" name="test_add_commutes_on_plain_sum" />
+    <testcase classname="tests.test_core" name="test_add_commutes_rounding_fact" />
     <testcase classname="tests.test_summary" name="test_summary_shape" />
     <testcase classname="tests.test_summary" name="test_summary_rounds_the_exact_sum_once" />
     <testcase classname="tests.test_summary" name="test_summary_ordering_is_stable_ascending" />
     <testcase classname="tests.test_summary" name="test_summary_empty_input" />
     <testcase classname="tests.test_summary" name="test_summary_runs_on_a_mixed_list" />
     <testcase classname="tests.test_summary" name="test_summary_module_does_not_change_add" />
+    <testcase classname="tests.test_summary" name="test_summary_total_result" />
+    <testcase classname="tests.test_summary" name="test_summary_total_rounding_fact" />
+    <testcase classname="tests.test_summary" name="test_summary_mean_result" />
+    <testcase classname="tests.test_summary" name="test_summary_mean_uses_exact_total" />
+    <testcase classname="tests.test_summary" name="test_summary_mean_rounding_fact" />
     <testcase classname="tests.test_gone" name="test_vanished" />
   </testsuite>
 </testsuites>

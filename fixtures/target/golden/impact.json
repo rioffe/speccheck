@@ -14,6 +14,26 @@
   ],
   "impact": [
     {
+      "id": "R-01",
+      "depth": 1,
+      "retired": false,
+      "via": {
+        "src": "R-01",
+        "kind": "depends_on",
+        "dst": "K-02"
+      }
+    },
+    {
+      "id": "R-02",
+      "depth": 1,
+      "retired": false,
+      "via": {
+        "src": "R-02",
+        "kind": "depends_on",
+        "dst": "K-02"
+      }
+    },
+    {
       "id": "C-04",
       "depth": 1,
       "retired": false,
@@ -22,13 +42,31 @@
         "kind": "depends_on",
         "dst": "K-02"
       }
+    },
+    {
+      "id": "I-001",
+      "depth": 1,
+      "retired": false,
+      "via": {
+        "src": "I-001",
+        "kind": "depends_on",
+        "dst": "K-02"
+      }
     }
   ],
   "reverify": [
     {
+      "id": "T-01",
+      "retired": false,
+      "verifies": [
+        "R-01"
+      ]
+    },
+    {
       "id": "T-03",
       "retired": false,
       "verifies": [
+        "R-02",
         "K-02"
       ]
     },
@@ -64,11 +102,32 @@
   ],
   "recite": [
     {
+      "id": "R-01",
+      "file": "src/calc/core.py",
+      "lines": [
+        10
+      ]
+    },
+    {
+      "id": "R-02",
+      "file": "src/calc/core.py",
+      "lines": [
+        15
+      ]
+    },
+    {
       "id": "C-04",
       "file": "src/calc/summary.py",
       "lines": [
         1,
         21
+      ]
+    },
+    {
+      "id": "I-001",
+      "file": "src/calc/core.py",
+      "lines": [
+        10
       ]
     },
     {
@@ -90,6 +149,31 @@
   "test_cases": [
     {
       "file": "tests/test_core.py",
+      "name": "test_add",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-01",
+        "T-01"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_add_commutes",
+      "classname": "tests.test_core",
+      "ids": [
+        "I-001"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_subtract",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-02"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
       "name": "test_subtract_precision",
       "classname": "tests.test_core",
       "ids": [
@@ -102,6 +186,70 @@
       "classname": "tests.test_core",
       "ids": [
         "K-02"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_divide_error_names_the_dividend_example",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-02"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_add_result",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-01"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_add_rounding_fact",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-01"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_subtract_result",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-02"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_subtract_rounding_fact",
+      "classname": "tests.test_core",
+      "ids": [
+        "R-02"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_add_commutes_on_floats",
+      "classname": "tests.test_core",
+      "ids": [
+        "I-001"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_add_commutes_on_plain_sum",
+      "classname": "tests.test_core",
+      "ids": [
+        "I-001"
+      ]
+    },
+    {
+      "file": "tests/test_core.py",
+      "name": "test_add_commutes_rounding_fact",
+      "classname": "tests.test_core",
+      "ids": [
+        "I-001"
       ]
     },
     {
@@ -152,6 +300,47 @@
     {
       "file": "tests/test_summary.py",
       "name": "test_summary_module_does_not_change_add",
+      "classname": "tests.test_summary",
+      "ids": [
+        "R-01",
+        "C-04"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_total_result",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_total_rounding_fact",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_mean_result",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_mean_uses_exact_total",
+      "classname": "tests.test_summary",
+      "ids": [
+        "C-04"
+      ]
+    },
+    {
+      "file": "tests/test_summary.py",
+      "name": "test_summary_mean_rounding_fact",
       "classname": "tests.test_summary",
       "ids": [
         "C-04"

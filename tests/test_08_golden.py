@@ -98,7 +98,7 @@ REPAIRS = {
             ),
         ),
         {"R-03": "PASSING"},
-        {"UNCITED": 0, "PASSING": 14},
+        {"UNCITED": 0, "PASSING": 15},
     ),
     "C-02 UNTESTED -> PASSING": (
         lambda t: (
@@ -113,7 +113,7 @@ REPAIRS = {
             ),
         ),
         {"C-02": "PASSING"},
-        {"UNTESTED": 0, "PASSING": 14},
+        {"UNTESTED": 0, "PASSING": 15},
     ),
     "E-01 UNVERIFIED -> PASSING": (
         lambda t: _sub(
@@ -122,7 +122,7 @@ REPAIRS = {
             '<testcase classname="tests.test_core" name="test_scale_negative" />\n  </testsuite>',
         ),
         {"E-01": "PASSING"},
-        {"UNVERIFIED": 0, "PASSING": 14},
+        {"UNVERIFIED": 0, "PASSING": 15},
     ),
     "T-03 FAILING -> PASSING": (
         lambda t: _sub(
@@ -131,7 +131,7 @@ REPAIRS = {
             '<testcase classname="tests.test_core" name="test_subtract_precision" />',
         ),
         {"T-03": "PASSING"},
-        {"FAILING": 0, "PASSING": 14},
+        {"FAILING": 0, "PASSING": 15},
     ),
     "K-01 SKIPPED -> PASSING": (
         lambda t: _sub(
@@ -140,7 +140,7 @@ REPAIRS = {
             '<testcase classname="tests.test_core" name="test_divide_fast" />',
         ),
         {"K-01": "PASSING"},
-        {"SKIPPED": 0, "PASSING": 14},
+        {"SKIPPED": 0, "PASSING": 15},
     ),
     "I-002 WEAKLY_PASSING -> PASSING": (
         lambda t: _sub(
@@ -149,7 +149,7 @@ REPAIRS = {
             "    assert len(scale([1, 2, 3], 2)) == 3\n",
         ),
         {"I-002": "PASSING"},
-        {"WEAKLY_PASSING": 0, "PASSING": 14},
+        {"WEAKLY_PASSING": 0, "PASSING": 15},
     ),
     "dangling removed": (
         lambda t: _sub(t / "src/calc/core.py", "R-09 territory", "future territory"),
@@ -195,7 +195,7 @@ def test_removing_each_planted_defect_flips_exactly_its_row(tmp_path: Path, labe
     for status, count in expected_counts.items():
         assert doc["metrics"]["by_status"][status] == count
     passing = doc["metrics"]["by_status"]["PASSING"]
-    assert doc["metrics"]["conformance_ratio"] == f"{passing}/19"  # fixture v1.1: 19 in scope
+    assert doc["metrics"]["conformance_ratio"] == f"{passing}/20"  # fixture v1.3: 20 in scope
     if label == "dangling removed":
         assert doc["dangling"] == [] and doc["stale"] == golden["stale"]
     elif label == "stale removed":
@@ -376,10 +376,43 @@ def test_fixture_long_body_contract_and_labels():
     rules = re.findall(r"^\d+\. ", body, re.M)
     assert len(rules) >= 5, f"at least five numbered rules, found {len(rules)}"
     labels = json.loads((FIXTURE / "golden" / "judge_labels.json").read_text(encoding="utf-8"))
-    assert len(labels) >= 20
+    assert len(labels) >= 37  # T-76 (v1.16): the adjacent subset grew the labeled set
+    assert all(v in {"ASSERTS", "EXECUTES_ONLY", "UNRELATED"} for v in labels.values())
     on_contract = {k: v for k, v in labels.items() if k.startswith(contract.id + " ")}
     assert len(on_contract) >= 6
-    assert sorted(on_contract.values()) == ["ASSERTS"] * 4 + ["EXECUTES_ONLY", "UNRELATED"]
+    # the six edges T-76 names: four asserting one clause each, one that only runs the code,
+    # one that asserts a different id's behaviour (the v1.16 pairs add more C-04 edges)
+    t76_six = {
+        "C-04 tests/test_summary.py::test_summary_shape": "ASSERTS",
+        "C-04 tests/test_summary.py::test_summary_rounds_the_exact_sum_once": "ASSERTS",
+        "C-04 tests/test_summary.py::test_summary_ordering_is_stable_ascending": "ASSERTS",
+        "C-04 tests/test_summary.py::test_summary_empty_input": "ASSERTS",
+        "C-04 tests/test_summary.py::test_summary_runs_on_a_mixed_list": "EXECUTES_ONLY",
+        "C-04 tests/test_summary.py::test_summary_module_does_not_change_add": "UNRELATED",
+    }
+    assert {k: labels.get(k) for k in t76_six} == t76_six
+    # the adjacent subset (T-76/T-84): each cites an id whose own statement names another id and
+    # asserts only that neighbour's fact, so `related` is what can tell them apart
+    adjacent_eight = {
+        "R-01 tests/test_core.py::test_add_rounding_fact",
+        "R-02 tests/test_core.py::test_subtract_rounding_fact",
+        "E-02 tests/test_core.py::test_scale_empty_input_is_not_mutated",
+        "E-03 tests/test_core.py::test_zero_division_message_names_the_dividend",
+        "I-001 tests/test_core.py::test_add_commutes_on_plain_sum",
+        "I-001 tests/test_core.py::test_add_commutes_rounding_fact",
+        "C-04 tests/test_summary.py::test_summary_total_rounding_fact",
+        "C-04 tests/test_summary.py::test_summary_mean_rounding_fact",
+    }
+    assert {k: labels.get(k) for k in adjacent_eight} == dict.fromkeys(
+        adjacent_eight, "UNRELATED"
+    )
+    # T-76's mechanical reading (an UNRELATED label on an id that carries a depends_on edge) is
+    # at least as wide as those eight
+    dep_sources = {e.src for e in index.edges if e.kind == "depends_on"}
+    adjacent = {
+        k for k, v in labels.items() if v == "UNRELATED" and k.split(" ")[0] in dep_sources
+    }
+    assert adjacent_eight <= adjacent and len(adjacent) >= 8, sorted(adjacent)
     # every labeled edge on the contract is a real, attributed test case with a result, and the
     # contract is PASSING under the mock judge
     target = _copy(Path(__import__("tempfile").mkdtemp()))
@@ -397,7 +430,7 @@ def test_fixture_gains_one_incidental_citation(tmp_path: Path):
     """T-86: `fixtures/target/` gains one test whose own docstring names C-01 (its DECLARED
     citation) while its body cites R-02 only as fixture/example data: under `--judge none`
     `speccheck.json` records `declared: false` for that second edge and `true` for the docstring
-    edge, the fixture's `declared_ratio` reflects it (18 of 19 citations DECLARED), and
+    edge, the fixture's `declared_ratio` reflects it (34 of 35 citations DECLARED), and
     `SPEC_CONFORMANCE_REPORT.md` renders no `declared` (C-16's Part C is JSON-only; every other
     T-46 row is unchanged). (C-14, C-16, R-39, T-46)"""
     target = _copy(tmp_path)
@@ -423,10 +456,10 @@ def test_fixture_gains_one_incidental_citation(tmp_path: Path):
     c01 = next(t for t in by_id["C-01"]["tests"] if t["name"] == name)
     r02 = next(t for t in by_id["R-02"]["tests"] if t["name"] == name)
     assert c01["declared"] is True and r02["declared"] is False
-    assert doc["metrics"]["declared_ratio"] == 0.9474  # 18/19
+    assert doc["metrics"]["declared_ratio"] == 0.9714  # 34/35
     assert "declared_ratio" not in run.md  # Part C changes the JSON only
     golden = json.loads((FIXTURE / "golden" / "speccheck.json").read_text(encoding="utf-8"))
-    assert golden["metrics"]["declared_ratio"] == 0.9474
+    assert golden["metrics"]["declared_ratio"] == 0.9714
 
 
 def test_declared_ratio_is_present_and_recomputable_under_every_judge_mode(tmp_path: Path):
@@ -469,7 +502,7 @@ def test_declared_ratio_is_present_and_recomputable_under_every_judge_mode(tmp_p
                     continue
                 den += len(t["lines"])
                 num += len(t["lines"]) if t["declared"] else 0
-        assert Decimal(str(doc["metrics"]["declared_ratio"])) == ratio(num, den) == Decimal("0.9474")
+        assert Decimal(str(doc["metrics"]["declared_ratio"])) == ratio(num, den) == Decimal("0.9714")
         assert "declared_ratio" not in run.md
         ratios[judge] = doc["metrics"]["declared_ratio"]
     assert ratios["none"] == ratios["mock"]

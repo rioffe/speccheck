@@ -154,6 +154,7 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
         "K-02",
         "E-01",
         "E-02",
+        "E-03",
         "T-01",
         "T-02",
         "T-03",
@@ -332,7 +333,7 @@ def test_markdown_layout(tmp_path: Path):
     assert "**Judge:** none · **Strict:** off" in none_run.md.splitlines()[2]
     assert run.stdout.strip() in md
     per_id = md.split("## 3. Per-ID evidence\n\n", 1)[1].split("\n## 4.", 1)[0].splitlines()[2:]
-    assert len(per_id) == len(doc["ids"]) == 21  # fixture v1.1
+    assert len(per_id) == len(doc["ids"]) == 22  # fixture v1.3: 20 in scope + 2 retired
     id_cells = [row.split(" | ")[0][2:] for row in per_id]
     assert id_cells == [
         f"~~{r['id']}~~" if r["status"] == "RETIRED" else r["id"] for r in doc["ids"]

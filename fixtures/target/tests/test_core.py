@@ -71,3 +71,71 @@ def test_divide_error_names_the_dividend_example():
     with pytest.raises(ZeroDivisionError, match="7"):
         divide(7, 0)
     assert examples[0] == "subtract"
+
+
+def test_add_result():
+    """R-01: add returns the sum (the genuine partner of the rounding-fact test)."""
+    assert add(2, 3) == 5
+
+
+def test_add_rounding_fact():
+    """R-01: exercises add, then asserts the rounding rule's own fact, not the sum."""
+    add(1.005, 0.0)
+    assert round(0.005 + 0.005, 2) == 0.01
+
+
+def test_subtract_result():
+    """R-02: subtract returns a - b (the genuine partner of the rounding-fact test)."""
+    assert subtract(5, 3) == 2
+
+
+def test_subtract_rounding_fact():
+    """R-02: exercises subtract, then asserts the rounding rule's own fact, not the difference."""
+    subtract(1.005, 0.0)
+    assert round(1.005, 2) == 1.0
+
+
+def test_scale_empty_result():
+    """E-02: an empty list yields an empty list (the genuine partner of the purity test)."""
+    assert scale([], 3) == []
+
+
+def test_scale_empty_input_is_not_mutated():
+    """E-02: exercises scale, then asserts the purity rule's own fact, not the empty result."""
+    values: list[float] = []
+    scale(values, 3)
+    assert values == []
+
+
+def test_zero_division_propagates():
+    """E-03: the error propagates unchanged (the genuine partner of the message test)."""
+    with pytest.raises(ZeroDivisionError) as exc:
+        divide(7, 0)
+    assert type(exc.value) is ZeroDivisionError
+    assert exc.traceback[-1].name == "divide"
+
+
+def test_zero_division_message_names_the_dividend():
+    """E-03: exercises the propagation, then asserts the message rule's own fact."""
+    with pytest.raises(ZeroDivisionError) as exc:
+        divide(7, 0)
+    assert "7" in str(exc.value)
+
+
+def test_add_commutes_on_floats():
+    """I-001: add is commutative (the genuine partner of the rounding-fact pair)."""
+    assert add(0.1, 0.2) == add(0.2, 0.1)
+
+
+def test_add_commutes_on_plain_sum():
+    """I-001: the calls exercise commutativity; the assertion is the sum rule's own fact."""
+    add(2, 5)
+    add(5, 2)
+    assert add(1, 2) == 3
+
+
+def test_add_commutes_rounding_fact():
+    """I-001: exercises commutativity, then asserts the rounding rule's own fact."""
+    add(2.5, 3.5)
+    add(3.5, 2.5)
+    assert round(0.005 + 0.005, 2) == 0.01

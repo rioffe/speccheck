@@ -1,6 +1,6 @@
 # SPECIFICATION — `calc` (golden fixture for speccheck)
 
-> - **Status:** fixture v1.2 — a deliberately defective project used by T-46/T-47 and `--self-check`; v1.1 added the long-body contract C-04 and its labeled tests for T-49/T-76; v1.2 adds a decision table for T-79/T-80/T-81
+> - **Status:** fixture v1.3 — a deliberately defective project used by T-46/T-47 and `--self-check`; v1.1 added the long-body contract C-04 and its labeled tests for T-49/T-76; v1.2 adds a decision table for T-79/T-80/T-81; v1.3 adds the cross-references and the eight adjacent tests of T-76/T-84 (each paired with a genuine test that uses the same calls and asserts the id's own clause)
 > - **Scope:** a four-function calculator with rounding; every planted defect is listed at the end
 
 ## 0. Intent
@@ -12,8 +12,8 @@ The fixture exists so that every `speccheck` status has one live example.
 
 | ID | Statement | Source |
 | -- | --------- | ------ |
-| **R-01** | `add(a, b)` MUST return the arithmetic sum of `a` and `b`. | brief |
-| **R-02** | `subtract(a, b)` MUST return `a - b`. | brief |
+| **R-01** | `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02. | brief |
+| **R-02** | `subtract(a, b)` MUST return `a - b`, rounded per K-02. | brief |
 | **R-03** | `multiply(a, b)` MUST return the product of `a` and `b`. | brief |
 | ~~**R-04**~~ | `modulo(a, b)` MUST return `a % b`. (retired: dropped from the brief) | brief |
 
@@ -74,8 +74,8 @@ rather than against the clause the test asserts is caught by the labels in `gold
 
 | ID | Invariant |
 | -- | --------- |
-| **I-001** | `add` is commutative: `add(a, b) == add(b, a)` for all finite inputs. |
-| **I-002** | `scale` preserves the length of its input list. |
+| **I-001** | `add` is commutative, per R-01: `add(a, b) == add(b, a)` for all finite inputs; both calls are rounded per K-02. |
+| **I-002** | `scale` (C-02) preserves the length of its input list. |
 
 ## 7. Constraints
 
@@ -89,7 +89,8 @@ rather than against the clause the test asserts is caught by the labels in `gold
 | ID | Case | Semantics |
 | -- | ---- | --------- |
 | **E-01** | Negative inputs to `scale` | Scaled like any other value; sign preserved. |
-| **E-02** | Empty list passed to `scale` | Returns an empty list. |
+| **E-02** | Empty list passed to `scale` (per C-02) | Returns a new empty list; the input list is not mutated. |
+| **E-03** | A `ZeroDivisionError` raised by `divide`, per C-01, reached from a caller | Propagates unchanged: the same exception type and message, with nothing wrapped around it. |
 
 ## 9. Acceptance tests
 
