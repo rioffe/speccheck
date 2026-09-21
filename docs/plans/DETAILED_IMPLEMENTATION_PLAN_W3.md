@@ -1,6 +1,6 @@
 # Detailed implementation plan — W3: README, the conformance report, and both gates
 
-> - **Wave:** W3 of W1–W3 (`IMPLEMENTATION_PLAN.md` §4 item 3).
+> - **Wave:** W3 of W1–W3 (`docs/plans/IMPLEMENTATION_PLAN.md` §4 item 3).
 > - **Spec basis:** `SPEC.md` v1.17; §9.13, §10, §11, §5.1, §5.4, T-48, T-92..T-94.
 > - **Gate:** the full Phase 1 exit gate, then Phase A and Phase B, both exit 0.
 > - **Budget:** docs and test-side pins only.

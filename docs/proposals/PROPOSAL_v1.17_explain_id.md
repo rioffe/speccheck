@@ -2,15 +2,15 @@
 
 > - **Status:** proposal, 2026-09-20; for `spec-writing` to turn into `SPEC.md` v1.17 rows after the
 >   requester settles D-33, D-34, D-35 and D-36 below. v1.17 numbers past `__version__` 1.14.0 and
->   past the in-flight `PROPOSAL_v1.16_jev_pre_triage.md` (which reserved D-29..D-32; the live
+>   past the in-flight `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` (which reserved D-29..D-32; the live
 >   `§12` table already reaches D-32, so D-33 is the next clean slot). Renumber whichever lands
 >   second.
 > - **Applies to:** `SPEC.md` v1.14 — a new third subcommand beside `check` (R-36/37, C-13, §3.1,
 >   §5) and a new stdout contract for it (C-18). It **composes over existing facts only**: the
 >   `IdRecord`/edg e/verdict the `check` pipeline already builds and the `C-12` `walk` `impact`
 >   already runs; it adds no status, no verdict, no citation, and no schema field. Independent of
->   `PROPOSAL_v1.16_jev_pre_triage.md` (that one changes *which edges reach the judge, in what
->   order* — a judge-economics change) and of `PROPOSAL_v1.15_declared_vs_incidental_citations.md`
+>   `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` (that one changes *which edges reach the judge, in what
+>   order* — a judge-economics change) and of `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md`
 >   (that one changes *what the judge is told about a citation* — a judge-input change). Neither
 >   needs this one; all three could land in any order.
 > - **Notation:** unprefixed ids are speccheck's own.

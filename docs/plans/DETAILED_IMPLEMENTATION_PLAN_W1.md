@@ -1,6 +1,6 @@
 # Detailed implementation plan — W1: the help contract
 
-> - **Wave:** W1 of W1–W2 (`IMPLEMENTATION_PLAN.md` §4 item 1).
+> - **Wave:** W1 of W1–W2 (`docs/plans/IMPLEMENTATION_PLAN.md` §4 item 1).
 > - **Spec basis:** `SPEC.md` v1.18 (the fold at `56e1465`): R-41, C-19, I-017, T-95..T-98, §5.1,
 >   §5.4, §9.14, §10. Not edited by this wave.
 > - **Gate:** `tests/test_13_help.py` green (T-95..T-98), the whole suite green, `ruff` clean,

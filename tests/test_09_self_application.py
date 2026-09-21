@@ -128,7 +128,7 @@ def test_llm_eval_labels_cover_every_judged_edge():
 
 
 def test_obligation_census_script_and_labels_are_well_formed():
-    """PROPOSAL_obligation_census.md: tools/census.py exists, parses, and exposes both CLI modes
+    """docs/proposals/PROPOSAL_obligation_census.md: tools/census.py exists, parses, and exposes both CLI modes
     (a fresh run, and --ratify over a hand-edited census.json); tools/census_prompt.md is
     non-empty; tools/census_labels.json's ten seed labels each name a live R/C/I/K/E id of this
     project's own SPEC.md with a valid form/checker (opt-in, no network here, not run in CI)."""
@@ -164,7 +164,7 @@ def test_obligation_census_script_and_labels_are_well_formed():
 
 
 def test_t91_recorded_calibration_is_measured_and_recorded():
-    """T-91 (recorded): the §1 calibration measurement of `PROPOSAL_v1.16_jev_pre_triage.md` was
+    """T-91 (recorded): the §1 calibration measurement of `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` was
     re-run against this repository's own `SPEC.md`/`src`/`tests` and its bucket table is recorded
     in `SPEC_BUILD_REPORT.md` with the C-17 model name, the date and `judge_prompt_sha256`; the
     run itself is the recorded evidence (non-gating, like T-49 and T-87) — this check proves only

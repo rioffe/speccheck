@@ -70,9 +70,9 @@ needs none of them — they share only the `SPEC.md` conventions above.
 | --- | --- | --- |
 | **spec-proposal** | a scoped, evidence-grounded change to an *existing, already-implemented* `SPEC.md` argued through before anyone edits it — a real defect, metric, or run's output, at least one example read in full, draft rows in the spec's own ID taxonomy, and a decision table for the requester | `PROPOSAL_v<X.Y>_<slug>.md` (or `PROPOSAL_<slug>.md` for a change with no spec version) — the problem from evidence, the change in labeled parts, what it costs, alternatives considered, a `D-nn` decision table, and what it deliberately leaves unfixed |
 | **spec-writing** | a `SPEC.md` written from a brief, a design doc, or a conversation; an existing spec updated for a change; or a confirmed `spec-proposal` decision folded into real rows | `SPEC.md`, with §12 listing every defaulted decision, committed in reviewable slices |
-| **spec-review** | the spec audited before anything is built: completeness, precision, consistency, implementability, verifiability | `SPEC_REVIEW_REPORT.md` — findings `F-nnn` with severity, a 0–5 scorecard, a maturity level 0–4, a P0/P1/P2 remediation plan, and a `READY` / `READY WITH MINOR FIXES` / `NOT READY` verdict |
-| **spec-plan** | the order the spec gets built in: the shape, the dependency waves and their gates, the slice budgets, the rules that prevent this system's known failure modes, and the one fork to settle first | `IMPLEMENTATION_PLAN.md` — verdict, evidence from prior builds, target shape, wave order with a gate per wave, LOC budget with anchors, failure→rule table, and one fork plus a next action; optionally one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (deliverables file-by-file, work items test-first, gate commands, traceability, handoff contract) |
-| **spec-build** | the plan executed: the spec implemented test-first, **wave by wave in the plan's order**, each wave gated with its own commands and committed before the next begins, then the README made to match and conformance proven | `IMPLEMENTATION_PLAN.md` plus one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (Phase 0 runs `spec-plan` if they do not exist), the code and its §9 suite with one commit per wave, an updated `README.md`, `SPEC_BUILD_REPORT.md` with per-ID evidence and the wave ledger, and the two `speccheck` gate lines |
+| **spec-review** | the spec audited before anything is built: completeness, precision, consistency, implementability, verifiability | `docs/reviews/SPEC_REVIEW_REPORT.md` — findings `F-nnn` with severity, a 0–5 scorecard, a maturity level 0–4, a P0/P1/P2 remediation plan, and a `READY` / `READY WITH MINOR FIXES` / `NOT READY` verdict |
+| **spec-plan** | the order the spec gets built in: the shape, the dependency waves and their gates, the slice budgets, the rules that prevent this system's known failure modes, and the one fork to settle first | `docs/plans/IMPLEMENTATION_PLAN.md` — verdict, evidence from prior builds, target shape, wave order with a gate per wave, LOC budget with anchors, failure→rule table, and one fork plus a next action; optionally one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (deliverables file-by-file, work items test-first, gate commands, traceability, handoff contract) |
+| **spec-build** | the plan executed: the spec implemented test-first, **wave by wave in the plan's order**, each wave gated with its own commands and committed before the next begins, then the README made to match and conformance proven | `docs/plans/IMPLEMENTATION_PLAN.md` plus one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (Phase 0 runs `spec-plan` if they do not exist), the code and its §9 suite with one commit per wave, an updated `README.md`, `SPEC_BUILD_REPORT.md` with per-ID evidence and the wave ledger, and the two `speccheck` gate lines |
 
 `spec-build` runs `speccheck` twice at its gate: first with the deterministic mock judge until every
 ID is `PASSING` with no dangling or stale citations, then with an LLM judge, which can only find
@@ -84,10 +84,10 @@ report; that is the evidence the human reads.
 ```mermaid
 flowchart TD
     B["brief / design doc / conversation"] -->|"spec-writing"| S["SPEC.md v0.1"]
-    S -->|"spec-review"| R["SPEC_REVIEW_REPORT.md<br/>F-nnn, P0/P1/P2, verdict"]
+    S -->|"spec-review"| R["docs/reviews/SPEC_REVIEW_REPORT.md<br/>F-nnn, P0/P1/P2, verdict"]
     R -->|"fix P0 + P1, bump version"| S2["SPEC.md v0.n"]
     S2 -->|"re-review until READY"| R
-    S2 -->|"spec-plan: waves, budgets, gates"| P["IMPLEMENTATION_PLAN.md<br/>+ DETAILED_IMPLEMENTATION_PLAN_W&lt;n&gt;.md"]
+    S2 -->|"spec-plan: waves, budgets, gates"| P["docs/plans/IMPLEMENTATION_PLAN.md<br/>+ DETAILED_IMPLEMENTATION_PLAN_W&lt;n&gt;.md"]
     P -->|"spec-build: waves, gate+commit, audit"| C["code + tests + README<br/>SPEC_BUILD_REPORT.md"]
     C -->|"speccheck --judge mock --strict"| G1["CONFORMING?"]
     G1 -->|"speccheck --judge llm --strict"| G2["0 weak?"]
@@ -431,7 +431,7 @@ which the Markdown report renders, so `SPEC_CONFORMANCE_REPORT.md` is unchanged)
 cut at a line boundary, ends with `… (statement truncated by speccheck at K-14)`, and the report's
 Notes name the ID. `SPEC.md` is parsed with one line model — split on `\n`, a trailing `\r`
 dropped — so a CRLF checkout yields the same bytes as an LF one (C-01, I-002). See
-`PROPOSAL_v1.7_heading_bodies.md` for the evidence behind the change.
+`docs/proposals/PROPOSAL_v1.7_heading_bodies.md` for the evidence behind the change.
 
 **What the judge gives back, and what the kernel checks (SPEC v1.9, R-34).** The reply names the
 clause of the statement it judged against — `{"verdict", "clause", "evidence", "rationale"}` — and
@@ -442,7 +442,7 @@ trimmed, at least 12 characters, at most 280 — K-15) is discarded as `UNKNOWN`
 statement shows up on the summary line rather than in silently wrong verdicts. The clause is
 recorded in `speccheck.json` and shown in report §8, so a reader sees *which* clause was judged.
 The coercion rules are applied in one fixed order (C-06), so two runs record the same rationale for
-the same reply. See `PROPOSAL_v1.9_clause_grounding.md` for the evidence — a model that graded long
+the same reply. See `docs/proposals/PROPOSAL_v1.9_clause_grounding.md` for the evidence — a model that graded long
 contracts by their gist, and one that located the clause.
 
 **Recorded tests (SPEC v1.10, R-35).** A test whose proof is a recorded run rather than an assertion
@@ -470,7 +470,7 @@ the other: `speccheck.json` records `"declared"` on every `tests[]` entry and a
 `--judge none` run), and the LLM judge's request carries `declared` as read-only context, with one
 advisory rule in the instruction text: when `declared` is false, do not credit `ASSERTS` merely
 because a clause is locatable and some assertion exists nearby (Part B — no coercion rule, D-26).
-See `PROPOSAL_v1.15_declared_vs_incidental_citations.md` and `JUDGE_CROSSCHECK_REPORT.md` §2b for
+See `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` and `JUDGE_CROSSCHECK_REPORT.md` §2b for
 the evidence.
 
 ### The obligation-aware judge — `related` (v1.16, R-38 / D-28)
@@ -697,11 +697,20 @@ tools/
                                 repository's own history; needs `git`; not collected by pytest (D-24)
 SPEC_BUILD_REPORT.md            the Phase 3 conformance audit
 ARCHITECTURE.md                 module-by-module design with data-flow, data-model, and sequence diagrams
+docs/
+  introducing-speccheck.md      the article (its self-contained HTML sits beside it; `make article`)
+  plans/                        IMPLEMENTATION_PLAN.md and one DETAILED_IMPLEMENTATION_PLAN_W<n>.md per
+                                wave: the order one spec version was built in, with its gates
+  proposals/                    PROPOSAL_<version>_<name>.md: the argument behind a spec version —
+                                problem, change as drafted rows, cost, alternatives, decisions
+  reviews/                      SPEC_REVIEW_REPORT.md: the spec audited before anything was built
+  research/                     the research material behind the method (not part of the build)
 skills/
   spec-writing/SKILL.md         how a SPEC.md is written (the ID taxonomy speccheck consumes)
   spec-review/SKILL.md          how a spec is reviewed before it is built
   spec-plan/SKILL.md            how a spec is turned into a wave-by-wave implementation plan
   spec-build/SKILL.md           how a spec is built and audited (the process this tool automates)
+  spec-proposal/SKILL.md        how a change to an already-built spec is argued before anyone edits it
 install.sh                      per-user installer: skills (Claude/Pi/OMP), spec2pdf.sh + deps, speccheck CLI
 spec2pdf.sh                     renders a spec/doc to PDF: TOC, mermaid, clickable IDs, 1in margins
 scripts/xref_preprocess.py      --click support: rewrites ID mentions into PDF jump-links

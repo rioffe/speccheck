@@ -1,6 +1,6 @@
 # Proposal — v1.14: tell the judge which obligation it is judging — the related ids on the request, and a fixture that can catch an off-topic `ASSERTS`
 
-> - **Status:** proposal, 2026-09-19; for `spec-writing` to turn into `SPEC.md` v1.15 rows after the requester settles D-28 below. **Requires v1.13 Part A** (C-12: the `depends_on` edges) — if v1.13 is not adopted, C-12's edge extraction is the one part this proposal needs carried over. Renumbered 2026-09-20: this proposal's own D-26 and E-56 collided with the real, confirmed D-26 and E-56 that `PROPOSAL_v1.15_declared_vs_incidental_citations.md` landed in `SPEC.md` v1.14 first — exactly the case that proposal's front matter flagged ("renumber whichever lands second"). This proposal's decision is now D-28 and its edge case E-57; R-38, reserved for it, is unaffected.
+> - **Status:** proposal, 2026-09-19; for `spec-writing` to turn into `SPEC.md` v1.15 rows after the requester settles D-28 below. **Requires v1.13 Part A** (C-12: the `depends_on` edges) — if v1.13 is not adopted, C-12's edge extraction is the one part this proposal needs carried over. Renumbered 2026-09-20: this proposal's own D-26 and E-56 collided with the real, confirmed D-26 and E-56 that `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` landed in `SPEC.md` v1.14 first — exactly the case that proposal's front matter flagged ("renumber whichever lands second"). This proposal's decision is now D-28 and its edge case E-57; R-38, reserved for it, is unaffected.
 > - **Applies to:** `SPEC.md` v1.14 — C-06 (request body), C-10 (instruction text), T-49/T-76 (golden fixture and labels), D-08; `judge_mock.py` unchanged in behaviour.
 > - **Notation:** unprefixed ids are speccheck's own; `mcpi:I-002` is the Monte Carlo π spec's.
 > - **Evidence:** the v1.9 proposal's §1 (the gist failure and its per-model numbers); the v1.13 measurement (134 of 203 live ids name another id in their statement; 186 `depends_on` edges); the transcript `docs/research/ontological_spec_database.md` §8 (Level 6, *"implementation actually realizes the intended behavior"*) and §9 (an obligation carries its subject, condition, scope, and evidence, not only its text).
@@ -150,7 +150,7 @@ that question needs the source under test, not the test, and is a different tool
 on purpose — T-84 is the row that measures this change, and it is recorded, not gating, until three runs on two
 models say the difference is real.
 
-## 7. Interaction with `--jev-pre-triage` (added by v1.15 / `PROPOSAL_v1.16_jev_pre_triage.md`; appended 2026-09-20)
+## 7. Interaction with `--jev-pre-triage` (added by v1.15 / `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md`; appended 2026-09-20)
 
 This proposal predates v1.15. Nothing in it conflicts with the pending proposal — the spec deliberately routed Jev's ids around this proposal's `D-28`, `E-57`, `R-38` (`SPEC.md` §12 holds them; v1.15 took `D-29..D-32` / `E-58..E-59` *around* them, and left C-06/C-10 alone). But v1.15 introduced one coupling §1–§6 did not have to weigh, because at the time the judge had a single call per edge.
 

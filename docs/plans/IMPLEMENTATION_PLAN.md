@@ -1,7 +1,7 @@
 # Implementation plan — speccheck v1.18 delta (the CLI documents its own parameters)
 
 > - **Target:** the `speccheck` kernel at `SPEC.md` v1.18 (the fold of
->   `PROPOSAL_v1.18_cli_help_contract.md`): every flag of the four parsers documents purpose, values,
+>   `docs/proposals/PROPOSAL_v1.18_cli_help_contract.md`): every flag of the four parsers documents purpose, values,
 >   default and preconditions, every `--help` screen carries the `environment:` block and the
 >   exit-code epilog, and four tests bind the help to the validator, the parser, the rendered bytes
 >   and the code's own `SPECCHECK_*` literals (R-41, C-19, I-017; T-95..T-98).

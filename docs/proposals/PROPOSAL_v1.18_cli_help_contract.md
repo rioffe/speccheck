@@ -2,7 +2,7 @@
 
 > - **Status:** proposal, 2026-09-20; for `spec-writing` to turn into `SPEC.md` v1.18 rows after
 >   the requester settles D-37, D-38, D-39, D-40, D-41 and D-42 below. v1.18 assumes
->   `PROPOSAL_v1.17_explain_id.md` lands first (it reserved R-40, C-18, I-16, E-60, E-61,
+>   `docs/proposals/PROPOSAL_v1.17_explain_id.md` lands first (it reserved R-40, C-18, I-16, E-60, E-61,
 >   T-92..T-94 and D-33..D-36); if this one lands first it *is* v1.17 and `explain_id` becomes
 >   v1.18 — renumber whichever lands second. Note also that `SPEC.md` v1.16 is itself uncommitted
 >   in the working tree (`git status`: `M SPEC.md`; `speccheck --version` still reports `1.15.0`),
@@ -11,7 +11,7 @@
 >   21 rows: 19 flags + 2 subcommand rows), §5.4 (exit codes), §5.3 (diagnostics), the C-09 and
 >   C-17 environment blocks, and `src/speccheck/cli.py` `build_parser()` (23 argument definitions
 >   across the top-level parser and the two subparsers). New rows: R-41, C-19, I-17, T-95, T-96,
->   T-97, T-98. Independent of `PROPOSAL_v1.17_explain_id.md` — neither needs the other, both can
+>   T-97, T-98. Independent of `docs/proposals/PROPOSAL_v1.17_explain_id.md` — neither needs the other, both can
 >   land in either order — but they interact: T-96 introspects the parser, so whichever lands
 >   second must give its own new flags help text, and `explain`'s flags fall under R-41 the moment
 >   they exist.
@@ -354,7 +354,7 @@ Proposed rows, drafted for `spec-writing`:
 | **Metavar rename only** — `--src PATHS`, `--judge-budget SECONDS\|N%`, `--max-unknown FRACTION`, no help strings | Cheapest visible improvement, and it does fix the "the value shape is not even hinted at" half of §1, but it names no accepted value, no default and no precondition — an agent still cannot construct `--judge llm --progress always` from it, and still cannot learn that `--judge-budget 5%` needs its companion `--jev-pre-triage` flag. Kept as Part A's cosmetic component, rejected as the whole fix. |
 | **A structured surface instead** — `speccheck check --help-json` (or `--dump-schema`) emitting `{flag, metavar, values[], default, requires[]}` | Strictly more parseable than prose, and the only alternative that would make agent consumption exact rather than regex-scraped. Rejected as the default because it is a new interface with its own contract, tests and golden, it duplicates every fact the prose help already states (a fifth copy, with no equality rule binding the two renderings), and no evidence in §1 shows an agent failing for want of JSON — the failures are for want of *any* statement of the values. Offered as D-40's third branch for a requester who wants it anyway. |
 | **Generate the help from SPEC §5.1's table at build time** | The strongest guarantee of spec parity, and the reason it is not recommended is mechanical, not aesthetic: §5.1's values live in prose table cells (`a float in [0, 1]`, `\`none\` (default), \`mock\`, \`llm\``), not in a structured schema, so this needs a new grammar and a new extractor for the spec's own interface table, a code-generation step in the build, and a kernel that parses its own spec in order to describe itself. T-95 gets the same guarantee for the tokens that matter, from the validator's own output, at ~20 lines of test. |
-| **Extend `PROPOSAL_v1.17_explain_id.md` instead of writing this one** | It is the natural neighbour — it adds a third subcommand whose flags will need help text — but its §2 table carries no row about help: R-40 (the subcommand), C-18 (its stdout), I-16, E-60/E-61, T-92..T-94. Folding this in would mean the help contract lands only when `explain` lands, and `check`'s 14 and `impact`'s 9 flag definitions stay bare until then, for no gain. The two are independent and both can land; the interaction is named in the `Status` line: T-96 introspects the parser, so `explain`'s flags must carry help the moment they exist, whichever proposal lands second. |
+| **Extend `docs/proposals/PROPOSAL_v1.17_explain_id.md` instead of writing this one** | It is the natural neighbour — it adds a third subcommand whose flags will need help text — but its §2 table carries no row about help: R-40 (the subcommand), C-18 (its stdout), I-16, E-60/E-61, T-92..T-94. Folding this in would mean the help contract lands only when `explain` lands, and `check`'s 14 and `impact`'s 9 flag definitions stay bare until then, for no gain. The two are independent and both can land; the interaction is named in the `Status` line: T-96 introspects the parser, so `explain`'s flags must carry help the moment they exist, whichever proposal lands second. |
 | **Pin the exact help strings in `SPEC.md`** | Every wording improvement would become a spec revision plus a version bump plus a golden update, and the spec would carry ~50 lines of CLI prose that duplicate §5.1's table. Rejected as D-38's non-recommended branch; C-19 pins the *content* and the metavar vocabulary instead, and T-97 pins the bytes in `tests/`, where a wording change is a test diff rather than a spec change. |
 | **Environment variables: a per-flag mention only** — `--judge llm (requires SPECCHECK_JUDGE_*)` in the flag entry, no `environment:` block | Smallest change, and it does connect the flag to the fact that something must be set. Rejected as the default because it never states the *set*: an operator still cannot learn from the help that there are four judge variables, which of them are optional, what `SPECCHECK_JUDGE_TIMEOUT`'s range is, or that the `JEV_*` variables are read only when the triage runs — the four facts §1 shows the error messages withholding until you fail. Kept as the flag entries' pointer text inside Part E. |
 | **Environment variables: document them in README only** (they already are, in three `export` blocks) | This is the status quo that produced §1's second half: three prose blocks plus `install.sh`, none of them reachable from the CLI, and a spec sentence (`SPECCHECK_LLMMODEL`) contradicting them all. Documentation that lives only where the CLI cannot be asked about it is what an agent skips. |
@@ -413,7 +413,7 @@ Proposed rows, drafted for `spec-writing`:
   the prose help; there is no `--help-json`, no schema artifact, and no guarantee that any given
   agent's parser of the help text will survive a rewording — which is precisely what D-38's
   wording-free branch accepts in exchange for cheap improvements.
-- **It does not cover the future `explain` subcommand.** `PROPOSAL_v1.17_explain_id.md`'s flags
+- **It does not cover the future `explain` subcommand.** `docs/proposals/PROPOSAL_v1.17_explain_id.md`'s flags
   fall under R-41 and T-96 the moment they exist; until that proposal lands, `explain` has no help
   text to fix. If both are confirmed, whichever is implemented second must carry the other's rows
   — noted in the `Status` line, not resolved here.

@@ -6,7 +6,7 @@
 
 ## 0j. v1.18 increment (2026-09-21) — the CLI documents its own parameters and environment (R-41, C-19, I-017; T-95..T-98)
 
-**Why.** `PROPOSAL_v1.18_cli_help_contract.md`, a documentation change with a contract attached:
+**Why.** `docs/proposals/PROPOSAL_v1.18_cli_help_contract.md`, a documentation change with a contract attached:
 `check --help` rendered 755 bytes of flag names with argparse's destination names for metavars and
 **zero** help strings, `grep -c "choices=" src/speccheck/cli.py` was 0, and the only machine-readable
 statement of a flag's accepted values was the usage error it printed *after* you guessed wrong. The
@@ -17,8 +17,8 @@ PATHS. D-37..D-42 were confirmed on the proposal's recommended branches; D-42's 
 (the uncommitted v1.16 fold) no longer existed once v1.16 and v1.17 shipped, so C-06's variable name
 is fixed in this version's own fold instead.
 
-**Plan.** A delta `IMPLEMENTATION_PLAN.md` plus one brief per wave
-(`DETAILED_IMPLEMENTATION_PLAN_W1.md`, `_W2.md`): W1 the help strings, metavars, epilogs and the
+**Plan.** A delta `docs/plans/IMPLEMENTATION_PLAN.md` plus one brief per wave
+(`docs/plans/DETAILED_IMPLEMENTATION_PLAN_W1.md`, `_W2.md`): W1 the help strings, metavars, epilogs and the
 four tests, W2 the README, the conformance report and both gates. The plan's one fork — one shared
 epilog pair for all four screens, or a per-subcommand epilog — was taken as **one shared pair**: the
 environment and the exit codes are the same facts on every screen, and four renderings of one §5.4
@@ -114,7 +114,7 @@ v1.18 rows record the fix.
 
 ## 0i. v1.17 increment (2026-09-20) — `speccheck explain <ID>` (R-40, C-18, I-016, E-60, E-61)
 
-**Why.** `PROPOSAL_v1.17_explain_id.md`, a **capability addition rather than a defect fix** and
+**Why.** `docs/proposals/PROPOSAL_v1.17_explain_id.md`, a **capability addition rather than a defect fix** and
 stated as such: every fact a reader wants about one id is already computed — its statement, its
 status and the C-05 step that set it, its citations with each case's JUnit outcome, each edge's
 verdict, and the C-12 blast radius — but assembling them by hand takes three structured artifacts
@@ -123,8 +123,8 @@ the path existed and was not *rendered as one thing*. D-33..D-36 (stdout-only, t
 section included, recompute from the same inputs, one id per invocation) were confirmed on the
 proposal's recommended branches before this build.
 
-**Plan.** A delta `IMPLEMENTATION_PLAN.md` plus one brief per wave
-(`DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the subcommand and the renderer, W2 the recorded
+**Plan.** A delta `docs/plans/IMPLEMENTATION_PLAN.md` plus one brief per wave
+(`docs/plans/DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the subcommand and the renderer, W2 the recorded
 T-94, W3 the README, the conformance report and both gates. The plan's one fork — T-94's live-LLM
 arm, run or recorded pending — was taken as **run it**: the requester named the model, and the
 `clause:`/`rationale:` lines are the one part of C-18 a stub cannot honestly produce.
@@ -246,7 +246,7 @@ run.
 
 ## 0h. v1.16 increment (2026-09-20) — the obligation-aware judge (R-38, C-06, C-10, C-17, K-16, E-57, T-83, T-84)
 
-**Why.** `PROPOSAL_v1.14_obligation_aware_judge.md`, grounded in `JUDGE_CROSSCHECK_REPORT.md` §2b:
+**Why.** `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md`, grounded in `JUDGE_CROSSCHECK_REPORT.md` §2b:
 of 613 judged edges on this repository's own tree, 153 were genuine conflicts between two models,
 60 of them concentrated on five ids reused as generic fixture data, and three read in full showed a
 test citing an id as placeholder data while proving something else. The judge could see the test
@@ -256,8 +256,8 @@ obligation" from "this test proves a neighbour this obligation refers to". D-28 
 own references first, capped at eight) and D-28b (the same list rides the C-17 triage `state`) were
 confirmed in the spec before this build.
 
-**Plan.** A delta `IMPLEMENTATION_PLAN.md` plus one brief per wave
-(`DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the fixture's adjacent pairs and labels, W2
+**Plan.** A delta `docs/plans/IMPLEMENTATION_PLAN.md` plus one brief per wave
+(`docs/plans/DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the fixture's adjacent pairs and labels, W2
 `related` on the request and the triage `state`, W3 the recorded measurements, the README and the
 gates. The plan's one fork — measure T-84 against both C-10 texts, or the shipped text alone — was
 taken as **both**: without the pre-v1.16 arm, "six of eight downgraded" cannot be told apart from a
@@ -392,7 +392,7 @@ run 3 — which is what exposed F-1; the labels, not the model, were wrong.
 
 
 
-**Why.** `PROPOSAL_v1.16_jev_pre_triage.md`, grounded in a `check --judge llm --strict` run of this
+**Why.** `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md`, grounded in a `check --judge llm --strict` run of this
 repository's own tree cross-checked edge-by-edge against `typesafe/jev-1.13`: `--judge-budget`
 already truncated a judge run, but which edges were issued before the deadline was an accident of
 declaration order, so a truncated run spent itself on whatever came first rather than on what was
@@ -403,8 +403,8 @@ sit at $\geq$ 0.95, headroom a budgeted run was losing. D-29..D-32 (dedicated `S
 variables, a Note when the pass cannot matter, failure-orders-first, `ceil`) were confirmed in the
 spec before this build; no fork was left for it.
 
-**Plan.** A delta `IMPLEMENTATION_PLAN.md` plus one brief per wave
-(`DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the C-17 provider and the CLI grammar, W2 the
+**Plan.** A delta `docs/plans/IMPLEMENTATION_PLAN.md` plus one brief per wave
+(`docs/plans/DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the C-17 provider and the CLI grammar, W2 the
 K-16 ordering pass and K-12's `N%` count, W3 the recorded calibration, the README and the gates.
 The plan's one fork — run T-91's measurement for real, or record it pending — was taken as
 **run it**: the credentials and a judge model are present, and the alternative would have left the
@@ -483,7 +483,7 @@ this increment.
 
 ## 0f. v1.14 increment (2026-09-20) — declared vs. incidental citations (R-39, C-14, C-15, C-16, I-014, E-56)
 
-**Why.** `PROPOSAL_v1.15_declared_vs_incidental_citations.md`, grounded in `JUDGE_CROSSCHECK_REPORT.md`
+**Why.** `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md`, grounded in `JUDGE_CROSSCHECK_REPORT.md`
 §2b: a `check --judge llm` run of this repository's own tree with `gpt-4o-mini`, cross-checked
 edge-by-edge against an independent second model, found 153/613 genuine conflicts (both models
 committed and disagreed), 60 of them concentrated in five ids reused as generic fixture data
@@ -496,7 +496,7 @@ apply it; it was throwing the distinction away before the judge ever saw the edg
 only, no coercion) and D-27 (whole-line-comment detection, no token-level parsing) were confirmed
 in the spec before this build; no fork was left for it.
 
-**Plan.** A compact `IMPLEMENTATION_PLAN.md` delta, three waves in dependency order: W1 the
+**Plan.** A compact `docs/plans/IMPLEMENTATION_PLAN.md` delta, three waves in dependency order: W1 the
 `declared` fact (Attributor + Grapher), W2 the judge request and the C-10 instruction text, W3 the
 report visibility (`tests[].declared`, `metrics.declared_ratio`) and the regenerated goldens. T-87
 is the recorded, non-gating re-run of the proposal's three evidence edges.
@@ -578,7 +578,7 @@ costs nothing under `--judge none`.
 
 ## 0e. v1.13 increment (2026-09-19) — spec-internal edges (C-12) and the `impact` subcommand (C-13)
 
-**Why.** `PROPOSAL_v1.13_impact.md`: the spec already carries a dependency graph in its own prose
+**Why.** `docs/proposals/PROPOSAL_v1.13_impact.md`: the spec already carries a dependency graph in its own prose
 (134 of 203 v1.12 ids name another id in their statement — 186 `depends_on`, 240 `verifies`; the
 §12 decision rows add 110 `affects` edges) and nothing read it. v1.13 extracts that graph
 mechanically and adds `speccheck impact` to walk it for change-impact analysis. D-24 and D-25 were
@@ -593,7 +593,7 @@ R-37, C-12, C-13, I-013, E-53, E-54, E-55, T-79..T-82) are added below, at their
 position.
 
 **Plan.** No `spec-plan` multi-document run was needed for a delta this bounded; a compact
-`IMPLEMENTATION_PLAN.md` covers it directly: W1 the C-12 edges (extractor + `speccheck.json`), W2
+`docs/plans/IMPLEMENTATION_PLAN.md` covers it directly: W1 the C-12 edges (extractor + `speccheck.json`), W2
 the `impact` subcommand (C-13), W3 the backtest tool (D-24, recorded, non-gating).
 
 **Wave ledger.**
@@ -681,7 +681,7 @@ a follow-up, not attempted here (T-82 is recorded, not gating, precisely for fin
 
 ## 0d. v1.11 increment (2026-09-18) — clause-grounded verdicts, recorded tests, a body in the T-49 fixture
 
-**Why.** Three spec increments in one build. v1.9 (`7dde608`, `PROPOSAL_v1.9_clause_grounding.md`): with bodies
+**Why.** Three spec increments in one build. v1.9 (`7dde608`, `docs/proposals/PROPOSAL_v1.9_clause_grounding.md`): with bodies
 in the statement, `gpt-4o-mini` graded long contracts by their gist — 13 of 18 stable downgrades on the mdv
 tree were tests asserting a body clause nearly verbatim — while `gemini-3.8-flash` located the clause; and
 T-49's nine labels could not tell the two apart. v1.10 (`dd29c4d`): under an honest judge the presence checks
@@ -689,7 +689,7 @@ that keep T-48/T-49/T-51 cited are `EXECUTES_ONLY` by construction, so `--strict
 this repository for a reason the spec intended but had not written down (D-22). v1.11 (`c1e3d87`): the seven
 findings of the v1.10 review (F-401..F-407), chiefly one `schema_version` literal and an ordered validator.
 
-**Plan.** `IMPLEMENTATION_PLAN.md` (`2d8f743`): W1 apparatus + extractor, W2 kernel + reports + goldens,
+**Plan.** `docs/plans/IMPLEMENTATION_PLAN.md` (`2d8f743`): W1 apparatus + extractor, W2 kernel + reports + goldens,
 W3 prove; no fork left for the requester (D-21/D-22 confirmed in the spec, models settled by D-08).
 
 **Wave ledger.**
@@ -760,11 +760,11 @@ Phase B expectation ("both `CONFORMING`") held for gemini only.
 (`openai/gpt-4o-mini` 65/70, 0 weak; `google/gemini-3.8-flash` 56/70, 9 weak, 15 `UNRELATED`,
 3 `UNKNOWN`) disagreed almost entirely on `###`-declared contracts. Both judges had been handed a
 title (`Data structures`, `` `EstimationWorker` (an `actor`) ``) and never the pinned API beneath
-it; one guessed generously, the other refused. `PROPOSAL_v1.7_heading_bodies.md` has the edges.
+it; one guessed generously, the other refused. `docs/proposals/PROPOSAL_v1.7_heading_bodies.md` has the edges.
 
 **Spec first.** `SPEC.md` v1.6 → v1.7 (`d170433`: R-33, C-01 (b), C-02 `title`, C-06, C-07
 `schema_version` `"1.1"`, C-08, C-10 any-clause rule, K-14, E-46, E-47, T-72..T-74, D-20) →
-`spec-review` (`SPEC_REVIEW_REPORT.md`, F-301..F-307: Level 3, READY WITH MINOR FIXES) → v1.8
+`spec-review` (`docs/reviews/SPEC_REVIEW_REPORT.md`, F-301..F-307: Level 3, READY WITH MINOR FIXES) → v1.8
 (`c0a770a`: the line model F-301, T-72/T-73 as properties F-302, T-49 staleness rule and D-08
 re-opened F-303, ATX corner cases F-304, empty title F-305, C-09 cited F-306, editorial F-307).
 D-20 confirmed by the requester (code blocks included; cap raised from the proposal's 8,192 to
@@ -772,7 +772,7 @@ D-20 confirmed by the requester (code blocks included; cap raised from the propo
 `79 passed, 2 failed` — T-54 (`judge_prompt.md` ≠ the new C-10 block) and T-48 (183 ≠ 190 ids):
 the spec moving, not the code breaking.
 
-**Plan (Phase 0).** `IMPLEMENTATION_PLAN.md` + `DETAILED_IMPLEMENTATION_PLAN_W1.md`/`_W2.md`
+**Plan (Phase 0).** `docs/plans/IMPLEMENTATION_PLAN.md` + `docs/plans/DETAILED_IMPLEMENTATION_PLAN_W1.md`/`_W2.md`
 (`be1b8cc`): W1 extractor, W2 consumers + goldens + version, W3 prove. Fork settled by the
 requester before W1: Phase B and the T-49 re-runs use OpenRouter `openai/gpt-4o-mini`.
 
@@ -877,7 +877,7 @@ hand-written grep walk had produced. Phase B was not run for this increment on s
 tree (no judged Python test changed its kind of assertion); it was run on the Swift project, whose
 report records the outcome.
 
-**Deviation from `spec-build`'s method, stated.** No `IMPLEMENTATION_PLAN.md` was written for this
+**Deviation from `spec-build`'s method, stated.** No `docs/plans/IMPLEMENTATION_PLAN.md` was written for this
 four-file increment; the order above stood in for it and the commit message records the gate.
 
 **Interpretations (D-17..D-19 defaults, awaiting confirmation).** Line-based delimiting rather than
@@ -909,7 +909,7 @@ whose assertions are of the same kind the judge already accepted.
 ## 0. v1.4 increment (2026-09-13)
 
 `SPEC.md` v1.3 added the judge-stage progress indicator (R-30, C-11, K-13, E-39, E-40, T-62,
-T-63, D-15) and v1.4 folded in the ten findings of its `spec-review` (`SPEC_REVIEW_REPORT.md`,
+T-63, D-15) and v1.4 folded in the ten findings of its `spec-review` (`docs/reviews/SPEC_REVIEW_REPORT.md`,
 F-201..F-210), among them the interrupt rule (E-41, T-64, D-16). The build was brought up to
 date test-first: T-62/T-63/T-64 were written from §9, watched fail (`--progress` unrecognized;
 a `KeyboardInterrupt` from the provider stub escaped `main()` and killed the pytest process —

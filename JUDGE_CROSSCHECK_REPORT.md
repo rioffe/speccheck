@@ -135,7 +135,7 @@ satisfiable and the open question is topical relevance — whether the located, 
 about *this* obligation or an incidental one sharing the token. Neither C-10's question nor K-15's
 check asks that. A fix would need the judge to be told, or to check, that the assertion's subject
 matches the statement's subject — plausibly related to the `related`-ids idea in
-`PROPOSAL_v1.14_obligation_aware_judge.md`, though that proposal targets a different problem
+`docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md`, though that proposal targets a different problem
 (confusing an obligation with a *dependency* it names) and would need to be extended, not just
 applied, to catch "a token reused as unrelated fixture data" rather than "a neighboring
 obligation."

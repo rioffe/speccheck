@@ -1,4 +1,4 @@
-"""Generate one Jev task per census subject (`PROPOSAL_obligation_census.md`).
+"""Generate one Jev task per census subject (`docs/proposals/PROPOSAL_obligation_census.md`).
 
 Jev (`typesafe/jev-1.13`) answers strongly-typed structured questions against a `state` --
 `noul` (boolean: true/false), `choice` (one of a fixed option list), `score` (one of a rubric's

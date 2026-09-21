@@ -17,3 +17,6 @@ build/
 *.err
 docs/*.pdf
 mermaid-filter.err
+
+# macOS metadata
+.DS_Store

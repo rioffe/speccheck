@@ -1,13 +1,13 @@
 # Proposal — v1.16: `--jev-pre-triage` — spend a truncated judge budget on the edges Jev is least sure about
 
 > - **Status:** proposal, 2026-09-20; for `spec-writing` to turn into `SPEC.md` v1.16 rows after
->   the requester settles D-29..D-32 below. `PROPOSAL_v1.14_obligation_aware_judge.md` is still
+>   the requester settles D-29..D-32 below. `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md` is still
 >   pending and has already claimed v1.15 (its own Status line, renumbered 2026-09-20); this
 >   proposal is numbered past it, v1.16, per the house "number past whichever is higher" rule.
 > - **Applies to:** `SPEC.md` v1.14 — K-12 (amended: `--judge-budget` grows a percentage form),
 >   a new K-row (`--jev-pre-triage`), a new C-row (the Jev provider's own env-var contract,
 >   mirroring C-09's shape), a new I-row (Jev stays advisory), two new E-rows, three new T-rows.
->   Independent of `PROPOSAL_v1.14_obligation_aware_judge.md`: that proposal changes what C-06's
+>   Independent of `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md`: that proposal changes what C-06's
 >   request body tells the judge about a statement's neighboring obligations; this proposal
 >   changes nothing about the request body — only which edges get issued to the real judge, and
 >   in what order. Neither needs the other; both could land, in either order.
@@ -173,7 +173,7 @@ Proposed rows, drafted for `spec-writing`:
 | Order by `--judge mock`'s agreement instead of Jev's | Measured and rejected: mock answered `ASSERTS` on all 656 of this repository's own edges (`build/speccheck/speccheck.json`), so it has 0% recall on `UNRELATED`/`EXECUTES_ONLY` (§1) — there is no discriminative signal to sort by; mock never disagrees with itself. |
 | A fixed sample (random or hash-based) instead of Jev-ranked, for the `%` form | No worse than today's declaration-order truncation, but throws away the ~47-point agreement spread across Jev's confidence buckets (§1) for no benefit — it recovers the "plannable fixed spend" property of Part B alone, without Part A's ordering value. |
 | Auto-derive an equivalent `SECONDS` value from a target percentage (estimate avg seconds/edge × N%) | Doesn't fix the actual complaint: the edge *count* covered by a given `SECONDS` value is still nondeterministic across runs with different network/provider latency, which is the reason a count-based form was wanted in the first place. |
-| Extend `PROPOSAL_v1.14_obligation_aware_judge.md` instead of writing a new mechanism | That proposal's C-12 `depends_on` edges carry no confidence or agreement signal on the exact edges this proposal targets — it tells the judge about a statement's *neighbors*, not how likely a given edge is to be judged correctly. Empty field for this purpose; genuinely orthogonal. |
+| Extend `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md` instead of writing a new mechanism | That proposal's C-12 `depends_on` edges carry no confidence or agreement signal on the exact edges this proposal targets — it tells the judge about a statement's *neighbors*, not how likely a given edge is to be judged correctly. Empty field for this purpose; genuinely orthogonal. |
 
 ## 5. Decisions for the requester (D-29, D-30, D-31, D-32, all `confirm`)
 

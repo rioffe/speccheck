@@ -1,6 +1,6 @@
 """Generate one Jev task per judged edge of a `speccheck check --judge llm` run, for a
 second-opinion cross-check -- not a replacement judge (see the design note below and
-`PROPOSAL_obligation_census.md`'s sibling reasoning: Jev's typed vocabulary has no slot for the
+`docs/proposals/PROPOSAL_obligation_census.md`'s sibling reasoning: Jev's typed vocabulary has no slot for the
 clause-grounding (R-34/K-15) or evidence-grounding (I-005) the real judge contract (C-06/C-10)
 requires, so this never feeds back into `--judge llm`; it only asks Jev the bare verdict question
 and reports where it disagrees with the recorded one, for a human to look at).

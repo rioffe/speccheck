@@ -1,6 +1,6 @@
 # Obligation census — run report
 
-> - **Ran:** 2026-09-19, against `tools/census.py` implementing `PROPOSAL_obligation_census.md`
+> - **Ran:** 2026-09-19, against `tools/census.py` implementing `docs/proposals/PROPOSAL_obligation_census.md`
 > - **Subject:** this repository's own `SPEC.md` (v1.13), 133 live obligations across R (37), C (13), I (13), K (15), E (55) — T ids excluded (methods, not obligations), retired ids excluded
 > - **Models:** `qwen3:8b` (local, via Ollama), `openai/gpt-4o-mini` (OpenRouter), `google/gemini-3.8-flash` (OpenRouter); 3 runs per subject per model (399 requests each), `prompt_sha256` `ea0e4c17ff4d5b71a0ce36ee7c297b2275147bffdea9ef03096d0679d74f858e` — identical across all three runs, confirming the instrument itself didn't drift between them. Plus `typesafe/jev-1.13` (OpenRouter's alpha decisions API — `tools/jev_client.py`/`tools/jev_report.py`), one call per subject (not `--runs`; it returns a full probability distribution rather than a discrete sample), 133/133 succeeded.
 > - **Verdict:** provisional — see §4. None of the four runs is ratified (0/133 each); the `docs/research/SPEC.md` (Monte Carlo π) second subject named in the proposal was not run in this pass.

@@ -1,4 +1,4 @@
-"""The obligation census (`PROPOSAL_obligation_census.md`): classify every live R/C/I/K/E id of
+"""The obligation census (`docs/proposals/PROPOSAL_obligation_census.md`): classify every live R/C/I/K/E id of
 a spec by what would be cheapest to verify it -- form in {expr, struct, behavior, prose}, checker
 in {ast, schema, test, llm} -- before deciding whether a checkable-expression field is worth
 adding to the C-01 grammar. No `SPEC.md` version; this is a decision gate, not a change to the
