@@ -1,0 +1,91 @@
+usage: speccheck check [-h] --spec FILE [--src PATHS] [--tests PATHS]
+                       [--results FILE] [--root DIR] [--out DIR]
+                       [--judge MODE] [--strict] [--max-unknown FRACTION]
+                       [--judge-concurrency N] [--judge-budget SECONDS|N%]
+                       [--jev-pre-triage] [--progress MODE]
+                       [--verbose [LEVEL]]
+
+Run the conformance pipeline and write speccheck.json and SPEC_CONFORMANCE_REPORT.md under --out.
+
+options:
+  -h, --help            show this help message and exit
+  --spec FILE           the specification to check; decoded as UTF-8 (invalid
+                        bytes are replaced and noted). required; must resolve
+                        inside --root
+  --src PATHS           source roots to scan for citations. repeatable; each
+                        value is a comma-separated list of files and/or
+                        directories. default: src if that directory exists,
+                        and only when the flag is absent; every element must
+                        resolve inside --root
+  --tests PATHS         test roots; Python files are split into test cases
+                        with ast, Swift files by the line-based adapter,
+                        anything else is attributed at file level. repeatable,
+                        comma-separated, as --src. default: tests if that
+                        directory exists, and only when the flag is absent
+  --results FILE        JUnit XML results to join to the cited test cases;
+                        without it no cited ID can be better than UNVERIFIED.
+                        must resolve inside --root
+  --root DIR            base directory for the reports' relative paths and for
+                        the containment rule: --spec, --src, --tests,
+                        --results, --out and every list element must resolve
+                        inside it. default: .
+  --out DIR             where the reports are written. default: .; must
+                        resolve inside --root
+  --judge MODE          judge to use: none, mock, or llm -- llm is model-
+                        backed and requires SPECCHECK_JUDGE_*. default: none
+  --strict              exit 1 unless every in-scope ID is PASSING with no
+                        dangling or stale citation and, with --judge llm, the
+                        judge was available and unknown_rate <= --max-unknown.
+                        default: off
+  --max-unknown FRACTION
+                        unknown_rate ceiling for --strict: a decimal in [0,
+                        1]. default: 0.2; consulted only with --strict --judge
+                        llm
+  --judge-concurrency N
+                        judge requests in flight at once: an integer 1..32.
+                        default: 4; ignored unless --judge llm
+  --judge-budget SECONDS|N%
+                        judge-stage bound. SECONDS: an integer 0..86400, a
+                        wall-clock deadline; N%: an integer 0..100 followed by
+                        %, that share of the judge-eligible edges, least
+                        confident first (requires --jev-pre-triage with
+                        --judge llm, else exit 2). default: 0 (unlimited);
+                        ignored unless --judge llm
+  --jev-pre-triage      ask the C-17 Jev endpoint for one confidence per
+                        judge-eligible edge before judging, and issue the
+                        judge's queue least-confident first. default: off;
+                        ignored unless --judge llm (under --judge none/mock no
+                        Jev request is made and no SPECCHECK_JEV_* variable is
+                        read)
+  --progress MODE       the judge progress indicator on stderr: auto, always,
+                        or never (auto draws it only when stderr is a TTY and
+                        verbosity is not DEBUG). default: auto; ignored unless
+                        --judge llm
+  --verbose [LEVEL]     diagnostics on stderr: INFO or DEBUG (DEBUG adds the
+                        judge request and response lines, with the API key
+                        redacted); bare --verbose means INFO. default: ERROR
+                        (nothing below ERROR reaches stderr)
+
+environment:
+  SPECCHECK_JUDGE_URL, SPECCHECK_JUDGE_MODEL, SPECCHECK_JUDGE_API_KEY
+                        required with --judge llm: the chat-completions endpoint, the model id
+                        (passed through verbatim), and the bearer key -- never printed, at any
+                        verbosity
+  SPECCHECK_JUDGE_TIMEOUT
+                        optional, seconds, an integer 1..300, default 30
+  SPECCHECK_JEV_API_KEY required with --jev-pre-triage under --judge llm, and read only when the
+                        triage pass runs (ignored under --judge none/mock, where no Jev request
+                        is made)
+  SPECCHECK_JEV_URL, SPECCHECK_JEV_MODEL
+                        optional; default https://openrouter.ai/api/alpha/decisions and
+                        ~typesafe/jev-latest
+  SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
+  COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
+                        it)
+
+exit codes:
+  0 conforming   1 not conforming (check only)   2 usage error   3 input-contract violation
+summary line (check, stdout, exactly one line):
+  speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped>
+  skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited;
+  <dangling> dangling, <stale> stale; judge=<mode>

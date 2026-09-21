@@ -1,0 +1,46 @@
+usage: speccheck [-h] [--version] [--self-check] [--verbose [LEVEL]]
+                 {check,impact,explain} ...
+
+Specification conformance checker: traceability graph, JUnit results, model-judged test strength
+
+positional arguments:
+  {check,impact,explain}
+    check               run the conformance pipeline
+    impact              report change impact from spec-internal edges
+    explain             render one id's evidence trail (C-18)
+
+options:
+  -h, --help            show this help message and exit
+  --version             print the installed version and exit
+  --self-check          run the packaged golden fixture in a temporary
+                        directory, compare its two reports with the packaged
+                        goldens byte for byte, and print 'self-check: ok' on a
+                        match. default: off
+  --verbose [LEVEL]     diagnostics on stderr: INFO or DEBUG (DEBUG adds the
+                        judge request and response lines, with the API key
+                        redacted); bare --verbose means INFO. default: ERROR
+                        (nothing below ERROR reaches stderr)
+
+environment:
+  SPECCHECK_JUDGE_URL, SPECCHECK_JUDGE_MODEL, SPECCHECK_JUDGE_API_KEY
+                        required with --judge llm: the chat-completions endpoint, the model id
+                        (passed through verbatim), and the bearer key -- never printed, at any
+                        verbosity
+  SPECCHECK_JUDGE_TIMEOUT
+                        optional, seconds, an integer 1..300, default 30
+  SPECCHECK_JEV_API_KEY required with --jev-pre-triage under --judge llm, and read only when the
+                        triage pass runs (ignored under --judge none/mock, where no Jev request
+                        is made)
+  SPECCHECK_JEV_URL, SPECCHECK_JEV_MODEL
+                        optional; default https://openrouter.ai/api/alpha/decisions and
+                        ~typesafe/jev-latest
+  SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
+  COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
+                        it)
+
+exit codes:
+  0 conforming   1 not conforming (check only)   2 usage error   3 input-contract violation
+summary line (check, stdout, exactly one line):
+  speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped>
+  skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited;
+  <dangling> dangling, <stale> stale; judge=<mode>

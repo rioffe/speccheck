@@ -154,56 +154,250 @@ class Action:
     explain_config: ExplainConfig | None = None
 
 
+def _expected(values: Sequence[str]) -> str:
+    """The `expected …` phrase a finite flag's usage error prints and its help entry repeats — one
+    source for both renderings, so they cannot disagree (C-19, T-95)."""
+    if len(values) == 2:
+        return f"{values[0]} or {values[1]}"
+    return ", ".join(values[:-1]) + f", or {values[-1]}"
+
+
+# C-19's range phrases: the same text the validators print (T-95).
+MAX_UNKNOWN_RANGE = "a decimal in [0, 1]"
+CONCURRENCY_RANGE = "an integer 1..32"
+DEPTH_RANGE = "an integer 0..999"
+BUDGET_SECONDS_RANGE = "an integer 0..86400"
+BUDGET_PERCENT_RANGE = "an integer N% in 0..100"
+
+ENVIRONMENT_EPILOG = """environment:
+  SPECCHECK_JUDGE_URL, SPECCHECK_JUDGE_MODEL, SPECCHECK_JUDGE_API_KEY
+                        required with --judge llm: the chat-completions endpoint, the model id
+                        (passed through verbatim), and the bearer key -- never printed, at any
+                        verbosity
+  SPECCHECK_JUDGE_TIMEOUT
+                        optional, seconds, an integer 1..300, default 30
+  SPECCHECK_JEV_API_KEY required with --jev-pre-triage under --judge llm, and read only when the
+                        triage pass runs (ignored under --judge none/mock, where no Jev request
+                        is made)
+  SPECCHECK_JEV_URL, SPECCHECK_JEV_MODEL
+                        optional; default https://openrouter.ai/api/alpha/decisions and
+                        ~typesafe/jev-latest
+  SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
+  COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
+                        it)
+"""
+
+EXIT_CODE_EPILOG = """exit codes:
+  0 conforming   1 not conforming (check only)   2 usage error   3 input-contract violation
+summary line (check, stdout, exactly one line):
+  speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped>
+  skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited;
+  <dangling> dangling, <stale> stale; judge=<mode>
+"""
+
+_EPILOG = ENVIRONMENT_EPILOG + "\n" + EXIT_CODE_EPILOG
+_FORMATTER = argparse.RawDescriptionHelpFormatter
+
+_HELP_SPEC = (
+    "the specification to check; decoded as UTF-8 (invalid bytes are replaced and noted). "
+    "required; must resolve inside --root"
+)
+_HELP_SRC = (
+    "source roots to scan for citations. repeatable; each value is a comma-separated list of "
+    "files and/or directories. default: src if that directory exists, and only when the flag is "
+    "absent; every element must resolve inside --root"
+)
+_HELP_TESTS = (
+    "test roots; Python files are split into test cases with ast, Swift files by the line-based "
+    "adapter, anything else is attributed at file level. repeatable, comma-separated, as --src. "
+    "default: tests if that directory exists, and only when the flag is absent"
+)
+_HELP_RESULTS = (
+    "JUnit XML results to join to the cited test cases; without it no cited ID can be better "
+    "than UNVERIFIED. must resolve inside --root"
+)
+_HELP_ROOT = (
+    "base directory for the reports' relative paths and for the containment rule: --spec, --src, "
+    "--tests, --results, --out and every list element must resolve inside it. default: ."
+)
+_HELP_OUT = "where the reports are written. default: .; must resolve inside --root"
+_HELP_JUDGE = (
+    f"judge to use: {_expected(JUDGE_MODES)} -- llm is model-backed and requires "
+    "SPECCHECK_JUDGE_*. default: none"
+)
+_HELP_MAX_UNKNOWN = (
+    f"unknown_rate ceiling for --strict: {MAX_UNKNOWN_RANGE}. default: 0.2; consulted only with "
+    "--strict --judge llm"
+)
+_HELP_CONCURRENCY = (
+    f"judge requests in flight at once: {CONCURRENCY_RANGE}. default: 4; ignored unless "
+    "--judge llm"
+)
+_HELP_BUDGET = (
+    "judge-stage bound. SECONDS: " + BUDGET_SECONDS_RANGE + ", a wall-clock deadline; N%%: an "
+    "integer 0..100 followed by %%, that share of the judge-eligible edges, least confident "
+    "first (requires --jev-pre-triage with --judge llm, else exit 2). default: 0 (unlimited); "
+    "ignored unless --judge llm"
+)
+_HELP_JEV = (
+    "ask the C-17 Jev endpoint for one confidence per judge-eligible edge before judging, and "
+    "issue the judge's queue least-confident first. default: off; ignored unless --judge llm "
+    "(under --judge none/mock no Jev request is made and no SPECCHECK_JEV_* variable is read)"
+)
+_HELP_PROGRESS = (
+    f"the judge progress indicator on stderr: {_expected(PROGRESS_MODES)} (auto draws it only "
+    "when stderr is a TTY and verbosity is not DEBUG). default: auto; ignored unless --judge llm"
+)
+_HELP_VERBOSE = (
+    f"diagnostics on stderr: {_expected(VERBOSE_LEVELS)} (DEBUG adds the judge request and "
+    "response lines, with the API key redacted); bare --verbose means INFO. default: ERROR "
+    "(nothing below ERROR reaches stderr)"
+)
+_HELP_DEPTH = f"walk depth: {DEPTH_RANGE} (0 = unbounded). default: 1"
+_HELP_CHANGED = (
+    "the changed set: a comma-separated list of ids declared in --spec (R/C/I/K/E/T or D). "
+    "exactly one of --changed and --against is required"
+)
+_HELP_AGAINST = (
+    "a prior version of the same spec; the changed set is the diff of its declarations. must "
+    "resolve inside --root; exactly one of --changed and --against is required"
+)
+_HELP_IMPACT_SRC = (
+    "source roots to list re-citations from. repeatable, comma-separated, as check's --src, but "
+    "there is no directory default here: absent means not scanned"
+)
+_HELP_IMPACT_TESTS = (
+    "test roots to list the citing test cases from. repeatable, comma-separated, as check's "
+    "--tests, with no directory default here"
+)
+_HELP_ID = "the id to render, e.g. R-07; it must be declared in --spec, else exit 2"
+
+
 def build_parser() -> _Parser:
-    parser = _Parser(prog="speccheck", description="Specification conformance checker")
-    parser.add_argument("--version", action="version", version=f"speccheck {__version__}")
-    parser.add_argument(
-        "--self-check", action="store_true", help="run the packaged golden fixture in a temp dir"
+    """The four parsers. Every argument definition carries a C-19 help entry: purpose, accepted
+    values as literal tokens, the default, and the preconditions; the epilog carries the
+    environment the kernel reads and the exit-code contract (v1.18, R-41/C-19)."""
+    parser = _Parser(
+        prog="speccheck",
+        description="Specification conformance checker: traceability graph, JUnit results, "
+        "model-judged test strength",
+        epilog=_EPILOG,
+        formatter_class=_FORMATTER,
     )
-    parser.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"speccheck {__version__}",
+        help="print the installed version and exit",
+    )
+    parser.add_argument(
+        "--self-check",
+        action="store_true",
+        help="run the packaged golden fixture in a temporary directory, compare its two reports "
+        "with the packaged goldens byte for byte, and print 'self-check: ok' on a match. "
+        "default: off",
+    )
+    parser.add_argument(
+        "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
+    )
     sub = parser.add_subparsers(dest="command")
-    check = sub.add_parser("check", help="run the conformance pipeline")
-    check.add_argument("--spec", required=True)
-    check.add_argument("--src", action="append", default=None)
-    check.add_argument("--tests", action="append", default=None)
-    check.add_argument("--results", default=None)
-    check.add_argument("--root", default=".")
-    check.add_argument("--out", default=".")
-    check.add_argument("--judge", default="none")
-    check.add_argument("--strict", action="store_true")
-    check.add_argument("--max-unknown", default="0.2")
-    check.add_argument("--judge-concurrency", default="4")
-    check.add_argument("--judge-budget", default="0")
-    check.add_argument("--jev-pre-triage", action="store_true")
-    check.add_argument("--progress", default="auto")
-    check.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
-    impact = sub.add_parser("impact", help="report change impact from spec-internal edges")
-    impact.add_argument("--spec", required=True)
-    impact.add_argument("--changed", default=None)
-    impact.add_argument("--against", default=None)
-    impact.add_argument("--src", action="append", default=None)
-    impact.add_argument("--tests", action="append", default=None)
-    impact.add_argument("--root", default=".")
-    impact.add_argument("--out", default=".")
-    impact.add_argument("--depth", default="1")
-    impact.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
+    check = sub.add_parser(
+        "check",
+        help="run the conformance pipeline",
+        description="Run the conformance pipeline and write speccheck.json and "
+        "SPEC_CONFORMANCE_REPORT.md under --out.",
+        epilog=_EPILOG,
+        formatter_class=_FORMATTER,
+    )
+    check.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
+    check.add_argument("--src", action="append", default=None, metavar="PATHS", help=_HELP_SRC)
+    check.add_argument(
+        "--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS
+    )
+    check.add_argument("--results", default=None, metavar="FILE", help=_HELP_RESULTS)
+    check.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
+    check.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
+    check.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
+    check.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 1 unless every in-scope ID is PASSING with no dangling or stale citation and, "
+        "with --judge llm, the judge was available and unknown_rate <= --max-unknown. default: off",
+    )
+    check.add_argument(
+        "--max-unknown", default="0.2", metavar="FRACTION", help=_HELP_MAX_UNKNOWN
+    )
+    check.add_argument(
+        "--judge-concurrency", default="4", metavar="N", help=_HELP_CONCURRENCY
+    )
+    check.add_argument(
+        "--judge-budget", default="0", metavar="SECONDS|N%", help=_HELP_BUDGET
+    )
+    check.add_argument("--jev-pre-triage", action="store_true", help=_HELP_JEV)
+    check.add_argument("--progress", default="auto", metavar="MODE", help=_HELP_PROGRESS)
+    check.add_argument(
+        "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
+    )
+    impact = sub.add_parser(
+        "impact",
+        help="report change impact from spec-internal edges",
+        description="Walk the spec's own cross-references from a changed set and write impact.json "
+        "and IMPACT_REPORT.md under --out.",
+        epilog=_EPILOG,
+        formatter_class=_FORMATTER,
+    )
+    impact.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
+    impact.add_argument("--changed", default=None, metavar="IDS", help=_HELP_CHANGED)
+    impact.add_argument("--against", default=None, metavar="FILE", help=_HELP_AGAINST)
+    impact.add_argument(
+        "--src", action="append", default=None, metavar="PATHS", help=_HELP_IMPACT_SRC
+    )
+    impact.add_argument(
+        "--tests", action="append", default=None, metavar="PATHS", help=_HELP_IMPACT_TESTS
+    )
+    impact.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
+    impact.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
+    impact.add_argument("--depth", default="1", metavar="N", help=_HELP_DEPTH)
+    impact.add_argument(
+        "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
+    )
     # v1.17 / R-40: `explain` takes `check`'s flags minus `--out` and `--strict` (both undefined
     # here, so argparse rejects them — E-54's pattern) plus a positional id and `--depth`.
-    explain = sub.add_parser("explain", help="render one id's evidence trail (C-18)")
-    explain.add_argument("id")
-    explain.add_argument("--spec", required=True)
-    explain.add_argument("--src", action="append", default=None)
-    explain.add_argument("--tests", action="append", default=None)
-    explain.add_argument("--results", default=None)
-    explain.add_argument("--root", default=".")
-    explain.add_argument("--judge", default="none")
-    explain.add_argument("--max-unknown", default="0.2")
-    explain.add_argument("--judge-concurrency", default="4")
-    explain.add_argument("--judge-budget", default="0")
-    explain.add_argument("--jev-pre-triage", action="store_true")
-    explain.add_argument("--progress", default="auto")
-    explain.add_argument("--depth", default="1")
-    explain.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
+    explain = sub.add_parser(
+        "explain",
+        help="render one id's evidence trail (C-18)",
+        description="Run the same pipeline as check and render one id's trace to stdout; writes "
+        "no report file.",
+        epilog=_EPILOG,
+        formatter_class=_FORMATTER,
+    )
+    explain.add_argument("id", metavar="ID", help=_HELP_ID)
+    explain.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
+    explain.add_argument("--src", action="append", default=None, metavar="PATHS", help=_HELP_SRC)
+    explain.add_argument(
+        "--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS
+    )
+    explain.add_argument("--results", default=None, metavar="FILE", help=_HELP_RESULTS)
+    explain.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
+    explain.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
+    explain.add_argument(
+        "--max-unknown",
+        default="0.2",
+        metavar="FRACTION",
+        help=_HELP_MAX_UNKNOWN + " (inert here: explain has no --strict)",
+    )
+    explain.add_argument(
+        "--judge-concurrency", default="4", metavar="N", help=_HELP_CONCURRENCY
+    )
+    explain.add_argument(
+        "--judge-budget", default="0", metavar="SECONDS|N%", help=_HELP_BUDGET
+    )
+    explain.add_argument("--jev-pre-triage", action="store_true", help=_HELP_JEV)
+    explain.add_argument("--progress", default="auto", metavar="MODE", help=_HELP_PROGRESS)
+    explain.add_argument("--depth", default="1", metavar="N", help=_HELP_DEPTH)
+    explain.add_argument(
+        "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
+    )
     return parser
 
 
@@ -211,7 +405,9 @@ def _validate_verbose(value: str | None) -> str | None:
     if value is None:
         return None
     if value not in VERBOSE_LEVELS:
-        raise UsageError(f"--verbose: invalid level '{value}' (expected INFO or DEBUG)")
+        raise UsageError(
+            f"--verbose: invalid level '{value}' (expected {_expected(VERBOSE_LEVELS)})"
+        )
     return value
 
 
@@ -232,7 +428,7 @@ def _parse_budget(text: str) -> tuple[int, int | None]:
     Returns (seconds, percent); exactly one is meaningful, the other is its zero value."""
     if text.endswith("%"):
         digits = text[:-1]
-        expected = "expected SECONDS or an integer N% in 0..100"
+        expected = f"expected SECONDS or {BUDGET_PERCENT_RANGE}"
         if not digits.isdigit():
             raise UsageError(f"--judge-budget: invalid value '{text}' ({expected})")
         percent = int(digits)
@@ -373,16 +569,18 @@ def _build_check_config(
     out_arg = getattr(args, "out", ".")
     strict = bool(getattr(args, "strict", False))
     if args.judge not in JUDGE_MODES:
-        raise UsageError(f"--judge: invalid value '{args.judge}' (expected none, mock, or llm)")
+        raise UsageError(
+            f"--judge: invalid value '{args.judge}' (expected {_expected(JUDGE_MODES)})"
+        )
     try:
         max_unknown = Decimal(args.max_unknown)
     except InvalidOperation:
         raise UsageError(
-            f"--max-unknown: invalid value '{args.max_unknown}' (expected a decimal in [0, 1])"
+            f"--max-unknown: invalid value '{args.max_unknown}' (expected {MAX_UNKNOWN_RANGE})"
         ) from None
     if not max_unknown.is_finite() or not Decimal(0) <= max_unknown <= Decimal(1):
         raise UsageError(
-            f"--max-unknown: invalid value '{args.max_unknown}' (expected a decimal in [0, 1])"
+            f"--max-unknown: invalid value '{args.max_unknown}' (expected {MAX_UNKNOWN_RANGE})"
         )
     concurrency = _int_in_range("--judge-concurrency", args.judge_concurrency, 1, 32)
     budget, budget_percent = _parse_budget(args.judge_budget)
@@ -393,7 +591,7 @@ def _build_check_config(
         raise UsageError("--judge-budget N% requires --jev-pre-triage with --judge llm")
     if args.progress not in PROGRESS_MODES:
         raise UsageError(
-            f"--progress: invalid value '{args.progress}' (expected auto, always, or never)"
+            f"--progress: invalid value '{args.progress}' (expected {_expected(PROGRESS_MODES)})"
         )
 
     root = Path(args.root).resolve()

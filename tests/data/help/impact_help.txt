@@ -1,0 +1,58 @@
+usage: speccheck impact [-h] --spec FILE [--changed IDS] [--against FILE]
+                        [--src PATHS] [--tests PATHS] [--root DIR] [--out DIR]
+                        [--depth N] [--verbose [LEVEL]]
+
+Walk the spec's own cross-references from a changed set and write impact.json and IMPACT_REPORT.md under --out.
+
+options:
+  -h, --help         show this help message and exit
+  --spec FILE        the specification to check; decoded as UTF-8 (invalid
+                     bytes are replaced and noted). required; must resolve
+                     inside --root
+  --changed IDS      the changed set: a comma-separated list of ids declared
+                     in --spec (R/C/I/K/E/T or D). exactly one of --changed
+                     and --against is required
+  --against FILE     a prior version of the same spec; the changed set is the
+                     diff of its declarations. must resolve inside --root;
+                     exactly one of --changed and --against is required
+  --src PATHS        source roots to list re-citations from. repeatable,
+                     comma-separated, as check's --src, but there is no
+                     directory default here: absent means not scanned
+  --tests PATHS      test roots to list the citing test cases from.
+                     repeatable, comma-separated, as check's --tests, with no
+                     directory default here
+  --root DIR         base directory for the reports' relative paths and for
+                     the containment rule: --spec, --src, --tests, --results,
+                     --out and every list element must resolve inside it.
+                     default: .
+  --out DIR          where the reports are written. default: .; must resolve
+                     inside --root
+  --depth N          walk depth: an integer 0..999 (0 = unbounded). default: 1
+  --verbose [LEVEL]  diagnostics on stderr: INFO or DEBUG (DEBUG adds the
+                     judge request and response lines, with the API key
+                     redacted); bare --verbose means INFO. default: ERROR
+                     (nothing below ERROR reaches stderr)
+
+environment:
+  SPECCHECK_JUDGE_URL, SPECCHECK_JUDGE_MODEL, SPECCHECK_JUDGE_API_KEY
+                        required with --judge llm: the chat-completions endpoint, the model id
+                        (passed through verbatim), and the bearer key -- never printed, at any
+                        verbosity
+  SPECCHECK_JUDGE_TIMEOUT
+                        optional, seconds, an integer 1..300, default 30
+  SPECCHECK_JEV_API_KEY required with --jev-pre-triage under --judge llm, and read only when the
+                        triage pass runs (ignored under --judge none/mock, where no Jev request
+                        is made)
+  SPECCHECK_JEV_URL, SPECCHECK_JEV_MODEL
+                        optional; default https://openrouter.ai/api/alpha/decisions and
+                        ~typesafe/jev-latest
+  SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
+  COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
+                        it)
+
+exit codes:
+  0 conforming   1 not conforming (check only)   2 usage error   3 input-contract violation
+summary line (check, stdout, exactly one line):
+  speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped>
+  skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited;
+  <dangling> dangling, <stale> stale; judge=<mode>

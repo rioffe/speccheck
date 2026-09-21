@@ -196,13 +196,13 @@ uv run --project "$OLDPWD" speccheck check --spec SPEC.md --src Sources --tests 
 ## Usage
 
 ```text
-speccheck check --spec SPEC.md [--src DIR]... [--tests DIR]... [--results junit.xml]
+speccheck check --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--max-unknown FRACTION] [--judge-concurrency N] [--judge-budget SECONDS|N%]
                 [--jev-pre-triage] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
-speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src DIR]... [--tests DIR]...
+speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src PATHS]... [--tests PATHS]...
                  [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
-speccheck explain ID [--spec SPEC.md] [--src DIR]... [--tests DIR]... [--results junit.xml]
+speccheck explain ID [--spec SPEC.md] [--src PATHS]... [--tests PATHS]... [--results junit.xml]
                  [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
                  [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
                  [--verbose [INFO|DEBUG]]
@@ -214,8 +214,8 @@ speccheck --help
 | Flag | Meaning |
 | --- | --- |
 | `--spec FILE` | Required. The specification (UTF-8; invalid bytes are replaced and noted). |
-| `--src DIR` | Repeatable. Source roots to scan for citations. Default: `src` if it exists. |
-| `--tests DIR` | Repeatable. Test roots; Python files are split into test cases with `ast`, Swift files by the line-based adapter (Swift Testing `@Test` functions and XCTest `test*` methods, doc comment and attributes included in the span; pass the `Tests` directory so the SwiftPM target name becomes the module in classnames), anything else is attributed at file level. Default: `tests` if it exists. |
+| `--src PATHS` | Repeatable; each value is a comma-separated list of **files and/or directories** (D-23), resolved inside `--root`. Default: `src` if it exists, and only when the flag is absent. |
+| `--tests PATHS` | Repeatable; comma-separated files and/or directories, as `--src`. Test roots; Python files are split into test cases with `ast`, Swift files by the line-based adapter (Swift Testing `@Test` functions and XCTest `test*` methods, doc comment and attributes included in the span; pass the `Tests` directory so the SwiftPM target name becomes the module in classnames), anything else is attributed at file level. Default: `tests` if it exists. |
 | `--results FILE` | JUnit XML. Without it no ID can be better than `UNVERIFIED`. |
 | `--root DIR` | Base for every path in the reports (default `.`). Every other path must resolve inside it. Command-line paths themselves are resolved against the current directory. |
 | `--out DIR` | Where `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json` go (default `.`; created if missing; must be inside `--root`). |
@@ -278,7 +278,7 @@ references — the id tokens already in every statement, plus the *Affects* colu
 table — as a graph, and `impact` walks it.
 
 ```text
-speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src DIR]... [--tests DIR]...
+speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src PATHS]... [--tests PATHS]...
                  [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
 ```
 
@@ -286,7 +286,7 @@ speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src D
 | --- | --- |
 | `--changed IDS` | Comma-separated ids (any of R/C/I/K/E/T, or `D-nn` for a decision row), each declared in `--spec`. |
 | `--against FILE` | A prior version of the same spec; the changed set is computed by diffing declarations (statement text, retired flag, a decision's *Affects* cell) rather than given directly. Exactly one of `--changed`/`--against` is required. |
-| `--src DIR`, `--tests DIR` | Optional here (no directory default): when given, every citation of an impacted or re-verify id is listed; without them, §4 of the report reads "Not scanned." |
+| `--src PATHS`, `--tests PATHS` | Optional here (no directory default): when given, every citation of an impacted or re-verify id is listed; without them, §4 of the report reads "Not scanned." |
 | `--depth N` | `0..999`, default `1` (`0` = unbounded). The direct set (depth 1) is usually the useful one — see below. |
 
 Two id families feed the walk, both read straight from `SPEC.md`, no annotation required:
@@ -324,7 +324,7 @@ readable trace on stdout — the narrative into the data, not a fourth artifact 
 no report file, and no `schema_version` change).
 
 ```text
-speccheck explain ID [--spec SPEC.md] [--src DIR]... [--tests DIR]... [--results junit.xml]
+speccheck explain ID [--spec SPEC.md] [--src PATHS]... [--tests PATHS]... [--results junit.xml]
                      [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
                      [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
                      [--verbose [INFO|DEBUG]]
