@@ -26,20 +26,25 @@ from pathlib import Path
 
 from . import __version__
 from .attribute import Citation, TestCase, attribute_file
+from .explain import render_trace
 from .extract import (
+    ID_RE,
     ScanCounters,
     SpecError,
+    SpecIndex,
     citations_in_file,
     decode_text,
     edge_id_key,
+    normalize_id,
     parse_spec,
     scan_roots,
     to_posix_relative,
 )
-from .graph import apply_verdicts, build_graph, eligible_edges
+from .graph import Graph, apply_verdicts, build_graph, eligible_edges
 from .impact import (
     ChangedError,
     ReverifyEntry,
+    WalkResult,
     diff_changed_set,
     mark_retired,
     resolve_changed_ids,
@@ -67,7 +72,7 @@ from .report import (
     write_impact_reports,
     write_reports,
 )
-from .results import ResultsError, join_results, parse_junit
+from .results import RawResult, ResultsError, join_results, parse_junit
 
 log = logging.getLogger("speccheck")
 
@@ -128,14 +133,25 @@ class ImpactConfig:
 
 
 @dataclass(frozen=True)
-class Action:
-    """What argv asked for: a check run, an impact run, a self-check, or nothing more
-    (help/version handled)."""
+class ExplainConfig:
+    """v1.17 / C-18: `explain`'s own config — `check`'s config plus the one id and the walk depth.
+    No `--out`: the trace is stdout-only (D-33), and the run writes nothing (I-016)."""
 
-    kind: str  # "check" | "impact" | "self-check"
+    check: Config
+    ident: str
+    depth: int
+
+
+@dataclass(frozen=True)
+class Action:
+    """What argv asked for: a check run, an impact run, an explain run, a self-check, or nothing
+    more (help/version handled)."""
+
+    kind: str  # "check" | "impact" | "explain" | "self-check"
     verbose: str | None
     config: Config | None = None
     impact_config: ImpactConfig | None = None
+    explain_config: ExplainConfig | None = None
 
 
 def build_parser() -> _Parser:
@@ -171,6 +187,23 @@ def build_parser() -> _Parser:
     impact.add_argument("--out", default=".")
     impact.add_argument("--depth", default="1")
     impact.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
+    # v1.17 / R-40: `explain` takes `check`'s flags minus `--out` and `--strict` (both undefined
+    # here, so argparse rejects them — E-54's pattern) plus a positional id and `--depth`.
+    explain = sub.add_parser("explain", help="render one id's evidence trail (C-18)")
+    explain.add_argument("id")
+    explain.add_argument("--spec", required=True)
+    explain.add_argument("--src", action="append", default=None)
+    explain.add_argument("--tests", action="append", default=None)
+    explain.add_argument("--results", default=None)
+    explain.add_argument("--root", default=".")
+    explain.add_argument("--judge", default="none")
+    explain.add_argument("--max-unknown", default="0.2")
+    explain.add_argument("--judge-concurrency", default="4")
+    explain.add_argument("--judge-budget", default="0")
+    explain.add_argument("--jev-pre-triage", action="store_true")
+    explain.add_argument("--progress", default="auto")
+    explain.add_argument("--depth", default="1")
+    explain.add_argument("--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL")
     return parser
 
 
@@ -299,6 +332,15 @@ def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> Impac
     )
 
 
+def _build_explain_config(
+    args: argparse.Namespace, environ: Mapping[str, str], verbose: str | None
+) -> ExplainConfig:
+    """v1.17 / R-40: `explain`'s validation — `check`'s own, with the id and `--depth` added. The
+    id is checked against the spec's declarations in `execute_explain` (E-60 needs the parse)."""
+    depth = _int_in_range("--depth", args.depth, 0, 999)
+    return ExplainConfig(_build_check_config(args, environ, verbose), args.id, depth)
+
+
 def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
     """argv + env -> Action (exit 2 on any usage error; K-01)."""
     parser = build_parser()
@@ -313,6 +355,23 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
     verbose = _validate_verbose(args.verbose) or verbose
     if args.command == "impact":
         return Action("impact", verbose, impact_config=_build_impact_config(args, verbose))
+    if args.command == "explain":
+        return Action(
+            "explain",
+            verbose,
+            explain_config=_build_explain_config(args, environ, verbose),
+        )
+    return Action("check", verbose, config=_build_check_config(args, environ, verbose))
+
+
+def _build_check_config(
+    args: argparse.Namespace, environ: Mapping[str, str], verbose: str | None
+) -> Config:
+    """The `check` validation (C-03, C-09, E-09, E-52, E-58, K-11, K-12). `explain` reuses it:
+    its subparser defines neither `--out` nor `--strict`, so both fall back here (D-33: the trace
+    is stdout-only, and nothing it renders is pass/fail)."""
+    out_arg = getattr(args, "out", ".")
+    strict = bool(getattr(args, "strict", False))
     if args.judge not in JUDGE_MODES:
         raise UsageError(f"--judge: invalid value '{args.judge}' (expected none, mock, or llm)")
     try:
@@ -361,7 +420,7 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
                 pass
         except OSError:
             raise UsageError(f"--results: not a readable file: {args.results}") from None
-    out = _resolve_inside(args.out, root)
+    out = _resolve_inside(out_arg, root)
 
     llm: LlmConfig | None = None
     if args.judge == "llm":
@@ -390,7 +449,7 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
         root=root,
         out=out,
         judge=args.judge,
-        strict=bool(args.strict),
+        strict=strict,
         max_unknown=max_unknown.quantize(Decimal("0.0001")),
         judge_concurrency=concurrency,
         judge_budget=budget,
@@ -402,7 +461,7 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
         budget_percent=budget_percent,
         jev=jev,
     )
-    return Action("check", verbose, config)
+    return config
 
 
 # --------------------------------------------------------------------------------------------
@@ -435,8 +494,22 @@ def _impact_excluded_paths(config: ImpactConfig) -> frozenset[Path]:
     return frozenset(paths)
 
 
-def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
-    """Run the §3.1 pipeline; returns the exit code (0/1) or raises the exit-3 exceptions."""
+@dataclass
+class _Stages:
+    """What the §3.1 stages produce, for whichever renderer asked for them (v1.17)."""
+
+    index: SpecIndex
+    graph: Graph
+    unattributed: list[RawResult]
+    notes: list[str]
+    judge_available: bool | None
+    prompt_sha: str | None
+
+
+def _run_stages(config: Config) -> _Stages:
+    """The §3.1 stages every subcommand shares: extract-spec, scan-src, scan-tests, map-results,
+    graph, and — unless `--judge none` — triage and judge (v1.17: `check` and `explain` both call
+    this, so the two surfaces cannot disagree about a status; I-016)."""
     root = config.root
     rel_spec = to_posix_relative(config.spec, root)
     notes: list[str] = []
@@ -567,6 +640,19 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             unknown=sum(1 for v in run.verdicts.values() if v.verdict == "UNKNOWN"),
         )
 
+    return _Stages(index, graph, unattributed, notes, judge_available, prompt_sha)
+
+
+def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
+    """Run the §3.1 pipeline and write both reports; returns the exit code (0/1) or raises the
+    exit-3 exceptions."""
+    root = config.root
+    rel_spec = to_posix_relative(config.spec, root)
+    stages = _run_stages(config)
+    index, graph, notes = stages.index, stages.graph, stages.notes
+    unattributed = stages.unattributed
+    judge_available, prompt_sha = stages.judge_available, stages.prompt_sha
+
     stage = _Stage("report")
     report, _metrics = build_report(
         ReportInputs(
@@ -592,6 +678,45 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
 
     _emit_line(summary_line(report), stdout)
     return int(report["exit_code"])
+
+
+def execute_explain(config: ExplainConfig, stdout: io.TextIOBase | None = None) -> int:
+    """v1.17 / R-40, C-18: run the §3.1 stages and render one id's trace to stdout. It writes no
+    file at all (D-33, I-016), so there is no `--out` and no exit `1`: `0` once the trace is
+    written, `2` for an undeclared id (E-60), `3` for an input-contract violation (§5.4)."""
+    check = config.check
+    stages = _run_stages(check)
+    by_id = stages.index.by_id()
+    ident = config.ident.strip()
+    match = ID_RE.fullmatch(ident)
+    normalized = (
+        normalize_id(match.group(1), int(match.group(2))) if match is not None else None
+    )
+    if normalized is None or normalized not in by_id:
+        raise UsageError(f"explain: undeclared id: {ident}")
+    rec = next(r for r in stages.graph.records if r.id == normalized)
+
+    # C-12/C-13 (D-34): the same walk and reverify set `impact` reports, from this one id.
+    result = walk(stages.index.edges, {normalized}, config.depth)
+    impact = mark_retired(result.impact, stages.index)
+    if result.beyond_depth:
+        log.info(
+            "note: %d further id(s) beyond --depth %d; --depth 0 lists them",
+            result.beyond_depth,
+            config.depth,
+        )
+    walked = {e.id for e in impact}
+    reverify = tuple(
+        ReverifyEntry(r.id, by_id[r.id].retired if r.id in by_id else False, r.verifies)
+        for r in reverify_set(stages.index.edges, {normalized} | walked)
+    )
+    for note in stages.notes:
+        log.info("note: %s", note)
+    _emit_text(
+        render_trace(rec, WalkResult(impact, result.beyond_depth), reverify, config.depth),
+        stdout,
+    )
+    return 0
 
 
 def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) -> int:
@@ -747,6 +872,19 @@ def _emit_line(line: str, stream: io.TextIOBase | None) -> None:
         target.flush()
 
 
+def _emit_text(text: str, stream: io.TextIOBase | None) -> None:
+    """C-18: the trace, written as UTF-8 bytes regardless of locale (R-29), exactly as rendered."""
+    target = stream if stream is not None else sys.stdout
+    buffer = getattr(target, "buffer", None)
+    if buffer is not None:
+        target.flush()
+        buffer.write(text.encode("utf-8"))
+        buffer.flush()
+    else:
+        target.write(text)
+        target.flush()
+
+
 # --------------------------------------------------------------------------------------------
 # --self-check (R-18, I-001 exemption, Q-003)
 # --------------------------------------------------------------------------------------------
@@ -865,6 +1003,9 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         if action.kind == "impact":
             assert action.impact_config is not None
             return execute_impact(action.impact_config)
+        if action.kind == "explain":
+            assert action.explain_config is not None
+            return execute_explain(action.explain_config)
         assert action.config is not None
         return execute(action.config)
     except UsageError as exc:
