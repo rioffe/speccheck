@@ -366,6 +366,32 @@ impact (1):
   `3` input contract. `--out` and `--strict` are not flags of this subcommand.
 - **`--depth N`** (`0..999`, default `1`, `0` = unbounded) sets the reach of the `impact` section.
 
+### The CLI documents itself (v1.18, R-41 / C-19)
+
+`--help` is the surface an operator or an agent reaches first, so it is a contract here, not a
+summary. Every flag of all four parsers carries an entry naming its purpose, its accepted values as
+literal tokens, its default and the preconditions under which it is ignored or rejected —
+`--judge-budget 30%` says it needs `--jev-pre-triage` with `--judge llm`, every judge flag says it
+is ignored unless `--judge llm`, and `--spec`/`--src`/`--tests`/`--results`/`--out` say they must
+resolve inside `--root`. Each screen ends with the environment the kernel reads and the exit-code
+contract:
+
+```text
+$ COLUMNS=80 speccheck check --help | tail -12
+exit codes:
+  0 conforming   1 not conforming (check only)   2 usage error   3 input-contract violation
+summary line (check, stdout, exactly one line):
+  speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, ...
+```
+
+The values are not a second prose copy: the three enumerated flags build their help clause from the
+same constants their validators check, and the four range flags share the phrase their usage error
+prints — `T-95` compares the help's tokens against the error text and re-feeds every token to the
+parser, `T-96` requires help on every definition and the metavar vocabulary, `T-97` pins the four
+screens byte for byte at `COLUMNS=80` under `tests/data/help/`, and `T-98` binds the environment
+block to the `SPECCHECK_*` literals in the code. `--help` itself reads no file, no environment
+variable and no socket (I-017).
+
 ### LLM judge via Ollama
 
 `--judge llm` posts one OpenAI-compatible chat-completions request per (test case, ID) edge of a
@@ -607,11 +633,11 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.17; the source of truth; written in the
+SPEC.md                         the specification (v1.18; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.17.0, mirrors the spec version)
+  __init__.py                   __version__ (1.18.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
                                 the shared `_run_stages` pipeline, the `impact` subparser and its
@@ -657,6 +683,9 @@ tests/
   test_10_edges.py              §9.12 T-79 — decision-table grammar and C-12 edge extraction
   test_11_impact.py             §9.12 T-80, T-81 — the impact CLI, changed set, walk, reverify
   test_12_explain.py            §9.13 T-92, T-93 — the explain trace, byte-stability, E-60
+  test_13_help.py               §9.14 T-95..T-98 — the help contract: tokens vs the validator,
+                                every definition's help, the pinned screens, the environment block
+  data/help/                    the four `--help` screens at COLUMNS=80 (T-97's goldens)
   data/markers/                 the only files that contain the literal ignore markers
 tools/
   bench.py                      K-08 benchmark (T-51; recorded, not CI-gated)
@@ -694,7 +723,7 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (128 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (134 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
@@ -702,6 +731,7 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --jev-pre-triage --judge-budget 0% --out build/speccheck-triage   # v1.15: triage only, no judge call (needs SPECCHECK_JEV_*)
 uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests --out build/impact              # v1.13, not gated
 uv run speccheck explain R-01 --spec fixtures/target/SPEC.md --src fixtures/target/src --tests fixtures/target/tests --results fixtures/target/junit.xml --judge mock   # v1.17, not gated
+COLUMNS=80 uv run speccheck check --help                      # v1.18: the documented interface (T-97's goldens are the same screens)
 uv run python tools/bench.py                               # K-08 (recorded)
 uv run python tools/eval_judge.py --runs 3                 # T-49 (opt-in; model/URL from SPECCHECK_JUDGE_*, default qwen3:8b on Ollama)
 uv run python tools/adjacent_eval.py --runs 3              # T-84 (recorded; both C-10 texts, same env)
@@ -729,7 +759,10 @@ apart from one that proves it — request-side only, so no status, metric or rep
 Since v1.17 a third subcommand, `explain <ID>` (R-40), renders one id's whole trail — statement,
 status and its C-05 reason, citations, each citing case's outcome and verdict, and the C-12 blast
 radius — as a stdout trace; it computes nothing new, writes no file, and carries `check`'s judge
-contract unchanged (C-18, I-016).
+contract unchanged (C-18, I-016). Since v1.18 the CLI documents its own parameters and the
+environment it reads (R-41, C-19): every flag's `--help` entry names its values, default and
+preconditions, the value tokens are the validator's own, and the environment block is bound to the
+code's literals by T-98.
 Interpretations the build had to make where the spec was silent or inconsistent are listed in
 `SPEC_BUILD_REPORT.md` §3.
 

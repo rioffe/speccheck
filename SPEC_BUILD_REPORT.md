@@ -4,6 +4,114 @@
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
 
+## 0j. v1.18 increment (2026-09-21) — the CLI documents its own parameters and environment (R-41, C-19, I-017; T-95..T-98)
+
+**Why.** `PROPOSAL_v1.18_cli_help_contract.md`, a documentation change with a contract attached:
+`check --help` rendered 755 bytes of flag names with argparse's destination names for metavars and
+**zero** help strings, `grep -c "choices=" src/speccheck/cli.py` was 0, and the only machine-readable
+statement of a flag's accepted values was the usage error it printed *after* you guessed wrong. The
+environment was stated on five surfaces and one of them was wrong (C-06 said
+`SPECCHECK_LLMMODEL`, read by no code), and the one surface that *was* documented had already
+drifted — six README statements still said `DIR` two versions after D-23 made `--src`/`--tests`
+PATHS. D-37..D-42 were confirmed on the proposal's recommended branches; D-42's preferred landing
+(the uncommitted v1.16 fold) no longer existed once v1.16 and v1.17 shipped, so C-06's variable name
+is fixed in this version's own fold instead.
+
+**Plan.** A delta `IMPLEMENTATION_PLAN.md` plus one brief per wave
+(`DETAILED_IMPLEMENTATION_PLAN_W1.md`, `_W2.md`): W1 the help strings, metavars, epilogs and the
+four tests, W2 the README, the conformance report and both gates. The plan's one fork — one shared
+epilog pair for all four screens, or a per-subcommand epilog — was taken as **one shared pair**: the
+environment and the exit codes are the same facts on every screen, and four renderings of one §5.4
+table is the drift this increment exists to prevent.
+
+**Wave ledger.**
+
+| Wave | Gate as run | Result | Commit |
+| --- | --- | --- | --- |
+| W1 — the help strings, metavars, epilogs, tests and goldens (R-41, C-19, I-017; T-95..T-98) | `pytest tests/test_13_help.py -q`; `pytest tests -q --junitxml=junit.xml`; `ruff check src tests tools`; `speccheck --self-check` | 4 passed; 1 failed / 133 passed (the failure was `test_09`'s `DECLARED_IDS`, W2's row); clean; `self-check: ok` | `1bc54a2` |
+| W2 — README, the conformance report and both gates | the full Phase 1 exit gate, then Phase A and Phase B | 134 passed; clean; `self-check: ok`; both gates exit 0 (§6) | this commit |
+
+**W1, test-first:** T-96 failed first on the first definition with an empty help string (`verbose has
+no help string`), T-95 on `'none, mock, or llm' not in the screen`, T-98 on the absent
+`environment:` block, T-97 on the missing goldens. What the implementation does, per C-19: one help
+entry per definition (purpose, values as literal tokens, `default: …`, preconditions), the §5.1
+metavar vocabulary in place of argparse's dest names, and two epilogs shared by all four screens —
+the `environment:` block (eight `SPECCHECK_*` names with read condition, requiredness and default,
+plus `COLUMNS`, D-41) and the exit-code/summary-line block (D-40).
+
+**Part B is structural.** The three enumerated flags build their help clause from the constants
+their validators check, and the validators' own messages now name the same phrase through
+`_expected(...)`; the range phrases are shared constants for the same reason. So the help and the
+usage error are two renderings of one source, and T-95 compares them by reading the phrase back out
+of the live error:
+
+| Flag | The phrase, in the error and in the help | Enumerable? |
+| --- | --- | --- |
+| `--judge MODE` | `none, mock, or llm` | yes — each token run, none exits `2` |
+| `--progress MODE` | `auto, always, or never` | yes |
+| `--verbose [LEVEL]` | `INFO or DEBUG` | yes |
+| `--max-unknown FRACTION` | `a decimal in [0, 1]` | no — a range |
+| `--judge-concurrency N` | `an integer 1..32` | no |
+| `--judge-budget SECONDS\|N%` | `SECONDS` or `an integer N% in 0..100`, plus E-58's companion rule | no |
+| `--depth N` | `an integer 0..999` | no |
+
+**Two argparse details cost a round each, and both are worth naming.** (1) A literal `%` in a
+*help string* must be doubled — argparse %-formats help strings — while the *epilog*, rendered raw
+by `RawDescriptionHelpFormatter`, must not: the first render died with
+`ValueError: unsupported format character ':'`, and the first fix then printed `<pct>%%` in the
+summary line until the epilog's copy was reverted. (2) argparse wraps to the terminal width, so
+T-97 pins `COLUMNS=80` in the test's environment and the goldens are generated at that width; I-017
+records that width affects wrapping alone, which is what makes the pin a documented behaviour
+(D-41) rather than a test detail.
+
+**The rendered surface.** `COLUMNS=80 speccheck impact --help` (the shortest screen, verbatim after
+the flag table) — the same two blocks close all four screens:
+
+```text
+environment:
+  SPECCHECK_JUDGE_URL, SPECCHECK_JUDGE_MODEL, SPECCHECK_JUDGE_API_KEY
+                        required with --judge llm: the chat-completions endpoint, the model id
+                        (passed through verbatim), and the bearer key -- never printed, at any
+                        verbosity
+  SPECCHECK_JUDGE_TIMEOUT
+                        optional, seconds, an integer 1..300, default 30
+  SPECCHECK_JEV_API_KEY required with --jev-pre-triage under --judge llm, and read only when the
+                        triage pass runs (ignored under --judge none/mock, where no Jev request
+                        is made)
+  SPECCHECK_JEV_URL, SPECCHECK_JEV_MODEL
+                        optional; default https://openrouter.ai/api/alpha/decisions and
+                        ~typesafe/jev-latest
+  SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
+  COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
+                        it)
+
+exit codes:
+  0 conforming   1 not conforming (check only)   2 usage error   3 input-contract violation
+summary line (check, stdout, exactly one line):
+  speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped>
+  skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited;
+  <dangling> dangling, <stale> stale; judge=<mode>
+```
+
+The four screens are checked in as `tests/data/help/{speccheck,check,impact,explain}_help.txt` and
+were generated by running the product at `COLUMNS=80`, then read.
+
+**Part D (README) and Part F (C-06).** README's six stale `--src DIR`/`--tests DIR` statements now
+say `PATHS` — the grammar D-23 gave them in v1.12 and the kernel has implemented since (naming a
+file is accepted; README's rows understated it). C-06's "selected by a dedicated variable
+`SPECCHECK_LLMMODEL`" now says `SPECCHECK_JUDGE_MODEL`, matching its own request block two lines
+above it and `judge_llm.py`'s `ENV_MODEL`; the name is otherwise gone from the spec except where the
+v1.18 rows record the fix.
+
+**Interpretations the build had to make.**
+
+| Where | Reading taken | Why |
+| --- | --- | --- |
+| `--help` for `-h` itself | left to argparse | T-96 exempts `-h` explicitly, and its text ("show this help message and exit") is already a purpose clause |
+| the subparsers action | no help string of its own; each subcommand's *listing* help and its own `description` are asserted instead | T-96 says "every argument definition", and a subcommand is not a flag; the test walks the child parsers and their listing entries |
+| `explain`'s `--max-unknown` | kept, documented, and marked inert ("explain has no `--strict`") | §5.1's `explain` row lists it as accepted (v1.17); removing it would turn an accepted flag into a usage error, which this increment may not do |
+| `COLUMNS` in the environment block | documented with "nothing else in a run reads it" | D-41's branch: the one variable that changes a `--help` run, and the one T-97 pins |
+
 ## 0i. v1.17 increment (2026-09-20) — `speccheck explain <ID>` (R-40, C-18, I-016, E-60, E-61)
 
 **Why.** `PROPOSAL_v1.17_explain_id.md`, a **capability addition rather than a defect fix** and
@@ -1085,6 +1193,7 @@ id. "Self-app" is the status from the T-48 run.
 | R-38 | `judge_llm.py` (`related_titles`: the C-12 `depends_on` neighbourhood, both directions, R/C/I/K/E only, own references first, cap 8, 160-char collapsed titles with `…`, retired tagged per E-57), `judge.py` (`JudgeRequest.related`, `to_json`'s key order), `jev.py` (`render_state`'s D-28b section), `cli.py` (one build per eligible edge) | T-83 `test_05_judge::test_t83_related_neighbourhood_on_request_and_triage_state`; T-74 `test_05_judge::test_llm_request_carries_heading_body_statement`; T-84 `test_09_self_application::test_t84_recorded_adjacent_subset_is_measured_and_recorded` (presence check; the real run is §0h) | PASSING |
 | R-39 | `attribute.py` (`_doc_span`, `_declared`; the Python docstring-span and whole-line-comment rule, the Swift `_Line.doc` reuse), `graph.py` (`TestEdge.declared`, `declared_counts`) | T-85 `test_02_attribution::test_declared_vs_incidental_classification`, `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-86 `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
 | R-40 | `cli.py` (`explain` subparser, `ExplainConfig`, `_run_stages`, `execute_explain`), `explain.py` (`render_trace`) | T-92 `test_12_explain::test_t92_explain_golden_trace_is_stable`; T-93 `test_12_explain::test_t93_explain_undeclared_retired_and_uncited`; T-94 `test_09_self_application::test_t94_recorded_explain_trace_is_measured_and_recorded` (presence check; the real run is §0i) | PASSING |
+| R-41 | `cli.py` (the help strings, the C-19 metavars, `ENVIRONMENT_EPILOG`, `EXIT_CODE_EPILOG`, `_expected`) | T-95 `test_13_help::test_t95_help_values_match_the_validator`; T-96 `test_13_help::test_t96_every_flag_documents_itself`; T-97 `test_13_help::test_t97_help_screens_match_their_goldens`; T-98 `test_13_help::test_t98_environment_block_matches_the_code` | PASSING |
 | C-01 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-02 `test_01_extraction::test_numbers_normalize_within_family`; T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids`; T-04 `test_01_extraction::test_strikethrough_is_retired_and_mixed_redeclaration_exits_3`; T-05 `test_01_extraction::test_fenced_code_blocks_are_ignored`; T-55 `test_01_extraction::test_row_and_heading_grammar_edge_cases`; T-57 `test_02_attribution::test_ignore_markers`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-02 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-06 `test_01_extraction::test_duplicate_declaration_exits_3_naming_both_lines`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-03 | `attribute.py`, `extract.py` | T-09 `test_02_attribution::test_python_test_citations_attributed_to_enclosing_case`; T-10 `test_02_attribution::test_module_docstring_and_helper_citations_are_file_level`; T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks`; T-14 `test_02_attribution::test_several_citations_in_one_case_yield_one_edge`; T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; T-56 `test_02_attribution::test_class_recognition_and_async_and_undelimited` | PASSING |
@@ -1103,6 +1212,7 @@ id. "Self-app" is the status from the T-48 run.
 | C-16 | `report.py` (`tests[].declared`, `metrics.declared_ratio`, `SCHEMA_VERSION` "1.5"), `graph.py` (`declared_counts`, `Metrics.declared_ratio`) | T-86 `test_08_golden::test_fixture_gains_one_incidental_citation`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode`; `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys` | PASSING |
 | C-17 | `jev.py` (`JevConfig.from_env`, `render_state` incl. the D-28b `Related obligations:` section, `build_body`, `parse_confidence`, `JevTriage`), `cli.py` (`_make_triage_provider`, the env read) | T-89 `test_05_judge::test_triage_request_shape_and_response_parse`; T-90 `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
 | C-18 | `explain.py` (the six sections, the C-05 reasons, the verdict/`clause:`/`rationale:` lines, the impact section) | T-92, T-93 | PASSING |
+| C-19 | `cli.py` (every definition's entry, the metavar vocabulary, the two shared epilogs) | T-95, T-96, T-97, T-98 | PASSING |
 | I-001 | `cli.py`, `report.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing`; T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | I-002 | `attribute.py`, `extract.py`, `graph.py`, `report.py`, `results.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | I-003 | `report.py` | T-25 `test_04_status::test_retired_ids_excluded_from_denominators_but_listed_once`; T-35 `test_06_reports::test_markdown_layout` | PASSING |
@@ -1119,6 +1229,7 @@ id. "Self-app" is the status from the T-48 run.
 | I-014 | `attribute.py` (`declared` is a pure function of the source/test trees), `graph.py` / `report.py` (`declared_ratio`) | T-85 `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode` | PASSING |
 | I-015 | `jev.py` (`run_triage` returns the order and nothing else; no report import), `report.py` (no triage field) | T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; T-89 `test_05_judge::test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget` | PASSING |
 | I-016 | `cli.py` (`_run_stages` shared by `check` and `explain`; `execute_explain` writes nothing), `explain.py` (pure) | T-92 (status agreement, untouched tree), T-94 | PASSING |
+| I-017 | `cli.py` (the help path reads no file, no environment variable, no socket) | T-96 (the empty-directory render under the socket guard) | PASSING |
 | K-01 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak`; T-19 `test_03_results::test_malformed_xml_and_nameless_testcase_exit_3`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | K-02 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
 | K-03 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
@@ -1279,54 +1390,56 @@ id. "Self-app" is the status from the T-48 run.
 | T-92 | — | `test_12_explain::test_t92_explain_golden_trace_is_stable` | PASSING |
 | T-93 | — | `test_12_explain::test_t93_explain_undeclared_retired_and_uncited` | PASSING |
 | T-94 *(recorded)* | — | `test_09_self_application::test_t94_recorded_explain_trace_is_measured_and_recorded` (presence check); the real run is §0i | PASSING |
+| T-95 | — | `test_13_help::test_t95_help_values_match_the_validator` | PASSING |
+| T-96 | — | `test_13_help::test_t96_every_flag_documents_itself` | PASSING |
+| T-97 | — | `test_13_help::test_t97_help_screens_match_their_goldens` | PASSING |
+| T-98 | — | `test_13_help::test_t98_environment_block_matches_the_code` | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 245/245 IDs realized (0 deferred)
-speccheck (mock): speccheck: CONFORMING - 245/245 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: CONFORMING - 245/245 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-20, --judge-concurrency 8, 9 m 38 s, judge_available true, judge_strength 1.0 (237/237), unknown_rate 0.0157, declared_ratio 0.3992, judge_prompt_sha256 dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f]
-Observed: no rendered surface (§5.2); the `explain` surface itself was run and read — T-92's pinned
-trace, T-93's three forms and T-94's live-LLM trace (§0i)
+Spec coverage: 252/252 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-21, --judge-concurrency 8, 10 m 51 s, judge_available true, judge_strength 1.0 (244/244), unknown_rate 0.0154, declared_ratio 0.4048, judge_prompt_sha256 dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f]
+Observed: no rendered surface; the help screens themselves were run and read (the four goldens at
+COLUMNS=80, §0j)
 Readiness: BUILT
 Conformance: PASS WITH NOTES
 ```
 
-v1.17's deliverable (R-40, C-18, I-016, E-60, E-61, T-92..T-94) is green on both gates, and nothing
-earlier moved: the fixture goldens are byte-identical to a fresh run (T-46/T-71) — the `check` and
-`impact` paths were refactored (`_run_stages`, `_build_check_config`) and every byte-compared golden
-proves the split changed no behaviour — `_selfcheck/` equals `fixtures/target/` (T-60), the mock gate
-is 245/245 with 0 dangling and 0 stale, and the strict LLM gate is 245/245 with no `WEAKLY_PASSING`
-id. `explain` writes no artifact, so no golden, no `schema_version` and no report field was touched
-by the increment (D-33, I-016).
+v1.18's deliverable (R-41, C-19, I-017, T-95..T-98) is green on both gates, and nothing else moved:
+this increment changes no accepted value, no default, no exit code and no report byte — the fixture
+goldens are byte-identical to a fresh run (T-46/T-71), `_selfcheck/` equals `fixtures/target/`
+(T-60), the mock gate is 252/252 with 0 dangling and 0 stale, and the strict LLM gate is 252/252 with
+no `WEAKLY_PASSING` id. The four `--help` screens are byte-pinned in `tests/data/help/`.
 
 The notes are:
 
-- **F-1 (§0i)** — the proposal's draft T-92 row passed `--out <fresh tmp>` to a subcommand that D-33
-  gives no `--out`; the folded row runs without it and asserts the stronger property (the fixture
-  copy is byte-identical before and after).
-- **F-2 (§0i)** — the first Phase B run came back `244/245 … 1 weak`: E-61's only judged edge was
-  T-94's presence check, which asserts the report artefact rather than the `--judge` contract, and
-  the judge graded it `UNRELATED`. Fixed the way `spec-build` prescribes — the test, not the
-  threshold: `test_e61_explain_carries_the_judge_contract` drives a stub provider through both C-18
-  verdict forms and asserts the rendering, the status they produce and the `--judge none` form.
-  The second run is the 245/245 above.
-- **The §0i interpretations** — `explain` exits `0` for a non-`PASSING` id (nothing it renders is
-  pass/fail), `--max-unknown` is accepted but inert without `--strict`, the depth-cap Note goes to
-  `INFO` rather than into the trace, and the positional id is normalized per I-011 before the
-  declaration check.
+- **Part D (README) and Part F (C-06)** — the two stale copies the proposal's §1 exhibits are
+  fixed: six `--src DIR`/`--tests DIR` statements now say `PATHS`, and C-06's
+  `SPECCHECK_LLMMODEL` now says `SPECCHECK_JUDGE_MODEL`. The first was documentation drift CI could
+  not see; the second was a spec sentence naming a variable no code has ever read.
+- **D-42's branch was adapted** — its preferred landing (the still-uncommitted v1.16 fold) no longer
+  existed once v1.16 and v1.17 shipped, so the C-06 fix lands in this version's own fold. Recorded
+  in the spec's v1.18 history row and in the D-42 row itself.
+- **The §0j interpretations** — `-h` is exempt from T-96's "every definition carries help";
+  the subparsers action is not a flag (its children's listing help and descriptions are asserted
+  instead); `explain`'s `--max-unknown` stays accepted and is documented as inert; `COLUMNS` is
+  documented as the one variable a `--help` run reads (D-41).
+- **What T-95/T-98 do not prove**, stated in the proposal and repeated here: the token equality is
+  mechanical only for the tokens the usage errors name, and the environment check is mechanical only
+  for the *names* — the prose around them (containment, ignored-unless, requiredness) is held by the
+  goldens, which detect *change*, not *truth*.
 
-Phase B model note. Both gates' runs use `google/gemini-3.8-flash`, the model the requester named
-and the one D-08 treats as this project's trusted self-application judge; `unknown_rate` 0.0157 is
-well inside `--max-unknown 0.2`, and no id was downgraded (`judge_strength` 237/237). The increment's
-own ids are judged directly: T-92/T-93 assert `explain`'s behaviour without a model, T-94's edge is
-the recorded live run, and E-61's contract is asserted by the test F-2 added.
+Phase B model note. Both gates' runs use `google/gemini-3.8-flash`; `unknown_rate` 0.0154 is well
+inside `--max-unknown 0.2` and no id was downgraded (`judge_strength` 244/244). This increment has no
+model-facing part at all — the help text is deterministic, no test here is `*(recorded)*`, and Phase B
+was run because the gate requires it, not because anything in the increment depends on a model.
 
-Nothing in the specification was scoped out: `explain` is built for every id the spec declares, over
-the same inputs and the same judge contract `check` uses, and the optional surfaces it does not own
-(the LLM judge, the Jev triage pass) stay exactly as specified — `explain` accepts their flags and
-carries their semantics without adding a call of its own (E-61).
+Nothing in the specification was scoped out: every flag of all four parsers carries a C-19 entry, the
+environment block names every variable the kernel reads, and the goldens cover all four screens.
 
-*Increment history:* §0h (v1.16, the obligation-aware judge), §0g (v1.15, Jev pre-triage), §0f
-(v1.14, declared vs. incidental), §0e (v1.13, edges and `impact`), §0d (v1.11), §0c (v1.8), §0b
-(v1.6), §0a (v1.5), §0 (v1.4), then the v1.1 record in §§1–5.
+*Increment history:* §0j (v1.18, the help contract), §0i (v1.17, `explain`), §0h (v1.16, the
+obligation-aware judge), §0g (v1.15, Jev pre-triage), §0f (v1.14, declared vs. incidental), §0e
+(v1.13, edges and `impact`), §0d (v1.11), §0c (v1.8), §0b (v1.6), §0a (v1.5), §0 (v1.4), then the
+v1.1 record in §§1–5.
