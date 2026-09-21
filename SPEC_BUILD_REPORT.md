@@ -691,6 +691,7 @@ exactly the E-41 gap), then realized:
 | E-49 | `judge.py`, `report.py` | `test_05_judge::test_clause_grounding_validation` | PASSING |
 | E-50 | `extract.py` | `test_01_extraction::test_recorded_marker_declarations` | PASSING |
 | E-51 | `graph.py` | `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength` | PASSING |
+| E-52 | `cli.py` (`_resolve_paths`: a PATHS element inside `--root` that is neither a file nor a directory → usage `2`) | T-78 `test_07_cli::test_paths_element_neither_file_nor_directory_is_e52` | PASSING |
 | F-201 | `cli.py` | the judge stage's INFO lines (mode/URL/model, stage summary) are emitted after `run_judge` returns, so nothing reaches stderr through the logger while the line is displayed |
 | F-206, F-207 | — | already realized in v1.2 (`max_unknown` echoed quantized, B-04; header parenthetical omitted for `--judge none`); T-35 now asserts the latter |
 | T-48 | `tests/test_09_self_application.py` | declared count 161 → 170 |
@@ -979,6 +980,7 @@ id. "Self-app" is the status from the T-48 run.
 | I-009 | `cli.py`, `report.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons` | PASSING |
 | I-010 | `graph.py`, `judge.py` | `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength`; `test_05_judge::test_judge_called_once_per_eligible_edge_only` | PASSING |
 | I-011 | `extract.py` | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
+| I-012 | `cli.py` (`_resolve_paths` deduplicates by resolved path; a file two elements cover is scanned and cited once) | T-78 `test_07_cli::test_paths_one_list_equivalent_to_repeatable_occurrences`; `test_07_cli::test_paths_first_seen_covering_element_fixes_scan_root` | PASSING |
 | I-013 | `impact.py` (`walk`: unbounded computation, depth-limited as a filter) | `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_impact_cli_against_golden_fixture` | PASSING |
 | I-014 | `attribute.py` (`declared` is a pure function of the source/test trees), `graph.py` / `report.py` (`declared_ratio`) | T-85 `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode` | PASSING |
 | I-015 | `jev.py` (`run_triage` returns the order and nothing else; no report import), `report.py` (no triage field) | T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; T-89 `test_05_judge::test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget` | PASSING |
@@ -1123,6 +1125,7 @@ id. "Self-app" is the status from the T-48 run.
 | T-75 | — | `test_05_judge::test_clause_grounding_validation` | PASSING |
 | T-76 | — | `test_08_golden::test_fixture_long_body_contract_and_labels`; `test_08_golden::test_goldens_carry_title_and_markdown_renders_title` | PASSING |
 | T-77 | — | `test_01_extraction::test_recorded_marker_declarations`; `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength` | PASSING |
+| T-78 | — | `test_07_cli::test_paths_one_list_equivalent_to_repeatable_occurrences`; `test_07_cli::test_paths_trims_and_drops_empty_segments`; `test_07_cli::test_paths_element_neither_file_nor_directory_is_e52`; `test_07_cli::test_paths_directly_named_files_get_each_per_file_filter`; `test_07_cli::test_paths_first_seen_covering_element_fixes_scan_root` | PASSING |
 | T-79 | — | `test_10_edges.py` (all nine functions) | PASSING |
 | T-80 | — | `test_11_impact::test_impact_cli_against_golden_fixture`; `test_11_impact::test_walk_reverse_depends_on_and_affects_with_shortest_via`; `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_reverify_set` | PASSING |
 | T-81 | — | `test_11_impact::test_diff_changed_set_reasons_in_fixed_order`; `test_11_impact::test_impact_usage_and_input_errors`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
