@@ -108,8 +108,8 @@ and the edge case that pins what happens when a model misbehaves:
 
 ```markdown
 | **E-16** | Judge returns `ASSERTS` with no evidence, or evidence outside the span / in
-another file | `UNKNOWN`, `coerced: true`, rationale `judge: ungrounded`. The raw answer is
-available only at DEBUG. |
+another file | `UNKNOWN`, `coerced: true`, rationale `judge: ungrounded`. When the same reply also
+fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is available only at DEBUG. |
 ```
 
 Both are checkable. Both are cited — by the code that realizes them and the tests that prove
@@ -128,23 +128,41 @@ Given a `SPEC.md`, a source tree, a test tree, and a JUnit XML results file, it:
   the enclosing test function;
 - joins those test cases to their results;
 - assigns each ID **exactly one status** by a fixed algorithm — `UNCITED`, `UNTESTED`,
-  `UNVERIFIED`, `FAILING`, `SKIPPED`, or `PASSING` — every one backed by a `file:line` you can
+  `UNVERIFIED`, `FAILING`, `SKIPPED`, or `PASSING`, plus `WEAKLY_PASSING` once a judge has
+  downgraded every judged edge of a passing ID — every one backed by a `file:line` you can
   `grep`;
 - lists dangling citations (an ID nobody declared) and stale ones (an ID that was retired);
 - writes a Markdown report and a JSON report, byte-identical across runs, and prints one line:
 
 ```text
-speccheck: CONFORMING - 170/170 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
+speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
            0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
 ```
 
 With `--strict`, that line is a CI gate: exit `0` only when every ID is `PASSING` and nothing is
 dangling or stale.
 
+Two more subcommands have joined `check` without changing that contract. `impact` walks the
+cross-references the spec already carries (`depends_on`, `verifies`, and a decision table's
+*Affects* column) from a changed set — `--changed IDS`, or `--against` a prior version of the same
+spec — and writes `impact.json` and `IMPACT_REPORT.md`: what a change might touch, at the depth you
+ask for. `explain <ID>` renders one id's whole trail to stdout: its statement, its status with the
+step that set it, its citations, each citing test case with its outcome and the judge's verdict
+(with the clause and rationale), and that same blast radius. Around them: `--jev-pre-triage` asks a
+second, much cheaper model for one confidence per edge so that a truncated `--judge-budget N%` run
+spends itself on the edges that need the real judge; the judge's request carries `declared` (does
+the test's own docstring name the id?) and `related` (the titles of the neighbouring obligations
+the statement names, and of those that name it) as context; and every `--help` screen documents its
+own flags, the environment variables the kernel reads and the exit codes, with the accepted-value
+tokens checked against the validators that reject them.
+
 Then there is the judge. A test can cite `R-11`, run the code, and never assert anything about
 it — and the deterministic kernel cannot tell. So `--judge llm` sends each passing (test, ID)
-pair to a model with one question: *does this test assert the behavior this ID describes, or does
-it merely execute code near it?* The design rule is the one the whole tool is built on:
+pair to a model with one question — *does this test assert the behavior this ID describes, or does
+it merely execute code near it?* — alongside two pieces of context the kernel already has: whether
+the test's own docstring names the ID (`declared`), and the titles of the neighbouring obligations
+the statement names and that name it (`related`), so a test asserting a neighbour's fact is not
+mistaken for a test that proves this one. The design rule is the one the whole tool is built on:
 
 > **The model may only ever make the news worse.** Every status is computed deterministically
 > from evidence you can grep; the judge is permitted to downgrade a `PASSING` to
@@ -157,7 +175,7 @@ model for free, or against OpenRouter, Anthropic's compatibility endpoint, or an
 for cents.
 
 speccheck is written to its own `SPEC.md`, and it is the worked example of the method. The
-numbers in the summary line above are its self-application: 170 IDs, 74 tests, every one
+numbers in the summary line above are its self-application: 252 IDs, 136 tests, every one
 `PASSING`, and — this is the part I find most convincing — when the LLM judge was first pointed
 at the tool's own suite, it found five tests that proved their IDs only by implication. The tests
 were strengthened; the code was not touched. That is the judge doing precisely its job.

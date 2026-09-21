@@ -292,3 +292,60 @@ def test_prose_artifacts_claim_the_shipped_version():
     )
     report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
     assert report.startswith(f"# SPEC_BUILD_REPORT — `speccheck` v{__version__} against `SPEC.md` ({expected})")
+
+
+def test_article_quotes_and_numbers_match_the_tree():
+    """F-3's class, in the article (2026-09-21): `docs/introducing-speccheck.md` quotes two spec rows
+    verbatim and quotes a summary line whose numbers are the tool's self-application. This asserts
+    the quotes still appear in `SPEC.md` verbatim, that the in-scope count in the quoted line equals
+    the spec's non-retired id count, and — when the gate's own `junit.xml` is present — that the
+    article's claimed test count equals the count that file records. Uncited, like F-3's guard: no
+    spec row covers the article's prose."""
+    import re
+    import xml.etree.ElementTree as ET
+
+    from speccheck.extract import parse_spec
+
+    article = (ROOT / "docs" / "introducing-speccheck.md").read_text(encoding="utf-8")
+    spec_text = (ROOT / "SPEC.md").read_text(encoding="utf-8")
+    flat_spec = " ".join(spec_text.split())
+
+    # the two quoted rows are verbatim (one of them lost a sentence once, which is why)
+    blocks = article.split("```")
+    # the two quoted rows' ids are built rather than written: citation is literal (F-013), so
+    # naming them here would enter the judge's eligible set as a meaningless edge for each
+    rows_checked = ["R-" + "11", "E-" + "16"]
+    quotes = [b for b in blocks if any(f"| **{m}** |" in b for m in rows_checked)]
+    assert len(quotes) == 2, quotes
+    for block in quotes:
+        rows = block.splitlines()
+        if rows and "|" not in rows[0]:  # drop the fence's info string ("markdown")
+            rows = rows[1:]
+        quote = " ".join(" ".join(rows).split())
+        assert quote in flat_spec, quote[:60]
+
+    # the quoted summary line: its denominator is the spec's own in-scope count
+    raw = next(b for b in blocks if "speccheck: CONFORMING" in b)
+    rows = raw.splitlines()
+    if rows and "speccheck:" not in rows[0]:  # drop the fence's info string ("text")
+        rows = rows[1:]
+    line = " ".join(" ".join(rows).replace("\\", " ").split())
+    match = re.match(
+        r"^speccheck: (CONFORMING|NOT CONFORMING) - (\d+)/(\d+) passing \([\d.]+%\), "
+        r"\d+ failing, \d+ skipped, \d+ weak, \d+ unverified, \d+ untested, \d+ uncited; "
+        r"\d+ dangling, \d+ stale; judge=(none|mock|llm)$",
+        line,
+    )
+    assert match, line
+    in_scope = sum(1 for s in parse_spec(spec_text, "SPEC.md").ids if not s.retired)
+    assert int(match.group(2)) == int(match.group(3)) == in_scope, (line, in_scope)
+
+    claimed = re.search(r"self-application: (\d+) IDs, (\d+) tests", " ".join(article.split()))
+    assert claimed, "the article no longer states its self-application numbers"
+    assert int(claimed.group(1)) == in_scope
+
+    junit = ROOT / "junit.xml"
+    if junit.is_file():  # the documented gate writes it; without it the claim is unchecked
+        suite = ET.parse(junit).getroot().find("testsuite")
+        assert suite is not None
+        assert int(claimed.group(2)) == int(suite.get("tests", "0")), claimed.group(2)

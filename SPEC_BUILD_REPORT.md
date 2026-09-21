@@ -1166,6 +1166,42 @@ now asserts the three claims agree: `SPEC.md`'s status line, `__version__`, the 
 introduction and this report's title. It failed first on the README's line wrapping (the sentence
 breaks across two lines), which is why it compares collapsed whitespace.
 
+### F-4 — the article, reviewed against the tree at the requester's request (2026-09-21)
+
+Started from F-3's find: the requester asked for `docs/introducing-speccheck.md` to be checked
+against reality. Four stale items, all fixed:
+
+| Where | Was | Is |
+| --- | --- | --- |
+| the quoted summary line | `170/170 passing` | `252/252 passing` (the format was unchanged) |
+| the self-application sentence | "170 IDs, 74 tests" | "252 IDs, 136 tests" |
+| the quoted `E-16` row | ended at "available only at DEBUG" | verbatim as `SPEC.md` now stands, including v1.11/F-402's "When the same reply also fails K-15, E-48 wins (C-06 rule order, F-402)." (the `R-11` quote was already verbatim) |
+| the generated renders | `docs/introducing-speccheck.html` (tracked) predated the source's 2026-09-20 edit — the "five skills / `spec-proposal`" paragraph was absent from it — and both it and the gitignored `.pdf` carried the old numbers | both regenerated (`make article`, `./spec2pdf.sh --no-click docs/introducing-speccheck.md`); the HTML was opened and looked at (TOC, the mermaid diagram as an inline SVG, the new paragraphs) and the PDF's text carries the same updates over 6 pages |
+
+Three incompletenesses were fixed at the requester's direction: the status list now names all seven
+in-scope statuses (`WEAKLY_PASSING` included), the feature list gains a paragraph on what has
+shipped since (`impact`, `explain <ID>`, `--jev-pre-triage` with `--judge-budget N%`, the request's
+`declared`/`related` context, and the `--help` contract), and the judge paragraph names those two
+context fields.
+
+**The guard.** `tests/test_09_self_application.py::test_article_quotes_and_numbers_match_the_tree`
+asserts the article's two quoted rows are verbatim in `SPEC.md`, that the in-scope count in its
+quoted summary line equals the spec's non-retired id count, that its claimed id count agrees, and —
+when the gate's own `junit.xml` is present — that its claimed test count equals the count that file
+records. It is uncited **by construction**: the first draft named the two row ids in string literals
+*and* in a comment, which made the test a citation of both (F-013's rule is literal: any token in a
+test file is a citation) and put two meaningless edges into the judge's eligible set — an honest
+judge would have been right to call them `UNRELATED`, and the graph would have carried edges the
+test does not prove. The ids are now built from parts, and the root report shows both ids acquiring
+no tests from that file.
+
+**Phase B was not re-run, at the requester's instruction.** It is not needed, and that is checkable
+rather than asserted: the recorded run's judged-edge set is *identical* to the current tree's — 780
+verdict-bearing edges in `build/speccheck-llm/speccheck.json` when the recorded Phase B ran, 780 in
+the current mock run, with no additions and no removals — because this change's only test-tree delta
+is an uncited test, and the article, the HTML and the PDF are not scanned. Phase A is green on the
+final tree (`CONFORMING - 252/252`, exit 0).
+
 ## 5. Traceability matrix (§11, filled from the build)
 
 "Realized in" lists the modules whose source cites the id (comments and the §11 realization
