@@ -238,3 +238,26 @@ def test_t84_recorded_adjacent_subset_is_measured_and_recorded():
     ]
     assert len(rows) >= 6, rows  # three runs per prompt text
     assert (ROOT / "tools" / "adjacent_eval.py").is_file()
+
+
+def test_t94_recorded_explain_trace_is_measured_and_recorded():
+    """T-94 *(recorded)*: the live-LLM arm of the C-18 trace was run and recorded — `explain R-01`
+    under `--judge llm` renders the C-06 verdict with its `clause:` and `rationale:` lines, the same
+    id under `--judge none` renders `not judged`, and the status shown equals the one
+    `speccheck.json` records from the same inputs; the run itself is the recorded evidence
+    (non-gating, like T-49 and T-84) — this check proves only that the artefact exists with the
+    shape the row pins. (R-40, C-18, E-61)"""
+    report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
+    marker = "T-94 *(recorded)*"
+    assert marker in report, "SPEC_BUILD_REPORT.md does not record T-94"
+    body = report.split(marker, 1)[1].split("\n## ", 1)[0]
+    assert "explain R-01" in body
+    assert "google/gemini-3.8-flash" in body
+    assert "judge_prompt_sha256" in body
+    shipped = hashlib.sha256(
+        (ROOT / "src" / "speccheck" / "judge_prompt.md").read_bytes()
+    ).hexdigest()
+    assert shipped in body, "the C-10 digest the live run recorded is not in the record"
+    assert "clause:" in body and "rationale:" in body  # the judged form
+    assert "not judged" in body  # the `--judge none` form
+    assert (ROOT / "tests" / "test_12_explain.py").is_file()

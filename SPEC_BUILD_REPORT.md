@@ -4,6 +4,123 @@
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
 
+## 0i. v1.17 increment (2026-09-20) — `speccheck explain <ID>` (R-40, C-18, I-016, E-60, E-61)
+
+**Why.** `PROPOSAL_v1.17_explain_id.md`, a **capability addition rather than a defect fix** and
+stated as such: every fact a reader wants about one id is already computed — its statement, its
+status and the C-05 step that set it, its citations with each case's JUnit outcome, each edge's
+verdict, and the C-12 blast radius — but assembling them by hand takes three structured artifacts
+plus two greps. §0's own promise is "never has to trust a number without a path to its evidence";
+the path existed and was not *rendered as one thing*. D-33..D-36 (stdout-only, the upward `impact`
+section included, recompute from the same inputs, one id per invocation) were confirmed on the
+proposal's recommended branches before this build.
+
+**Plan.** A delta `IMPLEMENTATION_PLAN.md` plus one brief per wave
+(`DETAILED_IMPLEMENTATION_PLAN_W1.md`..`W3.md`): W1 the subcommand and the renderer, W2 the recorded
+T-94, W3 the README, the conformance report and both gates. The plan's one fork — T-94's live-LLM
+arm, run or recorded pending — was taken as **run it**: the requester named the model, and the
+`clause:`/`rationale:` lines are the one part of C-18 a stub cannot honestly produce.
+
+**Wave ledger.**
+
+| Wave | Gate as run | Result | Commit |
+| --- | --- | --- | --- |
+| W1 — the subcommand and the C-18 renderer (R-40, C-18, I-016, E-60; T-92, T-93) | `pytest tests/test_12_explain.py -q`; `pytest tests -q --junitxml=junit.xml`; `ruff check src tests tools`; `speccheck --self-check`; `sync_selfcheck.py --check` | 2 passed; 1 failed / 127 passed (the failure was `test_09`'s `DECLARED_IDS`, W3's row); clean; `self-check: ok`; exit 0 — every golden byte-identical through the `_run_stages` refactor | `36d3e44` |
+| W2 — the recorded T-94 (the live-LLM trace) | `pytest tests/test_09_self_application.py -q` | see below | this commit |
+| W3 — README, the conformance report and both gates | the full Phase 1 exit gate, then Phase A and Phase B | see §6 | next commit |
+
+**W1, test-first:** T-92 failed first on `invalid choice: 'explain'`, then on the trace it expected.
+The implementation is one shared pipeline and one pure renderer: `execute`'s stage sequence moved
+verbatim into `_run_stages(config)` (called by `execute` and the new `execute_explain`) and
+`parse_config`'s validation into `_build_check_config` (reused by `explain` with `--out` and
+`--strict` undefined on its subparser, E-54's pattern). The trace's `impact` section reuses
+`impact.walk`, `mark_retired` and `reverify_set` unchanged (D-34). The refactor's evidence is the
+existing byte-compared goldens: T-46, T-71, T-79 and T-80 all stayed green, so the split changed no
+behaviour. T-92 pins R-01's whole trace byte for byte — five citing cases with the mock's verdicts,
+the walk's one dependent (`I-001`, via `I-001 -depends_on-> R-01`) and the one T id that verifies
+it (`T-01`) — and asserts a second run is identical, the fixture copy is untouched (no report, no
+temporary, no `--out`), and the status equals `golden/speccheck.json`'s. T-93 covers E-60's message
+for an undeclared id, the retired id's `(RETIRED)` marker and reason, the declared-but-uncited id's
+empty `tests:` block, and `--out`/`--strict` as usage errors.
+
+**T-94 *(recorded)* — the live-LLM trace.** Run 2026-09-20 against a copy of `fixtures/target/`
+with `google/gemini-3.8-flash` (OpenRouter, `--judge-concurrency 8`, 20 s), exactly as the row
+pins:
+
+```bash
+export SPECCHECK_JUDGE_URL=https://openrouter.ai/api/v1/chat/completions
+export SPECCHECK_JUDGE_MODEL=google/gemini-3.8-flash
+export SPECCHECK_JUDGE_API_KEY=...            # never recorded
+cd fixtures/target
+uv run --project ../.. speccheck explain R-01 --spec SPEC.md --src src --tests tests \
+    --results junit.xml --judge llm --judge-concurrency 8
+```
+
+The trace (verbatim, exit `0`), `judge_prompt_sha256`
+`dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f`:
+
+```text
+ID R-01
+status: PASSING (step 4: every citing test case passed)
+statement:
+  `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+sources:
+  src/calc/core.py:10
+tests:
+  tests/test_core.py::test_add (passed) [ASSERTS]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test directly asserts that calling add(a, b) returns the expected arithmetic sum.
+  tests/test_core.py::test_add_result (passed) [ASSERTS]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test asserts that add(2, 3) returns 5, verifying that add(a, b) returns the arithmetic sum of its inputs.
+  tests/test_core.py::test_add_rounding_fact (passed) [EXECUTES_ONLY]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test calls add(1.005, 0.0) but does not assert on its return value, asserting instead on a standalone rounding expression.
+  tests/test_core.py::test_add_rounding_of_a_half_cent (passed) [EXECUTES_ONLY]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test calls add(2.675, 0.0) but does not assert on its result, asserting instead only the behavior of built-in round().
+  tests/test_summary.py::test_summary_module_does_not_change_add (passed) [ASSERTS]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test directly verifies that add(a, b) returns the arithmetic sum, including proper rounding for floating point values.
+impact (1):
+  I-001 (depth 1, via I-001 -depends_on-> R-01)
+  T-01 verifies R-01
+```
+
+The same id under `--judge none` renders the same trace with every verdict line reading
+`[not judged]` and no `clause:`/`rationale:` line:
+
+```text
+tests:
+  tests/test_core.py::test_add (passed) [not judged]
+  tests/test_core.py::test_add_result (passed) [not judged]
+  tests/test_core.py::test_add_rounding_fact (passed) [not judged]
+  tests/test_core.py::test_add_rounding_of_a_half_cent (passed) [not judged]
+  tests/test_summary.py::test_summary_module_does_not_change_add (passed) [not judged]
+```
+
+**The status agreement (I-016).** A `check --judge llm` over the same fixture copy (same inputs,
+same model, same day, `--judge-concurrency 8`, 24 s, `unknown_rate` `0.05`, `judge_available`
+`true`) records R-01 as `PASSING` — the status the trace shows — with the same five edge verdicts
+(`ASSERTS`, `ASSERTS`, `EXECUTES_ONLY`, `EXECUTES_ONLY`, `ASSERTS`). The two `EXECUTES_ONLY` edges
+are the fixture's adjacent pairs, graded by the judge exactly as their labels say (v1.16's T-84
+subset), and they are visible in the trace as such — which is the point of the surface: the
+downgrade and its reason are readable in one place, without opening `speccheck.json`.
+
+**F-1 — T-92's command line was self-contradictory, and the fold fixed it.** The proposal's draft
+row passed `--out <fresh tmp>` to `explain`, which D-33 and C-18 remove: the flag does not exist on
+the subparser. T-92's row now runs without `--out` and asserts the stronger property — the fixture
+copy is byte-identical before and after the run (`fix(spec):`, `f1cca17`).
+
+**Interpretations the build had to make.**
+
+| Where | Reading taken | Why |
+| --- | --- | --- |
+| `explain`'s exit code on a non-`PASSING` id | `0` (nothing it renders is pass/fail, like `impact`) | C-18 pins `0`/`2`/`3` only; a trace of a `FAILING` id is still a successful render, and `--strict` is undefined on the subparser so no gate can move |
+| `--max-unknown` on `explain` | accepted, consulted by nothing | §5.1's row lists it (it is part of `check`'s contract that E-61 carries over); it only matters under `--strict --judge llm`, and `explain` has no `--strict` |
+| the depth-cap Note | logged at `INFO`, not rendered | C-18's trace has no notes section, and §5.3 already says Notes are logged at `INFO`; nothing may be added to stdout that C-18 does not pin |
+| `explain`'s id lookup | normalized per I-011 before the declaration check | `R-1` and `R-01` are one id everywhere else in the tool; E-60's message echoes what the operator typed |
+
 ## 0h. v1.16 increment (2026-09-20) — the obligation-aware judge (R-38, C-06, C-10, C-17, K-16, E-57, T-83, T-84)
 
 **Why.** `PROPOSAL_v1.14_obligation_aware_judge.md`, grounded in `JUDGE_CROSSCHECK_REPORT.md` §2b:
