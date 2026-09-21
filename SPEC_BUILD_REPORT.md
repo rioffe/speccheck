@@ -1,6 +1,6 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.15.0 against `SPEC.md` (v1.15)
+# SPEC_BUILD_REPORT — `speccheck` v1.18.0 against `SPEC.md` (v1.18)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f) and to v1.15 (§0g); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), and 2026-09-21 to v1.18 (§0j); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
 
@@ -1143,6 +1143,28 @@ were written from the spec immediately after the module they exercise; five of t
 first run and every failure was a defect in the *test data* (a data file citing an id it should
 not, a fixture reusing a directory, an inline marker literal), not in the kernel — the kernel's
 only spec deviation found by the suite was B-01, fixed in code.
+
+### F-3 — the version claims in the prose artifacts (found by the requester, 2026-09-21)
+
+`README.md`'s introduction said the repository "implements its own `SPEC.md` (v1.15, code 1.15.0)"
+and this report's own title said "`speccheck` v1.15.0 against `SPEC.md` (v1.15)": both were three
+increments stale (v1.16, v1.17 and v1.18 each updated the README's layout block and this report's
+increment sections, and neither the introduction sentence nor the title). Fixed here — the README
+now reads v1.18 / 1.18.0 and the title v1.18.0 / v1.18, and the front matter's `Built:` line lists
+all four later increments.
+
+**Why nothing caught it:** no spec row covers the README's prose. `SPEC.md` pins what the *tool*
+does (§5.1, C-09, C-19, §5.4) and `spec-build`'s Phase 2 requires the README to describe the built
+system, but a version claim in an introduction sentence is held by review — the same limit the
+v1.18 proposal states for its own prose ("T-95/T-98 keep the part that is mechanically checkable
+mechanically checked"; the sentences around it are held by the goldens and by review). The
+cross-check below is where that review happened this time.
+
+**The guard.** `tests/test_09_self_application.py::test_prose_artifacts_claim_the_shipped_version`
+(uncited — no spec row covers this prose, so it is a pytest guard rather than a conformance edge)
+now asserts the three claims agree: `SPEC.md`'s status line, `__version__`, the README's
+introduction and this report's title. It failed first on the README's line wrapping (the sentence
+breaks across two lines), which is why it compares collapsed whitespace.
 
 ## 5. Traceability matrix (§11, filled from the build)
 

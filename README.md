@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.15, code
-1.15.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.18, code
+1.18.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
 propose, write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then

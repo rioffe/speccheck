@@ -265,3 +265,30 @@ def test_t94_recorded_explain_trace_is_measured_and_recorded():
     assert "clause:" in body and "rationale:" in body  # the judged form
     assert "not judged" in body  # the `--judge none` form
     assert (ROOT / "tests" / "test_12_explain.py").is_file()
+
+
+def test_prose_artifacts_claim_the_shipped_version():
+    """F-3 (2026-09-21): the version claims in the prose artifacts track the shipped version — the
+    README's introduction and SPEC_BUILD_REPORT.md's title name the spec version `SPEC.md`'s status
+    line declares and the package version `__version__` reports. No spec row covers this prose, so
+    the guard is here: the claim drifted for three increments (v1.16, v1.17, v1.18) before the
+    requester read it."""
+    import re
+
+    from speccheck import __version__
+
+    spec_version = re.search(
+        r"\*\*Status:\*\* v(\d+\.\d+)", (ROOT / "SPEC.md").read_text(encoding="utf-8")
+    )
+    assert spec_version, "SPEC.md has no status version"
+    expected = f"v{spec_version.group(1)}"
+    assert __version__.startswith(spec_version.group(1)), (__version__, expected)
+
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    # the claim is checked on collapsed whitespace: the sentence wraps in the source
+    assert (
+        f"implements its own `SPEC.md` ({expected}, code {__version__})"
+        in " ".join(readme.split())
+    )
+    report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
+    assert report.startswith(f"# SPEC_BUILD_REPORT — `speccheck` v{__version__} against `SPEC.md` ({expected})")
