@@ -1422,7 +1422,7 @@ id. "Self-app" is the status from the T-48 run.
 ```text
 Spec coverage: 252/252 IDs realized (0 deferred)
 speccheck (mock): speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-21, --judge-concurrency 8, 10 m 51 s, judge_available true, judge_strength 1.0 (244/244), unknown_rate 0.0154, declared_ratio 0.4048, judge_prompt_sha256 dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f]
+speccheck (llm):  speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-21, --judge-concurrency 8, 9 m 56 s, judge_available true, judge_strength 1.0 (244/244), unknown_rate 0.0103, declared_ratio 0.4048, judge_prompt_sha256 dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f]
 Observed: no rendered surface; the help screens themselves were run and read (the four goldens at
 COLUMNS=80, §0j)
 Readiness: BUILT
@@ -1453,8 +1453,12 @@ The notes are:
   for the *names* — the prose around them (containment, ignored-unless, requiredness) is held by the
   goldens, which detect *change*, not *truth*.
 
-Phase B model note. Both gates' runs use `google/gemini-3.8-flash`; `unknown_rate` 0.0154 is well
-inside `--max-unknown 0.2` and no id was downgraded (`judge_strength` 244/244). This increment has no
+Phase B model note. Both gates' runs use `google/gemini-3.8-flash`; `unknown_rate` 0.0103 is well
+inside `--max-unknown 0.2` and no id was downgraded (`judge_strength` 244/244). The gate was run
+twice on this increment's tree — once at `f724382` (`unknown_rate` 0.0154, 10 m 51 s) and once after
+F-3's guard landed (`0.0103`, 9 m 56 s, the line above); the second is the recorded one, and the
+verdict set is identical by construction, since the guard test cites no id and so contributes no
+judged edge. This increment has no
 model-facing part at all — the help text is deterministic, no test here is `*(recorded)*`, and Phase B
 was run because the gate requires it, not because anything in the increment depends on a model.
 
