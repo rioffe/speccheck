@@ -73,7 +73,8 @@ in the fixture, the labels and the spec: the eight adjacent edges are labeled `E
 so it is a genuine test, labeled `ASSERTS`, and a second `R-01`→`K-02` pair replaced it in the
 adjacent set), and T-76/T-84 now say "≥ 8 are downgraded (`EXECUTES_ONLY` or `UNRELATED`)" —
 which is how T-84's own body and the proposal's measurement language already phrased it. `SPEC.md`
-is edited by a `fix(spec):` and its v1.16 history row records F-1.
+is edited in this increment — its v1.16 history row records F-1 — because the rows themselves were
+wrong, not the code that implements them.
 
 **Interpretations the build had to make.**
 
