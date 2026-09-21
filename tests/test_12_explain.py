@@ -7,6 +7,8 @@ import json
 import shutil
 from pathlib import Path
 
+from speccheck.judge import Verdict
+
 from .conftest import FIXTURE, run_cli
 
 ARGS = [
@@ -128,3 +130,67 @@ def test_t93_explain_undeclared_retired_and_uncited(tmp_path: Path):
     for flag in ("--out", "--strict"):
         rejected = run_cli([*ARGS[:1], "R-01", *ARGS[2:], "--root", ".", flag, "x"], target)
         assert rejected.code == 2, flag
+
+
+class _MixedJudge:
+    """A provider that answers both C-18 verdict forms: one edge coerced to `UNKNOWN` because its
+    clause cannot be located (E-48), the rest committed `EXECUTES_ONLY` (C-05 step 5's downgrade)."""
+
+    prompt_sha256 = "0" * 64
+
+    def judge(self, req):
+        if req.testcase.name == "test_add":
+            return Verdict(
+                "ASSERTS",
+                "a clause that appears nowhere in this statement at all",
+                (),
+                "stub: unlocated clause",
+            )
+        return Verdict("EXECUTES_ONLY", req.statement, (), "stub: no assertion on the clause")
+
+
+def test_e61_explain_carries_the_judge_contract(tmp_path: Path, monkeypatch):
+    """E-61: `explain` carries `check`'s judge contract verbatim — a coerced verdict renders
+    `[UNKNOWN (coerced)]` with its rationale, a committed downgrade renders its token with the
+    `clause:` it judged against and its rationale, the status shown is the one those verdicts
+    produce (C-05 step 5), and under `--judge none` every edge line reads `[not judged]` with no
+    `clause:`/`rationale:` line at all; neither form writes a file (I-016). (R-40, C-18, E-61)"""
+    import speccheck.cli as cli
+
+    target = _copy(tmp_path)
+    monkeypatch.setattr(cli, "_make_provider", lambda config: (_MixedJudge(), 1, 0))
+    judged = run_cli(
+        [
+            "explain", "R-01", "--spec", "SPEC.md", "--src", "src", "--tests", "tests",
+            "--results", "junit.xml", "--judge", "llm", "--root", ".",
+        ],
+        target,
+        env={
+            "SPECCHECK_JUDGE_URL": "http://localhost:11434/v1/chat/completions",
+            "SPECCHECK_JUDGE_MODEL": "m",
+            "SPECCHECK_JUDGE_API_KEY": "sk-secret",
+        },
+    )
+    assert judged.code == 0, judged.stderr
+    body = judged.stdout.splitlines()
+    assert body[1] == "status: WEAKLY_PASSING (step 5: the judge downgraded every judged edge)"
+    assert "  tests/test_core.py::test_add (passed) [UNKNOWN (coerced)]" in body
+    assert "    rationale: judge: unlocated clause" in body
+    downgraded = [line for line in body if line.endswith("[EXECUTES_ONLY]")]
+    assert len(downgraded) == 4
+    assert body.count("    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.") == 4
+    assert body.count("    rationale: stub: no assertion on the clause") == 4
+    assert not (target / "speccheck.json").exists()
+
+    unjudged = run_cli(
+        [
+            "explain", "R-01", "--spec", "SPEC.md", "--src", "src", "--tests", "tests",
+            "--results", "junit.xml", "--judge", "none", "--root", ".",
+        ],
+        target,
+    )
+    assert unjudged.code == 0, unjudged.stderr
+    lines = unjudged.stdout.splitlines()
+    assert all(line.endswith("[not judged]") for line in lines if " (passed) [" in line)
+    assert "clause:" not in unjudged.stdout and "rationale:" not in unjudged.stdout
+    assert lines[1] == "status: PASSING (step 4: every citing test case passed)"

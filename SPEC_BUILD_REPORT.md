@@ -26,8 +26,8 @@ arm, run or recorded pending — was taken as **run it**: the requester named th
 | Wave | Gate as run | Result | Commit |
 | --- | --- | --- | --- |
 | W1 — the subcommand and the C-18 renderer (R-40, C-18, I-016, E-60; T-92, T-93) | `pytest tests/test_12_explain.py -q`; `pytest tests -q --junitxml=junit.xml`; `ruff check src tests tools`; `speccheck --self-check`; `sync_selfcheck.py --check` | 2 passed; 1 failed / 127 passed (the failure was `test_09`'s `DECLARED_IDS`, W3's row); clean; `self-check: ok`; exit 0 — every golden byte-identical through the `_run_stages` refactor | `36d3e44` |
-| W2 — the recorded T-94 (the live-LLM trace) | `pytest tests/test_09_self_application.py -q` | see below | this commit |
-| W3 — README, the conformance report and both gates | the full Phase 1 exit gate, then Phase A and Phase B | see §6 | next commit |
+| W2 — the recorded T-94 (the live-LLM trace) | `pytest tests/test_09_self_application.py -q` | 7 passed / 1 failed (the failure was `DECLARED_IDS`, W3's row) | `6bad0ed` |
+| W3 — README, the conformance report and both gates | the full Phase 1 exit gate, then Phase A and Phase B | 129 passed; clean; `self-check: ok`; both gates exit 0 (§6) | this commit |
 
 **W1, test-first:** T-92 failed first on `invalid choice: 'explain'`, then on the trace it expected.
 The implementation is one shared pipeline and one pure renderer: `execute`'s stage sequence moved
@@ -111,6 +111,21 @@ downgrade and its reason are readable in one place, without opening `speccheck.j
 row passed `--out <fresh tmp>` to `explain`, which D-33 and C-18 remove: the flag does not exist on
 the subparser. T-92's row now runs without `--out` and asserts the stronger property — the fixture
 copy is byte-identical before and after the run (`fix(spec):`, `f1cca17`).
+
+**F-2 — Phase B found E-61 `WEAKLY_PASSING`, and the fix was the test.** The first Phase B run of
+this increment (same model, same day) came back `244/245 passing ... 1 weak`: E-61's only judged
+edge was `test_t94_recorded_explain_trace_is_measured_and_recorded` — the T-94 presence check,
+which reads `SPEC_BUILD_REPORT.md` and asserts nothing about the `--judge` contract. The judge
+graded it `UNRELATED` ("inspects the text of SPEC_BUILD_REPORT.md ... rather than exercising or
+asserting the `--judge` flag on `explain`") and C-05 step 5 did the rest. The fix is the one
+`spec-build` prescribes — strengthen the test, never raise `--max-unknown`:
+`tests/test_12_explain.py::test_e61_explain_carries_the_judge_contract` now drives a stub provider
+that answers both C-18 verdict forms (one edge coerced to `UNKNOWN (coerced)` per E-48, four
+committed `EXECUTES_ONLY`), asserts the trace's rendering of each — the token, the `clause:` line,
+the `rationale:` line — the `WEAKLY_PASSING (step 5: ...)` status those verdicts produce, and the
+`--judge none` form's `[not judged]` lines with no `clause:`/`rationale:` at all. E-61's contract
+is now asserted deterministically; the presence check remains what it is, and T-94 keeps the live
+run.
 
 **Interpretations the build had to make.**
 
@@ -1069,6 +1084,7 @@ id. "Self-app" is the status from the T-48 run.
 | R-37 | `impact.py` (changed set, walk, reverify), `cli.py` (`impact` subcommand) | `test_11_impact::test_impact_cli_against_golden_fixture`; `test_11_impact::test_impact_against_with_no_changes_and_retired_changed_id` | PASSING |
 | R-38 | `judge_llm.py` (`related_titles`: the C-12 `depends_on` neighbourhood, both directions, R/C/I/K/E only, own references first, cap 8, 160-char collapsed titles with `…`, retired tagged per E-57), `judge.py` (`JudgeRequest.related`, `to_json`'s key order), `jev.py` (`render_state`'s D-28b section), `cli.py` (one build per eligible edge) | T-83 `test_05_judge::test_t83_related_neighbourhood_on_request_and_triage_state`; T-74 `test_05_judge::test_llm_request_carries_heading_body_statement`; T-84 `test_09_self_application::test_t84_recorded_adjacent_subset_is_measured_and_recorded` (presence check; the real run is §0h) | PASSING |
 | R-39 | `attribute.py` (`_doc_span`, `_declared`; the Python docstring-span and whole-line-comment rule, the Swift `_Line.doc` reuse), `graph.py` (`TestEdge.declared`, `declared_counts`) | T-85 `test_02_attribution::test_declared_vs_incidental_classification`, `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-86 `test_08_golden::test_fixture_gains_one_incidental_citation` | PASSING |
+| R-40 | `cli.py` (`explain` subparser, `ExplainConfig`, `_run_stages`, `execute_explain`), `explain.py` (`render_trace`) | T-92 `test_12_explain::test_t92_explain_golden_trace_is_stable`; T-93 `test_12_explain::test_t93_explain_undeclared_retired_and_uncited`; T-94 `test_09_self_application::test_t94_recorded_explain_trace_is_measured_and_recorded` (presence check; the real run is §0i) | PASSING |
 | C-01 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-02 `test_01_extraction::test_numbers_normalize_within_family`; T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids`; T-04 `test_01_extraction::test_strikethrough_is_retired_and_mixed_redeclaration_exits_3`; T-05 `test_01_extraction::test_fenced_code_blocks_are_ignored`; T-55 `test_01_extraction::test_row_and_heading_grammar_edge_cases`; T-57 `test_02_attribution::test_ignore_markers`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-02 | `extract.py` | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement`; T-06 `test_01_extraction::test_duplicate_declaration_exits_3_naming_both_lines`; T-72 `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
 | C-03 | `attribute.py`, `extract.py` | T-09 `test_02_attribution::test_python_test_citations_attributed_to_enclosing_case`; T-10 `test_02_attribution::test_module_docstring_and_helper_citations_are_file_level`; T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks`; T-14 `test_02_attribution::test_several_citations_in_one_case_yield_one_edge`; T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; T-56 `test_02_attribution::test_class_recognition_and_async_and_undelimited` | PASSING |
@@ -1086,6 +1102,7 @@ id. "Self-app" is the status from the T-48 run.
 | C-15 | `judge.py` (`JudgeRequest.declared`, `build_request`, `to_json`), `judge_llm.py` (system message), `src/speccheck/judge_prompt.md` (field definition + skepticism rule), `cli.py` (passes `edge.declared`) | `test_05_judge::test_judge_request_carries_declared_for_the_edge`; `test_05_judge::test_llm_response_path_fences_and_prompt_hash`; `test_05_judge::test_llm_request_carries_heading_body_statement`; T-87 (§0f, recorded) | PASSING |
 | C-16 | `report.py` (`tests[].declared`, `metrics.declared_ratio`, `SCHEMA_VERSION` "1.5"), `graph.py` (`declared_counts`, `Metrics.declared_ratio`) | T-86 `test_08_golden::test_fixture_gains_one_incidental_citation`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode`; `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys` | PASSING |
 | C-17 | `jev.py` (`JevConfig.from_env`, `render_state` incl. the D-28b `Related obligations:` section, `build_body`, `parse_confidence`, `JevTriage`), `cli.py` (`_make_triage_provider`, the env read) | T-89 `test_05_judge::test_triage_request_shape_and_response_parse`; T-90 `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
+| C-18 | `explain.py` (the six sections, the C-05 reasons, the verdict/`clause:`/`rationale:` lines, the impact section) | T-92, T-93 | PASSING |
 | I-001 | `cli.py`, `report.py` | T-07 `test_01_extraction::test_no_in_scope_ids_exits_3_and_writes_nothing`; T-38 `test_06_reports::test_only_the_two_reports_are_created`; T-43 `test_07_cli::test_no_sockets_and_self_check`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | I-002 | `attribute.py`, `extract.py`, `graph.py`, `report.py`, `results.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers` | PASSING |
 | I-003 | `report.py` | T-25 `test_04_status::test_retired_ids_excluded_from_denominators_but_listed_once`; T-35 `test_06_reports::test_markdown_layout` | PASSING |
@@ -1101,6 +1118,7 @@ id. "Self-app" is the status from the T-48 run.
 | I-013 | `impact.py` (`walk`: unbounded computation, depth-limited as a filter) | `test_11_impact::test_walk_depth_cap_is_a_prefix_with_a_note`; `test_11_impact::test_impact_cli_against_golden_fixture` | PASSING |
 | I-014 | `attribute.py` (`declared` is a pure function of the source/test trees), `graph.py` / `report.py` (`declared_ratio`) | T-85 `test_02_attribution::test_declared_is_present_and_constant_across_judge_modes`; T-88 `test_08_golden::test_declared_ratio_is_present_and_recomputable_under_every_judge_mode` | PASSING |
 | I-015 | `jev.py` (`run_triage` returns the order and nothing else; no report import), `report.py` (no triage field) | T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; T-89 `test_05_judge::test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget` | PASSING |
+| I-016 | `cli.py` (`_run_stages` shared by `check` and `explain`; `execute_explain` writes nothing), `explain.py` (pure) | T-92 (status agreement, untouched tree), T-94 | PASSING |
 | K-01 | `cli.py` | T-39 `test_07_cli::test_exit_code_equals_json_and_strict_reasons`; T-40 `test_07_cli::test_usage_errors_exit_2_with_message_and_no_key_leak`; T-19 `test_03_results::test_malformed_xml_and_nameless_testcase_exit_3`; T-64 `test_07_cli::test_interrupt_exits_3_and_cleans_up` | PASSING |
 | K-02 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
 | K-03 | `extract.py` | T-13 `test_02_attribution::test_excluded_dirs_oversized_nonutf8_binary_and_symlinks` | PASSING |
@@ -1165,6 +1183,8 @@ id. "Self-app" is the status from the T-48 run.
 | E-57 | `judge_llm.py` (`_related_title`: the title plus ` (retired)`), `jev.py` (the same string in the triage `state`) | T-83 `test_05_judge::test_t83_related_neighbourhood_on_request_and_triage_state` (a retired neighbour keeps its title, tagged) | PASSING |
 | E-58 | `cli.py` (`_parse_budget`, the E-58 check in `parse_config`) | T-90 `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
 | E-59 | `jev.py` (`JevTriage.confidence` never raises; `TriageRun.notes`), `cli.py` (the Note) | T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue` | PASSING |
+| E-60 | `cli.py` (`execute_explain`'s id validation and message) | T-93 | PASSING |
+| E-61 | `cli.py` (the judge flags carried over unchanged), `explain.py` (verdict rendering incl. `(coerced)` and `not judged`) | T-94 | PASSING |
 | T-01 | — | T-01 `test_01_extraction::test_table_and_heading_declarations_and_utf8_replacement` | PASSING |
 | T-02 | — | T-02 `test_01_extraction::test_numbers_normalize_within_family` | PASSING |
 | T-03 | — | T-03 `test_01_extraction::test_four_digits_and_adjacent_alphanumerics_are_not_ids` | PASSING |
@@ -1256,57 +1276,57 @@ id. "Self-app" is the status from the T-48 run.
 | T-89 | — | `test_05_judge::test_triage_orders_and_truncates_the_judge_queue`; `test_05_judge::test_triage_request_shape_and_response_parse`; `test_05_judge::test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget` | PASSING |
 | T-90 | — | `test_07_cli::test_jev_pre_triage_usage_errors_and_secret_hygiene` | PASSING |
 | T-91 *(recorded)* | — | `test_09_self_application::test_t91_recorded_calibration_is_measured_and_recorded` (presence check); the real run is §0g above | PASSING |
+| T-92 | — | `test_12_explain::test_t92_explain_golden_trace_is_stable` | PASSING |
+| T-93 | — | `test_12_explain::test_t93_explain_undeclared_retired_and_uncited` | PASSING |
+| T-94 *(recorded)* | — | `test_09_self_application::test_t94_recorded_explain_trace_is_measured_and_recorded` (presence check); the real run is §0i | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 237/237 IDs realized (0 deferred)
-speccheck (mock): speccheck: CONFORMING - 237/237 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: CONFORMING - 237/237 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-20, --judge-concurrency 8, 8 m 30 s, judge_available true, judge_strength 1.0 (230/230), unknown_rate 0.0122, declared_ratio 0.3887, judge_prompt_sha256 dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f (the v1.16 C-10 text)]
-Observed: no rendered surface (§5.2)
+Spec coverage: 245/245 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 245/245 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: CONFORMING - 245/245 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-20, --judge-concurrency 8, 9 m 38 s, judge_available true, judge_strength 1.0 (237/237), unknown_rate 0.0157, declared_ratio 0.3992, judge_prompt_sha256 dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f]
+Observed: no rendered surface (§5.2); the `explain` surface itself was run and read — T-92's pinned
+trace, T-93's three forms and T-94's live-LLM trace (§0i)
 Readiness: BUILT
 Conformance: PASS WITH NOTES
 ```
 
-v1.16's deliverable (R-38, C-06's `related` field, C-10's field and rule, C-17's D-28b `state`
-section, K-16's carried neighbourhood, E-57, T-83, T-84) is green on both gates, and nothing
-earlier moved: the fixture goldens are byte-identical to a fresh run (T-46/T-71), `_selfcheck/`
-equals `fixtures/target/` byte for byte (T-60), the mock gate is 237/237 with 0 dangling and
-0 stale, and the strict LLM gate is 237/237 with no `WEAKLY_PASSING` id — the request-side field is
-invisible to every report, which is why the goldens did not have to be regenerated for Part B and
-why `schema_version` stays `"1.5"`.
+v1.17's deliverable (R-40, C-18, I-016, E-60, E-61, T-92..T-94) is green on both gates, and nothing
+earlier moved: the fixture goldens are byte-identical to a fresh run (T-46/T-71) — the `check` and
+`impact` paths were refactored (`_run_stages`, `_build_check_config`) and every byte-compared golden
+proves the split changed no behaviour — `_selfcheck/` equals `fixtures/target/` (T-60), the mock gate
+is 245/245 with 0 dangling and 0 stale, and the strict LLM gate is 245/245 with no `WEAKLY_PASSING`
+id. `explain` writes no artifact, so no golden, no `schema_version` and no report field was touched
+by the increment (D-33, I-016).
 
 The notes are:
 
-- **F-1 (§0h)** — the spec was wrong about the adjacent labels' token, and the T-49 run found it:
-  C-10's vocabulary grades a test that runs the cited id's code and asserts a neighbour's fact
-  `EXECUTES_ONLY`, not `UNRELATED`. T-76/T-84 now say "≥ 8 downgraded (`EXECUTES_ONLY` or
-  `UNRELATED`)", the eight adjacent edges are labeled accordingly, and the first T-49 attempt
-  (accuracy 0.7949 on run 3) is recorded beside the corrected runs (1.0000 three times).
-- **T-84's recorded outcome is "on none"** (§0h): `google/gemini-3.8-flash` downgrades all eight
-  adjacent edges with *and* without the `related` field, so the change moved no verdict on this
-  fixture and this model. The row's precondition holds and its evidence is recorded; the row
-  itself says a no-op outcome is information, not a failure, and the lead it leaves (grow the
-  adjacent subset toward edges a generous model over-credits) is written down rather than acted
-  on here.
-- **The §0h interpretations** — `related` carries title strings (not `{id, title}` objects), the
-  family filter excludes T while E-57 includes retired neighbours, the truncation precedes the
-  `(retired)` tag, and the builder lives in `judge_llm.py` per §11's R-38 row.
+- **F-1 (§0i)** — the proposal's draft T-92 row passed `--out <fresh tmp>` to a subcommand that D-33
+  gives no `--out`; the folded row runs without it and asserts the stronger property (the fixture
+  copy is byte-identical before and after).
+- **F-2 (§0i)** — the first Phase B run came back `244/245 … 1 weak`: E-61's only judged edge was
+  T-94's presence check, which asserts the report artefact rather than the `--judge` contract, and
+  the judge graded it `UNRELATED`. Fixed the way `spec-build` prescribes — the test, not the
+  threshold: `test_e61_explain_carries_the_judge_contract` drives a stub provider through both C-18
+  verdict forms and asserts the rendering, the status they produce and the `--judge none` form.
+  The second run is the 245/245 above.
+- **The §0i interpretations** — `explain` exits `0` for a non-`PASSING` id (nothing it renders is
+  pass/fail), `--max-unknown` is accepted but inert without `--strict`, the depth-cap Note goes to
+  `INFO` rather than into the trace, and the positional id is normalized per I-011 before the
+  declaration check.
 
-Phase B model note. The gate line above uses `google/gemini-3.8-flash` — the model D-08 names as
-this project's trusted self-application judge, and the model the requester named for this
-increment's Phase B. Its `unknown_rate` (0.0122) is well inside `--max-unknown 0.2`, and it
-downgraded no id at all (`judge_strength` 230/230): every edge of this increment's new ids
-(R-38, E-57, T-83) is graded `ASSERTS`, which is what T-83's end-to-end test asserts directly
-rather than leaving to a model. T-84 is RECORDED, so its presence check is never sent to a judge
-(R-35). The v1.15 record's comparison model, `openai/gpt-4o-mini`, is the D-07/D-08 alternative
-and remains the one that finds `WEAKLY_PASSING` ids on this tree; it was not needed here.
+Phase B model note. Both gates' runs use `google/gemini-3.8-flash`, the model the requester named
+and the one D-08 treats as this project's trusted self-application judge; `unknown_rate` 0.0157 is
+well inside `--max-unknown 0.2`, and no id was downgraded (`judge_strength` 237/237). The increment's
+own ids are judged directly: T-92/T-93 assert `explain`'s behaviour without a model, T-94's edge is
+the recorded live run, and E-61's contract is asserted by the test F-2 added.
 
-Nothing in the specification was scoped out: `related` is built for every judged edge under every
-`--judge` mode (it is request-side, so the mock judge and the goldens are untouched), the triage
-`state` carries it, and the fixture growth T-76/T-84 asked for is in `fixtures/target/` with its
-goldens and its packaged copy in step.
+Nothing in the specification was scoped out: `explain` is built for every id the spec declares, over
+the same inputs and the same judge contract `check` uses, and the optional surfaces it does not own
+(the LLM judge, the Jev triage pass) stay exactly as specified — `explain` accepts their flags and
+carries their semantics without adding a call of its own (E-61).
 
-*Increment history:* §0g (v1.15, Jev pre-triage), §0f (v1.14, declared vs. incidental), §0e
-(v1.13, edges and `impact`), §0d (v1.11), §0c (v1.8), §0b (v1.6), §0a (v1.5), §0 (v1.4), then the
-v1.1 record in §§1–5.
+*Increment history:* §0h (v1.16, the obligation-aware judge), §0g (v1.15, Jev pre-triage), §0f
+(v1.14, declared vs. incidental), §0e (v1.13, edges and `impact`), §0d (v1.11), §0c (v1.8), §0b
+(v1.6), §0a (v1.5), §0 (v1.4), then the v1.1 record in §§1–5.

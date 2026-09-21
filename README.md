@@ -202,6 +202,10 @@ speccheck check --spec SPEC.md [--src DIR]... [--tests DIR]... [--results junit.
                 [--jev-pre-triage] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src DIR]... [--tests DIR]...
                  [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
+speccheck explain ID [--spec SPEC.md] [--src DIR]... [--tests DIR]... [--results junit.xml]
+                 [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
+                 [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
+                 [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
 speccheck --version
 speccheck --help
@@ -310,6 +314,57 @@ closure from many ids reaches dozens of others within two or three hops), at whi
 does this change touch" stops being a useful answer. `--depth 0` still gives the full closure when
 that is what's wanted; `tools/impact_backtest.py` scores the default against this repository's own
 history (see below).
+
+### `explain <ID>` — one id's evidence trail, in one command (v1.17)
+
+Everything `speccheck` knows about one id is already computed, but it is *dispersed*: its status and
+the citing lines live in `speccheck.json`, the statement and the line numbers live in the spec and
+the source, and the blast radius needs a second `impact` run. `explain` renders the trail as one
+readable trace on stdout — the narrative into the data, not a fourth artifact (there is no `--out`,
+no report file, and no `schema_version` change).
+
+```text
+speccheck explain ID [--spec SPEC.md] [--src DIR]... [--tests DIR]... [--results junit.xml]
+                     [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
+                     [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
+                     [--verbose [INFO|DEBUG]]
+```
+
+It runs the same pipeline `check` does over the same inputs, and prints six sections in a fixed
+order (C-18): the `ID` line with its `RETIRED`/`(recorded)` markers; `status:` with the C-05 step
+that set it; `statement:`; `sources:` (`file:line` per source citation); `tests:` one line per
+citing case — `<file>::<name> (<passed|failed|skipped|—>) [<verdict>]`, with `clause:` and
+`rationale:` under it whenever a judge recorded a verdict; and `impact (<depth>):`, the C-12 walk
+from this id plus the `T-nn` ids that verify it, reusing `impact`'s own walk.
+
+```text
+$ cd fixtures/target && uv run --project ../.. speccheck explain R-01 --spec SPEC.md --src src \
+      --tests tests --results junit.xml --judge mock
+ID R-01
+status: PASSING (step 4: every citing test case passed)
+statement:
+  `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+sources:
+  src/calc/core.py:10
+tests:
+  tests/test_core.py::test_add (passed) [ASSERTS]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: mock: assertion token on 1 line(s)
+  ... (one block per citing case)
+impact (1):
+  I-001 (depth 1, via I-001 -depends_on-> R-01)
+  T-01 verifies R-01
+```
+
+- **Under `--judge none`** every verdict line reads `[not judged]` and no `clause:`/`rationale:`
+  line is printed; under `--judge llm` the recorded verdict appears with its clause and rationale,
+  and a coerced one carries ` (coerced)` — exactly as `speccheck.json` records it (E-61). The
+  status shown always equals the one `check` computes from the same inputs (I-016).
+- **One id per invocation** (D-36): an undeclared id exits `2` with `explain: undeclared id: <ID>`;
+  a retired id is rendered, not an error. Drive many ids with a shell loop.
+- **Exit `0`** once the trace is written (nothing in it is pass/fail, like `impact`), `2` usage,
+  `3` input contract. `--out` and `--strict` are not flags of this subcommand.
+- **`--depth N`** (`0..999`, default `1`, `0` = unbounded) sets the reach of the `impact` section.
 
 ### LLM judge via Ollama
 
@@ -552,14 +607,15 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.16; the source of truth; written in the
+SPEC.md                         the specification (v1.17; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.16.0, mirrors the spec version)
+  __init__.py                   __version__ (1.17.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
-                                the `impact` subparser and its execute_impact pipeline (v1.13)
+                                the shared `_run_stages` pipeline, the `impact` subparser and its
+                                execute_impact pipeline (v1.13), the `explain` subparser (v1.17)
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations,
                                 the decision-table grammar and C-12 edge extraction (v1.13)
   impact.py                     the C-13 changed set, breadth-first walk, and reverify (v1.13)
@@ -572,6 +628,8 @@ src/speccheck/
   judge.py                      JudgeRequest/Verdict types, validation, concurrency + budget runner, progress indicator
   jev.py                        the C-17 Jev triage provider and the K-16 ordering pass (v1.15): one
                                 confidence per eligible edge, used only to order the judge's queue (I-015)
+  explain.py                    the C-18 trace renderer for `explain` (v1.17): one id's six sections,
+                                pure over the IdRecord/edge/verdict facts and the impact walk
   judge_mock.py                 deterministic assertion-token judge
   judge_llm.py                  OpenAI-compatible/Ollama provider, env config, response parsing, and
                                 the R-38 `related` neighbourhood builder (v1.16)
@@ -598,6 +656,7 @@ tests/
   test_09_self_application.py   §9.9  T-48, T-84; §9.10 T-51 and §9.11 T-49, T-87, T-91 presence checks
   test_10_edges.py              §9.12 T-79 — decision-table grammar and C-12 edge extraction
   test_11_impact.py             §9.12 T-80, T-81 — the impact CLI, changed set, walk, reverify
+  test_12_explain.py            §9.13 T-92, T-93 — the explain trace, byte-stability, E-60
   data/markers/                 the only files that contain the literal ignore markers
 tools/
   bench.py                      K-08 benchmark (T-51; recorded, not CI-gated)
@@ -635,13 +694,14 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (125 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (128 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*: Ollama or a hosted endpoint)
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --jev-pre-triage --judge-budget 0% --out build/speccheck-triage   # v1.15: triage only, no judge call (needs SPECCHECK_JEV_*)
 uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests --out build/impact              # v1.13, not gated
+uv run speccheck explain R-01 --spec fixtures/target/SPEC.md --src fixtures/target/src --tests fixtures/target/tests --results fixtures/target/junit.xml --judge mock   # v1.17, not gated
 uv run python tools/bench.py                               # K-08 (recorded)
 uv run python tools/eval_judge.py --runs 3                 # T-49 (opt-in; model/URL from SPECCHECK_JUDGE_*, default qwen3:8b on Ollama)
 uv run python tools/adjacent_eval.py --runs 3              # T-84 (recorded; both C-10 texts, same env)
@@ -666,6 +726,10 @@ no flag because it has no gate: it never marks anything failed, stale, or non-co
 Since v1.16 the judge request carries the `related` neighbourhood of the edge it is judging
 (R-38), so a test that asserts a neighbouring obligation's fact while citing this one can be told
 apart from one that proves it — request-side only, so no status, metric or report field moves.
+Since v1.17 a third subcommand, `explain <ID>` (R-40), renders one id's whole trail — statement,
+status and its C-05 reason, citations, each citing case's outcome and verdict, and the C-12 blast
+radius — as a stdout trace; it computes nothing new, writes no file, and carries `check`'s judge
+contract unchanged (C-18, I-016).
 Interpretations the build had to make where the spec was silent or inconsistent are listed in
 `SPEC_BUILD_REPORT.md` §3.
 

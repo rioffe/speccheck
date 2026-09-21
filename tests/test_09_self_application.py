@@ -27,7 +27,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # K-16, C-17, I-015, E-58, E-59 and T-89..T-91 for the Jev pre-triage pass
 # SPEC.md v1.16 declares 237 ids (39 R, 17 C, 15 I, 16 K, 59 E, 91 T; none retired); v1.16 added
 # R-38, E-57, T-83 and T-84 *(recorded)* for the obligation-aware judge (D-28/D-28b)
-DECLARED_IDS = 237
+# SPEC.md v1.17 declares 245 ids (40 R, 18 C, 16 I, 16 K, 61 E, 94 T; none retired); v1.17 added
+# R-40, C-18, I-016, E-60, E-61 and T-92..T-94 for the `explain` subcommand (D-33..D-36)
+DECLARED_IDS = 245
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):
