@@ -10,8 +10,8 @@ is the short one.*
 
 ## The problem with vibe coding
 
-Coding agents are good enough now that the bottleneck has moved. It is no longer "can the agent
-write this?" — it is "did the agent write what I meant, and how would I know?"
+Coding agents are good enough now that the bottleneck has moved: from "can the agent write
+this?" to "did the agent write what I meant, and how would I know?"
 
 When you build from a chat prompt, every gap in the prompt gets filled with a guess. The agent
 picks an exit code, a rounding rule, a default, an error message, a thing to do when the input
@@ -28,7 +28,7 @@ that was written by the thing being evaluated.
 
 The alternative is old and unglamorous: write the specification first, and make it the source of
 truth. What is new is *who* the specification is for. It is written for an agent to build from
-and for a verifier — human or machine — to check against. That changes what "precise enough"
+and for a verifier (human or machine) to check against. That changes what "precise enough"
 means. The bar we use:
 
 > A specification is precise enough when two competent implementers would build materially
@@ -39,9 +39,9 @@ Everything in the method follows from that bar:
 - **Every obligation carries an ID.** Requirements are `R-nn`, contracts `C-nn`, invariants
   `I-nnn`, constraints `K-nn`, edge cases `E-nn`, acceptance tests `T-nn`. An ID is the handle
   that lets code, tests, reviews, and reports point at the same sentence.
-- **Every obligation is observable.** Not "the parser is robust" but "given input E-03 the parser
-  exits `2` and prints `<message>` to stderr". If you cannot write the test, you have not written
-  the requirement.
+- **Every obligation is observable.** The requirement reads "given input E-03 the parser exits
+  `2` and prints `<message>` to stderr", not "the parser is robust". If you cannot write the
+  test, you have not written the requirement.
 - **Every ID traces to a test.** A traceability matrix (§11 of the spec) has one row per ID: the
   component that realizes it, the tests that prove it. Empty cells are the work remaining.
 - **Decisions the author made for you are listed, not buried.** A spec-writing agent will resolve
@@ -50,11 +50,11 @@ Everything in the method follows from that bar:
 
 The human's job moves up a level. You decide what the system must do, you ratify or overturn the
 defaulted decisions, and you read evidence. The agent writes, reviews, and builds against the
-document — and proves it did.
+document, and proves that it did.
 
 ## How to do it with agents
 
-The method is encoded as five skills — small instruction files an agent loads on request —
+The method is encoded as five skills (small instruction files an agent loads on request),
 and the whole loop is a handful of prompts. Four of them are the write/review/plan/build loop
 below; the fifth, `spec-proposal`, is for later: an evidence-grounded case for a change to a spec
 that is already built, argued through and decided before `spec-writing` touches a row.
@@ -73,7 +73,7 @@ flowchart TD
 ```
 
 1. **Write.** *"Use the spec-writing skill to write SPEC.md for `<the application>`: `<brief>`."*
-   Read §0 — is that the system you meant? — and §12, the decisions it made on your behalf.
+   Read §0 (is that the system you meant?) and §12, the decisions it made on your behalf.
 2. **Review.** *"Use the spec-review skill to review SPEC.md."* The review is of the document, not
    of you. It grades twenty dimensions, assigns each finding a severity, sorts them into
    P0/P1/P2, and ends with a maturity level and a `READY` / `NOT READY` verdict. A spec that
@@ -84,7 +84,7 @@ flowchart TD
    wave order and each wave's gate, the slice budgets, and one fork for you to settle. This is
    what the build agent executes.
 5. **Build.** *"Use the spec-build skill to implement SPEC.md."* It executes the plan wave by
-   wave — test-first through the spec's §9, one gate and one commit per wave — then rewrites the
+   wave, test-first through the spec's §9, one gate and one commit per wave, then rewrites the
    README from what was built, audits every artifact against the spec, and runs the gate, which
    is where the tool comes in.
 6. **Change.** *"Use spec-writing to update SPEC.md: `<the change>`."* Then 2–5 again. The spec
@@ -112,8 +112,8 @@ another file | `UNKNOWN`, `coerced: true`, rationale `judge: ungrounded`. When t
 fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is available only at DEBUG. |
 ```
 
-Both are checkable. Both are cited — by the code that realizes them and the tests that prove
-them — and that is the whole trick.
+Both are checkable, and both are cited by the code that realizes them and the tests that
+prove them.
 
 ## Introducing speccheck
 
@@ -127,9 +127,9 @@ Given a `SPEC.md`, a source tree, a test tree, and a JUnit XML results file, it:
 - finds every literal citation of an ID in source and test files, attributing test citations to
   the enclosing test function;
 - joins those test cases to their results;
-- assigns each ID **exactly one status** by a fixed algorithm — `UNCITED`, `UNTESTED`,
+- assigns each ID **exactly one status** by a fixed algorithm (`UNCITED`, `UNTESTED`,
   `UNVERIFIED`, `FAILING`, `SKIPPED`, or `PASSING`, plus `WEAKLY_PASSING` once a judge has
-  downgraded every judged edge of a passing ID — every one backed by a `file:line` you can
+  downgraded every judged edge of a passing ID), every one backed by a `file:line` you can
   `grep`;
 - lists dangling citations (an ID nobody declared) and stale ones (an ID that was retired);
 - writes a Markdown report and a JSON report, byte-identical across runs, and prints one line:
@@ -144,8 +144,8 @@ dangling or stale.
 
 Two more subcommands have joined `check` without changing that contract. `impact` walks the
 cross-references the spec already carries (`depends_on`, `verifies`, and a decision table's
-*Affects* column) from a changed set — `--changed IDS`, or `--against` a prior version of the same
-spec — and writes `impact.json` and `IMPACT_REPORT.md`: what a change might touch, at the depth you
+*Affects* column) from a changed set (`--changed IDS`, or `--against` a prior version of the same
+spec), and writes `impact.json` and `IMPACT_REPORT.md`: what a change might touch, at the depth you
 ask for. `explain <ID>` renders one id's whole trail to stdout: its statement, its status with the
 step that set it, its citations, each citing test case with its outcome and the judge's verdict
 (with the clause and rationale), and that same blast radius. Around them: `--jev-pre-triage` asks a
@@ -157,12 +157,13 @@ own flags, the environment variables the kernel reads and the exit codes, with t
 tokens checked against the validators that reject them.
 
 Then there is the judge. A test can cite `R-11`, run the code, and never assert anything about
-it — and the deterministic kernel cannot tell. So `--judge llm` sends each passing (test, ID)
-pair to a model with one question — *does this test assert the behavior this ID describes, or does
-it merely execute code near it?* — alongside two pieces of context the kernel already has: whether
-the test's own docstring names the ID (`declared`), and the titles of the neighbouring obligations
-the statement names and that name it (`related`), so a test asserting a neighbour's fact is not
-mistaken for a test that proves this one. The design rule is the one the whole tool is built on:
+it, and the deterministic kernel cannot tell. So `--judge llm` sends each passing (test, ID)
+pair to a model with one question: does this test assert the behavior this ID describes, or does
+it merely execute code near it? Alongside the question go two pieces of context the kernel
+already has: whether the test's own docstring names the ID (`declared`), and the titles of the
+neighbouring obligations the statement names and that name it (`related`), so a test asserting a
+neighbour's fact is not mistaken for a test that proves this one. The design rule is the one the
+whole tool is built on:
 
 > **The model may only ever make the news worse.** Every status is computed deterministically
 > from evidence you can grep; the judge is permitted to downgrade a `PASSING` to
@@ -176,9 +177,9 @@ for cents.
 
 speccheck is written to its own `SPEC.md`, and it is the worked example of the method. The
 numbers in the summary line above are its self-application: 252 IDs, 136 tests, every one
-`PASSING`, and — this is the part I find most convincing — when the LLM judge was first pointed
+`PASSING`, and (this is the part I find most convincing) when the LLM judge was first pointed
 at the tool's own suite, it found five tests that proved their IDs only by implication. The tests
-were strengthened; the code was not touched. That is the judge doing precisely its job.
+were strengthened; the code was not touched. That is the judge doing its job.
 
 ## Using it to build a product
 
@@ -200,11 +201,11 @@ speccheck check --spec SPEC.md --src src --tests tests --results junit.xml \
     --judge llm --strict --out build/speccheck-llm
 ```
 
-Each non-passing status names the fix. `UNCITED` means the agent silently dropped a requirement —
+Each non-passing status names the fix. `UNCITED` means the agent silently dropped a requirement:
 go build it, test-first. `UNTESTED` means the code is there and no test proves it. `UNVERIFIED`
 means the test never ran. `WEAKLY_PASSING` means the test runs the behavior without asserting it,
 and the report's §8 has the model's rationale, line by line. The spec-build skill knows all of
-this and will not call the work done until both phases exit `0` — and it records both summary
+this and will not call the work done until both phases exit `0`, and it records both summary
 lines in the build report, so the evidence travels with the code.
 
 On a real project the rhythm is: spec, review, fix, build, gate; then for every change, spec
@@ -226,7 +227,7 @@ speccheck --self-check
 
 Then pick something you were about to vibe-code anyway and say: *"Use the spec-writing skill to
 write SPEC.md for …"* Read §12. Review it. Build it. Run the gate. If the tool tells you
-something your agent didn't — and it will — open an issue and tell me what.
+something your agent didn't (and it will), open an issue and tell me what.
 
 The book goes into the why and the how in depth: the review dimensions, the status algorithm, the
 judge contract, the failure modes we hit building this and what they taught us. For now the point

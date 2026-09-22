@@ -381,9 +381,9 @@ long version is the book, <a href="https://github.com/rioffe/spec_engineering_pr
 Coding to Spec Engineering</a>; this is the short one.</em></p>
 <hr />
 <h2 id="the-problem-with-vibe-coding">The problem with vibe coding</h2>
-<p>Coding agents are good enough now that the bottleneck has moved. It
-is no longer “can the agent write this?” — it is “did the agent write
-what I meant, and how would I know?”</p>
+<p>Coding agents are good enough now that the bottleneck has moved: from
+“can the agent write this?” to “did the agent write what I meant, and
+how would I know?”</p>
 <p>When you build from a chat prompt, every gap in the prompt gets
 filled with a guess. The agent picks an exit code, a rounding rule, a
 default, an error message, a thing to do when the input is empty. Most
@@ -400,8 +400,8 @@ was written by the thing being evaluated.</p>
 <p>The alternative is old and unglamorous: write the specification
 first, and make it the source of truth. What is new is <em>who</em> the
 specification is for. It is written for an agent to build from and for a
-verifier — human or machine — to check against. That changes what
-“precise enough” means. The bar we use:</p>
+verifier (human or machine) to check against. That changes what “precise
+enough” means. The bar we use:</p>
 <blockquote>
 <p>A specification is precise enough when two competent implementers
 would build materially equivalent systems from it, and a verifier could
@@ -415,10 +415,10 @@ tell whether either one conforms.</p>
 <code>E-nn</code>, acceptance tests <code>T-nn</code>. An ID is the
 handle that lets code, tests, reviews, and reports point at the same
 sentence.</li>
-<li><strong>Every obligation is observable.</strong> Not “the parser is
-robust” but “given input E-03 the parser exits <code>2</code> and prints
-<code>&lt;message&gt;</code> to stderr”. If you cannot write the test,
-you have not written the requirement.</li>
+<li><strong>Every obligation is observable.</strong> The requirement
+reads “given input E-03 the parser exits <code>2</code> and prints
+<code>&lt;message&gt;</code> to stderr”, not “the parser is robust”. If
+you cannot write the test, you have not written the requirement.</li>
 <li><strong>Every ID traces to a test.</strong> A traceability matrix
 (§11 of the spec) has one row per ID: the component that realizes it,
 the tests that prove it. Empty cells are the work remaining.</li>
@@ -430,11 +430,11 @@ waiting for the human.</li>
 </ul>
 <p>The human’s job moves up a level. You decide what the system must do,
 you ratify or overturn the defaulted decisions, and you read evidence.
-The agent writes, reviews, and builds against the document — and proves
-it did.</p>
+The agent writes, reviews, and builds against the document, and proves
+that it did.</p>
 <h2 id="how-to-do-it-with-agents">How to do it with agents</h2>
-<p>The method is encoded as five skills — small instruction files an
-agent loads on request — and the whole loop is a handful of prompts.
+<p>The method is encoded as five skills (small instruction files an
+agent loads on request), and the whole loop is a handful of prompts.
 Four of them are the write/review/plan/build loop below; the fifth,
 <code>spec-proposal</code>, is for later: an evidence-grounded case for
 a change to a spec that is already built, argued through and decided
@@ -443,8 +443,8 @@ before <code>spec-writing</code> touches a row.</p>
 <ol type="1">
 <li><strong>Write.</strong> <em>“Use the spec-writing skill to write
 SPEC.md for <code>&lt;the application&gt;</code>:
-<code>&lt;brief&gt;</code>.”</em> Read §0 — is that the system you
-meant? — and §12, the decisions it made on your behalf.</li>
+<code>&lt;brief&gt;</code>.”</em> Read §0 (is that the system you
+meant?) and §12, the decisions it made on your behalf.</li>
 <li><strong>Review.</strong> <em>“Use the spec-review skill to review
 SPEC.md.”</em> The review is of the document, not of you. It grades
 twenty dimensions, assigns each finding a severity, sorts them into
@@ -459,10 +459,10 @@ implementation of SPEC.md.”</em> The shape, the wave order and each
 wave’s gate, the slice budgets, and one fork for you to settle. This is
 what the build agent executes.</li>
 <li><strong>Build.</strong> <em>“Use the spec-build skill to implement
-SPEC.md.”</em> It executes the plan wave by wave — test-first through
-the spec’s §9, one gate and one commit per wave — then rewrites the
-README from what was built, audits every artifact against the spec, and
-runs the gate, which is where the tool comes in.</li>
+SPEC.md.”</em> It executes the plan wave by wave, test-first through the
+spec’s §9, one gate and one commit per wave, then rewrites the README
+from what was built, audits every artifact against the spec, and runs
+the gate, which is where the tool comes in.</li>
 <li><strong>Change.</strong> <em>“Use spec-writing to update SPEC.md:
 <code>&lt;the change&gt;</code>.”</em> Then 2–5 again. The spec stays
 the source of truth; the code follows it.</li>
@@ -482,8 +482,8 @@ specification:</p>
 <div class="sourceCode" id="cb2"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **E-16** <span class="pp">|</span> Judge returns <span class="in">`ASSERTS`</span> with no evidence, or evidence outside the span / in</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>another file | <span class="in">`UNKNOWN`</span>, <span class="in">`coerced: true`</span>, rationale <span class="in">`judge: ungrounded`</span>. When the same reply also</span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is available only at DEBUG. |</span></code></pre></div>
-<p>Both are checkable. Both are cited — by the code that realizes them
-and the tests that prove them — and that is the whole trick.</p>
+<p>Both are checkable, and both are cited by the code that realizes them
+and the tests that prove them.</p>
 <h2 id="introducing-speccheck">Introducing speccheck</h2>
 <p>Phase three of building from a spec is the audit: re-read the
 specification and, for every ID, point at the evidence that the
@@ -499,10 +499,10 @@ XML results file, it:</p>
 attributing test citations to the enclosing test function;</li>
 <li>joins those test cases to their results;</li>
 <li>assigns each ID <strong>exactly one status</strong> by a fixed
-algorithm — <code>UNCITED</code>, <code>UNTESTED</code>,
+algorithm (<code>UNCITED</code>, <code>UNTESTED</code>,
 <code>UNVERIFIED</code>, <code>FAILING</code>, <code>SKIPPED</code>, or
 <code>PASSING</code>, plus <code>WEAKLY_PASSING</code> once a judge has
-downgraded every judged edge of a passing ID — every one backed by a
+downgraded every judged edge of a passing ID), every one backed by a
 <code>file:line</code> you can <code>grep</code>;</li>
 <li>lists dangling citations (an ID nobody declared) and stale ones (an
 ID that was retired);</li>
@@ -517,9 +517,9 @@ dangling or stale.</p>
 <p>Two more subcommands have joined <code>check</code> without changing
 that contract. <code>impact</code> walks the cross-references the spec
 already carries (<code>depends_on</code>, <code>verifies</code>, and a
-decision table’s <em>Affects</em> column) from a changed set —
-<code>--changed IDS</code>, or <code>--against</code> a prior version of
-the same spec — and writes <code>impact.json</code> and
+decision table’s <em>Affects</em> column) from a changed set
+(<code>--changed IDS</code>, or <code>--against</code> a prior version
+of the same spec), and writes <code>impact.json</code> and
 <code>IMPACT_REPORT.md</code>: what a change might touch, at the depth
 you ask for. <code>explain &lt;ID&gt;</code> renders one id’s whole
 trail to stdout: its statement, its status with the step that set it,
@@ -536,11 +536,11 @@ its own flags, the environment variables the kernel reads and the exit
 codes, with the accepted-value tokens checked against the validators
 that reject them.</p>
 <p>Then there is the judge. A test can cite <code>R-11</code>, run the
-code, and never assert anything about it — and the deterministic kernel
+code, and never assert anything about it, and the deterministic kernel
 cannot tell. So <code>--judge llm</code> sends each passing (test, ID)
-pair to a model with one question — <em>does this test assert the
-behavior this ID describes, or does it merely execute code near it?</em>
-— alongside two pieces of context the kernel already has: whether the
+pair to a model with one question: does this test assert the behavior
+this ID describes, or does it merely execute code near it? Alongside the
+question go two pieces of context the kernel already has: whether the
 test’s own docstring names the ID (<code>declared</code>), and the
 titles of the neighbouring obligations the statement names and that name
 it (<code>related</code>), so a test asserting a neighbour’s fact is not
@@ -563,11 +563,11 @@ endpoint, or anything similar for cents.</p>
 <p>speccheck is written to its own <code>SPEC.md</code>, and it is the
 worked example of the method. The numbers in the summary line above are
 its self-application: 252 IDs, 136 tests, every one
-<code>PASSING</code>, and — this is the part I find most convincing —
-when the LLM judge was first pointed at the tool’s own suite, it found
-five tests that proved their IDs only by implication. The tests were
-strengthened; the code was not touched. That is the judge doing
-precisely its job.</p>
+<code>PASSING</code>, and (this is the part I find most convincing) when
+the LLM judge was first pointed at the tool’s own suite, it found five
+tests that proved their IDs only by implication. The tests were
+strengthened; the code was not touched. That is the judge doing its
+job.</p>
 <h2 id="using-it-to-build-a-product">Using it to build a product</h2>
 <p>The gate slots into the loop at step 4 and runs twice, in order:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run python <span class="at">-m</span> pytest tests <span class="at">-q</span> <span class="at">--junitxml</span><span class="op">=</span>junit.xml</span>
@@ -584,13 +584,13 @@ precisely its job.</p>
 <span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a><span class="ex">speccheck</span> check <span class="at">--spec</span> SPEC.md <span class="at">--src</span> src <span class="at">--tests</span> tests <span class="at">--results</span> junit.xml <span class="dt">\</span></span>
 <span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="at">--judge</span> llm <span class="at">--strict</span> <span class="at">--out</span> build/speccheck-llm</span></code></pre></div>
 <p>Each non-passing status names the fix. <code>UNCITED</code> means the
-agent silently dropped a requirement — go build it, test-first.
+agent silently dropped a requirement: go build it, test-first.
 <code>UNTESTED</code> means the code is there and no test proves it.
 <code>UNVERIFIED</code> means the test never ran.
 <code>WEAKLY_PASSING</code> means the test runs the behavior without
 asserting it, and the report’s §8 has the model’s rationale, line by
 line. The spec-build skill knows all of this and will not call the work
-done until both phases exit <code>0</code> — and it records both summary
+done until both phases exit <code>0</code>, and it records both summary
 lines in the build report, so the evidence travels with the code.</p>
 <p>On a real project the rhythm is: spec, review, fix, build, gate; then
 for every change, spec first, gate last. The agent does the typing. You
@@ -608,7 +608,7 @@ the documents:</p>
 <p>Then pick something you were about to vibe-code anyway and say:
 <em>“Use the spec-writing skill to write SPEC.md for …”</em> Read §12.
 Review it. Build it. Run the gate. If the tool tells you something your
-agent didn’t — and it will — open an issue and tell me what.</p>
+agent didn’t (and it will), open an issue and tell me what.</p>
 <p>The book goes into the why and the how in depth: the review
 dimensions, the status algorithm, the judge contract, the failure modes
 we hit building this and what they taught us. For now the point is
