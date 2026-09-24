@@ -111,11 +111,11 @@ Proposed rows, drafted for `spec-writing`:
 
 | Family | Draft |
 | --- | --- |
-| R-<nn> | <full normative text, in the spec's own MUST/SHALL language, exactly as it would
+| **R-<nn>** | <full normative text, in the spec's own MUST/SHALL language, exactly as it would
   read in `SPEC.md` — not a paraphrase a later author still has to write. End with "Source: §1."
   or a cross-reference to the evidence it comes from.> |
-| C-<nn> | <a contract row, pinning the shape precisely> |
-| ... | (one row per new/changed R, C, I, K, E, T id; use fresh numbers — see "ID numbering") |
+| **C-<nn>** | <a contract row, pinning the shape precisely> |
+| **<ID>** | (one row per new/changed R, C, I, K, E, T id; use fresh numbers — see "ID numbering") |
 
 ## 3. What it costs
 
@@ -151,6 +151,12 @@ never touches, a status it never changes), what it deliberately defers to a late
 what would still be broken or unmeasured even if this whole proposal ships. A proposal that
 claims to fix everything it touched is usually overclaiming; say what's left.>
 ```
+
+The draft rows carry a **bold** first cell — `**R-<nn>**` — on purpose: `speccheck`'s
+declaration grammar (C-01 (a), which the `spec2pdf.sh --click` cross-reference pass
+implements) recognizes a declaration only in bold form, so a bolded draft row becomes the
+jump target and every mention of the new id in the proposal links to it; a plain-id row
+would render dead in the PDF, the way a traceability column does for an id declared elsewhere.
 
 ### The front-matter fields, precisely
 
@@ -256,7 +262,8 @@ named in §4, if one exists).
       one that didn't survive the check is either dropped or explicitly named as rejected, not
       left in as if it were still live evidence
 - [ ] §2's draft rows are ready for `spec-writing` to copy, in normative MUST/SHALL language —
-      not a description of what a future row should eventually say
+      not a description of what a future row should eventually say — with a bold first cell
+      (`**R-<nn>**`), so each row anchors and its mentions link in the rendered PDF
 - [ ] Every new id is fresher than both the real `SPEC.md`'s current max *and* every other
       pending proposal's draft ids in the same family
 - [ ] §5 uses the two-column `ID | Statement` table, one decision per row, each with a stated
