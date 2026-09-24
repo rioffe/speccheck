@@ -113,7 +113,17 @@ killed run" means, stated in the test's own docstring rather than left implicit 
 three parts of the outcome (deleted, never scanned — byte-identical to a leftover-free baseline —
 and the planted marker text never appears in either report). Verified: `pytest tests -q` — 150
 passed (149 → 150, the new test); mock gate still `262/262`, `0 dangling`, `0 stale`; `--self-check`
-— `ok`; `ruff` — clean. Phase B not re-run against this second fix; left to the requester again.
+— `ok`; `ruff` — clean.
+
+**Phase B, third pass, against this second fix (2026-09-24, requester's own run, same command —
+`--proof proof --proof-results build/proof/proof-results.json`, `--judge-concurrency 16`):**
+`speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified,
+0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm`. `judge_available: true`,
+`unknown_rate: 0.0182`, `strict_judge_failure: null`, `exit_code: 0` — confirmed directly from the
+fresh `speccheck.json` (`weak ids: []`). Both findings are closed: T-100 by the first fix, E-34 by
+the second. This increment's LLM gate is now clean end to end, judged against speccheck's own real
+`proof/` and `build/proof/proof-results.json` — the same live cross-repository shape T-99's own
+text describes, run here for real against this repository rather than only against `fixtures/target/`.
 
 Both fixes verified: `pytest tests -q` — 149 passed; `speccheck check --judge mock --strict` —
 `CONFORMING - 262/262 passing (100.0%), ..., 0 dangling, 0 stale`; `--self-check` — `ok`; `ruff` —
@@ -1633,28 +1643,30 @@ id. "Self-app" is the status from the T-48 run.
 ```text
 Spec coverage: 262/262 IDs realized (0 deferred)
 speccheck (mock): speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  round 1: NOT CONFORMING - 260/262, 2 weak (E-34, T-100) — see §0k for the
-                  prompt-injection misdiagnosis this run corrected. round 2, against the fix,
-                  --proof/--proof-results also given: NOT CONFORMING - 261/262 passing (99.6%),
-                  0 failing, 0 skipped, 1 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling,
-                  0 stale; judge=llm. T-100 now clean; E-34 weak again on a narrower rationale,
-                  fixed a second time with a standalone test grounded in §3.1's own stage table
-                  (§0k) — not yet re-verified under Phase B a third time.
+speccheck (llm):  speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak,
+                  0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
+                  (openai/gpt-6-luna-pro via OpenRouter, judge_available=true,
+                  unknown_rate=0.0182, strict_judge_failure=null). Third pass, against
+                  --proof/--proof-results checking speccheck's own real Lean proof against
+                  itself. Two real findings surfaced and fixed across the first two passes
+                  (E-34 twice, T-100 once) — see §0k for the full round-by-round account,
+                  including the prompt-injection misdiagnosis the first pass's framing corrected.
 Observed: no rendered surface; the two golden reports (T-46/T-99) and the four --help screens
 were the artifacts to read, and all were diffed byte-for-byte against their goldens (§0k)
 Readiness: BUILT
-Conformance: PASS WITH NOTES (E-34 fixed twice per §0k, third Phase B pass pending; T-100 confirmed clean)
+Conformance: PASS
 ```
 
 v1.19's deliverable (R-100, C-20, C-21, K-17, T-99, T-100) and v1.19.1's fix (I-018, E-62, E-63,
-E-65, D-45) are green on the mock gate. Every prior version's guarantee is unchanged: the fixture
+E-65, D-45) are green on both gates. Every prior version's guarantee is unchanged: the fixture
 goldens are byte-identical to a fresh run without `--proof`/`--proof-results` (T-46/T-71/I-018),
 `_selfcheck/` equals `fixtures/target/` (T-60, now including the untouched `proof/` +
 `proof-results.json` siblings), the mock gate is 262/262 with 0 dangling and 0 stale, and the
-`check --help` golden gained exactly the two new flag rows T-100 names. Phase B, run twice by the
-requester (§0k), found two, then one, tests whose assertions were weaker than what they claimed to
-prove; T-100 is confirmed fixed by the second run, E-34 was fixed a second time after the second
-run's narrower critique and has not yet had a third Phase B pass to confirm it.
+`check --help` golden gained exactly the two new flag rows T-100 names. Phase B, run three times
+by the requester (§0k), found two tests whose assertions were weaker than what they claimed to
+prove, both since strengthened and both confirmed clean on the third pass — this time judged
+against speccheck's own real Lean proof of itself (`--proof proof --proof-results
+build/proof/proof-results.json`), not only the synthetic golden fixture.
 
 The notes are:
 
@@ -1675,15 +1687,15 @@ The notes are:
   is non-null exactly when `--proof-results` was given and successfully parsed, which is the same
   fact D-45 needs, so no new field was added to carry it twice.
 - **Two mid-build messages were mistakenly declined as prompt injection, then corrected** — see
-  §0k's full account. Phase B is now recorded with its real result; the two genuine
-  `WEAKLY_PASSING` findings it surfaced (E-34, T-100) have since been strengthened per spec-build's
-  own rule for this status — the mock gate and full suite confirm the fix, but Phase B has not
-  been re-run to confirm the LLM judge itself now reads them clean.
+  §0k's full account. Phase B was re-run three times against this increment: round 1 (no `--proof`
+  flags) found E-34 and T-100 weak; round 2 (fix applied, `--proof`/`--proof-results` now also
+  given) confirmed T-100 and found E-34 weak again on a narrower rationale; round 3 (second E-34
+  fix applied) came back clean, `262/262`, `0 weak`.
 
 Nothing in the specification was scoped out: R-100, C-20, C-21, I-018, K-17, E-62, E-63, E-65,
-T-99 and T-100 are all realized and `PASSING` under the mock gate, and `PASSING` except two
-`WEAKLY_PASSING` (E-34, T-100) under the LLM gate; D-43..D-45 and D-49 (confirmed, then amended)
-are folded exactly as `SPEC.md` states them.
+T-99 and T-100 are all realized and `PASSING` under both gates — the mock gate throughout, and the
+LLM gate as of round 3; D-43..D-45 and D-49 (confirmed, then amended) are folded exactly as
+`SPEC.md` states them.
 
 *Increment history:* §0k (v1.19 / v1.19.1, `--proof`/`--proof-results`), §0j (v1.18, the help
 contract), §0i (v1.17, `explain`), §0h (v1.16, the obligation-aware judge), §0g (v1.15, Jev
