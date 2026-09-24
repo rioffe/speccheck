@@ -94,6 +94,12 @@ def exit_code_for(report: dict) -> int:
             return 1
         if report["strict_judge_failure"] is not None:
             return 1
+        # D-45 (v1.19): a failed proof state is a strict gate failure only when a manifest was
+        # given and readable — reuse the top-level proof.build presence for that fact.
+        proof = report.get("proof")
+        if proof is not None and proof.get("build") is not None:
+            if report["metrics"].get("proof_failed", 0) > 0:
+                return 1
     return 0
 
 
@@ -139,6 +145,9 @@ class ReportInputs:
     notes: list[str]
     decisions: tuple[Decision, ...] = ()  # v1.13, C-12
     edges: tuple[Edge, ...] = ()  # v1.13, C-12
+    proof_given: bool = False  # v1.19: --proof was given
+    proof_results_given: bool = False  # v1.19: --proof-results was given
+    proof_build: dict | None = None  # v1.19, C-21: the manifest's own `build` object, verbatim
 
 
 def _edge_json(edge: TestEdge) -> dict:
@@ -167,6 +176,15 @@ def _citation_json(c: Citation) -> dict:
     return {"id": c.id, "file": c.file, "line": c.line}
 
 
+def _proof_json(edges: list) -> list[dict]:
+    """v1.19 (C-07, D-49): `proof` is an array of `{name, file, line, state, error}`, one entry
+    per declaration that cites the id."""
+    return [
+        {"name": e.name, "file": e.file, "line": e.line, "state": e.state, "error": e.error}
+        for e in edges
+    ]
+
+
 def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
     """The C-07 object with `exit_code` filled in; ratios are `_Num` until `dumps`."""
     metrics = compute_metrics(inputs.graph)
@@ -181,6 +199,12 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
     report["strict"] = inputs.strict
     report["max_unknown"] = _Num(inputs.max_unknown)
     report["strict_judge_failure"] = None
+    # v1.19 (C-07, D-44, D-49; amended v1.19.1, F-504): the top-level `proof` key is present
+    # whenever --proof OR --proof-results was given; its `build` is C-21's manifest object,
+    # echoed verbatim, when --proof-results was given, else null. Omitted entirely otherwise
+    # (I-018): an absent-flag run must be byte-identical to a v1.18 run.
+    if inputs.proof_given or inputs.proof_results_given:
+        report["proof"] = {"build": inputs.proof_build}
     report["ids"] = [
         {
             "id": rec.id,
@@ -191,6 +215,7 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
             "line": rec.spec.line,
             "status": rec.status,
             "src": [{"file": f, "lines": list(lines)} for f, lines in rec.src],
+            **({"proof": _proof_json(rec.proof)} if inputs.proof_given else {}),
             "tests": [_edge_json(e) for e in rec.tests],
             "unrun": [{"file": e.case.file, "name": e.case.name} for e in rec.unrun],
         }
@@ -230,6 +255,17 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
         m["judge_strength"] = _num(metrics.judge_strength)
         m["unknown_rate"] = _num(metrics.unknown_rate)
     m["declared_ratio"] = _num(metrics.declared_ratio)  # C-16: present under every --judge mode
+    if inputs.proof_given:
+        # v1.19 (K-17): plain counts, present only when --proof was given.
+        m["proof_failed"] = sum(
+            1 for rec in inputs.graph.records if any(e.state == "failed" for e in rec.proof)
+        )
+        m["proof_unknown"] = sum(
+            1
+            for rec in inputs.graph.records
+            if not any(e.state == "failed" for e in rec.proof)
+            and any(e.state in ("unknown", "stale") for e in rec.proof)
+        )
     report["metrics"] = m
     report["strict_judge_failure"] = strict_judge_failure(report)
     report["exit_code"] = exit_code_for(report)
@@ -310,6 +346,8 @@ def render_markdown(report: dict) -> str:
         ],
     )
     out += ["", "## 3. Per-ID evidence", ""]
+    # v1.19: a sixth "Proof (state)" cell, present only when --proof was given (I-018).
+    proof_column = any("proof" in rec for rec in report["ids"])
     rows = []
     for rec in report["ids"]:
         ident = f"~~{rec['id']}~~" if rec["status"] == "RETIRED" else rec["id"]
@@ -325,17 +363,23 @@ def render_markdown(report: dict) -> str:
                 f"({outcome} \u00b7 {_verdict_text(t['verdict'])})"
             )
         # C-08: the Statement cell renders `title`, never a section body (R-33)
-        rows.append([ident, rec["status"], rec["title"], src, "; ".join(tests) or EM_DASH])
-    out += _table(
-        [
-            "ID",
-            "Status",
-            "Statement",
-            "Source citations",
-            "Test citations (outcome \u00b7 verdict)",
-        ],
-        rows,
-    )
+        row = [ident, rec["status"], rec["title"], src, "; ".join(tests) or EM_DASH]
+        if proof_column:
+            proof_cells = [
+                f"{p['name']} ({p['file']}:{p['line']}, {p['state']})" for p in rec["proof"]
+            ]
+            row.append("; ".join(proof_cells) or EM_DASH)
+        rows.append(row)
+    header = [
+        "ID",
+        "Status",
+        "Statement",
+        "Source citations",
+        "Test citations (outcome \u00b7 verdict)",
+    ]
+    if proof_column:
+        header.append("Proof (state)")
+    out += _table(header, rows)
 
     def section(title: str, header: list[str], rows: list[list[str]]) -> None:
         out.extend(["", title, ""])

@@ -12,6 +12,7 @@ from decimal import ROUND_HALF_EVEN, Context, Decimal
 from .attribute import Citation, TestCase
 from .extract import FAMILY_ORDER, SpecId, SpecIndex, family_rank
 from .judge import JudgedVerdict
+from .proof import ProofEdge
 from .results import CaseOutcome, RawResult
 
 IN_SCOPE_STATUSES = (
@@ -54,6 +55,9 @@ class IdRecord:
     status: str
     src: list[tuple[str, list[int]]] = field(default_factory=list)
     tests: list[TestEdge] = field(default_factory=list)
+    # v1.19 (R-100, C-20, C-21): proof citations joined to their manifest state. Never read by
+    # deterministic_status or apply_verdicts — a proof state carries no status weight (E-63).
+    proof: list[ProofEdge] = field(default_factory=list)
 
     @property
     def id(self) -> str:

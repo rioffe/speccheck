@@ -54,6 +54,8 @@ from .impact import (
 from .jev import JevConfig, JevConfigError, JevTriage, run_triage
 from .judge import JudgeRequest, ProgressLine, build_request, run_judge
 from .judge_llm import LlmConfig, LlmConfigError, related_titles
+from .lean import scan_lean_paths
+from .proof import ProofError, join_proof, parse_proof_results
 from .report import (
     IMPACT_JSON_NAME,
     IMPACT_MD_NAME,
@@ -111,6 +113,8 @@ class Config:
     triage: bool = False  # K-16 (v1.15): --jev-pre-triage, ignored unless --judge llm
     budget_percent: int | None = None  # K-12's N% form; None for the SECONDS form
     jev: JevConfig | None = None  # C-17, read only when the triage pass runs
+    proof: tuple[Path, ...] = ()  # v1.19 (R-100, C-20): --proof PATHS, check-only
+    proof_results: Path | None = None  # v1.19 (C-21): --proof-results FILE, check-only
 
 
 @dataclass(frozen=True)
@@ -271,6 +275,17 @@ _HELP_IMPACT_TESTS = (
     "--tests, with no directory default here"
 )
 _HELP_ID = "the id to render, e.g. R-07; it must be declared in --spec, else exit 2"
+_HELP_PROOF = (
+    "check-only (v1.19). Lean source roots to scan for proof citations (C-20): repeatable, "
+    "comma-separated files and/or directories, as --src. default: none (no Lean file scanned, "
+    "no proof key written); every element must resolve inside --root"
+)
+_HELP_PROOF_RESULTS = (
+    "check-only (v1.19). a JSON proof manifest (C-21), read and joined to the --proof citations "
+    "by declaration name and file; never runs a prover. default: none; must resolve inside "
+    "--root; unreadable is a usage error, malformed or missing 'build'/'theorems' is an "
+    "input-contract violation"
+)
 
 
 def build_parser() -> _Parser:
@@ -315,6 +330,10 @@ def build_parser() -> _Parser:
         "--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS
     )
     check.add_argument("--results", default=None, metavar="FILE", help=_HELP_RESULTS)
+    check.add_argument(
+        "--proof", action="append", default=None, metavar="PATHS", help=_HELP_PROOF
+    )
+    check.add_argument("--proof-results", default=None, metavar="FILE", help=_HELP_PROOF_RESULTS)
     check.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     check.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
     check.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
@@ -618,6 +637,22 @@ def _build_check_config(
                 pass
         except OSError:
             raise UsageError(f"--results: not a readable file: {args.results}") from None
+    # v1.19 (R-100, C-20): --proof, a PATHS list like --src/--tests, no directory default.
+    # check-only: `explain` (which reuses this validator) defines neither flag, so both are
+    # absent from its Namespace (E-54's pattern, matching --out/--strict above).
+    proof_arg = getattr(args, "proof", None)
+    proof_results_arg = getattr(args, "proof_results", None)
+    proof = _resolve_paths("--proof", proof_arg, root, None)
+    proof_results: Path | None = None
+    if proof_results_arg is not None:
+        proof_results = _resolve_inside(proof_results_arg, root)
+        if not proof_results.is_file():
+            raise UsageError(f"--proof-results: not a readable file: {proof_results_arg}")
+        try:
+            with open(proof_results, "rb"):
+                pass
+        except OSError:
+            raise UsageError(f"--proof-results: not a readable file: {proof_results_arg}") from None
     out = _resolve_inside(out_arg, root)
 
     llm: LlmConfig | None = None
@@ -644,6 +679,8 @@ def _build_check_config(
         src=src,
         tests=tests,
         results=results,
+        proof=proof,
+        proof_results=proof_results,
         root=root,
         out=out,
         judge=args.judge,
@@ -702,6 +739,7 @@ class _Stages:
     notes: list[str]
     judge_available: bool | None
     prompt_sha: str | None
+    proof_build: dict | None = None  # v1.19 (C-21): the manifest's build object, echoed verbatim
 
 
 def _run_stages(config: Config) -> _Stages:
@@ -764,6 +802,39 @@ def _run_stages(config: Config) -> _Stages:
     stage = _Stage("graph")
     graph = build_graph(index, src_citations, test_citations, outcomes, config.results is not None)
     stage.done(ids=len(graph.records), dangling=len(graph.dangling), stale=len(graph.stale))
+
+    # v1.19 / v1.19.1 (R-100, C-20, C-21, K-17, F-504): proof citations and their manifest state.
+    # Never touches C-05 status (E-63) — attached to the already-built records as a parallel
+    # field only. The manifest read is unconditional on --proof-results alone (F-504): it must
+    # NOT be nested under "if config.proof", or --proof-results given without --proof would read
+    # the manifest and report nothing, exactly the gap v1.19.1 fixed in the spec itself.
+    proof_build: dict | None = None
+    if config.proof or config.proof_results is not None:
+        stage = _Stage("proof")
+        scan = scan_lean_paths(config.proof, root) if config.proof else None
+        if scan is not None:
+            notes.extend(scan.notes)
+        manifest = None
+        if config.proof_results is not None:
+            manifest_text, manifest_replaced = decode_text(config.proof_results.read_bytes())
+            if manifest_replaced:
+                notes.append(
+                    f"invalid UTF-8 decoded with replacement: "
+                    f"{to_posix_relative(config.proof_results, root)}"
+                )
+            manifest, manifest_notes = parse_proof_results(manifest_text)  # E-65 on malformed
+            notes.extend(manifest_notes)
+            proof_build = manifest.build
+        if scan is not None:
+            by_id, join_notes = join_proof(scan.citations, manifest)
+            notes.extend(join_notes)
+            by_record = {rec.id: rec for rec in graph.records}
+            for ident, edges in by_id.items():
+                if ident in by_record:
+                    by_record[ident].proof = edges
+            stage.done(citations=len(scan.citations), notes=len(scan.notes) + len(join_notes))
+        else:
+            stage.done(citations=0)
 
     judge_available: bool | None = None
     prompt_sha: str | None = None
@@ -838,7 +909,7 @@ def _run_stages(config: Config) -> _Stages:
             unknown=sum(1 for v in run.verdicts.values() if v.verdict == "UNKNOWN"),
         )
 
-    return _Stages(index, graph, unattributed, notes, judge_available, prompt_sha)
+    return _Stages(index, graph, unattributed, notes, judge_available, prompt_sha, proof_build)
 
 
 def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
@@ -865,6 +936,9 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             notes=notes,
             decisions=index.decisions,
             edges=index.edges,
+            proof_given=bool(config.proof),
+            proof_results_given=config.proof_results is not None,
+            proof_build=stages.proof_build,
         )
     )
     for note in report["notes"]:
@@ -1209,7 +1283,7 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
     except UsageError as exc:
         log.error("%s", exc)
         return 2
-    except (SpecError, ResultsError, OutError) as exc:
+    except (SpecError, ResultsError, OutError, ProofError) as exc:
         log.error("%s", exc)
         return 3
     except SystemExit as exc:  # argparse --help / --version
