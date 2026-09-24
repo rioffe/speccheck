@@ -3,7 +3,7 @@
 
 ## What this proves
 
-For the deterministic, enumerable part of `SPEC.md` v1.18, for **all inputs**, kernel-checked:
+For the deterministic, enumerable part of `SPEC.md` v1.20, for **all inputs**, kernel-checked:
 
 - **The status algorithm** (C-05): `statusOf` returns `RETIRED` for retired ids, `UNCITED` for a
   T id with source citations only (F-001/E-25), and only `PASSING`/`WEAKLY_PASSING` from the judge
@@ -13,17 +13,21 @@ For the deterministic, enumerable part of `SPEC.md` v1.18, for **all inputs**, k
   located clause (E-16, E-48, I-005); every rationale is ≤ 280 characters (C-06 rule 8 / K-07).
 - **The metrics** (C-07): every ratio is `null`-on-zero-denominator (I-008, R-09);
   `judge_strength` excludes RECORDED ids from its population (F-405); `judge_available` is
-  vacuously true when no edge was eligible (E-36) and false when every call failed (E-14).
+  total and boolean under `mock`/`llm` (amended v1.20) — vacuously `true` when no edge was
+  eligible (E-36), and `false` whenever an edge was eligible and no call succeeded, whether every
+  call failed (E-14) or none was issued at all (E-35, F-502, resolved v1.20).
 - **The exit map** (§5.4, R-14, R-15, R-28): the exit code is a pure function of the report facts
   plus `--strict`; the closed set is `{0,1,2,3}` (K-01); a usage fault exits `2` and a contract
   fault exits `3`, neither writing a report; `strict_judge_failure` is `unavailable`-first
-  (Q-004); all four codes are reachable.
+  (Q-004) and now also covers the E-35 case (E-32, amended v1.20); all four codes are reachable;
+  when one invocation carries both fault classes, usage wins (K-18, v1.20, F-503 resolved).
 - **The progress arithmetic** (C-11): the bar is 20 cells with `k = ⌊20d/n⌋`, and `left` is
   undefined exactly while `d = 0`.
 - **The K-15 matcher**: the prefix/infix facts, and the mock provider's clause is always located
   (R-22).
-- **Coverage**: `outcome` is total over the enumerated input space *except* for the one silent case
-  proved by `silentCaseExists` (finding F-501).
+- **Coverage**: `outcome` is now total over the entire enumerated input space — `noSilence`
+  (`section Invariants`) proves it directly. The one case that was silent, `explain` without
+  `--spec`, now has E-64's stated outcome (F-501, resolved v1.20).
 - **The proof-evidence join** (C-21, K-17, v1.19): `proofStateOf` is total over its four boolean
   facts (no case is under-determined — a citation is always `checked`, `failed`, `unknown`, or
   `stale`); an absent citation always joins to `none`; a name-matched, location-mismatched entry is
@@ -495,9 +499,13 @@ every `PASSING` id is RECORDED and nothing is `WEAKLY_PASSING`. -/
 theorem judgeStrengthNoneIff (p w : Nat) : judgeStrengthUnits p w = none ↔ p + w = 0 := by
   grind
 
-/-- **C-07, E-14** — when every C-06 call failed, `judge_available` is `false`. -/
+/-- **C-07, E-14, E-35 (strengthened v1.20)** — whenever no call succeeded and an edge was
+eligible, `judge_available` is `false` — whether every call failed (E-14, `issued > 0`) or none
+was issued at all (E-35, `issued = 0`). Originally stated only for `issued > 0`; the
+eligible-but-unissued case was F-502's own gap, so this theorem could not cover it either until
+the fix — the hypothesis is now dropped rather than kept redundant. -/
 theorem judgeAvailableAllFailed (c : JudgeCalls) (hm : c.mode ≠ .none)
-    (hs : c.succeeded = 0) (hi : 0 < c.issued) (he : 0 < c.eligible) :
+    (hs : c.succeeded = 0) (he : 0 < c.eligible) :
     judgeAvailable c = some false := by
   grind
 
@@ -506,11 +514,13 @@ theorem judgeAvailableVacuous (c : JudgeCalls) (hm : c.mode ≠ .none) (he : c.e
     judgeAvailable c = some true := by
   grind
 
-/-- **C-07** — `judge_available` is `null` under `--judge none`, or in the eligible-but-unissued
-configuration that finding F-502 records as under-determined. -/
-theorem judgeAvailableNullCases (c : JudgeCalls) :
-    judgeAvailable c = none →
-      c.mode = .none ∨ (c.succeeded = 0 ∧ c.issued = 0 ∧ 0 < c.eligible) := by
+/-- **C-07** — `judge_available` is `none` if and only if `--judge none`: with `mock`/`llm` it is
+always `some _`, including the eligible-but-unissued configuration finding F-502 left
+under-determined before v1.20's fix. This is the totality claim F-502 asked for, stated directly
+rather than as a disjunction of the cases that are *not* `none` — see F-502's finding entry for
+the resolved witnesses at the point that used to fail. -/
+theorem judgeAvailableNullIffNone (c : JudgeCalls) :
+    judgeAvailable c = none ↔ c.mode = .none := by
   grind
 
 /-- **R-15, R-28** — with `--strict`, exit `0` implies every in-scope id is `PASSING`, `dangling`
@@ -610,6 +620,21 @@ theorem proofStaleRegardlessOfManifestStatus (j : ProofJoin) (h : j.cited = true
     proofStateOf j = some .stale := by
   grind
 
+/-- **E-64** (v1.20) — coverage: every enumerated input now has a stated outcome. `outcome` was
+partial (F-501: `.explainAbsentSpec` returned `none`) before E-64 gave that configuration its own
+exit-`2` outcome; this theorem is the positive claim the old `f501NoSilenceFails` disproved, now
+true by construction over every constructor of `Input`. -/
+theorem noSilence : ∀ i : Input, (outcome i).isSome := by
+  intro i; cases i <;> rfl
+
+/-- **K-18** — usage-fault precedence, quantified over the contract-fault flag: whenever a usage
+fault is live, the resolved exit is `exitUsage`, whether or not an input-contract violation is
+*also* live (`contract` ranges over both). This is the "for all inputs" content of K-18, not a
+re-read of `exitPrecedence`'s own `if`: it discharges the spec's claim that usage-fault precedence
+holds *unconditionally* on `contract`, not merely at one instance of it. See F-503's finding entry
+for why this closes the gap `f503ExitPrecedenceDiffer` exhibited. -/
+theorem k18UsageWinsWhenBoth (contract : Bool) : exitPrecedence true contract = exitUsage := rfl
+
 end Invariants
 
 /-! ## Reachability — the spec claims each exit code is reachable -/
@@ -638,58 +663,62 @@ end Reachability
 
 section Findings
 
-/-- **F-501 (G-1, silent case)** — the `explain` configuration with no `--spec`: the synopsis makes
-`--spec` optional for `explain` (`speccheck explain ID [--spec SPEC.md]`), the §5.1 flag table marks
-`--spec` `Required.` for every subcommand, and no default is stated for `explain`. Read as optional,
-the input has no stated outcome — the model returns `none`, and this theorem is the kernel-checked
-witness. See `docs/reviews/SPEC_MODEL_FINDINGS.md` F-501. -/
-theorem f501ExplainAbsentSpecSilent : outcome .explainAbsentSpec = none := rfl
+/-- **F-501 (G-1, silent case) — resolved v1.20, E-64.** The `explain` configuration with no
+`--spec`: the synopsis made `--spec` optional for `explain` (`speccheck explain ID [--spec
+SPEC.md]`) while the §5.1 flag table marked it `Required.`. Originally witnessed by
+`outcome .explainAbsentSpec = none` (`f501ExplainAbsentSpecSilent`); under the resolved model that
+statement no longer typechecks as a fact about it — the theorem below proves the input now has
+E-64's stated outcome (exit `2`, no report) instead. `f501NoSilenceFails` (`¬ (∀ i,
+(outcome i).isSome)`) likewise no longer holds; `noSilence` in `section Invariants` proves the
+positive claim it used to disprove. See `docs/reviews/SPEC_MODEL_FINDINGS.md` F-501. -/
+theorem f501ResolvedExplainAbsentSpecUsage :
+    outcome .explainAbsentSpec = some { exit := exitUsage, reports := false } := rfl
 
-/-- **F-501 (G-1)** — coverage is *not* total: `noSilence` is false, and
-`f501ExplainAbsentSpecSilent` exhibits the one enumerated input that falsifies it. -/
-theorem f501NoSilenceFails : ¬ (∀ i, (outcome i).isSome) := by
-  intro h
-  have := h .explainAbsentSpec
-  simp [outcome] at this
-
-/-- **F-502 (G-2, under-determined pin)** — `judge_available` on a run where eligible edges exist
-but no C-06 call was issued: every edge budget-skipped by K-12 (`N%` with `N = 0`, or the `SECONDS`
-deadline reached before the first request, E-35). C-07's "true when at least one judge call
-succeeded OR no edge was eligible" does not apply, and "false only when every call failed" does not
-either, because no call *was* made. The model returns `none`; this theorem is the witness. -/
-theorem f502JudgeAvailableBudgetSilent :
-    judgeAvailable { mode := .llm, eligible := 3, issued := 0, succeeded := 0 } = none := by
+/-- **F-502 (G-2, under-determined pin) — resolved v1.20.** `judge_available` on a run where
+eligible edges exist but no C-06 call was issued: every edge budget-skipped by K-12 (`N%` with
+`N = 0`, or the `SECONDS` deadline reached before the first request, E-35). Originally witnessed
+by `judgeAvailable { mode := .llm, eligible := 3, issued := 0, succeeded := 0 } = none`
+(`f502JudgeAvailableBudgetSilent`) and its `--judge mock` twin
+(`f502JudgeAvailableBudgetSilentMock`); under the resolved model both configurations now compute
+`some false`, not `none` — the theorem below proves it at the exact points that used to be silent.
+`f502Contrast`'s two cases (every call failed → `false`; no eligible edge → `true`) were already
+true and remain so, now joined by the third case the gap used to leave out. -/
+theorem f502ResolvedJudgeAvailableBudgetFalse :
+    judgeAvailable { mode := .llm, eligible := 3, issued := 0, succeeded := 0 } = some false ∧
+    judgeAvailable { mode := .mock, eligible := 1, issued := 0, succeeded := 0 } = some false := by
   decide
 
-/-- **F-502 (G-2)** — the same gap is reachable from `--judge mock`. -/
-theorem f502JudgeAvailableBudgetSilentMock :
-    judgeAvailable { mode := .mock, eligible := 1, issued := 0, succeeded := 0 } = none := by
-  decide
-
-/-- **F-502 (G-2)** — the contrast cases C-07 *does* pin: every call failed gives `false`, and no
-eligible edge gives `true`. The pair shows the gap is exactly the eligible-but-unissued cell. -/
+/-- **F-502 (G-2)** — the contrast cases C-07 already pinned: every call failed gives `false`, and
+no eligible edge gives `true`. Unaffected by the fix; kept as a sanity check that the boundary
+cases the spec already determined still hold under the corrected, now-total function. -/
 theorem f502Contrast :
     judgeAvailable { mode := .llm, eligible := 3, issued := 3, succeeded := 0 } = some false ∧
     judgeAvailable { mode := .llm, eligible := 0, issued := 0, succeeded := 0 } = some true := by
   decide
 
-/-- **F-502 (G-2)** — the consequence: a `--strict --judge llm` run whose eligible edges were all
-budget-skipped and every status is `PASSING` exits `1` (the R-28 gate wants `judge_available =
-true`), yet `strict_judge_failure` is `null` because neither R-28 reason fires. -/
-theorem f502StrictJudgeFailureNull :
-    exitOfCheck { factConforming with judgeLlm := true, judgeAvailable := none } true = exitNotConforming ∧
-    strictJudgeFailure { factConforming with judgeLlm := true, judgeAvailable := none } true = none := by
+/-- **F-502 (G-2) — resolved v1.20, E-32.** The consequence: a `--strict --judge llm` run whose
+eligible edges were all budget-skipped and every status is `PASSING` still exits `1` (unchanged —
+the R-28 gate still wants `judge_available = true`), but `strict_judge_failure` is now
+`"unavailable"`, not `null` (originally witnessed by `f502StrictJudgeFailureNull`, which no longer
+holds: `judge_available` is never `none` under `llm`, so the `ReportFacts` that theorem
+constructed no longer arises from `judgeAvailable`). This is the same exit code with an honest
+reason, exactly the fix the finding's "why it matters" asked for. -/
+theorem f502ResolvedStrictJudgeFailureUnavailable :
+    exitOfCheck { factConforming with judgeLlm := true, judgeAvailable := some false } true
+      = exitNotConforming ∧
+    strictJudgeFailure { factConforming with judgeLlm := true, judgeAvailable := some false } true
+      = some "unavailable" := by
   decide
 
-/-- **F-503 (G-2, under-specified relation)** — when one run carries both a usage fault (exit `2`)
-and an input-contract violation (exit `3`), §5.4's table and K-01 give no precedence. These two
-orderings are both faithful to the table and disagree, which is the kernel-checked separating
-witness; §3.1's process order supplies the answer only by narrative. -/
-theorem f503ExitPrecedenceDiffer :
-    ∃ usage contract : Bool,
-      (if usage then exitUsage else if contract then exitContract else exitConforming) ≠
-      (if contract then exitContract else if usage then exitUsage else exitConforming) :=
-  ⟨true, true, by decide⟩
+/- **F-503 (G-2, under-specified relation) — resolved v1.20, K-18.** When one run carries both a
+usage fault (exit `2`) and an input-contract violation (exit `3`), §5.4's table and K-01 gave no
+precedence: `f503ExitPrecedenceDiffer` exhibited two orderings, each faithful to the table, that
+disagree on the same abstract inputs — and, read purely as a fact about two *different* functions,
+that disagreement is still true (nothing makes two distinct functions agree). What closes the gap
+is that the spec now names *one* of them, `exitPrecedence`, as *the* model (K-18): the
+contrast-first ordering `f503ExitPrecedenceDiffer` exhibited is no longer a candidate reading of
+`SPEC.md`, only `exitPrecedence`'s usage-first order is — see `k18UsageWinsWhenBoth` in
+`section Invariants`. -/
 
 /-- **F-504 (G-2, under-specified interaction, v1.19) — resolved v1.19.1.** C-07/D-49 originally
 tied the top-level `proof` key's presence (and therefore its `build` echo) to `--proof` alone:
@@ -824,9 +853,9 @@ end Findings
 -- | E-62 (v1.19) | An unreadable or non-Lean file in a --proof path — Recorded as a notes entry; MUST NOT be a usage error or change the… | T-99 (planned) |
 -- | E-65 (v1.19) | --proof-results FILE given but unreadable, not well-formed JSON, or lacking build/theorems — Unreadable → exit 2; ma… | T-99 (planned) |
 -- | I-018 (v1.19) | Proof-input inertness: a check run without --proof/--proof-results writes speccheck.json and SPEC_CONFORMANCE_REPOR… | T-100 (planned) |
--- | T-01 … T-100 | the §9 acceptance tests (100 rows); each is the test that carries its own row | themselves (planned) |
+-- | T-01 … T-103 | the §9 acceptance tests (103 rows, +T-101..T-103 v1.20); each is the test that carries its own row | themselves (planned) |
 --
--- The 100 `T-nn` acceptance tests themselves are the §9 inventory; each is its own carrier
+-- The 103 `T-nn` acceptance tests themselves are the §9 inventory; each is its own carrier
 -- (planned). A T id is never proven here: a T id's proof is a run, not a theorem.
 --
 -- ### Dual halves — proven in Lean, implementation half deferred
@@ -841,7 +870,7 @@ end Findings
 -- | C-04 | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68 (planned) |
 -- | C-05 | T-20, T-21, T-27, T-53, T-77 (planned) |
 -- | C-06 | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74, T-75, T-83, T-87 (planned) |
--- | C-07 | T-34, T-37, T-59, T-73, T-75, T-77, T-79, T-86, T-88 (planned) |
+-- | C-07 | T-34, T-37, T-59, T-73, T-75, T-77, T-79, T-86, T-88, T-101 (planned) |
 -- | C-11 | T-62 (planned) |
 -- | C-13 | T-80, T-81 (planned) |
 -- | C-18 | T-92, T-93, T-94 (planned) |
@@ -861,7 +890,7 @@ end Findings
 -- | E-24 | T-52 (planned) |
 -- | E-25 | T-53 (planned) |
 -- | E-26 | T-27, T-39 (planned) |
--- | E-32 | T-59 (planned) |
+-- | E-32 | T-59, T-101 (planned) |
 -- | E-36 | T-59 (planned) |
 -- | E-41 | T-63, T-64 (planned) |
 -- | E-48 | T-75 (planned) |
@@ -888,12 +917,14 @@ end Findings
 -- | R-15 | T-39, T-27, T-46 (planned) |
 -- | R-22 | T-26, T-69, T-75 (planned) |
 -- | R-25 | T-53 (planned) |
--- | R-28 | T-59 (planned) |
+-- | R-28 | T-59, T-101 (planned) |
 -- | R-31 | T-65, T-66, T-67, T-68, T-69, T-71 (planned) |
 -- | R-35 | T-77 (planned) |
 -- | C-21 (v1.19) | T-99 (planned) |
 -- | K-17 (v1.19) | T-99 (planned) |
 -- | E-63 (v1.19) | T-99 (planned) |
+-- | K-18 (v1.20) | T-103 (planned) |
+-- | E-64 (v1.20) | T-102 (planned) |
 --
 -- ### Excluded — the spec puts these out of scope by name
 --

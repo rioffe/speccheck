@@ -1,17 +1,18 @@
-# SPEC_MODEL_FINDINGS — `speccheck` (SPEC.md v1.19)
+# SPEC_MODEL_FINDINGS — `speccheck` (SPEC.md v1.20)
 
 > - **Produced by:** `spec-model` over `SPEC.md` — the spec's own formal model, before any
 >   implementation proof. First run v1.18; extended for v1.19's proof-parameter fold (10 new ids,
->   all `UNCITED`, no implementation). Output: `proof_from_spec/` (Lean 4, `lake build` exit 0, zero
->   warnings).
+>   all `UNCITED`, no implementation) and again for v1.20's determinacy fold (5 new ids). Output:
+>   `proof_from_spec/` (Lean 4, `lake build` exit 0, zero warnings).
 > - **What is certified:** the *spec*, not a system. There is no implementation in this bridge: the
 >   model is a pure Lean function, `lake build` kernel-checks the claims the spec makes about
 >   itself, and every requirement out of Lean's reach is mapped to the §9 test that will carry it
 >   (**planned**, not run). See `proof_from_spec/README.md` for the trust boundary.
 > - **Numbering:** `F-501..F-504`, continuing the spec's review sequence (`F-001..F-017`,
 >   `F-101..F-110`, `F-201..F-210`, `F-301..F-307`, `F-401..F-407`, `Q-001..Q-011` are all cited
->   inside `SPEC.md`). F-504 is new in the v1.19 extension; F-501..F-503 are unchanged from the
->   v1.18 run.
+>   inside `SPEC.md`). F-504 was new in the v1.19 extension, resolved v1.19.1; F-501..F-503 were
+>   found against v1.18 and are **resolved v1.20** — the proposal that fixed them
+>   (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`) exists *because* this model found them.
 > - **Disposition:** **findings are reported, not fixed.** This project does not edit `SPEC.md`;
 >   `spec-proposal` / `spec-writing` decide, and a fix bumps the spec's version.
 
@@ -19,35 +20,41 @@
 
 | ID | Class | Severity | Spec anchor | Witness theorem | Status |
 | -- | ----- | -------- | ----------- | --------------- | ------ |
-| F-501 | G-1 · silent case | P1 | §5.1 (`explain` synopsis vs. flag table), C-18, E-60 | `f501ExplainAbsentSpecSilent`, `f501NoSilenceFails` | open |
-| F-502 | G-2 · under-determined pin | P1 | C-07 `judge_available`, E-35, R-28 | `f502JudgeAvailableBudgetSilent`, `f502JudgeAvailableBudgetSilentMock`, `f502Contrast`, `f502StrictJudgeFailureNull` | open |
-| F-503 | G-2 · under-specified relation | P2 | §5.4, K-01 | `f503ExitPrecedenceDiffer` | open |
+| F-501 | G-1 · silent case | P1 | §5.1 (`explain` synopsis vs. flag table), C-18, E-60, E-64 | `f501ResolvedExplainAbsentSpecUsage`, `noSilence` (was `f501ExplainAbsentSpecSilent`, `f501NoSilenceFails`) | **resolved v1.20** |
+| F-502 | G-2 · under-determined pin | P1 | C-07 `judge_available`, E-35, R-28 | `f502ResolvedJudgeAvailableBudgetFalse`, `f502ResolvedStrictJudgeFailureUnavailable`, `judgeAvailableNullIffNone`, `f502Contrast` (was `f502JudgeAvailableBudgetSilent`, `f502JudgeAvailableBudgetSilentMock`, `f502StrictJudgeFailureNull`) | **resolved v1.20** |
+| F-503 | G-2 · under-specified relation | P2 | §5.4, K-01, K-18 | `k18UsageWinsWhenBoth` (was `f503ExitPrecedenceDiffer`, kept as the historical ambiguity record) | **resolved v1.20** |
 | F-504 | G-2 · under-specified interaction (v1.19) | P2 | C-07, D-49 (`proof` key presence) | `f504ManifestReadButKeyAbsent` | **resolved v1.19.1** |
 
 No **G-3a** finding: every requirement Lean cannot reach names at least one §9 `T-nn` (§11's
-"Verified by" column is total over the 105 deferred requirements — checked mechanically).
+"Verified by" column is total over the 104 deferred-only requirements — checked mechanically).
 
 ## Scope map
 
 The full classification is in `proof_from_spec/SpeccheckSpec/Speccheck/Theorems.lean`'s closing
-comment. In brief, over the **262 declared conformance IDs** (252 at v1.18, +10 at v1.19):
+comment. In brief, over the **267 declared conformance IDs** (252 at v1.18, +10 at v1.19, +5 at
+v1.20):
 
-- **57 proven** — tagged in bold in `Model.lean`/`Theorems.lean`; the deterministic halves of the
+- **60 proven** — tagged in bold in `Model.lean`/`Theorems.lean`; the deterministic halves of the
   ID grammar and normalization, the JUnit join, the status algorithm, the judge-validation cascade,
-  the metrics and ratios, the exit map, the progress arithmetic, the K-15 matcher, and (v1.19) the
-  proof-evidence join and its status-invariance (C-21, K-17, E-63).
-- **105 deferred** — the filesystem, the network, renderings, the process layer, timing budgets and
-  the §9 tests themselves; each names its `T-nn` carriers (planned). v1.19 adds the lean adapter's
-  own parsing (R-100, C-20), its file-IO edge cases (E-62, E-65), and the byte-identity rendering
-  claim (I-018).
-- **100 `T-nn`** — the §9 acceptance criteria are the test inventory; a T id is carried by itself
-  (98 at v1.18, +T-99/T-100 at v1.19).
+  the metrics and ratios, the exit map, the progress arithmetic, the K-15 matcher, the
+  proof-evidence join and its status-invariance (v1.19: C-21, K-17, E-63), and (v1.20) the
+  now-total `judge_available` (C-07, and E-35's own eligible-but-unissued case, newly provable),
+  usage-fault exit precedence (K-18), and `explain`'s now-total coverage (E-64).
+- **104 deferred-only** — the filesystem, the network, renderings, the process layer, timing
+  budgets and the §9 tests themselves; each names its `T-nn` carriers (planned). v1.19 added the
+  lean adapter's own parsing (R-100, C-20), its file-IO edge cases (E-62, E-65), and the
+  byte-identity rendering claim (I-018); v1.20 adds K-18's and E-64's own implementation halves
+  (both dual, see below) and drops E-35 from this bucket into the proven-and-dual one (105 → 104).
+- **103 `T-nn`** — the §9 acceptance criteria are the test inventory; a T id is carried by itself
+  (98 at v1.18, +T-99/T-100 at v1.19, +T-101..T-103 at v1.20).
 - **9 named exclusions** — the spec's own §0 Non-goals and §5.2 (`O-2`, `O-3` cited). They are not
-  conformance IDs (`O-n` is outside C-01's `FAMILY`), so they consume none of the 262; they are
+  conformance IDs (`O-n` is outside C-01's `FAMILY`), so they consume none of the 267; they are
   listed so the boundary is stated rather than assumed, and are never used to hide a G-3a.
 
-The 57 proven IDs appear a second time in the deferral section as **dual halves** (the theorem
-discharges the deterministic half; the §9 test carries the implementation half).
+All 60 proven IDs appear a second time in the deferral section as **dual halves** (the theorem
+discharges the deterministic half; the §9 test carries the implementation half) — including, new
+in v1.20, E-35 (its `judge_available = false` half is now proven; its filesystem/timing half
+stays with T-61/T-89), K-18 and E-64 (both freshly proven *and* dual from the start).
 
 ---
 
@@ -77,6 +84,14 @@ outcome (`section Rows`, `exitClosed`, `exit0Reachable`…`exit3Reachable`).
 **Proposed resolution (for `spec-proposal`).** Make §5.1's synopsis agree with its table: either
 drop the brackets (`speccheck explain ID --spec SPEC.md`), or state the absent-flag default for
 `explain` in the `--spec` row and C-19 §3, in the same words the `src`/`tests` rows use.
+
+**Resolved — v1.20 (2026-09-24), `docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`, D-47
+confirmed on the recommended branch.** The brackets branch was taken: §5.1's synopsis now reads
+`speccheck explain ID --spec SPEC.md …`, and E-64 is the new formal edge case (`explain: --spec is
+required`, exit `2`, no trace). `f501ExplainAbsentSpecSilent`'s statement (`= none`) no longer
+typechecks as a fact about the resolved model; `f501ResolvedExplainAbsentSpecUsage` proves the
+input now reads E-64's outcome instead, and `noSilence` (`section Invariants`) proves coverage is
+total over the whole `Input` type — the positive claim `f501NoSilenceFails` used to disprove.
 
 ---
 
@@ -113,6 +128,23 @@ no judge call succeeded — covering both "every call failed" (E-14) and "no cal
 (E-35) — and `true` otherwise; and state which R-28 reason a `judge_available == false` run records
 under E-35 (today E-32's precedence rule presumes only the E-14 shape).
 
+**Resolved — v1.20 (2026-09-24), `docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`, D-46
+confirmed on the recommended branch.** C-07 (amended) now states exactly this third case; E-32
+(amended) extends `strict_judge_failure` to record `"unavailable"` for it too. `judgeAvailable`'s
+old `else if 0 < c.issued then some false else none` branch collapsed to `else some false` — the
+function is now total (boolean) under `mock`/`llm`. `f502JudgeAvailableBudgetSilent`/
+`f502JudgeAvailableBudgetSilentMock`'s `= none` statements no longer typecheck as facts about the
+resolved model; `f502ResolvedJudgeAvailableBudgetFalse` proves both configurations now read `some
+false`. `judgeAvailableNullIffNone` replaces the old `judgeAvailableNullCases` disjunction with the
+tight iff the fix makes available: `judgeAvailable c = none ↔ c.mode = .none`. `f502Contrast`'s two
+pre-existing cases were unaffected and still hold.
+`f502StrictJudgeFailureNull`'s `ReportFacts` (built with `judgeAvailable := none` under `judgeLlm
+:= true`) no longer arises from the real function; `f502ResolvedStrictJudgeFailureUnavailable`
+proves the same exit code (`1`, unchanged) now carries the honest reason
+(`strict_judge_failure = some "unavailable"`, not `null`) — the fix the finding's "why it matters"
+asked for, and the one behavioural change v1.20 makes (a `null` reason becomes `"unavailable"` on
+an already-red run; no exit code moves).
+
 ---
 
 ## F-503 — no precedence between a usage fault (`2`) and a contract violation (`3`) in one run
@@ -137,6 +169,15 @@ is not written on exit 2 or 3, so the disagreement is not self-correcting.
 input-contract violation, the usage fault (exit `2`) is reported: flag, value and path validation
 precede every read of the spec, the results file and the output directory." (§3.1's order already
 implies it; the table should say it.)
+
+**Resolved — v1.20 (2026-09-24), `docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`, D-48
+confirmed on the recommended branch.** §5.4 gained exactly this sentence, pinned as K-18. The
+model gains `exitPrecedence`, the single usage-first function K-18 now names as *the* precedence
+rule; `k18UsageWinsWhenBoth` proves it holds for every value of the contract-fault flag, not just
+one instance. `f503ExitPrecedenceDiffer` is kept, unmodified, as the historical record of the
+ambiguity: read purely as a fact about two *different* functions it is still true (nothing makes
+two distinct functions agree), but the spec no longer admits the contract-first one as a valid
+reading of `SPEC.md` — only `exitPrecedence`'s usage-first order is.
 
 ---
 
@@ -180,19 +221,30 @@ paragraph and revision-history row.
 ## What was checked mechanically
 
 - **Tag audit** — `grep -rhoE '\*\*[^*]+\*\*' SpeccheckSpec/ | tr -d '*' | grep -oE '[RCIKE]-[0-9]+' | sort -u`
-  yields exactly the 57 proven IDs. Every ID in that set is discharged by a declaration in
-  `Theorems.lean`; every other declared ID is in the deferral table (with a `T-nn`) or the excluded
-  table. `57 + 105 + 100 = 262`, disjoint, covering the declared set exactly.
+  yields exactly the 60 proven IDs (57 through v1.19.1, +K-18, +E-64, +E-35 newly dual at v1.20).
+  Every ID in that set is discharged by a declaration in `Theorems.lean` and appears in the
+  deferral table too (all 60 are dual); every other declared ID is in the deferral table
+  deferred-only (with a `T-nn`) or the excluded table. `60 proven` (⊆ `164` total deferral-table
+  rows) `+ 104 deferred-only + 103 T-nn = 267`, covering the declared set exactly.
 - **Anti-tautology audit** — `section Rows` is transcription and says so; every theorem outside it
   names the spec sentence it discharges (see the header's tautology rule and each doc comment).
   `prefixEq_take`/`infixOf_take` are K-15 support lemmas, tagged as such. v1.19's
   `statusWithProof_ignoresProof` follows the same precedent as `outcomeEnvironmentFree` (I-002): a
   claim about the input space (proof is not a field of `Evidence`), not a definition re-read.
+  v1.20's `section Findings` theorems are tagged by finding id (`**F-50N …**`), not by spec id, so
+  they do not themselves register in the tag audit's regex; each one's spec-id claim is discharged
+  a second time, and tagged, by a real `section Invariants` theorem (`noSilence` for E-64,
+  `judgeAvailableAllFailed`/`judgeAvailableNullIffNone` for C-07/E-35, `k18UsageWinsWhenBoth` for
+  K-18) — the same "Findings narrates, Invariants discharges" split F-504 already established.
 - **Statement audit** — re-read of `SPEC.md` against each theorem's statement: quantifiers,
   hypotheses and goal match the spec's sentences. Two statements were **weakened honestly** during
   the v1.18 build rather than made to fit: `assertGrounded` (I-005's grounding facts, not a clause
   non-emptiness the model does not derive) and `tSrcCitationEvidenceOnly` (a non-retired T id, the
   case C-05 step 1 does not shadow). v1.19's five new theorems were re-read against R-100, C-20,
-  C-21, K-17, E-62, E-63, E-65, I-018 with no weakening needed.
+  C-21, K-17, E-62, E-63, E-65, I-018 with no weakening needed. v1.20's re-sync **strengthened** one
+  pre-existing theorem rather than weakening it: `judgeAvailableAllFailed` dropped its
+  `0 < c.issued` hypothesis, since the fix makes the conclusion hold for `issued = 0` too (E-35) —
+  removing a hypothesis the proof no longer needs is the opposite of the direction Phase 3 warns
+  against, so it needed no separate finding.
 - **Build** — `cd proof_from_spec && lake build`, `.lake` wiped first: exit 0, **zero warnings**,
   no `sorry`/`admit` (Lean `leanprover/lean4:v4.34.0`, pinned).

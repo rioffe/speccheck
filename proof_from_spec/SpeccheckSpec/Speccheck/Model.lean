@@ -27,9 +27,11 @@ the spec's normative tables" is checked here row by row, and made *checkable* �
 | C-07 ratios (Q-009) | `ratioUnits`, `roundHalfEven`, `ratioScale` | fixed point, 4 places, half-even |
 | C-07 metrics | `judgeStrengthUnits`, `declaredRatioUnits`, `conformanceUnits` | populations per C-07/F-405 |
 | C-07 zero denominators (F-405, E-19) | `ratioUnits`'s `den = 0 → none` | I-008 |
-| C-07 `judge_available` (E-14, E-36) | `JudgeMode`, `JudgeCalls`, `judgeAvailable` | partial in one configuration — finding F-502 |
+| C-07 `judge_available` (E-14, E-35, E-36; amended v1.20) | `JudgeMode`, `JudgeCalls`, `judgeAvailable` | total, boolean under `mock`/`llm` — finding F-502, resolved v1.20 |
 | §5.4 exit map, R-14, R-15 | `ReportFacts`, `exitOfCheck`, `strictJudgeHolds` | pure function of report content + `--strict` |
-| R-28, E-32, Q-004 | `strictJudgeFailure` | `unavailable` takes precedence |
+| R-28, E-32 (amended v1.20), Q-004 | `strictJudgeFailure` | `unavailable` takes precedence, now covering the E-35 case too |
+| K-18 (v1.20) | `exitPrecedence` | usage-fault precedence over a contract violation — finding F-503, resolved v1.20 |
+| E-64 (v1.20) | `outcome`'s `.explainAbsentSpec` case | now a stated outcome (exit 2) — finding F-501, resolved v1.20 |
 | C-11 | `barCells`, `bar`, `remainingSeconds` | `k = ⌊20d/n⌋`; `left = t(n−d)/d` |
 | §5.1 CLI surface, §5.4 | `Subcommand`, `Fault`, `Input`, `Result`, `outcome` | one `Fault` constructor per usage/contract row, one `Input` constructor per decision case |
 | E-41 | `Input.interrupt` | exit 3, no report survives |
@@ -373,18 +375,18 @@ structure JudgeCalls where
   succeeded : Nat
   deriving DecidableEq, Repr
 
-/-- C-07, E-14, E-36 — `judge_available`: null when `--judge none`; otherwise "true when at
-least one judge call succeeded OR no edge was eligible (vacuously available), and false only when
-every call failed". Partial: the configuration `eligible > 0`, `issued = 0` — every eligible
-edge budget-skipped by K-12/E-35, so no call was made and none failed — is covered by neither
-clause; see finding F-502. -/
+/-- C-07 (amended v1.20), E-14, E-35, E-36 — `judge_available`: `none` when `--judge none`;
+otherwise total and boolean — `true` when at least one judge call succeeded or no edge was
+eligible (vacuously available), and `false` whenever at least one edge was eligible and no call
+succeeded, whatever the reason: every call failed (E-14), or no call was issued at all (E-35 —
+every eligible edge budget-skipped by K-12). Originally partial in the eligible-but-unissued
+configuration (finding F-502, resolved v1.20): see `judgeAvailableNullIffNone` below. -/
 def judgeAvailable (c : JudgeCalls) : Option Bool :=
   match c.mode with
   | .none => none
   | .mock | .llm =>
     if decide (1 ≤ c.succeeded) ∨ c.eligible = 0 then some true
-    else if 0 < c.issued then some false
-    else none
+    else some false
 
 /-! ## §5.4, R-14, R-15, R-28 — the exit-code function -/
 
@@ -412,6 +414,16 @@ def exitOfCheck (f : ReportFacts) (strict : Bool) : Nat :=
   if !f.anyInScopeFailing ∧
      (!strict ∨ (f.allInScopePassing ∧ !f.anyDangling ∧ !f.anyStale ∧ strictJudgeHolds f))
   then exitConforming else exitNotConforming
+
+/-- §5.4, K-18 (v1.20) — the precedence the spec now pins between the two fault classes: when one
+invocation carries both a usage fault (`usage`) and an input-contract violation (`contract`), the
+usage fault is reported (`exitUsage`) — flag/value/`--root`-containment validation completes
+before any spec/results/output read, so a run carrying a contract violation too never reaches the
+check that would have found it. Before this, `SPEC.md` admitted the usage-first reading and its
+contract-first twin as equally faithful to §5.4's table (finding F-503); K-18 states this is *the*
+function, not one of two candidates — see `k18UsageWinsWhenBoth` in `Theorems.lean`. -/
+def exitPrecedence (usage contract : Bool) : Nat :=
+  if usage then exitUsage else if contract then exitContract else exitConforming
 
 /-- C-07, R-28, E-32, Q-004 — `strict_judge_failure`: non-null only when R-28 forced exit 1;
 `unavailable` takes precedence when both reasons hold. -/
@@ -499,16 +511,17 @@ inductive Input where
   | interrupt
   deriving DecidableEq, Repr
 
-/-- §5.4, §5.1, C-13, E-41, E-60 — the stated outcome of each enumerated input. `none` means
-the spec states no outcome for this input — the representation of a silent case, never a
-default. -/
+/-- §5.4, §5.1, C-13, E-41, E-60, E-64 — the stated outcome of each enumerated input. `none` means
+the spec states no outcome for this input — the representation of a silent case, never a default.
+Every constructor now maps to `some _` (`.explainAbsentSpec`'s case was resolved v1.20, E-64,
+finding F-501): see `noSilence` in `Theorems.lean`. -/
 def outcome : Input → Option Result
   | .check f strict => some { exit := exitOfCheck f strict, reports := true }
   | .impactEmptyChanged => some { exit := exitConforming, reports := true }
   | .explainDeclared => some { exit := exitConforming, reports := false }
   | .explainUndeclared => some { exit := exitUsage, reports := false }
   | .fault x => some { exit := if x.isUsage then exitUsage else exitContract, reports := false }
-  | .explainAbsentSpec => none
+  | .explainAbsentSpec => some { exit := exitUsage, reports := false }
   | .interrupt => some { exit := exitContract, reports := false }
 
 /-! ## C-21, K-17 — the proof-evidence join (v1.19) -/
@@ -571,7 +584,7 @@ attribute [grind unfold]
   truncateRationale coerce
   roundHalfEven ratioUnits conformanceUnits judgeStrengthUnits declaredRatioUnits unknownRateUnits
   judgeAvailable
-  strictJudgeHolds exitOfCheck strictJudgeFailure
+  strictJudgeHolds exitOfCheck strictJudgeFailure exitPrecedence
   barCells bar remainingSeconds
   Fault.isUsage Fault.isContract
   outcome
