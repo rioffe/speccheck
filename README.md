@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.18, code
-1.18.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.19, code
+1.19.1) in full, and so is the worked example of the method it serves — together with the seven agent skills that
 propose, write, review, plan, model, prove, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -211,6 +211,7 @@ uv run --project "$OLDPWD" speccheck check --spec SPEC.md --src Sources --tests 
 
 ```text
 speccheck check --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
+                [--proof PATHS]... [--proof-results FILE]
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--max-unknown FRACTION] [--judge-concurrency N] [--judge-budget SECONDS|N%]
                 [--jev-pre-triage] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
@@ -231,6 +232,8 @@ speccheck --help
 | `--src PATHS` | Repeatable; each value is a comma-separated list of **files and/or directories** (D-23), resolved inside `--root`. Default: `src` if it exists, and only when the flag is absent. |
 | `--tests PATHS` | Repeatable; comma-separated files and/or directories, as `--src`. Test roots; Python files are split into test cases with `ast`, Swift files by the line-based adapter (Swift Testing `@Test` functions and XCTest `test*` methods, doc comment and attributes included in the span; pass the `Tests` directory so the SwiftPM target name becomes the module in classnames), anything else is attributed at file level. Default: `tests` if it exists. |
 | `--results FILE` | JUnit XML. Without it no ID can be better than `UNVERIFIED`. |
+| `--proof PATHS` | v1.19, `check`-only. Repeatable, comma-separated Lean source files/directories, scanned by the lean adapter: each declaration's doc comment (`/-- **R-09** ... -/`, ending ≤1 line above the head) attributes a proof citation per (declaration, id) pair. Absent: no Lean file scanned, no `proof` key written. |
+| `--proof-results FILE` | v1.19, `check`-only. A JSON proof manifest (`build`, `theorems[]`, optional `deferred_to_pytest`) — read and joined to the `--proof` citations by declaration name and file, never executed. A `checked`/`failed` state comes from the manifest; a citation the manifest doesn't mention is `unknown`; a manifest entry naming a different file/line than the scan found is `stale`. Under `--strict`, a `failed` state fails the gate only when this flag was given and the file was readable. |
 | `--root DIR` | Base for every path in the reports (default `.`). Every other path must resolve inside it. Command-line paths themselves are resolved against the current directory. |
 | `--out DIR` | Where `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json` go (default `.`; created if missing; must be inside `--root`). |
 | `--judge MODE` | `none` (default), `mock` (deterministic: assertion tokens in the test span), `llm`. |

@@ -31,7 +31,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # R-40, C-18, I-016, E-60, E-61 and T-92..T-94 for the `explain` subcommand (D-33..D-36)
 # SPEC.md v1.18 declares 252 ids (41 R, 19 C, 17 I, 16 K, 61 E, 98 T; none retired); v1.18 added
 # R-41, C-19, I-017 and T-95..T-98 for the CLI help contract (D-37..D-42)
-DECLARED_IDS = 252
+DECLARED_IDS = 262
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

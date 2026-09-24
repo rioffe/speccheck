@@ -1,9 +1,9 @@
 usage: speccheck check [-h] --spec FILE [--src PATHS] [--tests PATHS]
-                       [--results FILE] [--root DIR] [--out DIR]
-                       [--judge MODE] [--strict] [--max-unknown FRACTION]
-                       [--judge-concurrency N] [--judge-budget SECONDS|N%]
-                       [--jev-pre-triage] [--progress MODE]
-                       [--verbose [LEVEL]]
+                       [--results FILE] [--proof PATHS] [--proof-results FILE]
+                       [--root DIR] [--out DIR] [--judge MODE] [--strict]
+                       [--max-unknown FRACTION] [--judge-concurrency N]
+                       [--judge-budget SECONDS|N%] [--jev-pre-triage]
+                       [--progress MODE] [--verbose [LEVEL]]
 
 Run the conformance pipeline and write speccheck.json and SPEC_CONFORMANCE_REPORT.md under --out.
 
@@ -25,6 +25,17 @@ options:
   --results FILE        JUnit XML results to join to the cited test cases;
                         without it no cited ID can be better than UNVERIFIED.
                         must resolve inside --root
+  --proof PATHS         check-only (v1.19). Lean source roots to scan for
+                        proof citations (C-20): repeatable, comma-separated
+                        files and/or directories, as --src. default: none (no
+                        Lean file scanned, no proof key written); every
+                        element must resolve inside --root
+  --proof-results FILE  check-only (v1.19). a JSON proof manifest (C-21), read
+                        and joined to the --proof citations by declaration
+                        name and file; never runs a prover. default: none;
+                        must resolve inside --root; unreadable is a usage
+                        error, malformed or missing 'build'/'theorems' is an
+                        input-contract violation
   --root DIR            base directory for the reports' relative paths and for
                         the containment rule: --spec, --src, --tests,
                         --results, --out and every list element must resolve

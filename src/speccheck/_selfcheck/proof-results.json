@@ -1,0 +1,7 @@
+{
+  "build": {"exit": 1, "theorems_total": 2, "theorems_checked": 1, "errors": ["proof/Fixture.lean:7"]},
+  "theorems": [
+    {"file": "proof/Fixture.lean", "name": "addSpec", "line": 4, "ids": ["R-01"], "status": "checked"},
+    {"file": "proof/Fixture.lean", "name": "subtractSpec", "line": 7, "ids": ["R-02"], "status": "failed"}
+  ]
+}

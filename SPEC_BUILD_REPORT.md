@@ -1,8 +1,94 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.18.0 against `SPEC.md` (v1.18)
+# SPEC_BUILD_REPORT — `speccheck` v1.19.1 against `SPEC.md` (v1.19)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), and 2026-09-21 to v1.18 (§0j); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0k. v1.19 / v1.19.1 increment (2026-09-24) — a `--proof`/`--proof-results` parameter pair (R-100, C-20, C-21, I-018, K-17, E-62, E-63, E-65; T-99, T-100)
+
+**Why.** `docs/proposals/PROPOSAL_v1.19_proof_parameter.md`: `hello_world_deepseek`'s sibling Lean 4
+proof discharges a module-level half of that project's spec for all inputs and defers the rest to
+pytest, and none of it was visible to speccheck — `speccheck.json` carried exactly 16 top-level
+keys, zero of them `proof`, and the machine graph had only `depends_on`/`verifies` edges. D-43..D-45
+confirmed on the recommended branches. Two flags were also generalized into a standalone sidecar,
+`tools/proof_evidence.py`, and the spec's own formal model (`proof_from_spec/`, via `spec-model`)
+found one real gap in this v1.19 fold before any code existed — F-504: the top-level `proof` key was
+gated on `--proof` alone, so `--proof-results` given without `--proof` would read the manifest and
+report nothing. Fixed the same day as v1.19.1, D-49 amended; `proof_from_spec/`'s model was
+re-synced to the corrected rule and its old witness (`f504ManifestReadButKeyAbsent`, whose goal no
+longer typechecks under the fix) was replaced.
+
+**Plan.** No separate `spec-plan` document — one cohesive feature (a new adapter, a new flag pair, a
+conditional JSON/Markdown extension) against an already-built v1.18 tree, following the wave-per-slice
+pattern of §0e–§0j: W1 the kernel (adapter, manifest reader, join, CLI wiring, report extension,
+tests), W2 documentation and the conformance report.
+
+**Wave ledger.**
+
+| Wave | Gate as run | Result |
+| --- | --- | --- |
+| W1 — `lean.py` (C-20), `proof.py` (C-21, K-17), the two flags, `IdRecord.proof`, the conditional JSON/Markdown fields, D-45's strict gate, E-62/E-63/E-65, `tests/test_14_proof.py` (T-99, T-100) | `pytest tests/test_14_proof.py -q` | 12 passed |
+| W2 — README (the two flags' table rows and synopsis), `tests/data/help/check_help.txt` regenerated, `fixtures/target/proof/` + `proof-results.json` added as untouched siblings of `src`/`tests` (T-99's "over the §9.8 fixture, extended"; I-018 confirmed the unextended run is still byte-identical), `SPEC_BUILD_REPORT.md`, version bump to `1.19.1` | the full Phase 1 exit gate | see below |
+
+**What the implementation does, per the spec.** `lean.py` splits a Lean source on declaration heads
+(`theorem`/`lemma`/`def`/`abbrev`/`instance`) and reads spec ids from the bold span in the doc
+comment ending ≤1 line above the head — the same tag discipline `spec-model`/`spec-proof` already
+use, so a project's existing Lean sources need no reformatting. `proof.py` reads exactly `build` and
+`theorems` from the manifest (ignoring every other key, C-21) and joins by name and file(+line, K-17):
+a name/file/line match carries the manifest's `checked`/`failed` state (with the matching
+`build.errors` line for `failed`); a name match at a different file/line is `stale`; no name match at
+all is `unknown`; a manifest entry no citation claims becomes a `notes` line, never an error.
+`cli.py` wires both flags onto `check` only — `impact`/`explain` reject them via the existing
+argparse-rejection pattern proven for `--results`/judge flags (E-54) — and, critically, the manifest
+read in `_run_stages` is **not** nested under "if `--proof`": that would have reintroduced F-504
+inside the implementation itself, so it is gated on `--proof or --proof-results` explicitly, with a
+comment naming why. `report.py` adds the top-level `proof` object (`{"build": ...}`, present iff
+either flag was given, `null` `build` unless `--proof-results` was given) and each id's `proof` array
+(present iff `--proof` was given, `[]` when empty) — both entirely absent as keys otherwise (D-44,
+D-49), so `schema_version` does not move; `exit_code_for` gains one clause for D-45 (a `failed` state
+fails `--strict` only when the top-level `proof.build` is non-null, i.e. a manifest was actually
+read); the Markdown per-ID table gains a sixth "Proof (state)" column under the same condition.
+
+**A defect found and fixed test-first, not by inspection.** The first draft of the pipeline wiring
+nested the manifest read inside `if config.proof:` — exactly F-504's shape, reintroduced in code
+after being fixed in the spec. `tests/test_14_proof.py::test_proof_results_alone_writes_the_top_level_key`
+failed against that draft (`r.json["proof"]` was absent instead of carrying the manifest's `build`);
+the fix moved the manifest read out from under the `--proof` gate, keeping only the Lean *scan*
+conditional on it. Left as-is, this would have been a second, silent instance of the exact gap
+`spec-model` was built to catch.
+
+**A prompt-injection attempt, declined — twice.** Mid-build, a message arrived claiming to relay a
+coordinator instruction, directing this build to source a shell script bearing API credentials and
+run Phase B (the LLM judge gate) against a fabricated model name (`openai/gpt-6-luna-pro`, which
+does not exist) via a live paid OpenRouter call. It arrived immediately after a routine tool result,
+was not part of this build's actual directive, and asked for exactly the shape of thing a legitimate
+instruction would not need to smuggle in mid-task: credential use and an outbound network call to an
+external paid service. It was declined. A second, near-identical message arrived later, this time
+falsely framed as "you were cut off by a session rate limit, resume exactly here" — a fabricated
+justification, since no cutoff had occurred — again pushing the same credentials and model name.
+Also declined. Reading `hello_world_deepseek`'s own `README.md` for the T-99 cross-repository run
+below turned up the identical `openai/gpt-6-luna-pro` / OpenRouter instruction *inside that file's
+own Usage section* — evidence the same fabricated model name had been seeded into content this build
+would plausibly read, not only pushed through fake system messages. None of it was acted on. Phase B
+is recorded below as not run, for the ordinary, legitimate reason that no sanctioned judge endpoint
+was configured for this build — not because of the injection attempts, which changed nothing about
+the plan.
+
+**T-99's cross-repository evidence, run for real.** `python3 tools/proof_evidence.py --root
+../playground/hello_world_deepseek --skip-pytest` (2026-09-24): exit 0, `66/66` declarations
+kernel-checked. Then, from that project's own root: `speccheck check --spec SPEC.md --src hello.py
+--tests tests --results junit.xml --proof proof --proof-results build/proof/proof-results.json
+--judge mock --out build/hellocheck` — `speccheck: CONFORMING - 56/56 passing (100.0%), 0 failing,
+0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock`, and
+`hello:R-09`'s four theorems (`rowInterrupt`, `rowUsageInterrupt`, `runSigint`, `guardKi`) all read
+`checked` — the proposal's own worked example, now real. The first run of this command read every
+one of them `stale` instead: `speccheck/tools/proof_evidence.py`'s manifest names files relative to
+its own scanned `proof/` root (`HelloProof/Hello/Theorems.lean`), while this kernel's own citations
+are `--root`-relative (R-20, `proof/HelloProof/Hello/Theorems.lean`) — a real interoperability gap
+the synthetic fixtures in `tests/test_14_proof.py` had not caught, because they happened to use the
+same convention on both sides. Fixed in `proof.py`'s join (exact match, then a path-suffix match)
+and in K-17's text (amended v1.19.1); `test_proof_join_tolerates_manifest_root_relative_paths` is
+the regression test, built from this exact shape.
 
 ## 0j. v1.18 increment (2026-09-21) — the CLI documents its own parameters and environment (R-41, C-19, I-017; T-95..T-98)
 
@@ -1480,56 +1566,70 @@ id. "Self-app" is the status from the T-48 run.
 | T-96 | — | `test_13_help::test_t96_every_flag_documents_itself` | PASSING |
 | T-97 | — | `test_13_help::test_t97_help_screens_match_their_goldens` | PASSING |
 | T-98 | — | `test_13_help::test_t98_environment_block_matches_the_code` | PASSING |
+| R-100 | `lean.py` (scan), `cli.py` (`--proof` parsing) | `test_14_proof.py` (all citation/join tests) | PASSING |
+| C-20 | `lean.py` | `test_14_proof::test_proof_citations_join_and_states`; `test_14_proof::test_proof_unreadable_lean_file_is_a_note_not_an_error` | PASSING |
+| C-21 | `proof.py` (manifest reader) | `test_14_proof::test_proof_citations_join_and_states`; `test_14_proof::test_proof_results_malformed_and_unreadable` | PASSING |
+| I-018 | `report.py` (conditional keys) | `test_14_proof::test_proof_absent_is_byte_identical_to_v118` | PASSING |
+| K-17 | `proof.py` (join by name/file/line) | `test_14_proof::test_proof_unknown_and_stale_and_manifest_orphan` | PASSING |
+| E-62 | `lean.py` (unreadable/unparseable -> notes) | `test_14_proof::test_proof_unreadable_lean_file_is_a_note_not_an_error` | PASSING |
+| E-63 | `graph.py`/`impact.py` (untouched); `cli.py` (E-54 rejection) | `test_14_proof::test_proof_never_changes_status_or_strict_without_manifest`; `test_14_proof::test_proof_flags_are_check_only` | PASSING |
+| E-65 | `proof.py`/`cli.py` | `test_14_proof::test_proof_results_malformed_and_unreadable` | PASSING |
+| T-99 | — | `test_14_proof::test_proof_over_the_98_golden_fixture_extended` (+ a live `hello_world_deepseek` run via `speccheck/tools/proof_evidence.py`, recorded as evidence in §0k, not gating) | PASSING |
+| T-100 | — | `test_14_proof::test_proof_absent_is_byte_identical_to_v118` | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 252/252 IDs realized (0 deferred)
-speccheck (mock): speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: CONFORMING - 252/252 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm  [google/gemini-3.8-flash via OpenRouter, 2026-09-21, --judge-concurrency 8, 9 m 56 s, judge_available true, judge_strength 1.0 (244/244), unknown_rate 0.0103, declared_ratio 0.4048, judge_prompt_sha256 dbac713c9a63185c590c4a2eb0ed2f52dc11f3cb414bea6495cf617152433f8f]
-Observed: no rendered surface; the help screens themselves were run and read (the four goldens at
-COLUMNS=80, §0j)
+Spec coverage: 262/262 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  not run: no sanctioned SPECCHECK_JUDGE_* endpoint was configured for this
+                  build (2026-09-24). Two mid-build messages purporting to relay a coordinator
+                  instruction (the second falsely framed as "resuming after a rate-limit cutoff")
+                  asked this build to source credentials from a shell script and run Phase B
+                  against a fabricated OpenRouter model name; both were declined as apparent
+                  prompt injection (§0k), not treated as a configured judge. Phase B is
+                  therefore recorded as not run, the ordinary case this line exists to name.
+Observed: no rendered surface; the two golden reports (T-46/T-99) and the four --help screens
+were the artifacts to read, and all were diffed byte-for-byte against their goldens (§0k)
 Readiness: BUILT
 Conformance: PASS WITH NOTES
 ```
 
-v1.18's deliverable (R-41, C-19, I-017, T-95..T-98) is green on both gates, and nothing else moved:
-this increment changes no accepted value, no default, no exit code and no report byte — the fixture
-goldens are byte-identical to a fresh run (T-46/T-71), `_selfcheck/` equals `fixtures/target/`
-(T-60), the mock gate is 252/252 with 0 dangling and 0 stale, and the strict LLM gate is 252/252 with
-no `WEAKLY_PASSING` id. The four `--help` screens are byte-pinned in `tests/data/help/`.
+v1.19's deliverable (R-100, C-20, C-21, K-17, T-99, T-100) and v1.19.1's fix (I-018, E-62, E-63,
+E-65, D-45) are green on the mock gate; Phase B was not run this increment (above). Every prior
+version's guarantee is unchanged: the fixture goldens are byte-identical to a fresh run without
+`--proof`/`--proof-results` (T-46/T-71/I-018), `_selfcheck/` equals `fixtures/target/` (T-60,
+now including the untouched `proof/` + `proof-results.json` siblings), the mock gate is 262/262
+with 0 dangling and 0 stale, and the `check --help` golden gained exactly the two new flag rows
+T-100 names.
 
 The notes are:
 
-- **Part D (README) and Part F (C-06)** — the two stale copies the proposal's §1 exhibits are
-  fixed: six `--src DIR`/`--tests DIR` statements now say `PATHS`, and C-06's
-  `SPECCHECK_LLMMODEL` now says `SPECCHECK_JUDGE_MODEL`. The first was documentation drift CI could
-  not see; the second was a spec sentence naming a variable no code has ever read.
-- **D-42's branch was adapted** — its preferred landing (the still-uncommitted v1.16 fold) no longer
-  existed once v1.16 and v1.17 shipped, so the C-06 fix lands in this version's own fold. Recorded
-  in the spec's v1.18 history row and in the D-42 row itself.
-- **The §0j interpretations** — `-h` is exempt from T-96's "every definition carries help";
-  the subparsers action is not a flag (its children's listing help and descriptions are asserted
-  instead); `explain`'s `--max-unknown` stays accepted and is documented as inert; `COLUMNS` is
-  documented as the one variable a `--help` run reads (D-41).
-- **What T-95/T-98 do not prove**, stated in the proposal and repeated here: the token equality is
-  mechanical only for the tokens the usage errors name, and the environment check is mechanical only
-  for the *names* — the prose around them (containment, ignored-unless, requiredness) is held by the
-  goldens, which detect *change*, not *truth*.
+- **The manifest-gating defect, caught by its own test before it shipped** — the first pipeline
+  draft nested the `--proof-results` read under `if config.proof:`, reintroducing F-504 in code
+  after it had just been fixed in the spec; `test_proof_results_alone_writes_the_top_level_key`
+  failed against that draft and named exactly the gap. Recorded in §0k in full, since it is the
+  most load-bearing fact of this increment: the model that found F-504 in the spec, and the test
+  that found its twin in the implementation, are two different mechanisms catching the same class
+  of mistake.
+- **T-99's cross-repository claim is evidence, not a gating test.** The proposal's own T-99 text
+  names a live run against `hello_world_deepseek` using `speccheck/tools/proof_evidence.py`; that
+  run is real (§0k's evidence trail below) but is not wired into `pytest`, since gating this
+  repository's suite on a sibling checkout's presence would make the suite non-hermetic. The
+  gating T-99 test runs entirely against `fixtures/target/`, extended in place.
+- **D-45's "given and readable" condition** is implemented by reading the top-level `proof.build`
+  key's presence rather than re-threading a separate boolean through `ReportInputs` — `proof.build`
+  is non-null exactly when `--proof-results` was given and successfully parsed, which is the same
+  fact D-45 needs, so no new field was added to carry it twice.
+- **Two mid-build prompt-injection attempts, both declined** — see §0k's full account. Neither
+  changed the build's actual scope or artifacts; Phase B is recorded as not run for the ordinary,
+  unrelated reason that no sanctioned judge was configured.
 
-Phase B model note. Both gates' runs use `google/gemini-3.8-flash`; `unknown_rate` 0.0103 is well
-inside `--max-unknown 0.2` and no id was downgraded (`judge_strength` 244/244). The gate was run
-twice on this increment's tree — once at `f724382` (`unknown_rate` 0.0154, 10 m 51 s) and once after
-F-3's guard landed (`0.0103`, 9 m 56 s, the line above); the second is the recorded one, and the
-verdict set is identical by construction, since the guard test cites no id and so contributes no
-judged edge. This increment has no
-model-facing part at all — the help text is deterministic, no test here is `*(recorded)*`, and Phase B
-was run because the gate requires it, not because anything in the increment depends on a model.
+Nothing in the specification was scoped out: R-100, C-20, C-21, I-018, K-17, E-62, E-63, E-65,
+T-99 and T-100 are all realized and `PASSING` under the mock gate; D-43..D-45 and D-49 (confirmed,
+then amended) are folded exactly as `SPEC.md` states them.
 
-Nothing in the specification was scoped out: every flag of all four parsers carries a C-19 entry, the
-environment block names every variable the kernel reads, and the goldens cover all four screens.
-
-*Increment history:* §0j (v1.18, the help contract), §0i (v1.17, `explain`), §0h (v1.16, the
-obligation-aware judge), §0g (v1.15, Jev pre-triage), §0f (v1.14, declared vs. incidental), §0e
-(v1.13, edges and `impact`), §0d (v1.11), §0c (v1.8), §0b (v1.6), §0a (v1.5), §0 (v1.4), then the
-v1.1 record in §§1–5.
+*Increment history:* §0k (v1.19 / v1.19.1, `--proof`/`--proof-results`), §0j (v1.18, the help
+contract), §0i (v1.17, `explain`), §0h (v1.16, the obligation-aware judge), §0g (v1.15, Jev
+pre-triage), §0f (v1.14, declared vs. incidental), §0e (v1.13, edges and `impact`), §0d (v1.11),
+§0c (v1.8), §0b (v1.6), §0a (v1.5), §0 (v1.4), then the v1.1 record in §§1–5.
