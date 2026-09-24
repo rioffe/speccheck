@@ -18,7 +18,7 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SKILLS=(spec-writing spec-review spec-plan spec-build spec-proposal)
+SKILLS=(spec-writing spec-review spec-plan spec-build spec-proposal spec-proof)
 
 # ---------------------------------------------------------------- defaults --
 DO_SKILLS=0
