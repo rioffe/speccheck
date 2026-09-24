@@ -7,13 +7,13 @@ the implementation of [`SPEC.md`](../SPEC.md) v1.18 — with a green acceptance 
 > **The trust boundary, up front.** Lean proves the **model** in `Model.lean` — a pure Lean
 > transcription of `graph.py`, `judge.py`, `results.py`, `report.py`, `extract.py` and
 > `judge_mock.py` — never the `.py` files themselves. The bridge has three legs:
->
-> | Leg | Claims | Evidence |
-> | --- | --- | --- |
-> | 1. Transcription | the model is a faithful transcription of the source file | **manual** — the correspondence table in `Model.lean`'s header, function by function |
-> | 2. **Lean (this project)** | the model satisfies the spec's module-level contract, for all inputs | `lake build` — kernel-checked theorems |
-> | 3. Empirical | the *file* satisfies the process-level contract | `tests/test_01_extraction.py` … `tests/test_13_help.py` (the §9 acceptance suite) |
->
+
+| Leg | Claims | Evidence |
+| --- | --- | --- |
+| 1. Transcription | the model is a faithful transcription of the source file | **manual** — the correspondence table in `Model.lean`'s header, function by function |
+| 2. **Lean (this project)** | the model satisfies the spec's module-level contract, for all inputs | `lake build` — kernel-checked theorems |
+| 3. Empirical | the *file* satisfies the process-level contract | `tests/test_01_extraction.py` … `tests/test_13_help.py` (the §9 acceptance suite) |
+
 > Overclaiming leg 2 as leg 1 or leg 3 is the one sin of proof work. This README, and every file
 > in this project, keeps the three separate.
 
