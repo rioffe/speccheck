@@ -68,9 +68,18 @@ SPEC_ID = re.compile(r"\b([RCIKE]-\d+|T-\d+)\b")
 SPEC_VERSION = re.compile(r"\*\*Status:\*\*\s*v?([0-9]+(?:\.[0-9]+)*)")
 # A deferral/exclusion table row: a markdown table row — inside a `--` line comment or a
 # `/- ... -/` block comment, either way with no code before it on the line — whose first cell
-# is a spec ID (optionally annotated with a parenthesized scope), and one or more trailing cells.
-DEFER_ROW = re.compile(r"^\s*(?:--\s*)?\|\s*([RCIKE]-\d+)\s*(?:\(([^)]*)\))?\s*\|(.+)\|\s*$")
+# is a spec ID (optionally wrapped in backticks/bold, and optionally annotated with a
+# parenthesized scope), and one or more trailing cells.
+DEFER_ROW = re.compile(r"^\s*(?:--\s*)?\|\s*[`*]*([RCIKE]-\d+)[`*]*\s*(?:\(([^)]*)\))?\s*\|(.+)\|\s*$")
+# A test reference in a trailing cell: a bare `T-nn` token, or a backtick-quoted pytest
+# function name (some projects cite deferrals by test id, others by the test's own name).
 TEST_REF = re.compile(r"T-\d+")
+TEST_NAME_REF = re.compile(r"`(test_[A-Za-z0-9_]+)`")
+
+
+def _test_sort_key(s: str) -> tuple:
+    m = re.match(r"T-(\d+)$", s)
+    return (0, int(m.group(1))) if m else (1, s)
 
 
 def run(cmd: list[str], cwd: Path, env: dict[str, str] | None = None) -> tuple[int, str]:
@@ -176,10 +185,12 @@ def parse_lean(text: str, rel: str, err_lines: set[tuple[str, int]]) -> list[dic
 def parse_deferrals(rel: str, text: str) -> list[dict]:
     """Deferred/excluded-from-Lean spec rows: markdown table rows tagged by a leading spec ID.
 
-    Column count, labeling, and comment style vary by project (a three-cell `id | why | tests`
-    row inside a block comment, a two-cell `-- | id | tests` line-comment row, …); only the
-    `T-\\d+` tokens anywhere in the trailing cells are trusted, so this is robust to that
-    variation at the cost of not knowing which cell was "the test".
+    Column count, id styling (bare, backtick-quoted, bold), labeling, and comment style all vary
+    by project (a three-cell `id | why | tests` row inside a block comment, a two-cell
+    `-- | id | tests` line-comment row, an id cited by `T-nn` versus by its own pytest function
+    name, …); only `T-\\d+` tokens and backtick-quoted `test_*` names anywhere in the trailing
+    cells are trusted, so this is robust to that variation at the cost of not knowing which cell
+    was "the test".
     """
     out = []
     for line in text.splitlines():
@@ -189,11 +200,12 @@ def parse_deferrals(rel: str, text: str) -> list[dict]:
         cells = [c.strip() for c in m.group(3).split("|")]
         content = cells[0] if len(cells) > 1 else None
         tail = " ".join(cells[1:]) if len(cells) > 1 else cells[0]
+        tests = set(TEST_REF.findall(tail)) | set(TEST_NAME_REF.findall(tail))
         out.append({
             "id": m.group(1),
             "scope": (m.group(2) or "").strip() or None,
             "content": content,
-            "tests": sorted(set(TEST_REF.findall(tail)), key=lambda s: int(s[2:])),
+            "tests": sorted(tests, key=_test_sort_key),
             "file": rel,
         })
     return out
