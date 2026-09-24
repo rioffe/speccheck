@@ -288,6 +288,23 @@ locale (R-29 rationale)". -/
 /-- C-08 (Q-001) — the Markdown em dash rendered when the JSON `verdict` is null. -/
 @[grind unfold] public def emDash : String := "—"
 
+/-! ## C-21, K-17 — the proof manifest and the join states (v1.19) -/
+
+/-- C-21, K-17 — the four states a cited declaration's manifest join can produce: `checked`
+(cited and manifest-checked), `failed` (cited and manifest-failed), `unknown` (cited, no matching
+manifest entry), `stale` (a manifest entry matches by name but not by file/line). An id with no
+citation at all has no entry in this set — represented by an empty `proof` array, not a fifth
+token (D-49). -/
+@[grind unfold] public def proofStateTokens : List String := ["checked", "failed", "unknown", "stale"]
+
+/-- C-21 — the two `theorems[].status` values the manifest itself carries: a Lean build result,
+distinct from the four join states above (a `checked` build result can still join as `stale`). -/
+@[grind unfold] public def manifestStatusTokens : List String := ["checked", "failed"]
+
+/-- C-21 — the three top-level manifest keys speccheck reads (`build`, `theorems`, optional
+`deferred_to_pytest`); every other top-level key, and every extra key on an entry, is ignored. -/
+@[grind unfold] public def manifestReadKeys : List String := ["build", "theorems", "deferred_to_pytest"]
+
 /-! ## Facts — the spec's claims about its own constants -/
 
 section Facts
@@ -424,6 +441,21 @@ theorem strictJudgeFailureValues_eq : strictJudgeFailureValues = ["unavailable",
 
 /-- C-19, D-39 — the help goldens are rendered at width 80. -/
 theorem helpGoldenColumns_eq : helpGoldenColumns = 80 := rfl
+
+/-- C-21, K-17 — the four join states are pairwise distinct. -/
+theorem proofStateTokens_nodup : proofStateTokens.Nodup := by decide
+
+/-- C-21 — both manifest build-result tokens are also join-state tokens: a manifest `checked`
+declaration can still join `stale`, but the token vocabularies overlap by design (the join's
+`checked`/`failed` states are read straight off the manifest when the location matches). -/
+theorem manifestStatusTokens_subset_proofStateTokens :
+    "checked" ∈ proofStateTokens ∧ "failed" ∈ proofStateTokens := by decide
+
+/-- C-21 — the checker reads exactly three top-level manifest keys. -/
+theorem manifestReadKeys_length : manifestReadKeys.length = 3 := by decide
+
+/-- C-21 — the three read keys are pairwise distinct. -/
+theorem manifestReadKeys_nodup : manifestReadKeys.Nodup := by decide
 
 end Facts
 

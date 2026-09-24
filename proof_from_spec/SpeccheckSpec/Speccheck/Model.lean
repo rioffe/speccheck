@@ -35,6 +35,9 @@ the spec's normative tables" is checked here row by row, and made *checkable* �
 | E-41 | `Input.interrupt` | exit 3, no report survives |
 | E-01/E-02/E-03/E-05/E-18 | `Fault.specZeroIds` … `Fault.outNotWritable` | the exit-3 set of §5.4 |
 | E-09/E-21/E-52/E-53/E-54/E-58/E-60; §5.1 bad values | the usage `Fault` constructors | the exit-2 set |
+| C-21, K-17 (v1.19) | `ProofState`, `ProofJoin`, `proofStateOf` | manifest-to-citation join: `checked`/`failed`/`unknown`/`stale`, `none` for no citation (D-49) |
+| E-63 (v1.19) | `statusWithProof`, `statusWithProof_ignoresProof` | proof is not a field of `Evidence`, so a wrapper that accepts it provably returns `statusOf`'s answer unchanged |
+| C-07, D-49 (v1.19) | `topLevelProofKeyPresent` | finding F-504 |
 
 Deliberately not modelled, with the reason. The spec is a program that reads a tree of files;
 Lean operates on pure values, so nothing that *is* the filesystem, the network, or a clock is a
@@ -53,6 +56,9 @@ parameter of the model:
 | C-17, K-16 ordering | advisory network pass; carried by T-89, T-90 |
 | C-18 trace rendering | rendering from modelled facts; carried by T-92…T-94 |
 | §9 tests, K-08 performance, K-05/K-06/K-12 timing | empirical / timing budgets; the §9 test ids carry them (see the deferral table) |
+| R-100, C-20 (v1.19) | the lean adapter — declaration-head split, bold-span doc-comment tag extraction | a text transformer over Lean source, the same class as C-01/C-03; carried by T-99 |
+| E-62, E-65 (v1.19) | an unreadable/non-Lean `--proof` file, or an unreadable/malformed `--proof-results` file | filesystem/IO, the same class as E-10/E-11/E-29/E-05; carried by T-99 |
+| I-018 (v1.19) | byte-identity of `speccheck.json`/`SPEC_CONFORMANCE_REPORT.md` under flag absence | rendering, the same class as C-08; carried by T-100 |
 -/
 import SpeccheckSpec.Speccheck.Spec
 
@@ -505,6 +511,49 @@ def outcome : Input → Option Result
   | .explainAbsentSpec => none
   | .interrupt => some { exit := exitContract, reports := false }
 
+/-! ## C-21, K-17 — the proof-evidence join (v1.19) -/
+
+/-- C-21, K-17 — the four states a cited declaration's manifest join can produce. -/
+inductive ProofState where
+  | checked | failed | unknown | stale
+  deriving DecidableEq, Repr
+
+/-- C-20, C-21, K-17 — the facts the join reads for one (declaration, id) citation: whether the
+lean adapter (C-20) attributed a citation at all (`cited`); among the manifest's `theorems[]`,
+whether one shares the declaration's name (`nameMatch`); among those, whether one also matches
+its file (and line, where present — K-17's "in a different file or line"; `locationMatch`); and,
+when matched, whether that entry's own `status` is `"checked"` rather than `"failed"`
+(`manifestChecked`). `locationMatch`/`manifestChecked` are read only when the fields before them
+hold — the join never inspects them otherwise, matching `proofStateOf`'s short-circuit order. -/
+structure ProofJoin where
+  cited : Bool
+  nameMatch : Bool
+  locationMatch : Bool
+  manifestChecked : Bool
+  deriving DecidableEq, Repr
+
+/-- C-21, K-17, D-49 — the join: no citation → `none` (the id's `proof` array is empty, C-07); a
+citation with no name-matching manifest entry → `unknown` (K-17: "never `failed`"); a name match
+whose file/line differ → `stale`; a full match → the manifest's own `checked`/`failed`. -/
+def proofStateOf (j : ProofJoin) : Option ProofState :=
+  if !j.cited then none
+  else if !j.nameMatch then some .unknown
+  else if !j.locationMatch then some .stale
+  else if j.manifestChecked then some .checked
+  else some .failed
+
+/-! ## E-63 — proof never changes status or the exit map -/
+
+/-- E-63 — a wrapper taking a proof state alongside the evidence `statusOf` already reads, to
+state "a proof state never changes status" as a real equality rather than an absent parameter.
+`_p` is unused by construction: `Evidence` (C-05) carries no proof field, so there is nothing for
+a proof state to reach. -/
+def statusWithProof (e : Evidence) (_p : Option ProofState) : Status := statusOf e
+
+/-- C-07, D-49 — whether the top-level `proof` key (and therefore its `build` echo) is written:
+the pinned rule ties it to `--proof` alone, not to `--proof-results` — see finding F-504. -/
+def topLevelProofKeyPresent (proofGiven _proofResultsGiven : Bool) : Bool := proofGiven
+
 -- Cross-module normalization: every definition `Theorems.lean` reasons through is `grind unfold`
 -- (and `public`), so it unfolds in the proof module.
 attribute [grind unfold]
@@ -522,5 +571,6 @@ attribute [grind unfold]
   barCells bar remainingSeconds
   Fault.isUsage Fault.isContract
   outcome
+  proofStateOf statusWithProof topLevelProofKeyPresent
 
 end SpeccheckSpec.Speccheck.Model

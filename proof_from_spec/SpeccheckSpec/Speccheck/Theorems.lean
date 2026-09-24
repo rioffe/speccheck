@@ -24,6 +24,12 @@ For the deterministic, enumerable part of `SPEC.md` v1.18, for **all inputs**, k
   (R-22).
 - **Coverage**: `outcome` is total over the enumerated input space *except* for the one silent case
   proved by `silentCaseExists` (finding F-501).
+- **The proof-evidence join** (C-21, K-17, v1.19): `proofStateOf` is total over its four boolean
+  facts (no case is under-determined — a citation is always `checked`, `failed`, `unknown`, or
+  `stale`); an absent citation always joins to `none`; a name-matched, location-mismatched entry is
+  always `stale`, never `failed`, and a name-unmatched one is always `unknown`, never `failed`
+  (K-17's own emphasis). Proof never changes status (E-63): `statusWithProof` provably ignores its
+  proof-state argument, for every evidence record and every proof state.
 
 ## What this does not prove
 
@@ -328,6 +334,33 @@ theorem row_bar_half : barCells 5 10 = 10 := by decide
 /-- **C-11** (transcription): a determined edge count equal to the total fills all 20 cells. -/
 theorem row_bar_full : barCells 10 10 = 20 := by decide
 
+/-- **C-21, D-49** (transcription): no citation at all joins to `none` (the id's `proof` array is
+empty). -/
+theorem row_proof_absent :
+    proofStateOf { cited := false, nameMatch := false, locationMatch := false, manifestChecked := false } = none := by
+  decide
+
+/-- **K-17** (transcription): a citation with no name-matching manifest entry is `unknown`. -/
+theorem row_proof_unknown :
+    proofStateOf { cited := true, nameMatch := false, locationMatch := false, manifestChecked := false } = some .unknown := by
+  decide
+
+/-- **K-17** (transcription): a name match at a different file/line is `stale`. -/
+theorem row_proof_stale :
+    proofStateOf { cited := true, nameMatch := true, locationMatch := false, manifestChecked := true } = some .stale := by
+  decide
+
+/-- **C-21** (transcription): a full match whose manifest entry is `checked` joins `checked`. -/
+theorem row_proof_checked :
+    proofStateOf { cited := true, nameMatch := true, locationMatch := true, manifestChecked := true } = some .checked := by
+  decide
+
+/-- **C-21** (transcription): a full match whose manifest entry is `failed` joins `failed`, with
+the build error line carried at the `theorems[]` level, not modelled here (deferred to T-99). -/
+theorem row_proof_failed :
+    proofStateOf { cited := true, nameMatch := true, locationMatch := true, manifestChecked := false } = some .failed := by
+  decide
+
 end Rows
 
 /-! ## Invariants — the "for all inputs" theorems -/
@@ -556,6 +589,27 @@ There is nothing to prove and nothing that *could* differ. -/
 theorem outcomeEnvironmentFree (i : Input) (e₁ e₂ : Unit) :
     (fun (_ : Unit) => outcome i) e₁ = (fun (_ : Unit) => outcome i) e₂ := rfl
 
+/-- **E-63** — a proof state never changes an id's status, for *every* evidence record and *every*
+proof state: `statusWithProof` accepts one and provably returns exactly what `statusOf` already
+returns. This is the "for all inputs" content of E-63's status half — `Evidence` (C-05) has no
+proof field, so there is structurally nothing a proof state could move. -/
+theorem statusWithProof_ignoresProof (e : Evidence) (p : Option ProofState) :
+    statusWithProof e p = statusOf e := rfl
+
+/-- **K-17** — the "never `failed`" clause, quantified over every join: a citation with no
+name-matching manifest entry is `unknown` and never anything else, in particular never `failed`. -/
+theorem proofUnmatchedNeverFailed (j : ProofJoin) (h : j.cited = true) (hn : j.nameMatch = false) :
+    proofStateOf j = some .unknown ∧ proofStateOf j ≠ some .failed := by
+  grind
+
+/-- **K-17** — a name-matched but location-mismatched join is always `stale`, whatever the
+manifest's own build status was — a `checked` build at the wrong file/line is still stale, not
+silently promoted to `checked`. -/
+theorem proofStaleRegardlessOfManifestStatus (j : ProofJoin) (h : j.cited = true)
+    (hn : j.nameMatch = true) (hl : j.locationMatch = false) :
+    proofStateOf j = some .stale := by
+  grind
+
 end Invariants
 
 /-! ## Reachability — the spec claims each exit code is reachable -/
@@ -636,6 +690,18 @@ theorem f503ExitPrecedenceDiffer :
       (if usage then exitUsage else if contract then exitContract else exitConforming) ≠
       (if contract then exitContract else if usage then exitUsage else exitConforming) :=
   ⟨true, true, by decide⟩
+
+/-- **F-504 (G-2, under-specified interaction, v1.19)** — C-07/D-49 tie the top-level `proof`
+key's presence (and therefore its `build` echo) to `--proof` alone: "omitted entirely — on the
+top-level object and on every id — when `--proof` was not given." But C-21 states the checker
+*reads* `--proof-results` independently — a manifest given without `--proof` still has its
+`build` block parsed (there is simply nothing to join it to, since no citation exists). The
+current wording means that configuration writes **no `proof` key at all**, silently discarding
+the manifest's own build result (exit code, declaration counts) that was in fact read — a reader
+of C-21 alone would reasonably expect `proof.build` to appear whenever `--proof-results` was
+given, regardless of `--proof`. `topLevelProofKeyPresent` (`Model.lean`) models the pinned rule
+exactly; the witness below is the case the rule and a reader's expectation disagree on. -/
+theorem f504ManifestReadButKeyAbsent : topLevelProofKeyPresent false true = false := rfl
 
 end Findings
 
@@ -750,9 +816,14 @@ end Findings
 -- | R-39 | The checker MUST compute, for every citation of an in-scope R/C/I/K/E id inside an attributed (non-file-level) test… | T-85, T-86, T-88 (planned) |
 -- | R-40 | The checker MUST accept a third subcommand, speccheck explain <ID>, that runs the same extract / attribute / map-re… | T-92, T-93, T-94 (planned) |
 -- | R-41 | The checker MUST document its own interface: for every flag the parser defines on speccheck, speccheck check, specc… | T-95, T-96, T-97, T-98 (planned) |
--- | T-01 … T-98 | the §9 acceptance tests (98 rows); each is the test that carries its own row | themselves (planned) |
+-- | R-100 (v1.19) | With --proof PATHS, the checker MUST scan the named Lean files or directories with the lean adapter (C-20) and attr… | T-99 (planned) |
+-- | C-20 (v1.19) | The lean adapter: declaration-head split, bold-span doc-comment tag extraction, directory recursion, unparseable/un… | T-99 (planned) |
+-- | E-62 (v1.19) | An unreadable or non-Lean file in a --proof path — Recorded as a notes entry; MUST NOT be a usage error or change the… | T-99 (planned) |
+-- | E-65 (v1.19) | --proof-results FILE given but unreadable, not well-formed JSON, or lacking build/theorems — Unreadable → exit 2; ma… | T-99 (planned) |
+-- | I-018 (v1.19) | Proof-input inertness: a check run without --proof/--proof-results writes speccheck.json and SPEC_CONFORMANCE_REPOR… | T-100 (planned) |
+-- | T-01 … T-100 | the §9 acceptance tests (100 rows); each is the test that carries its own row | themselves (planned) |
 --
--- The 98 `T-nn` acceptance tests themselves are the §9 inventory; each is its own carrier
+-- The 100 `T-nn` acceptance tests themselves are the §9 inventory; each is its own carrier
 -- (planned). A T id is never proven here: a T id's proof is a run, not a theorem.
 --
 -- ### Dual halves — proven in Lean, implementation half deferred
@@ -817,6 +888,9 @@ end Findings
 -- | R-28 | T-59 (planned) |
 -- | R-31 | T-65, T-66, T-67, T-68, T-69, T-71 (planned) |
 -- | R-35 | T-77 (planned) |
+-- | C-21 (v1.19) | T-99 (planned) |
+-- | K-17 (v1.19) | T-99 (planned) |
+-- | E-63 (v1.19) | T-99 (planned) |
 --
 -- ### Excluded — the spec puts these out of scope by name
 --

@@ -1,14 +1,17 @@
-# SPEC_MODEL_FINDINGS — `speccheck` (SPEC.md v1.18)
+# SPEC_MODEL_FINDINGS — `speccheck` (SPEC.md v1.19)
 
-> - **Produced by:** `spec-model` over `SPEC.md` v1.18 — the spec's own formal model, before any
->   implementation proof. Output: `proof_from_spec/` (Lean 4, `lake build` exit 0, zero warnings).
+> - **Produced by:** `spec-model` over `SPEC.md` — the spec's own formal model, before any
+>   implementation proof. First run v1.18; extended for v1.19's proof-parameter fold (10 new ids,
+>   all `UNCITED`, no implementation). Output: `proof_from_spec/` (Lean 4, `lake build` exit 0, zero
+>   warnings).
 > - **What is certified:** the *spec*, not a system. There is no implementation in this bridge: the
 >   model is a pure Lean function, `lake build` kernel-checks the claims the spec makes about
 >   itself, and every requirement out of Lean's reach is mapped to the §9 test that will carry it
 >   (**planned**, not run). See `proof_from_spec/README.md` for the trust boundary.
-> - **Numbering:** `F-501..F-503`, continuing the spec's review sequence (`F-001..F-017`,
+> - **Numbering:** `F-501..F-504`, continuing the spec's review sequence (`F-001..F-017`,
 >   `F-101..F-110`, `F-201..F-210`, `F-301..F-307`, `F-401..F-407`, `Q-001..Q-011` are all cited
->   inside `SPEC.md`).
+>   inside `SPEC.md`). F-504 is new in the v1.19 extension; F-501..F-503 are unchanged from the
+>   v1.18 run.
 > - **Disposition:** **findings are reported, not fixed.** This project does not edit `SPEC.md`;
 >   `spec-proposal` / `spec-writing` decide, and a fix bumps the spec's version.
 
@@ -19,26 +22,31 @@
 | F-501 | G-1 · silent case | P1 | §5.1 (`explain` synopsis vs. flag table), C-18, E-60 | `f501ExplainAbsentSpecSilent`, `f501NoSilenceFails` |
 | F-502 | G-2 · under-determined pin | P1 | C-07 `judge_available`, E-35, R-28 | `f502JudgeAvailableBudgetSilent`, `f502JudgeAvailableBudgetSilentMock`, `f502Contrast`, `f502StrictJudgeFailureNull` |
 | F-503 | G-2 · under-specified relation | P2 | §5.4, K-01 | `f503ExitPrecedenceDiffer` |
+| F-504 | G-2 · under-specified interaction (v1.19) | P2 | C-07, D-49 (`proof` key presence) | `f504ManifestReadButKeyAbsent` |
 
 No **G-3a** finding: every requirement Lean cannot reach names at least one §9 `T-nn` (§11's
-"Verified by" column is total over the 100 deferred requirements — checked mechanically).
+"Verified by" column is total over the 105 deferred requirements — checked mechanically).
 
 ## Scope map
 
 The full classification is in `proof_from_spec/SpeccheckSpec/Speccheck/Theorems.lean`'s closing
-comment. In brief, over the **252 declared conformance IDs**:
+comment. In brief, over the **262 declared conformance IDs** (252 at v1.18, +10 at v1.19):
 
-- **54 proven** — tagged in bold in `Model.lean`/`Theorems.lean`; the deterministic halves of the
+- **57 proven** — tagged in bold in `Model.lean`/`Theorems.lean`; the deterministic halves of the
   ID grammar and normalization, the JUnit join, the status algorithm, the judge-validation cascade,
-  the metrics and ratios, the exit map, the progress arithmetic, and the K-15 matcher.
-- **100 deferred** — the filesystem, the network, renderings, the process layer, timing budgets and
-  the §9 tests themselves; each names its `T-nn` carriers (planned).
-- **98 `T-nn`** — the §9 acceptance criteria are the test inventory; a T id is carried by itself.
+  the metrics and ratios, the exit map, the progress arithmetic, the K-15 matcher, and (v1.19) the
+  proof-evidence join and its status-invariance (C-21, K-17, E-63).
+- **105 deferred** — the filesystem, the network, renderings, the process layer, timing budgets and
+  the §9 tests themselves; each names its `T-nn` carriers (planned). v1.19 adds the lean adapter's
+  own parsing (R-100, C-20), its file-IO edge cases (E-62, E-65), and the byte-identity rendering
+  claim (I-018).
+- **100 `T-nn`** — the §9 acceptance criteria are the test inventory; a T id is carried by itself
+  (98 at v1.18, +T-99/T-100 at v1.19).
 - **9 named exclusions** — the spec's own §0 Non-goals and §5.2 (`O-2`, `O-3` cited). They are not
-  conformance IDs (`O-n` is outside C-01's `FAMILY`), so they consume none of the 252; they are
+  conformance IDs (`O-n` is outside C-01's `FAMILY`), so they consume none of the 262; they are
   listed so the boundary is stated rather than assumed, and are never used to hide a G-3a.
 
-The 54 proven IDs appear a second time in the deferral section as **dual halves** (the theorem
+The 57 proven IDs appear a second time in the deferral section as **dual halves** (the theorem
 discharges the deterministic half; the §9 test carries the implementation half).
 
 ---
@@ -132,18 +140,51 @@ implies it; the table should say it.)
 
 ---
 
+## F-504 — the top-level `proof` key's presence is tied to `--proof` alone, dropping a read manifest
+
+**Class:** G-2 (under-specified interaction). **Severity:** P2. **Anchors:** C-07, D-49 (v1.19).
+
+**Observation.** C-07's v1.19 addition states: "the key is omitted entirely — on the top-level
+object and on every id — when `--proof` was not given." D-49 separately pins the top-level shape,
+`{"build": {…} | null}`, echoing C-21's `build` "when `--proof-results` was also given." Read
+together, a run given `--proof-results` **without** `--proof` has its manifest read (C-21 states
+the checker reads it unconditionally) but writes **no `proof` key anywhere** — the manifest's own
+`build` result (exit code, declaration counts) is silently discarded, because the presence gate is
+tied to `--proof` alone rather than to "was any proof input given."
+
+**Why it matters.** `--proof-results` is documented (§5.1) as independently accepted — nothing in
+its own row says it is inert without `--proof`. An operator who passes only `--proof-results` (to
+report a Lean build's aggregate health with no per-id citations, say) gets a run that read the file
+and silently produced no trace of having done so.
+
+**Witness.** `topLevelProofKeyPresent` (`Model.lean`) models the pinned rule exactly as a function
+of the two flags; `f504ManifestReadButKeyAbsent : topLevelProofKeyPresent false true = false`
+exhibits the case a reader would not expect.
+
+**Proposed resolution (for `spec-proposal`).** Either (a) gate the top-level key on
+`--proof ∨ --proof-results` instead of `--proof` alone (per-id `proof` stays gated on `--proof`,
+since there is nothing to attribute without a citation), or (b) state explicitly that
+`--proof-results` without `--proof` is accepted but produces no report trace, so the current
+behavior is a documented no-op rather than a silent one.
+
+---
+
 ## What was checked mechanically
 
 - **Tag audit** — `grep -rhoE '\*\*[^*]+\*\*' SpeccheckSpec/ | tr -d '*' | grep -oE '[RCIKE]-[0-9]+' | sort -u`
-  yields exactly the 54 proven IDs. Every ID in that set is discharged by a declaration in
+  yields exactly the 57 proven IDs. Every ID in that set is discharged by a declaration in
   `Theorems.lean`; every other declared ID is in the deferral table (with a `T-nn`) or the excluded
-  table. `54 + 100 + 98 = 252`, disjoint, covering the declared set exactly.
+  table. `57 + 105 + 100 = 262`, disjoint, covering the declared set exactly.
 - **Anti-tautology audit** — `section Rows` is transcription and says so; every theorem outside it
   names the spec sentence it discharges (see the header's tautology rule and each doc comment).
-  `prefixEq_take`/`infixOf_take` are K-15 support lemmas, tagged as such.
+  `prefixEq_take`/`infixOf_take` are K-15 support lemmas, tagged as such. v1.19's
+  `statusWithProof_ignoresProof` follows the same precedent as `outcomeEnvironmentFree` (I-002): a
+  claim about the input space (proof is not a field of `Evidence`), not a definition re-read.
 - **Statement audit** — re-read of `SPEC.md` against each theorem's statement: quantifiers,
   hypotheses and goal match the spec's sentences. Two statements were **weakened honestly** during
-  the build rather than made to fit: `assertGrounded` (I-005's grounding facts, not a clause
+  the v1.18 build rather than made to fit: `assertGrounded` (I-005's grounding facts, not a clause
   non-emptiness the model does not derive) and `tSrcCitationEvidenceOnly` (a non-retired T id, the
-  case C-05 step 1 does not shadow).
-- **Build** — `cd proof_from_spec && lake build`: exit 0, **zero warnings**, no `sorry`/`admit`.
+  case C-05 step 1 does not shadow). v1.19's five new theorems were re-read against R-100, C-20,
+  C-21, K-17, E-62, E-63, E-65, I-018 with no weakening needed.
+- **Build** — `cd proof_from_spec && lake build`, `.lake` wiped first: exit 0, **zero warnings**,
+  no `sorry`/`admit` (Lean `leanprover/lean4:v4.34.0`, pinned).

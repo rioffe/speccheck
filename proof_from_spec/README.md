@@ -1,6 +1,6 @@
 # speccheck — spec model
 
-Lean 4 formalization of what [`SPEC.md`](../SPEC.md) v1.18 *says* — its normative tables as a pure
+Lean 4 formalization of what [`SPEC.md`](../SPEC.md) v1.19 *says* — its normative tables as a pure
 total function, with the spec's own claims about itself kernel-checked.
 
 > **There is no implementation.** This certifies the *spec*, not a system. Lean proves the model; it
@@ -18,10 +18,11 @@ total function, with the spec's own claims about itself kernel-checked.
 - `SpeccheckSpec/Speccheck/Model.lean` — the **model**: the ID grammar and normalization (C-01,
   I-011), the two-step `join_name` and worst-of (C-04), the status algorithm `statusOf` with its
   five steps (C-05), the validation cascade `coerce` (C-06), the ratios and `judge_available`
-  (C-07), the exit map `exitOfCheck` (§5.4, R-14, R-15, R-28), the progress arithmetic (C-11), and
-  `outcome : Input → Option Result`, where `none` **means the spec states no outcome**. The
-  correspondence table (spec anchor → model element) is its header — the manual trust boundary,
-  including every table deliberately *not* modelled and why.
+  (C-07), the exit map `exitOfCheck` (§5.4, R-14, R-15, R-28), the progress arithmetic (C-11), the
+  proof-evidence join `proofStateOf` and the proof-never-changes-status wrapper `statusWithProof`
+  (v1.19, C-21, K-17, E-63), and `outcome : Input → Option Result`, where `none` **means the spec
+  states no outcome**. The correspondence table (spec anchor → model element) is its header — the
+  manual trust boundary, including every table deliberately *not* modelled and why.
 - `SpeccheckSpec/Speccheck/Theorems.lean` — **the proof**: `section Rows` (transcription of the
   spec's tables — not evidence, and it says so), `section Invariants` (the "for all inputs"
   theorems: the closed exit set, downgrade-only judging, grounded verdicts, `null`-on-zero
@@ -50,7 +51,7 @@ Overclaiming leg B as leg C is the one error this project must not make.
 
 ## Findings
 
-Three spec-precision gaps, each with a kernel-checked witness — see
+Four spec-precision gaps, each with a kernel-checked witness — see
 [`docs/reviews/SPEC_MODEL_FINDINGS.md`](../docs/reviews/SPEC_MODEL_FINDINGS.md):
 
 - **F-501 (G-1, P1)** — `explain` without `--spec` is an enumerated input with no stated outcome
@@ -61,7 +62,12 @@ Three spec-precision gaps, each with a kernel-checked witness — see
   `f502JudgeAvailableBudgetSilent`, `f502Contrast`, `f502StrictJudgeFailureNull`.
 - **F-503 (G-2, P2)** — §5.4/K-01 give no precedence when one run carries both a usage fault (`2`)
   and a contract violation (`3`). Witness: `f503ExitPrecedenceDiffer`.
+- **F-504 (G-2, P2, v1.19)** — the top-level `proof` key's presence is tied to `--proof` alone
+  (C-07/D-49), so `--proof-results` given without `--proof` reads a manifest whose `build` result
+  is never written anywhere in the report. Witness: `f504ManifestReadButKeyAbsent`.
 
-Scope: 252 declared IDs — **54 proven**, **100 deferred** (each naming its planned `T-nn`
-carriers), **98 `T-nn`** (the test inventory), **9 named exclusions** — its partition checked
-mechanically. Findings are reported, not fixed: this project does not edit `SPEC.md`.
+Scope: 262 declared IDs — **57 proven**, **105 deferred** (each naming its planned `T-nn`
+carriers), **100 `T-nn`** (the test inventory), **9 named exclusions** — its partition checked
+mechanically. v1.19 added the proof-evidence join (`proofStateOf`, `statusWithProof`; C-21, K-17,
+E-63 proven; R-100, C-20, I-018, E-62, E-65 deferred to T-99/T-100) over the v1.18 baseline.
+Findings are reported, not fixed: this project does not edit `SPEC.md`.
