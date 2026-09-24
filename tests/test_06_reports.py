@@ -427,6 +427,47 @@ def test_determinism_across_paths_out_placement_and_leftovers(tmp_path: Path):
     )  # `--src .` did scan the tests tree as source
 
 
+def test_killed_run_leftover_is_deleted_never_scanned_and_leaves_no_trace(tmp_path: Path):
+    """E-34, standalone: a `.speccheck.json.*.tmp` / `.SPEC_CONFORMANCE_REPORT.md.*.tmp` file
+    under `--out` is, by §3.1's own stage table, exactly and only what an earlier run's write
+    ((2) write the `.<nonce>.tmp` pair, (3)-(4) rename each to its final name) leaves behind when
+    it is interrupted between steps (2) and (4) -- a normal run's own step (1) always deletes any
+    such file before writing its own, so a healthy run never leaves one, and any that exists
+    before step (1) runs must therefore be from a run that was killed mid-write. This test plants
+    one with exactly that naming shape, decisively unlike the fixture's own real citations (its
+    content is text no in-scope ID ever names), then asserts all three parts of E-34's outcome:
+    the file is gone afterward (deleted at step (1)), the run's report is byte-identical to a run
+    made with no such file ever present (never scanned -- C-03 excludes `--out`), and the file's
+    own planted text never appears as a citation anywhere in the report."""
+    baseline = _golden_copy(tmp_path / "baseline")
+    baseline_out = baseline / "out"
+    run_cli(_golden_args("--judge", "mock", "--strict", "--out", "out"), baseline)
+    baseline_json = (baseline_out / "speccheck.json").read_bytes()
+    baseline_md = (baseline_out / "SPEC_CONFORMANCE_REPORT.md").read_bytes()
+
+    killed = _golden_copy(tmp_path / "killed")
+    killed_out = killed / "out"
+    killed_out.mkdir()
+    leftover_json = killed_out / ".speccheck.json.deadbeef.tmp"
+    leftover_md = killed_out / ".SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp"
+    marker = "UNMISTAKABLE-KILLED-RUN-LEFTOVER-MARKER-R-01"
+    leftover_json.write_text(marker)
+    leftover_md.write_text(marker)
+    run_cli(_golden_args("--judge", "mock", "--strict", "--out", "out"), killed)
+
+    # (a) deleted at step (1): the two leftovers, named exactly, are gone.
+    assert not leftover_json.exists()
+    assert not leftover_md.exists()
+    # (b) never scanned: the run's own two reports are byte-identical to the leftover-free
+    # baseline -- if the leftover had been read as a source or test file, its marker text would
+    # have produced a dangling citation and the reports would differ.
+    assert (killed_out / "speccheck.json").read_bytes() == baseline_json
+    assert (killed_out / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == baseline_md
+    # (c) belt and suspenders: the marker itself never appears anywhere in either report.
+    assert marker not in (killed_out / "speccheck.json").read_text()
+    assert marker not in (killed_out / "SPEC_CONFORMANCE_REPORT.md").read_text()
+
+
 def test_metrics_recomputable_from_evidence_table(tmp_path: Path):
     """T-37: every metric in the report is recomputable from the report's own evidence table plus
     the results file (this test recomputes them independently). (R-24)"""

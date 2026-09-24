@@ -96,6 +96,25 @@ re-run to confirm — left to the requester):
   `fixtures/target/golden/speccheck.json` and `golden/SPEC_CONFORMANCE_REPORT.md` directly — the
   actual "v1.18 run" I-018 refers to, not merely a second run of this test's own synthetic tree.
 
+**Phase B re-run against the fix (2026-09-24, requester's own run, this time with `--proof proof
+--proof-results build/proof/proof-results.json` also given, checking speccheck's own real Lean
+proof against itself):** `speccheck: NOT CONFORMING - 261/262 passing (99.6%), 0 failing,
+0 skipped, 1 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm`. T-100 now
+reads clean — confirms that fix. **E-34 read weak a second time**, with a narrower rationale:
+not "never asserts the leftover is gone" (already fixed) but that the test's own comment doesn't
+establish *why* the planted file represents a killed run rather than an arbitrary one, i.e. the
+semantic link back to E-34's own condition, not just its outcome. **Fixed again:**
+`test_killed_run_leftover_is_deleted_never_scanned_and_leaves_no_trace`, a new standalone test
+grounding the claim directly in §3.1's own stage table — step (1) deletes any
+`.speccheck.json.*.tmp` / `.SPEC_CONFORMANCE_REPORT.md.*.tmp` under `--out` before a healthy run
+writes its own pair, so a file with that exact name that exists *before* step (1) runs can only be
+from a run that was interrupted between an earlier run's steps (2) and (4) — which is what "from a
+killed run" means, stated in the test's own docstring rather than left implicit — then asserts all
+three parts of the outcome (deleted, never scanned — byte-identical to a leftover-free baseline —
+and the planted marker text never appears in either report). Verified: `pytest tests -q` — 150
+passed (149 → 150, the new test); mock gate still `262/262`, `0 dangling`, `0 stale`; `--self-check`
+— `ok`; `ruff` — clean. Phase B not re-run against this second fix; left to the requester again.
+
 Both fixes verified: `pytest tests -q` — 149 passed; `speccheck check --judge mock --strict` —
 `CONFORMING - 262/262 passing (100.0%), ..., 0 dangling, 0 stale`; `--self-check` — `ok`; `ruff` —
 clean. Phase B has not been re-run against the fix (left to the requester, who ran it the first
@@ -1483,7 +1502,7 @@ id. "Self-app" is the status from the T-48 run.
 | E-31 | `extract.py` | T-55 `test_01_extraction::test_row_and_heading_grammar_edge_cases` | PASSING |
 | E-32 | `cli.py`, `report.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | E-33 | `extract.py` | T-57 `test_02_attribution::test_ignore_markers` | PASSING |
-| E-34 | `extract.py`, `report.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; T-45 `test_07_cli::test_out_failures_and_temp_and_rename` | PASSING |
+| E-34 | `extract.py`, `report.py` | T-36 `test_06_reports::test_determinism_across_paths_out_placement_and_leftovers`; `test_06_reports::test_killed_run_leftover_is_deleted_never_scanned_and_leaves_no_trace` (v1.19.1, standalone, see §0k); T-45 `test_07_cli::test_out_failures_and_temp_and_rename` | PASSING |
 | E-35 | `judge.py` (budget, both forms) | T-61 `test_07_cli::test_judge_budget`; T-89 `test_05_judge::test_triage_orders_and_truncates_the_judge_queue` | PASSING |
 | E-36 | `cli.py`, `judge.py` | T-59 `test_07_cli::test_strict_llm_judge_gate` | PASSING |
 | E-37 | `graph.py`, `report.py` | `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength`; `test_06_reports::test_json_shape_orders_rounding_and_verdict_keys`; `test_06_reports::test_markdown_layout` | PASSING |
@@ -1614,17 +1633,17 @@ id. "Self-app" is the status from the T-48 run.
 ```text
 Spec coverage: 262/262 IDs realized (0 deferred)
 speccheck (mock): speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: NOT CONFORMING - 260/262 passing (99.2%), 0 failing, 0 skipped,
-                  2 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
-                  (openai/gpt-6-luna-pro via OpenRouter, judge_available=true,
-                  unknown_rate=0.011). Initially and mistakenly recorded as "not run" after
-                  declining two legitimate messages as apparent prompt injection — corrected
-                  post-build; see §0k. Two real WEAKLY_PASSING findings (E-34, T-100), since
-                  strengthened (§0k) — Phase B not yet re-run against the fix.
+speccheck (llm):  round 1: NOT CONFORMING - 260/262, 2 weak (E-34, T-100) — see §0k for the
+                  prompt-injection misdiagnosis this run corrected. round 2, against the fix,
+                  --proof/--proof-results also given: NOT CONFORMING - 261/262 passing (99.6%),
+                  0 failing, 0 skipped, 1 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling,
+                  0 stale; judge=llm. T-100 now clean; E-34 weak again on a narrower rationale,
+                  fixed a second time with a standalone test grounded in §3.1's own stage table
+                  (§0k) — not yet re-verified under Phase B a third time.
 Observed: no rendered surface; the two golden reports (T-46/T-99) and the four --help screens
 were the artifacts to read, and all were diffed byte-for-byte against their goldens (§0k)
 Readiness: BUILT
-Conformance: PASS WITH NOTES (E-34, T-100 strengthened per §0k; Phase B re-run pending)
+Conformance: PASS WITH NOTES (E-34 fixed twice per §0k, third Phase B pass pending; T-100 confirmed clean)
 ```
 
 v1.19's deliverable (R-100, C-20, C-21, K-17, T-99, T-100) and v1.19.1's fix (I-018, E-62, E-63,
@@ -1632,10 +1651,10 @@ E-65, D-45) are green on the mock gate. Every prior version's guarantee is uncha
 goldens are byte-identical to a fresh run without `--proof`/`--proof-results` (T-46/T-71/I-018),
 `_selfcheck/` equals `fixtures/target/` (T-60, now including the untouched `proof/` +
 `proof-results.json` siblings), the mock gate is 262/262 with 0 dangling and 0 stale, and the
-`check --help` golden gained exactly the two new flag rows T-100 names. Phase B, once actually
-run (§0k), found two tests whose assertions were weaker than what they claimed to prove; both
-have since been strengthened and re-verified against the mock gate and the full suite (§0k) —
-Phase B itself has not been re-run to confirm the LLM judge now reads them clean.
+`check --help` golden gained exactly the two new flag rows T-100 names. Phase B, run twice by the
+requester (§0k), found two, then one, tests whose assertions were weaker than what they claimed to
+prove; T-100 is confirmed fixed by the second run, E-34 was fixed a second time after the second
+run's narrower critique and has not yet had a third Phase B pass to confirm it.
 
 The notes are:
 
