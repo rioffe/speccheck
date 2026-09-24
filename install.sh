@@ -2,14 +2,18 @@
 #
 # install.sh — install the speccheck toolkit for the local user:
 #
-#   1. the five skills (spec-writing, spec-review, spec-plan, spec-build, spec-proposal) into
-#      the skill directories of the coding agents you use: Claude Code, Pi, and Oh My Pi;
+#   1. the six skills (spec-writing, spec-review, spec-plan, spec-build, spec-proposal,
+#      spec-proof) into the skill directories of the coding agents you use:
+#      Claude Code, Pi, and Oh My Pi;
 #   2. spec2pdf.sh (+ scripts/xref_preprocess.py) onto your PATH, together with
 #      its rendering dependencies (pandoc, XeLaTeX, mermaid-filter, a browser);
 #   3. the speccheck CLI itself, as a uv tool with the [llm] extra, plus the
 #      LLM judge environment (Ollama + a model + the SPECCHECK_JUDGE_* variables
 #      in ~/.config/speccheck/judge.env) so the spec-build gate's Phase B
-#      (--judge llm) works out of the box.
+#      (--judge llm) works out of the box;
+#   4. the Lean toolchain (elan + lake + lean, into ~/.elan) so the spec-proof
+#      skill's builds run: elan manages toolchains rustup-style, and each
+#      project's lean-toolchain file pins the exact version lake downloads.
 #
 # Everything is per-user (nothing under /usr); the only sudo is the one Homebrew
 # / apt / tlmgr may ask for themselves. Re-running is safe: files are replaced,
@@ -25,6 +29,7 @@ DO_SKILLS=0
 DO_SPEC2PDF=0
 DO_DEPS=1
 DO_SPECCHECK=0
+DO_LEAN=0
 AGENTS=""
 MODE="copy"     # copy | link
 PREFIX="${SPECCHECK_PREFIX:-$HOME/.local}"
@@ -43,12 +48,16 @@ usage() {
   cat <<'EOF'
 Usage: ./install.sh [COMPONENTS] [OPTIONS]
 
-Components (default: all three):
-  --skills             install skills/{spec-writing,spec-review,spec-plan,spec-build,spec-proposal}
+Components (default: all four):
+  --skills             install skills/{spec-writing, spec-review, spec-plan,
+                       spec-build, spec-proposal, spec-proof}
   --spec2pdf           install spec2pdf.sh + scripts/ and its dependencies
   --speccheck          install the speccheck CLI (uv tool, with the [llm] extra)
                        and the LLM judge environment: Ollama, the judge model,
                        and SPECCHECK_JUDGE_* in ~/.config/speccheck/judge.env
+  --lean               install the Lean toolchain (elan + lake + lean, into
+                       ~/.elan) for the spec-proof skill; a per-project
+                       lean-toolchain file pins the version lake auto-downloads
 
 Options:
   --agents LIST        comma-separated agents to install skills for
@@ -84,6 +93,7 @@ Where things go:
   spec2pdf.sh   <prefix>/bin/spec2pdf.sh -> <prefix>/share/speccheck/spec2pdf.sh
   speccheck     ~/.local/bin/speccheck (uv tool install)
   judge env     ~/.config/speccheck/judge.env (SPECCHECK_JUDGE_URL / _MODEL / _API_KEY / _TIMEOUT)
+  Lean toolchain  ~/.elan (elan + lake + lean; per-project lean-toolchain pins the version)
 
 Examples:
   ./install.sh                         # everything, for claude + pi + omp
@@ -91,6 +101,7 @@ Examples:
   ./install.sh --agents claude --skills
   ./install.sh --spec2pdf --no-deps    # just the script, deps already present
   ./install.sh --speccheck --judge-model gemma4:latest --rc ~/.zshrc
+  ./install.sh --lean                   # just the Lean toolchain (for spec-proof)
   ./install.sh --uninstall
   ./install.sh -i                      # guided
 EOF
@@ -101,6 +112,7 @@ while [[ $# -gt 0 ]]; do
   --skills) DO_SKILLS=1 ;;
   --spec2pdf) DO_SPEC2PDF=1 ;;
   --speccheck) DO_SPECCHECK=1 ;;
+  --lean) DO_LEAN=1 ;;
   --agents)
     shift
     [[ $# -gt 0 && "$1" != -* ]] || { echo "Error: --agents needs a list (e.g. claude,pi,omp)." >&2; exit 2; }
@@ -145,8 +157,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 # No component named -> all of them.
-if [[ $DO_SKILLS -eq 0 && $DO_SPEC2PDF -eq 0 && $DO_SPECCHECK -eq 0 ]]; then
-  DO_SKILLS=1; DO_SPEC2PDF=1; DO_SPECCHECK=1
+if [[ $DO_SKILLS -eq 0 && $DO_SPEC2PDF -eq 0 && $DO_SPECCHECK -eq 0 && $DO_LEAN -eq 0 ]]; then
+  DO_SKILLS=1; DO_SPEC2PDF=1; DO_SPECCHECK=1; DO_LEAN=1
 else
   COMPONENTS_GIVEN=1
 fi
@@ -443,10 +455,63 @@ uninstall_speccheck() {
   say "    (a 'source $JUDGE_ENV' line in your shell rc, if you added one, is left for you to remove)"
 }
 
+# The Lean toolchain behind the spec-proof skill: elan (a rustup-style manager)
+# provides lake/lean; each project's lean-toolchain file pins the exact version,
+# which elan downloads into ~/.elan on first use.
+install_lean() {
+  local elan_home="${ELAN_HOME:-$HOME/.elan}"
+  local elan_bin="$elan_home/bin" just_installed=0 have_elan=0
+  step "Lean toolchain (elan + lake + lean) for the spec-proof skill"
+  if have lake || have elan; then
+    say "    elan/lake already present; skipping install"
+  elif [[ -x "$elan_bin/elan" ]]; then
+    say "    elan found in $elan_bin (not on PATH); using it"
+    export PATH="$elan_bin:$PATH"
+  else
+    case $PKG in
+    brew)
+      run brew install elan
+      just_installed=1
+      ;;
+    *)
+      if [[ -d /nix/store ]]; then
+        warn "NixOS: install the nixpkgs elan (nix-env -iA nixpkgs.elan); it patches the toolchains NixOS needs."
+        return 0
+      fi
+      say "    elan not found; installing with the official script (per-user, into ~/.elan)."
+      run sh -c 'curl -fsSL https://elan.lean-lang.org/elan-init.sh | sh -s -- -y --no-modify-path'
+      export PATH="$elan_bin:$PATH"
+      just_installed=1
+      ;;
+    esac
+  fi
+  if have elan || [[ $just_installed -eq 1 && $DRY -eq 1 ]]; then have_elan=1; fi
+  local have_default=0
+  grep -q '^default_toolchain' "$elan_home/settings.toml" 2>/dev/null && have_default=1
+  if [[ $have_elan -eq 1 && $have_default -eq 0 ]]; then
+    say "    no default toolchain; setting leanprover/lean4:stable"
+    run elan default leanprover/lean4:stable
+  fi
+  if have lake || [[ $DRY -eq 1 ]]; then
+    # First use downloads the default toolchain if elan has not fetched it yet.
+    run lake --version
+  elif [[ -x "$elan_bin/lake" ]]; then
+    warn "$elan_bin has lake but is not on your PATH; add  export PATH=\"$elan_bin:\$PATH\"  to your shell profile."
+  else
+    warn "lake still not on PATH; open a new shell and re-run."
+  fi
+  return 0
+}
+
+uninstall_lean() {
+  step "Lean toolchain"
+  say "    left in place (a dependency): remove it with  elan self uninstall  or  brew uninstall elan"
+}
+
 # ----------------------------------------------------------------- summary --
 verify() {
   step "Verification"
-  local ok=1
+  local ok=1 v=""
   if [[ $DO_SKILLS -eq 1 ]]; then
     IFS=',' read -r -a agent_list <<<"$AGENTS"
     for agent in "${agent_list[@]}"; do
@@ -477,6 +542,16 @@ verify() {
       else
         say "    note SPECCHECK_JUDGE_* not in this shell yet: source \"$JUDGE_ENV\" (or open a new shell)"
       fi
+    fi
+  fi
+  if [[ $DO_LEAN -eq 1 ]]; then
+    v="$(lake --version 2>/dev/null | head -1 || true)"
+    if have lake && [[ -n "$v" ]]; then
+      say "    ok   $v"
+    elif have lake; then
+      say "    FAIL lake --version (check  elan show)"; ok=0
+    else
+      say "    lake not on PATH yet (open a new shell if it was just installed)"
     fi
   fi
   if [[ $ok -eq 1 ]]; then
@@ -551,16 +626,18 @@ interactive() {
   say ""
 
   # 1. components (flags on the command line pre-select; otherwise all on)
-  local d_sk=y d_pdf=y d_sc=y
+  local d_sk=y d_pdf=y d_sc=y d_lean=y
   if [[ $COMPONENTS_GIVEN -eq 1 ]]; then
     [[ $DO_SKILLS -eq 1 ]] || d_sk=n
     [[ $DO_SPEC2PDF -eq 1 ]] || d_pdf=n
     [[ $DO_SPECCHECK -eq 1 ]] || d_sc=n
+    [[ $DO_LEAN -eq 1 ]] || d_lean=n
   fi
-  ask_yn "Install the skills (spec-writing, spec-review, spec-plan, spec-build, spec-proposal)?" "$d_sk" && DO_SKILLS=1 || DO_SKILLS=0
+  ask_yn "Install the skills (spec-writing, spec-review, spec-plan, spec-build, spec-proposal, spec-proof)?" "$d_sk" && DO_SKILLS=1 || DO_SKILLS=0
   ask_yn "Install spec2pdf.sh (Markdown -> PDF with math, mermaid, clickable ids)?" "$d_pdf" && DO_SPEC2PDF=1 || DO_SPEC2PDF=0
   ask_yn "Install the speccheck CLI (the spec-build conformance gate)?" "$d_sc" && DO_SPECCHECK=1 || DO_SPECCHECK=0
-  if [[ $DO_SKILLS -eq 0 && $DO_SPEC2PDF -eq 0 && $DO_SPECCHECK -eq 0 ]]; then
+  ask_yn "Install the Lean toolchain (elan + lake/lean, for the spec-proof skill)?" "$d_lean" && DO_LEAN=1 || DO_LEAN=0
+  if [[ $DO_SKILLS -eq 0 && $DO_SPEC2PDF -eq 0 && $DO_SPECCHECK -eq 0 && $DO_LEAN -eq 0 ]]; then
     say "Nothing selected; exiting."
     exit 0
   fi
@@ -647,6 +724,7 @@ interactive() {
       say "  judge       $JUDGE_MODEL @ $JUDGE_URL -> $JUDGE_ENV$([[ -n "$RC_FILE" ]] && printf ', sourced from %s' "$RC_FILE")"
     fi
   fi
+  [[ $DO_LEAN -eq 1 ]] && say "  lean        elan + lake/lean -> ~/.elan (brew on macOS; the official script elsewhere)"
   say ""
   if ! ask_yn "Proceed?" y; then
     say "Aborted; nothing changed. Equivalent non-interactive command:"
@@ -664,6 +742,7 @@ equivalent_command() {
   [[ $DO_SPEC2PDF -eq 1 && $DO_DEPS -eq 0 ]] && cmd+=" --no-deps"
   [[ $DO_SPEC2PDF -eq 1 && $TEX == basic ]] && cmd+=" --basic-tex"
   [[ $DO_SPECCHECK -eq 1 ]] && cmd+=" --speccheck"
+  [[ $DO_LEAN -eq 1 ]] && cmd+=" --lean"
   if [[ $DO_SPECCHECK -eq 1 ]]; then
     if [[ $DO_JUDGE -eq 1 ]]; then
       cmd+=" --judge-model $JUDGE_MODEL --judge-url $JUDGE_URL"
@@ -688,6 +767,7 @@ if [[ $UNINSTALL -eq 1 ]]; then
   [[ $DO_SKILLS -eq 1 ]] && uninstall_skills
   [[ $DO_SPEC2PDF -eq 1 ]] && uninstall_spec2pdf
   [[ $DO_SPECCHECK -eq 1 ]] && uninstall_speccheck
+  [[ $DO_LEAN -eq 1 ]] && uninstall_lean
   say "Removed."
   exit 0
 fi
@@ -696,4 +776,5 @@ fi
 [[ $DO_SPEC2PDF -eq 1 ]] && install_spec2pdf
 [[ $DO_SPECCHECK -eq 1 ]] && install_speccheck
 [[ $DO_SPECCHECK -eq 1 && $DO_JUDGE -eq 1 ]] && install_judge
+[[ $DO_LEAN -eq 1 ]] && install_lean
 [[ $DRY -eq 1 ]] || verify

@@ -29,6 +29,14 @@ three legs, and this skill builds only the middle one:
 Overclaiming leg 2 as leg 1 or leg 3 is the one sin of proof work. The proof's README says,
 in its first screen: what Lean certifies, what it does not, and which tests carry the rest.
 
+## Prerequisites
+
+`lake` on PATH (elan, the rustup-style manager; `~/.elan` is home for it and the
+toolchains it downloads). If it is missing: `./install.sh --lean` in the speccheck
+checkout, or the official install, `curl https://elan.lean-lang.org/elan-init.sh -sSf | sh`.
+A project's `lean-toolchain` file then pins the exact toolchain lake fetches on first
+build — the skill does not install or update the toolchain itself.
+
 ## When to use
 
 - "prove the spec" / "add a formal proof" / "build the Lean half" / "prove `<SPEC.md>`" for a

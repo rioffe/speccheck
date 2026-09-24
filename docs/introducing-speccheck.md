@@ -220,7 +220,7 @@ Everything is in one repository, MIT for the code and CC BY 4.0 for the document
 
 ```bash
 git clone https://github.com/rioffe/speccheck && cd speccheck
-# skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh, the speccheck CLI, a local judge
+# skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh, the speccheck CLI, a local judge, the Lean toolchain
 ./install.sh --interactive         
 speccheck --self-check
 ```

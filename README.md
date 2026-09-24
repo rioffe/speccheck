@@ -127,7 +127,7 @@ tests that proved their IDs only by implication and the tests, not the code, wer
 `install.sh` sets up everything a user of the toolkit needs, per-user and idempotently:
 
 ```bash
-./install.sh                    # skills for Claude Code + Pi + Oh My Pi, spec2pdf.sh + its deps, the speccheck CLI
+./install.sh                    # skills for Claude Code + Pi + Oh My Pi, spec2pdf.sh + its deps, the speccheck CLI, the Lean toolchain
 ./install.sh -i                 # guided: asks each choice with defaults (detected agents, local Ollama models, your shell rc), shows the plan, confirms
 ./install.sh --skills --link    # only the skills, symlinked into this checkout so `git pull` updates them
 ./install.sh --agents claude    # pick agents: claude, pi, omp, agents (~/.agents/skills, read by Pi and OMP)
@@ -143,9 +143,10 @@ tests that proved their IDs only by implication and the tests, not the code, wer
 | its dependencies | `pandoc`, XeLaTeX (`mactex-no-gui`, or `--basic-tex` + `tlmgr`), Node + `mermaid-filter`/`mmdc`, a Chrome/Chromium (puppeteer's if none is found) — via Homebrew on macOS, apt on Debian/Ubuntu, instructions elsewhere |
 | `speccheck` | `uv tool install "speccheck[llm] @ <this checkout>"` → `~/.local/bin/speccheck` (installs `uv` first if missing) |
 | LLM judge env | Ollama (installed if missing), the judge model pulled if missing (`--judge-model`, default `qwen3:8b`), and `~/.config/speccheck/judge.env` with `SPECCHECK_JUDGE_URL/_MODEL/_API_KEY/_TIMEOUT`; `--rc ~/.zshrc` appends the `source` line, otherwise it is printed; `--no-judge` skips |
+| Lean toolchain | `elan` (the rustup-style manager) + the default Lean into `~/.elan`, with `lake`/`lean` on PATH — brew on macOS, the official `elan-init` script elsewhere; for the spec-proof skill, whose builds read each project's `lean-toolchain` file, which pins the exact version `lake` auto-downloads; `--lean` |
 
 It ends with a verification pass (`SKILL.md` present per agent, `spec2pdf.sh --help`, the tools on
-PATH, `speccheck --self-check`).
+PATH, `speccheck --self-check`, `lake --version`).
 
 ## Setup (development)
 
