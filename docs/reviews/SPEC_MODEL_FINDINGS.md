@@ -17,12 +17,12 @@
 
 ## Summary
 
-| ID | Class | Severity | Spec anchor | Witness theorem |
-| -- | ----- | -------- | ----------- | --------------- |
-| F-501 | G-1 · silent case | P1 | §5.1 (`explain` synopsis vs. flag table), C-18, E-60 | `f501ExplainAbsentSpecSilent`, `f501NoSilenceFails` |
-| F-502 | G-2 · under-determined pin | P1 | C-07 `judge_available`, E-35, R-28 | `f502JudgeAvailableBudgetSilent`, `f502JudgeAvailableBudgetSilentMock`, `f502Contrast`, `f502StrictJudgeFailureNull` |
-| F-503 | G-2 · under-specified relation | P2 | §5.4, K-01 | `f503ExitPrecedenceDiffer` |
-| F-504 | G-2 · under-specified interaction (v1.19) | P2 | C-07, D-49 (`proof` key presence) | `f504ManifestReadButKeyAbsent` |
+| ID | Class | Severity | Spec anchor | Witness theorem | Status |
+| -- | ----- | -------- | ----------- | --------------- | ------ |
+| F-501 | G-1 · silent case | P1 | §5.1 (`explain` synopsis vs. flag table), C-18, E-60 | `f501ExplainAbsentSpecSilent`, `f501NoSilenceFails` | open |
+| F-502 | G-2 · under-determined pin | P1 | C-07 `judge_available`, E-35, R-28 | `f502JudgeAvailableBudgetSilent`, `f502JudgeAvailableBudgetSilentMock`, `f502Contrast`, `f502StrictJudgeFailureNull` | open |
+| F-503 | G-2 · under-specified relation | P2 | §5.4, K-01 | `f503ExitPrecedenceDiffer` | open |
+| F-504 | G-2 · under-specified interaction (v1.19) | P2 | C-07, D-49 (`proof` key presence) | `f504ManifestReadButKeyAbsent` | **resolved v1.19.1** |
 
 No **G-3a** finding: every requirement Lean cannot reach names at least one §9 `T-nn` (§11's
 "Verified by" column is total over the 105 deferred requirements — checked mechanically).
@@ -166,6 +166,11 @@ exhibits the case a reader would not expect.
 since there is nothing to attribute without a citation), or (b) state explicitly that
 `--proof-results` without `--proof` is accepted but produces no report trace, so the current
 behavior is a documented no-op rather than a silent one.
+
+**Resolved — v1.19.1 (2026-09-24), same session, before any implementation existed.** Branch (a)
+taken: C-07's proof-field rules and the JSON comment reworded, D-49 amended with the corrected
+condition and branch (b) recorded as the rejected alternative. See `SPEC.md`'s v1.19.1 status
+paragraph and revision-history row.
 
 ---
 
