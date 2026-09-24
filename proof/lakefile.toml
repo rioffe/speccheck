@@ -1,0 +1,6 @@
+name = "speccheck_proof"
+version = "0.1.0"
+defaultTargets = ["SpeccheckProof"]
+
+[[lean_lib]]
+name = "SpeccheckProof"
