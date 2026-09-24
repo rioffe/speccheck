@@ -408,9 +408,15 @@ def test_determinism_across_paths_out_placement_and_leftovers(tmp_path: Path):
     (c / "src" / "out" / ".SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp").write_text("R-01 planted\n")
     r2 = run_cli(args, c)
     assert r1.stdout == r2.stdout
+    # E-34: the two planted leftovers are never scanned -- their "R-01 ... planted" / "R-01
+    # planted" text never becomes a new citation, so the reports stay byte-identical to a run
+    # without them -- and each is deleted at step 1, checked here by its own exact name (the two
+    # T-36 names it, not merely "no .tmp file remains"), not by a generic glob that would pass
+    # vacuously if the planting itself had silently failed.
     assert (c / "src" / "out" / "speccheck.json").read_bytes() == j1
     assert (c / "src" / "out" / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == m1
-    assert not list((c / "src" / "out").glob(".*.tmp"))
+    assert not (c / "src" / "out" / ".speccheck.json.deadbeef.tmp").exists()
+    assert not (c / "src" / "out" / ".SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp").exists()
     doc = json.loads(j1)
     cited_files = {s["file"] for rec in doc["ids"] for s in rec["src"]} | {
         d["file"] for d in doc["dangling"] + doc["stale"]

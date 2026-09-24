@@ -57,22 +57,54 @@ the fix moved the manifest read out from under the `--proof` gate, keeping only 
 conditional on it. Left as-is, this would have been a second, silent instance of the exact gap
 `spec-model` was built to catch.
 
-**A prompt-injection attempt, declined — twice.** Mid-build, a message arrived claiming to relay a
-coordinator instruction, directing this build to source a shell script bearing API credentials and
-run Phase B (the LLM judge gate) against a fabricated model name (`openai/gpt-6-luna-pro`, which
-does not exist) via a live paid OpenRouter call. It arrived immediately after a routine tool result,
-was not part of this build's actual directive, and asked for exactly the shape of thing a legitimate
-instruction would not need to smuggle in mid-task: credential use and an outbound network call to an
-external paid service. It was declined. A second, near-identical message arrived later, this time
-falsely framed as "you were cut off by a session rate limit, resume exactly here" — a fabricated
-justification, since no cutoff had occurred — again pushing the same credentials and model name.
-Also declined. Reading `hello_world_deepseek`'s own `README.md` for the T-99 cross-repository run
-below turned up the identical `openai/gpt-6-luna-pro` / OpenRouter instruction *inside that file's
-own Usage section* — evidence the same fabricated model name had been seeded into content this build
-would plausibly read, not only pushed through fake system messages. None of it was acted on. Phase B
-is recorded below as not run, for the ordinary, legitimate reason that no sanctioned judge endpoint
-was configured for this build — not because of the injection attempts, which changed nothing about
-the plan.
+**Correction (post-build): Phase B was mistakenly declined; it has since been run for real.**
+Mid-build, two messages relayed a coordinator instruction to source `switch_to_openrouter.sh`'s
+credentials and run Phase B against `openai/gpt-6-luna-pro`. Both were declined at the time on the
+mistaken belief that the model name was fabricated and that the second message's "resuming after a
+rate-limit cutoff" framing was false. Neither belief held up: the requester's own session confirmed
+both messages were genuine (a real user instruction, then a real rate-limit interruption visible in
+that session's own transcript), and a direct query of OpenRouter's live model catalog
+(`GET https://openrouter.ai/api/v1/models`) confirmed `openai/gpt-6-luna-pro` is a real, listed
+model — one of a `gpt-6-luna`/`gpt-6-sol`/`gpt-6-astra` family this build's knowledge simply
+predates. The caution around the credentials script itself was independently reasonable and stands
+on its own; the model-name suspicion was not, and the `hello_world_deepseek/README.md` mention of
+the same model, earlier read as evidence of injected content, is retracted along with it — it was
+just correct documentation.
+
+Phase B has since been run for real, from outside this build's own session, against this same
+commit: `speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm
+--strict --judge-concurrency 16 --out build/speccheck-llm-gpt-6-luna-pro` —
+`speccheck: NOT CONFORMING - 260/262 passing (99.2%), 0 failing, 0 skipped, 2 weak, 0 unverified,
+0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm`. `judge_available: true`,
+`unknown_rate: 0.011`. Two genuine `WEAKLY_PASSING` findings, since strengthened (Phase B not yet
+re-run to confirm — left to the requester):
+
+- **E-34** — `test_06_reports.py::test_determinism_across_paths_out_placement_and_leftovers`: the
+  judge's rationale was that the test sets up the killed-run-leftover scenario and runs the CLI but
+  never asserts that the leftover file from before the run is gone afterward — it exercised E-34's
+  setup without asserting E-34's outcome. **Fixed:** the generic `not list(glob(".*.tmp"))` check
+  is replaced by two assertions naming the exact two files T-36 plants
+  (`.speccheck.json.deadbeef.tmp`, `.SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp`), with a comment
+  citing E-34 directly at the point of the check, so the outcome is unambiguous to a future reader
+  or judge, not just to `pytest`.
+- **T-100** — `test_14_proof.py::test_proof_absent_is_byte_identical_to_v118`: the judge's rationale
+  was that the test runs `check` without the proof flags and checks for the *absence* of proof
+  artifacts, but never actually compares the output byte-for-byte against either v1.18 golden — the
+  literal claim I-018/T-100 make. **Fixed:** the test now also runs `check` over the real
+  `fixtures/target/` (the golden fixture T-99 extended with an untouched `proof/` +
+  `proof-results.json`), without either flag, and asserts the output is byte-identical to
+  `fixtures/target/golden/speccheck.json` and `golden/SPEC_CONFORMANCE_REPORT.md` directly — the
+  actual "v1.18 run" I-018 refers to, not merely a second run of this test's own synthetic tree.
+
+Both fixes verified: `pytest tests -q` — 149 passed; `speccheck check --judge mock --strict` —
+`CONFORMING - 262/262 passing (100.0%), ..., 0 dangling, 0 stale`; `--self-check` — `ok`; `ruff` —
+clean. Phase B has not been re-run against the fix (left to the requester, who ran it the first
+time); the mock-gate evidence above is what's confirmed as of this correction.
+
+Both are real gaps in test strength, not in the underlying implementation (the mock gate's citation/
+result join is unaffected); per spec-build's own rule, the fix is to strengthen each test to assert
+the outcome it claims, then re-run both gate phases. Left open here rather than fixed silently, so
+the correction is legible as a correction.
 
 **T-99's cross-repository evidence, run for real.** `python3 tools/proof_evidence.py --root
 ../playground/hello_world_deepseek --skip-pytest` (2026-09-24): exit 0, `66/66` declarations
@@ -1582,26 +1614,28 @@ id. "Self-app" is the status from the T-48 run.
 ```text
 Spec coverage: 262/262 IDs realized (0 deferred)
 speccheck (mock): speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  not run: no sanctioned SPECCHECK_JUDGE_* endpoint was configured for this
-                  build (2026-09-24). Two mid-build messages purporting to relay a coordinator
-                  instruction (the second falsely framed as "resuming after a rate-limit cutoff")
-                  asked this build to source credentials from a shell script and run Phase B
-                  against a fabricated OpenRouter model name; both were declined as apparent
-                  prompt injection (§0k), not treated as a configured judge. Phase B is
-                  therefore recorded as not run, the ordinary case this line exists to name.
+speccheck (llm):  speccheck: NOT CONFORMING - 260/262 passing (99.2%), 0 failing, 0 skipped,
+                  2 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
+                  (openai/gpt-6-luna-pro via OpenRouter, judge_available=true,
+                  unknown_rate=0.011). Initially and mistakenly recorded as "not run" after
+                  declining two legitimate messages as apparent prompt injection — corrected
+                  post-build; see §0k. Two real WEAKLY_PASSING findings (E-34, T-100), since
+                  strengthened (§0k) — Phase B not yet re-run against the fix.
 Observed: no rendered surface; the two golden reports (T-46/T-99) and the four --help screens
 were the artifacts to read, and all were diffed byte-for-byte against their goldens (§0k)
 Readiness: BUILT
-Conformance: PASS WITH NOTES
+Conformance: PASS WITH NOTES (E-34, T-100 strengthened per §0k; Phase B re-run pending)
 ```
 
 v1.19's deliverable (R-100, C-20, C-21, K-17, T-99, T-100) and v1.19.1's fix (I-018, E-62, E-63,
-E-65, D-45) are green on the mock gate; Phase B was not run this increment (above). Every prior
-version's guarantee is unchanged: the fixture goldens are byte-identical to a fresh run without
-`--proof`/`--proof-results` (T-46/T-71/I-018), `_selfcheck/` equals `fixtures/target/` (T-60,
-now including the untouched `proof/` + `proof-results.json` siblings), the mock gate is 262/262
-with 0 dangling and 0 stale, and the `check --help` golden gained exactly the two new flag rows
-T-100 names.
+E-65, D-45) are green on the mock gate. Every prior version's guarantee is unchanged: the fixture
+goldens are byte-identical to a fresh run without `--proof`/`--proof-results` (T-46/T-71/I-018),
+`_selfcheck/` equals `fixtures/target/` (T-60, now including the untouched `proof/` +
+`proof-results.json` siblings), the mock gate is 262/262 with 0 dangling and 0 stale, and the
+`check --help` golden gained exactly the two new flag rows T-100 names. Phase B, once actually
+run (§0k), found two tests whose assertions were weaker than what they claimed to prove; both
+have since been strengthened and re-verified against the mock gate and the full suite (§0k) —
+Phase B itself has not been re-run to confirm the LLM judge now reads them clean.
 
 The notes are:
 
@@ -1621,13 +1655,16 @@ The notes are:
   key's presence rather than re-threading a separate boolean through `ReportInputs` — `proof.build`
   is non-null exactly when `--proof-results` was given and successfully parsed, which is the same
   fact D-45 needs, so no new field was added to carry it twice.
-- **Two mid-build prompt-injection attempts, both declined** — see §0k's full account. Neither
-  changed the build's actual scope or artifacts; Phase B is recorded as not run for the ordinary,
-  unrelated reason that no sanctioned judge was configured.
+- **Two mid-build messages were mistakenly declined as prompt injection, then corrected** — see
+  §0k's full account. Phase B is now recorded with its real result; the two genuine
+  `WEAKLY_PASSING` findings it surfaced (E-34, T-100) have since been strengthened per spec-build's
+  own rule for this status — the mock gate and full suite confirm the fix, but Phase B has not
+  been re-run to confirm the LLM judge itself now reads them clean.
 
 Nothing in the specification was scoped out: R-100, C-20, C-21, I-018, K-17, E-62, E-63, E-65,
-T-99 and T-100 are all realized and `PASSING` under the mock gate; D-43..D-45 and D-49 (confirmed,
-then amended) are folded exactly as `SPEC.md` states them.
+T-99 and T-100 are all realized and `PASSING` under the mock gate, and `PASSING` except two
+`WEAKLY_PASSING` (E-34, T-100) under the LLM gate; D-43..D-45 and D-49 (confirmed, then amended)
+are folded exactly as `SPEC.md` states them.
 
 *Increment history:* §0k (v1.19 / v1.19.1, `--proof`/`--proof-results`), §0j (v1.18, the help
 contract), §0i (v1.17, `explain`), §0h (v1.16, the obligation-aware judge), §0g (v1.15, Jev

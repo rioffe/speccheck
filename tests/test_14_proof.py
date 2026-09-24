@@ -150,7 +150,9 @@ def test_proof_results_alone_writes_the_top_level_key(tmp_path: Path):
 def test_proof_absent_is_byte_identical_to_v118(tmp_path: Path):
     """T-100 / I-018: a run with neither --proof nor --proof-results writes no `proof` key
     anywhere (top-level or per-id), no proof column in the Markdown, and is byte-identical to the
-    same run made before this feature existed."""
+    same run made before this feature existed -- checked directly against the pre-v1.19
+    `fixtures/target/golden/` pair, the literal "v1.18 run" I-018 refers to, not just against a
+    second run of this test's own synthetic tree."""
     project = _tree(tmp_path / "p")
     with_flags = run_cli(
         BASE_ARGS + ["--proof", "proof", "--proof-results", "proof-results.json", "--out", "out1"],
@@ -167,6 +169,40 @@ def test_proof_absent_is_byte_identical_to_v118(tmp_path: Path):
     # second absent-flag run over the same inputs is untouched by the flag's mere existence
     without_flags_2 = run_cli(BASE_ARGS + ["--out", "out3"], project)
     assert without_flags_2.json_at(project / "out3") == plain_json
+    # I-018's literal claim: a check run without either flag, over the real §9.8 golden fixture
+    # (which now has proof/ and proof-results.json sitting in it, unused -- T-99's extension),
+    # is byte-identical to the pre-v1.19 golden itself, not merely self-consistent.
+    golden_run_dir = tmp_path / "golden-run"
+    shutil.copytree(FIXTURE, golden_run_dir)
+    golden_out = golden_run_dir / "fresh-out"
+    golden_absent = run_cli(
+        [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "src",
+            "--tests",
+            "tests",
+            "--results",
+            "junit.xml",
+            "--judge",
+            "mock",
+            "--strict",
+            "--root",
+            ".",
+            "--out",
+            str(golden_out),
+        ],
+        golden_run_dir,
+    )
+    assert golden_absent.code == 1
+    assert (golden_out / "speccheck.json").read_bytes() == (
+        FIXTURE / "golden" / "speccheck.json"
+    ).read_bytes()
+    assert (golden_out / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == (
+        FIXTURE / "golden" / "SPEC_CONFORMANCE_REPORT.md"
+    ).read_bytes()
 
 
 def test_proof_never_changes_status_or_strict_without_manifest(tmp_path: Path):
