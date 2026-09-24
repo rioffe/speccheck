@@ -11,8 +11,8 @@ and downgrade the verdict when the test merely runs the behavior without asserti
 never upgrade anything.
 
 This repository holds the checker itself — which implements its own `SPEC.md` (v1.18, code
-1.18.0) in full, and so is the worked example of the method it serves — together with the five agent skills that
-propose, write, review, plan, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
+1.18.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
+propose, write, review, plan, model, prove, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
 installation, usage, the reports it writes, and how to verify the build.
@@ -60,7 +60,7 @@ second, independent reviewer. IDs are never renumbered once cited; an ID is *ret
 it through (`~~R-07~~`), never deleted. Formulas are LaTeX (`$..$`), diagrams are mermaid, and
 `spec2pdf.sh` renders the whole thing with clickable cross-references.
 
-### The five skills
+### The seven skills
 
 The skills under `skills/` (installed for Claude Code, Pi, or Oh My Pi by `install.sh`) encode the
 method. Each is a `SKILL.md` an agent loads on request; none needs this tool to run, and this tool
@@ -73,6 +73,8 @@ needs none of them — they share only the `SPEC.md` conventions above.
 | **spec-review** | the spec audited before anything is built: completeness, precision, consistency, implementability, verifiability | `docs/reviews/SPEC_REVIEW_REPORT.md` — findings `F-nnn` with severity, a 0–5 scorecard, a maturity level 0–4, a P0/P1/P2 remediation plan, and a `READY` / `READY WITH MINOR FIXES` / `NOT READY` verdict |
 | **spec-plan** | the order the spec gets built in: the shape, the dependency waves and their gates, the slice budgets, the rules that prevent this system's known failure modes, and the one fork to settle first | `docs/plans/IMPLEMENTATION_PLAN.md` — verdict, evidence from prior builds, target shape, wave order with a gate per wave, LOC budget with anchors, failure→rule table, and one fork plus a next action; optionally one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (deliverables file-by-file, work items test-first, gate commands, traceability, handoff contract) |
 | **spec-build** | the plan executed: the spec implemented test-first, **wave by wave in the plan's order**, each wave gated with its own commands and committed before the next begins, then the README made to match and conformance proven | `docs/plans/IMPLEMENTATION_PLAN.md` plus one `DETAILED_IMPLEMENTATION_PLAN_W<n>.md` per wave (Phase 0 runs `spec-plan` if they do not exist), the code and its §9 suite with one commit per wave, an updated `README.md`, `SPEC_BUILD_REPORT.md` with per-ID evidence and the wave ledger, and the two `speccheck` gate lines |
+| **spec-model** | the spec's own formal model, before any code exists: `SPEC.md`'s normative tables transcribed into a pure total Lean function, its self-claims kernel-checked for all inputs, and every place it is silent, over-pinned, or unwitnessed found mechanically and reported as a witness-backed finding | `proof_from_spec/` — a self-contained lake project (`Spec`/`Model`/`Theorems`) whose `lake build` is the gate, plus `docs/reviews/SPEC_MODEL_FINDINGS.md` (`F-nnn`, class G-1/G-2/G-3a, severity, the witness theorem) |
+| **spec-proof** | the formal half of a *built* system's conformance evidence: the implementation transcribed into a Lean model and proved against the spec for all inputs, with every out-of-Lean row mapped to the test that carries it | `proof/` — a self-contained lake project (`Spec`/`Model`/`Theorems`) whose `lake build` is the gate, and a README whose first screen states the trust boundary |
 
 `spec-build` runs `speccheck` twice at its gate: first with the deterministic mock judge until every
 ID is `PASSING` with no dangling or stale citations, then with an LLM judge, which can only find
@@ -87,8 +89,11 @@ flowchart TD
     S -->|"spec-review"| R["docs/reviews/SPEC_REVIEW_REPORT.md<br/>F-nnn, P0/P1/P2, verdict"]
     R -->|"fix P0 + P1, bump version"| S2["SPEC.md v0.n"]
     S2 -->|"re-review until READY"| R
+    S2 -->|"spec-model: model the spec, find its gaps"| M["proof_from_spec/<br/>+ SPEC_MODEL_FINDINGS.md"]
+    M -->|"findings: spec-proposal / spec-writing"| S2
     S2 -->|"spec-plan: waves, budgets, gates"| P["docs/plans/IMPLEMENTATION_PLAN.md<br/>+ DETAILED_IMPLEMENTATION_PLAN_W&lt;n&gt;.md"]
     P -->|"spec-build: waves, gate+commit, audit"| C["code + tests + README<br/>SPEC_BUILD_REPORT.md"]
+    C -->|"spec-proof: transcribe the file, prove it"| PR["proof/<br/>lake build"]
     C -->|"speccheck --judge mock --strict"| G1["CONFORMING?"]
     G1 -->|"speccheck --judge llm --strict"| G2["0 weak?"]
     G2 -->|"change request"| S
@@ -106,15 +111,23 @@ between them:
 3. **Apply.** *"Apply all P0 and P1 findings to SPEC.md."* (P2 may be deferred; say which.) The
    agent edits the spec, bumps its version, and records the change in the revision history.
    Re-review until the verdict is `READY` or `READY WITH MINOR FIXES` — usually one more pass.
-4. **Plan.** *"Use the spec-plan skill to plan the implementation of SPEC.md."* Read §1 (the
+4. **Model (optional, before any code).** *"Use the spec-model skill to model SPEC.md."* Read the
+   scope map and the findings list. `proof_from_spec/` is the spec made total and kernel-checked;
+   each finding is a place the spec is silent, pins more than the mechanism allows, or names no
+   witness — fix those through `spec-proposal`/`spec-writing` before building on them. (If you
+   skip this, `spec-proof` will find them later, against code you have already written.)
+5. **Plan.** *"Use the spec-plan skill to plan the implementation of SPEC.md."* Read §1 (the
    verdict and the shape it commits to), §4 (the wave order and each wave's gate) and §7 (the one
    fork it wants you to settle). The plan is what the build agent executes, wave by wave.
-5. **Build.** *"Use the spec-build skill to implement SPEC.md."* With the plan in hand it
+6. **Build.** *"Use the spec-build skill to implement SPEC.md."* With the plan in hand it
 executes **wave by wave in the plan's order** — test-first through §9, each wave ending at its
 own gate and **committed before the next wave starts** — then rewrites the README from what it
 built and audits every artifact against the spec.
-6. **Change.** New requirement? *"Use spec-writing to update SPEC.md: `<the change>`."* — then
-   steps 2–5 again. The spec stays the source of truth; the code follows it.
+7. **Prove.** *"Use the spec-proof skill to prove the spec."* The implementation's module-level
+   contract, kernel-checked for all inputs, with every row Lean cannot reach mapped to the test
+   that carries it — the formal half beside the `speccheck` gate's empirical half.
+8. **Change.** New requirement? *"Use spec-writing to update SPEC.md: `<the change>`."* — then
+   steps 2–7 again. The spec stays the source of truth; the code follows it.
 
 This repository is its own worked example, and the last cycle is in the git history: the
 progress indicator you see under `--judge llm` was requested as one sentence, written into
@@ -143,7 +156,7 @@ tests that proved their IDs only by implication and the tests, not the code, wer
 | its dependencies | `pandoc`, XeLaTeX (`mactex-no-gui`, or `--basic-tex` + `tlmgr`), Node + `mermaid-filter`/`mmdc`, a Chrome/Chromium (puppeteer's if none is found) — via Homebrew on macOS, apt on Debian/Ubuntu, instructions elsewhere |
 | `speccheck` | `uv tool install "speccheck[llm] @ <this checkout>"` → `~/.local/bin/speccheck` (installs `uv` first if missing) |
 | LLM judge env | Ollama (installed if missing), the judge model pulled if missing (`--judge-model`, default `qwen3:8b`), and `~/.config/speccheck/judge.env` with `SPECCHECK_JUDGE_URL/_MODEL/_API_KEY/_TIMEOUT`; `--rc ~/.zshrc` appends the `source` line, otherwise it is printed; `--no-judge` skips |
-| Lean toolchain | `elan` (the rustup-style manager) + the default Lean into `~/.elan`, with `lake`/`lean` on PATH — brew on macOS, the official `elan-init` script elsewhere; for the spec-proof skill, whose builds read each project's `lean-toolchain` file, which pins the exact version `lake` auto-downloads; `--lean` |
+| Lean toolchain | `elan` (the rustup-style manager) + the default Lean into `~/.elan`, with `lake`/`lean` on PATH — brew on macOS, the official `elan-init` script elsewhere; for the spec-proof and spec-model skills, whose builds read each project's `lean-toolchain` file, which pins the exact version `lake` auto-downloads; `--lean` |
 
 It ends with a verification pass (`SKILL.md` present per agent, `spec2pdf.sh --help`, the tools on
 PATH, `speccheck --self-check`, `lake --version`).

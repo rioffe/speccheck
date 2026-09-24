@@ -50,6 +50,9 @@ Do **not** run it when:
 
 - the spec has no `SPEC.md` (no source of truth for the constants — route through
   `spec-writing` first)
+- there is no implementation yet (nothing to transcribe): run `spec-model` instead — it builds the
+  spec's *own* model in `proof_from_spec/` and reports the spec's gaps as findings; come back here
+  once the code exists, to prove the *file* against that reference
 - the system's core is purely probabilistic or network-bound (there is no deterministic half
   to prove; say so and stop — a proof of a stub is theater)
 - the user asks to "prove the program is correct, full stop": set the trust-boundary table
