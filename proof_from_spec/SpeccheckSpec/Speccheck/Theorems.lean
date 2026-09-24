@@ -691,17 +691,20 @@ theorem f503ExitPrecedenceDiffer :
       (if contract then exitContract else if usage then exitUsage else exitConforming) :=
   ⟨true, true, by decide⟩
 
-/-- **F-504 (G-2, under-specified interaction, v1.19)** — C-07/D-49 tie the top-level `proof`
-key's presence (and therefore its `build` echo) to `--proof` alone: "omitted entirely — on the
-top-level object and on every id — when `--proof` was not given." But C-21 states the checker
-*reads* `--proof-results` independently — a manifest given without `--proof` still has its
-`build` block parsed (there is simply nothing to join it to, since no citation exists). The
-current wording means that configuration writes **no `proof` key at all**, silently discarding
-the manifest's own build result (exit code, declaration counts) that was in fact read — a reader
-of C-21 alone would reasonably expect `proof.build` to appear whenever `--proof-results` was
-given, regardless of `--proof`. `topLevelProofKeyPresent` (`Model.lean`) models the pinned rule
-exactly; the witness below is the case the rule and a reader's expectation disagree on. -/
-theorem f504ManifestReadButKeyAbsent : topLevelProofKeyPresent false true = false := rfl
+/-- **F-504 (G-2, under-specified interaction, v1.19) — resolved v1.19.1.** C-07/D-49 originally
+tied the top-level `proof` key's presence (and therefore its `build` echo) to `--proof` alone:
+"omitted entirely — on the top-level object and on every id — when `--proof` was not given." But
+C-21 states the checker *reads* `--proof-results` independently — a manifest given without
+`--proof` still has its `build` block parsed (there is simply nothing to join it to, since no
+citation exists). That wording meant a `--proof-results`-only run wrote **no `proof` key at
+all**, silently discarding the manifest's own build result (exit code, declaration counts) that
+was in fact read. Originally witnessed by `topLevelProofKeyPresent false true = false`
+(`f504ManifestReadButKeyAbsent`, now false under the corrected model, since `false || true` is
+`true` — that non-typechecking IS the fix's proof: the buggy behavior the finding named is no
+longer a fact about this model). D-49 was amended same-session (before any implementation
+existed) to gate the key on `--proof ∨ --proof-results`; `topLevelProofKeyPresent` now computes
+that rule, and the witness below proves the gap is closed. -/
+theorem f504ResolvedManifestAloneWritesKey : topLevelProofKeyPresent false true = true := rfl
 
 end Findings
 

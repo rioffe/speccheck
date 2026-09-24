@@ -37,7 +37,7 @@ the spec's normative tables" is checked here row by row, and made *checkable* �
 | E-09/E-21/E-52/E-53/E-54/E-58/E-60; §5.1 bad values | the usage `Fault` constructors | the exit-2 set |
 | C-21, K-17 (v1.19) | `ProofState`, `ProofJoin`, `proofStateOf` | manifest-to-citation join: `checked`/`failed`/`unknown`/`stale`, `none` for no citation (D-49) |
 | E-63 (v1.19) | `statusWithProof`, `statusWithProof_ignoresProof` | proof is not a field of `Evidence`, so a wrapper that accepts it provably returns `statusOf`'s answer unchanged |
-| C-07, D-49 (v1.19) | `topLevelProofKeyPresent` | finding F-504 |
+| C-07, D-49 (v1.19, amended v1.19.1) | `topLevelProofKeyPresent` | finding F-504, resolved v1.19.1 |
 
 Deliberately not modelled, with the reason. The spec is a program that reads a tree of files;
 Lean operates on pure values, so nothing that *is* the filesystem, the network, or a clock is a
@@ -550,9 +550,13 @@ state "a proof state never changes status" as a real equality rather than an abs
 a proof state to reach. -/
 def statusWithProof (e : Evidence) (_p : Option ProofState) : Status := statusOf e
 
-/-- C-07, D-49 — whether the top-level `proof` key (and therefore its `build` echo) is written:
-the pinned rule ties it to `--proof` alone, not to `--proof-results` — see finding F-504. -/
-def topLevelProofKeyPresent (proofGiven _proofResultsGiven : Bool) : Bool := proofGiven
+/-- C-07, D-49 (amended v1.19.1) — whether the top-level `proof` key (and therefore its `build`
+echo) is written: present whenever `--proof` **or** `--proof-results` was given. Originally tied
+to `--proof` alone (finding F-504: a `--proof-results`-only run read the manifest but wrote no
+trace of it); D-49 was amended same-session, before any implementation existed, and this
+definition now matches the corrected rule — see `f504ResolvedManifestAloneWritesKey` below. -/
+def topLevelProofKeyPresent (proofGiven proofResultsGiven : Bool) : Bool :=
+  proofGiven || proofResultsGiven
 
 -- Cross-module normalization: every definition `Theorems.lean` reasons through is `grind unfold`
 -- (and `public`), so it unfolds in the proof module.

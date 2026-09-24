@@ -158,8 +158,11 @@ report a Lean build's aggregate health with no per-id citations, say) gets a run
 and silently produced no trace of having done so.
 
 **Witness.** `topLevelProofKeyPresent` (`Model.lean`) models the pinned rule exactly as a function
-of the two flags; `f504ManifestReadButKeyAbsent : topLevelProofKeyPresent false true = false`
-exhibits the case a reader would not expect.
+of the two flags; originally witnessed by `f504ManifestReadButKeyAbsent : topLevelProofKeyPresent
+false true = false`, exhibiting the case a reader would not expect. After the resolution below,
+the model was resynced and that statement no longer typechecks as a fact about it — the resync's
+witness, `f504ResolvedManifestAloneWritesKey : topLevelProofKeyPresent false true = true`, proves
+the fixed rule instead; both names and the history are in that theorem's doc comment.
 
 **Proposed resolution (for `spec-proposal`).** Either (a) gate the top-level key on
 `--proof ∨ --proof-results` instead of `--proof` alone (per-id `proof` stays gated on `--proof`,

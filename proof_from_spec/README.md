@@ -51,20 +51,26 @@ Overclaiming leg B as leg C is the one error this project must not make.
 
 ## Findings
 
-Four spec-precision gaps, each with a kernel-checked witness — see
+Three open spec-precision gaps and one resolved one, each with a kernel-checked witness — see
 [`docs/reviews/SPEC_MODEL_FINDINGS.md`](../docs/reviews/SPEC_MODEL_FINDINGS.md):
 
-- **F-501 (G-1, P1)** — `explain` without `--spec` is an enumerated input with no stated outcome
-  (§5.1's synopsis makes `--spec` optional for `explain`; its table calls it required; no default is
-  given). Witness: `f501ExplainAbsentSpecSilent`, `f501NoSilenceFails`.
-- **F-502 (G-2, P1)** — `judge_available` is undetermined when judge-eligible edges exist but no
-  call was issued (K-12/E-35), and the `--strict --judge llm` exit code inherits the gap. Witness:
-  `f502JudgeAvailableBudgetSilent`, `f502Contrast`, `f502StrictJudgeFailureNull`.
-- **F-503 (G-2, P2)** — §5.4/K-01 give no precedence when one run carries both a usage fault (`2`)
-  and a contract violation (`3`). Witness: `f503ExitPrecedenceDiffer`.
-- **F-504 (G-2, P2, v1.19)** — the top-level `proof` key's presence is tied to `--proof` alone
-  (C-07/D-49), so `--proof-results` given without `--proof` reads a manifest whose `build` result
-  is never written anywhere in the report. Witness: `f504ManifestReadButKeyAbsent`.
+- **F-501 (G-1, P1, open)** — `explain` without `--spec` is an enumerated input with no stated
+  outcome (§5.1's synopsis makes `--spec` optional for `explain`; its table calls it required; no
+  default is given). Witness: `f501ExplainAbsentSpecSilent`, `f501NoSilenceFails`.
+- **F-502 (G-2, P1, open)** — `judge_available` is undetermined when judge-eligible edges exist but
+  no call was issued (K-12/E-35), and the `--strict --judge llm` exit code inherits the gap.
+  Witness: `f502JudgeAvailableBudgetSilent`, `f502Contrast`, `f502StrictJudgeFailureNull`.
+- **F-503 (G-2, P2, open)** — §5.4/K-01 give no precedence when one run carries both a usage fault
+  (`2`) and a contract violation (`3`). Witness: `f503ExitPrecedenceDiffer`.
+- **F-504 (G-2, P2, v1.19) — resolved v1.19.1, same session.** The top-level `proof` key's
+  presence was tied to `--proof` alone (C-07/D-49), so `--proof-results` given without `--proof`
+  read a manifest whose `build` result was never written anywhere in the report. D-49 was amended
+  before any implementation existed to gate the key on `--proof ∨ --proof-results`; this model was
+  resynced to match. The old buggy behavior no longer typechecks as a fact about this model
+  (`topLevelProofKeyPresent false true` is `true`, not `false`) — that non-typechecking *is* the
+  fix's proof. Witness: `f504ResolvedManifestAloneWritesKey` (the original
+  `f504ManifestReadButKeyAbsent` witness and its context are preserved in the theorem's doc
+  comment). F-501–503 remain open, unrelated to this fold.
 
 Scope: 262 declared IDs — **57 proven**, **105 deferred** (each naming its planned `T-nn`
 carriers), **100 `T-nn`** (the test inventory), **9 named exclusions** — its partition checked
