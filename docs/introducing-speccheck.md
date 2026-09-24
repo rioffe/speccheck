@@ -176,7 +176,7 @@ model for free, or against OpenRouter, Anthropic's compatibility endpoint, or an
 for cents.
 
 speccheck is written to its own `SPEC.md`, and it is the worked example of the method. The
-numbers in the summary line above are its self-application: 262 IDs, 148 tests, every one
+numbers in the summary line above are its self-application: 262 IDs, 149 tests, every one
 `PASSING`, and (this is the part I find most convincing) when the LLM judge was first pointed
 at the tool's own suite, it found five tests that proved their IDs only by implication. The tests
 were strengthened; the code was not touched. That is the judge doing its job.
