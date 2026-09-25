@@ -200,7 +200,7 @@ were strengthened; the code was not touched. That is the judge doing its job.
 
 ## Using it to build a product
 
-The gate slots into the loop at step 4 and runs twice, in order:
+The gate slots into the loop at step 5 (Build) and runs twice, in order:
 
 ```bash
 uv run python -m pytest tests -q --junitxml=junit.xml
