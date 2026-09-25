@@ -118,6 +118,7 @@ def make_anchor_for(c_sub, fam):
 
 
 STRIKE = re.compile(r"(~~.*?~~)")                            # ~~retired~~ span: never linked
+MATH = re.compile(r"(\$[^$\n]+\$)")                          # inline $...$ math: never linked
 # C-01 (a): the first cell must BEGIN with one of the three bold forms; whatever follows must be
 # empty or start with whitespace (decoration such as **[port]** or *(recorded)*).
 DECL_CELL = re.compile(
@@ -169,7 +170,17 @@ def linkify(line, anchors, anchor_for, skip_leading=False):
     verbatim to pandoc, so a `[ID](#anchor)` link inserted inside one does not
     become a hyperlink -- it renders as that literal bracket-and-paren text in
     the PDF (observed for `` `--tests` `` in a decision row). Split on code
-    spans first and only linkify what is outside them."""
+    spans first and only linkify what is outside them.
+
+    Tokens inside a $...$ inline-math span are left alone too: a link inserted
+    inside a LaTeX math argument (e.g. `\\text{C-03}` -> `\\text{[C-03](#C-03)}`)
+    is not valid LaTeX -- pandoc passes the markdown-link syntax through as raw
+    text, and xelatex fails on the bare `#` with "macro parameter character #
+    in restricted horizontal mode" (observed for `\\text{C-03}` in a changelog
+    row)."""
+    if "$" in line and len(pieces := MATH.split(line)) > 1:
+        return "".join(seg if i % 2 else linkify(seg, anchors, anchor_for, skip_leading and i == 0)
+                       for i, seg in enumerate(pieces))
     if "~~" in line and len(pieces := STRIKE.split(line)) > 1:
         # len == 1 means no closed ~~span~~ on this line (e.g. a literal `~~~` fence
         # marker); fall through, or the recursion below never terminates.
