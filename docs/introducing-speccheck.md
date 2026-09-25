@@ -2,6 +2,8 @@
 
 **By Robert Ioffe**
 
+**Seven skills build your software by spec. speccheck proves they did!**
+
 *A real tool you can run today, and the method it belongs to. The long version is the book,
 [From Vibe Coding to Spec Engineering](https://github.com/rioffe/spec_engineering_primer); this
 is the short one.*
@@ -54,10 +56,13 @@ document, and proves that it did.
 
 ## How to do it with agents
 
-The method is encoded as five skills (small instruction files an agent loads on request),
-and the whole loop is a handful of prompts. Four of them are the write/review/plan/build loop
-below; the fifth, `spec-proposal`, is for later: an evidence-grounded case for a change to a spec
-that is already built, argued through and decided before `spec-writing` touches a row.
+The method is encoded as seven skills (small instruction files an agent loads on request),
+and the whole loop is a handful of prompts. The core is the write/review/plan/build loop
+below; `spec-proposal` is for later: an evidence-grounded case for a change to a spec that
+is already built, argued through and decided before `spec-writing` touches a row; and
+`spec-model` and `spec-proof` are the Lean half: a kernel-checked model of the spec's own
+normative claims, built before any code, and a kernel-checked proof of it, built after,
+drawn in full in the book.
 
 ```mermaid
 flowchart TD
@@ -89,6 +94,18 @@ flowchart TD
    is where the tool comes in.
 6. **Change.** *"Use spec-writing to update SPEC.md: `<the change>`."* Then 2–5 again. The spec
    stays the source of truth; the code follows it.
+
+The seven skills, one prompt each:
+
+| Skill | Does |
+| --- | --- |
+| `spec-writing` | a brief, design doc, or a conversation becomes a `SPEC.md` an agent can build from |
+| `spec-review` | the spec audited on twenty dimensions, ending `READY` or `NOT READY` |
+| `spec-plan` | the build order: dependency waves, a gate per wave, a budget, one fork to settle |
+| `spec-build` | the plan run test-first, one commit per wave, the result audited against the spec |
+| `spec-proposal` | an evidence-grounded case for a change to a spec that is already built |
+| `spec-model` | the Lean half before code: a kernel-checked model of the spec's claims |
+| `spec-proof` | the Lean half after code: a kernel-checked proof of conformance |
 
 ## What a SPEC.md looks like
 
