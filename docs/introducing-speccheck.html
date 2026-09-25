@@ -265,7 +265,7 @@ color: var(--ink);
 h1 { font-size: 1.9rem; margin-top: 1.2rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--rule); }
 h2 { font-size: 1.3rem; margin-top: 1.8rem; }
 h3 { font-size: 1.12rem; margin-top: 1.4rem; }
-a { color: var(--link); text-decoration: none; }
+a, a:visited { color: var(--link); text-decoration: none; } 
 a:hover { text-decoration: underline; }
 hr { border: 0; border-top: 1px solid var(--rule); margin: 2rem 0; }
 blockquote {
@@ -624,7 +624,8 @@ tests that proved their IDs only by implication. The tests were
 strengthened; the code was not touched. That is the judge doing its
 job.</p>
 <h2 id="using-it-to-build-a-product">Using it to build a product</h2>
-<p>The gate slots into the loop at step 5 (Build) and runs twice, in order:</p>
+<p>The gate slots into the loop at step 5 (Build) and runs twice, in
+order:</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> run python <span class="at">-m</span> pytest tests <span class="at">-q</span> <span class="at">--junitxml</span><span class="op">=</span>junit.xml</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Phase A — deterministic, offline</span></span>
