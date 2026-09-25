@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.19, code
-1.19.1) in full, and so is the worked example of the method it serves — together with the seven agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.20, code
+1.20.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
 propose, write, review, plan, model, prove, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -217,7 +217,7 @@ speccheck check --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results ju
                 [--jev-pre-triage] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src PATHS]... [--tests PATHS]...
                  [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
-speccheck explain ID [--spec SPEC.md] [--src PATHS]... [--tests PATHS]... [--results junit.xml]
+speccheck explain ID --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
                  [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
                  [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
                  [--verbose [INFO|DEBUG]]
@@ -228,7 +228,7 @@ speccheck --help
 
 | Flag | Meaning |
 | --- | --- |
-| `--spec FILE` | Required. The specification (UTF-8; invalid bytes are replaced and noted). |
+| `--spec FILE` | Required. The specification (UTF-8; invalid bytes are replaced and noted). Required on `explain` too (v1.20): a missing flag exits `2` with `explain: --spec is required`. |
 | `--src PATHS` | Repeatable; each value is a comma-separated list of **files and/or directories** (D-23), resolved inside `--root`. Default: `src` if it exists, and only when the flag is absent. |
 | `--tests PATHS` | Repeatable; comma-separated files and/or directories, as `--src`. Test roots; Python files are split into test cases with `ast`, Swift files by the line-based adapter (Swift Testing `@Test` functions and XCTest `test*` methods, doc comment and attributes included in the span; pass the `Tests` directory so the SwiftPM target name becomes the module in classnames), anything else is attributed at file level. Default: `tests` if it exists. |
 | `--results FILE` | JUnit XML. Without it no ID can be better than `UNVERIFIED`. |
@@ -272,7 +272,7 @@ lines are the progress record there), or when stderr is not a terminal unless `-
 (no in-scope IDs, an ID declared twice or both retired and kept, malformed JUnit XML, unwritable
 `--out`) — and an interrupt: Ctrl-C at any stage exits `3` with the message `interrupted`, after
 erasing the progress indicator and removing every temporary and any report file this run had
-already renamed, so a previous run's reports are left intact; judge requests still in flight are abandoned, not awaited, so one Ctrl-C ends an LLM run within a second even when a local model is mid-answer. On exit `2`/`3` no report is written. On exit `0`/`1` exactly one summary line goes to
+already renamed, so a previous run's reports are left intact; judge requests still in flight are abandoned, not awaited, so one Ctrl-C ends an LLM run within a second even when a local model is mid-answer. On exit `2`/`3` no report is written. When one invocation carries both a usage fault and an input-contract violation, the usage fault wins (v1.20, K-18): flag, value and `--root`-containment validation completes before the spec, the results file, `--proof-results`, the output directory or `--against` is read, so a run never reaches the contract check and exits `2`. On exit `0`/`1` exactly one summary line goes to
 stdout:
 
 ```text
@@ -341,7 +341,7 @@ readable trace on stdout — the narrative into the data, not a fourth artifact 
 no report file, and no `schema_version` change).
 
 ```text
-speccheck explain ID [--spec SPEC.md] [--src PATHS]... [--tests PATHS]... [--results junit.xml]
+speccheck explain ID --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
                      [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
                      [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
                      [--verbose [INFO|DEBUG]]
@@ -379,6 +379,8 @@ impact (1):
   status shown always equals the one `check` computes from the same inputs (I-016).
 - **One id per invocation** (D-36): an undeclared id exits `2` with `explain: undeclared id: <ID>`;
   a retired id is rendered, not an error. Drive many ids with a shell loop.
+- **`--spec` is required** (v1.20, E-64): `speccheck explain R-01` with no spec flag exits `2` with
+  `explain: --spec is required` and writes nothing; the flag is unbracketed in the synopsis above.
 - **Exit `0`** once the trace is written (nothing in it is pass/fail, like `impact`), `2` usage,
   `3` input contract. `--out` and `--strict` are not flags of this subcommand.
 - **`--depth N`** (`0..999`, default `1`, `0` = unbounded) sets the reach of the `impact` section.
@@ -694,12 +696,12 @@ tests/
   test_04_status.py             §9.4  T-20..T-25, T-53
   test_05_judge.py              §9.5  T-26..T-33, T-54, T-69, T-83, T-89 (and T-85's C-15 request check)
   test_06_reports.py            §9.6  T-34..T-38
-  test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61, T-90
+  test_07_cli.py                §9.7  T-39..T-45, T-50, T-59, T-60, T-61, T-90, T-101, T-103
   test_08_golden.py             §9.8  T-46, T-47, T-71, T-76, T-86, T-88
   test_09_self_application.py   §9.9  T-48, T-84; §9.10 T-51 and §9.11 T-49, T-87, T-91 presence checks
   test_10_edges.py              §9.12 T-79 — decision-table grammar and C-12 edge extraction
   test_11_impact.py             §9.12 T-80, T-81 — the impact CLI, changed set, walk, reverify
-  test_12_explain.py            §9.13 T-92, T-93 — the explain trace, byte-stability, E-60
+  test_12_explain.py            §9.13 T-92, T-93, T-102 — the explain trace, byte-stability, E-60, E-64
   test_13_help.py               §9.14 T-95..T-98 — the help contract: tokens vs the validator,
                                 every definition's help, the pinned screens, the environment block
   data/help/                    the four `--help` screens at COLUMNS=80 (T-97's goldens)
@@ -749,7 +751,7 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (135 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (153 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A

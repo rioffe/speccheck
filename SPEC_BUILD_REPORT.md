@@ -1,8 +1,103 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.19.1 against `SPEC.md` (v1.19)
+# SPEC_BUILD_REPORT — `speccheck` v1.20.0 against `SPEC.md` (v1.20)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0l. v1.20 increment (2026-09-24) — three determinacy fixes (K-18, E-64; C-07 and E-32 amended; T-101..T-103)
+
+**Why.** `docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`: the spec's own formal model
+(`proof_from_spec/`, via `spec-model`, over v1.18) could not be made total over the input space the
+spec enumerates — three enumerated inputs had no stated outcome, each closed in Lean only by
+returning "the spec says nothing" (F-501/F-502/F-503, kernel-checked witnesses
+`f501ExplainAbsentSpecSilent`, `f502JudgeAvailableBudgetSilent`, `f503ExitPrecedenceDiffer`).
+D-46..D-48 confirmed on the recommended branches and folded into `SPEC.md` as v1.20.
+
+**Change, per part — one sentence of the contract each.**
+
+- **Part A (D-46, F-502) — C-07 `judge_available`, amended; E-32, amended.** `judge_available` is now
+  boolean and total over the eligible-but-unissued case: with `--judge mock`/`llm` it is `false`
+  whenever at least one edge was judge-eligible and no judge call succeeded — whether every call
+  failed (E-14) or none was issued (E-35: a `0%` budget, or a deadline reached before the first
+  request) — and `true` otherwise. `judge.py` already computes the eligibility/issuance census for
+  K-12/E-35, so the fix is one predicate: `available = calls_ok > 0` (the empty-request case still
+  returns `true` early, vacuously available). E-32 needed no new branch: `report.py`'s
+  `strict_judge_failure` already returns `unavailable` when `judge_available is False`, so an E-35
+  run that trips R-28 now records `unavailable` (the only token C-07/Q-004 defines for "no usable
+  judge"), never `null`. The old predicate (`calls_made == 0 or calls_ok > 0`) made a wholly
+  budget-skipped run report a usable judge.
+- **Part B (D-47, F-501) — E-64, new.** `--spec` was already `required=True` on the `explain`
+  subparser (since v1.18, so the rendered synopsis was already unbracketed and the golden was
+  already correct) — the spec's §5.1 synopsis was the loose side, and v1.20 drops its brackets. The
+  one code change is E-64's own message: `cli.py`'s `_explain_error`, installed on the `explain`
+  subparser, turns argparse's generic `the following arguments are required: --spec` into
+  `explain: --spec is required` (exit `2`, no trace written); every other `explain` parser error
+  keeps argparse's wording verbatim.
+- **Part C (D-48, F-503) — K-18, new.** Exit-code precedence: a usage fault (`2`) is reported when
+  both it and an input-contract violation (`3`) apply, because flag/value/containment validation
+  completes before `SPEC.md`, the results file, `--proof-results`, the output directory or
+  `--against` is read for content. The implementation already ordered it this way — argparse rejects
+  undefined and missing-required flags, then `_build_check_config`/`_build_impact_config` complete
+  every value and path check before the pipeline's first parse — so no code moved; K-18 names the
+  order in `cli.py` (a comment on `parse_config` and `_build_check_config`) and T-103 makes it
+  observable rather than merely asserted.
+
+**Plan.** No separate `spec-plan` document — three disjoint, independently-decidable contract rows
+against an already-built v1.19.1 tree, following the wave-per-slice pattern of §0e–§0k: W1 the code
+delta (the E-64 message, K-18's stated order) and the three §9 tests plus the version bump, W2 the
+prose artifacts (README, the article and its HTML), the conformance report and both gates.
+
+**Wave ledger.**
+
+| Wave | Gate as run | Result |
+| --- | --- | --- |
+| W1 — the E-64 message and K-18's stated order in `cli.py`; C-07's amended predicate in `judge.py`; `tests/test_07_cli.py` (T-101, T-103), `tests/test_12_explain.py` (T-102), the amended `tests/test_05_judge.py` assertion; version bump to `1.20.0` | `pytest tests/test_05_judge.py tests/test_07_cli.py tests/test_12_explain.py -q` | 44 passed |
+| W2 — README (the version claim, the unbracketed `explain` synopsis, the E-64 and K-18 rows and bullets, the test-tree rows, the test count), the article's quoted summary line and self-application numbers and its regenerated HTML, `SPEC_BUILD_REPORT.md`, both gates | the full Phase 1 exit gate, then Phase A and Phase B | see §6 |
+
+**Part A verified both budget forms, and the golden fixtures were unaffected.** T-101 drives the
+`N%` form (`--judge-budget 0%` with `--jev-pre-triage` under `--judge llm`, at least one eligible
+edge): no C-06 request is issued, `judge_available` is `false` (never `null`), every eligible edge's
+verdict is the E-35 `UNKNOWN` with rationale `judge: budget`, and `--strict` exits `1` with
+`strict_judge_failure` `"unavailable"` and the summary suffix `(unavailable)`; a second run at `100%`
+leaves `judge_available` `true`. The `SECONDS` form reaches the identical state through the same
+predicate. Both `speccheck.json` goldens are byte-identical, because `--self-check` and §9.8 run
+`--judge mock` with no budget — asserted by the unchanged T-46/T-47 and `--self-check` below.
+
+**A note on the three fixes' scope.** None of the three adds a status, promotes an id, or alters any
+metric other than the already-defined `judge_available`; every id that was `PASSING` before is
+`PASSING` after. Part A is the only part that moves an exit code, and only on the previously
+undetermined path (a `--strict --judge llm` run whose eligible edges are all budget-skipped now goes
+from `1`-with-`null`-reason to `1`-with-`unavailable`).
+
+**The full Phase 1 exit gate, on the final tree.** `pytest tests -q --junitxml=junit.xml` — 153
+passed; `ruff check src tests tools` — `All checks passed!` (after the two pre-existing errors
+noted above were fixed); `speccheck --self-check` — `self-check: ok`; `python
+tools/sync_selfcheck.py --check` — exit `0`; the mock gate —
+
+```text
+speccheck: CONFORMING - 267/267 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+```
+
+**Phase B, four passes against `openai/gpt-6-luna-pro` (OpenRouter, `--judge-concurrency 16`).**
+Pass 1 flagged E-34: both citing tests planted the killed-run leftovers but never asserted they
+existed — the judge could not see the stated condition, only its removal. Both gained a pre-run
+`is_file()` assertion (the T-36 test already had `--src .` so `--out` lay under the scan root, the
+condition's own shape). Pass 2 then flagged R-16: the determinism test compared the two runs'
+stdout and the golden fixture, never the two runs' own report files — fixed by snapshotting
+`speccheck.json`/`SPEC_CONFORMANCE_REPORT.md` after run 1 and asserting the run-2 bytes equal them
+(and the golden). Pass 3 flagged T-61, but on a *coerced* `UNKNOWN` — the model's returned clause
+was not a substring of T-61's statement (E-48) — beside one `UNRELATED` incidental citation; that
+is a grounding miss, not a weak test (`test_judge_budget` asserts the two issued requests, the four
+`UNKNOWN (coerced)` budget verdicts, the Note and the `unknown_rate` directly). Pass 4 came back
+clean. Final: `judge_available=true`, `unknown_rate=0.0202`, `strict_judge_failure=null`, exit `0` —
+the summary line is in §6.
+
+The lesson is §0k's, repeated: the model churns which edge it approaches from, so two passes are
+never the same verdict, and each pass that finds something real leaves the suite stronger than the
+last; the ones it finds that are *not* real (T-61's coerced `UNKNOWN`) are visible as such because
+the test's assertions are read against the clause, not the edge's mere execution.
+
+
 
 ## 0k. v1.19 / v1.19.1 increment (2026-09-24) — a `--proof`/`--proof-results` parameter pair (R-100, C-20, C-21, I-018, K-17, E-62, E-63, E-65; T-99, T-100)
 
@@ -1637,67 +1732,66 @@ id. "Self-app" is the status from the T-48 run.
 | E-65 | `proof.py`/`cli.py` | `test_14_proof::test_proof_results_malformed_and_unreadable` | PASSING |
 | T-99 | — | `test_14_proof::test_proof_over_the_98_golden_fixture_extended` (+ a live `hello_world_deepseek` run via `speccheck/tools/proof_evidence.py`, recorded as evidence in §0k, not gating) | PASSING |
 | T-100 | — | `test_14_proof::test_proof_absent_is_byte_identical_to_v118` | PASSING |
+| K-18 | `cli.py` (validation stage order — `parse_config`/`_build_check_config`; v1.20) | `test_07_cli::test_t103_usage_fault_precedes_input_contract_violation` | PASSING |
+| E-64 | `cli.py` (`_explain_error`; the `explain` subparser's required `--spec`) | `test_12_explain::test_t102_explain_requires_spec_flag` | PASSING |
+| T-101 | — | `test_07_cli::test_judge_available_false_when_budget_skips_everything` (C-07/E-32/E-35/R-28) | PASSING |
+| T-102 | — | `test_12_explain::test_t102_explain_requires_spec_flag` (C-19/E-64/R-41) | PASSING |
+| T-103 | — | `test_07_cli::test_t103_usage_fault_precedes_input_contract_violation` (K-18/§5.4) | PASSING |
 
 ## 6. Verdict
 
 ```text
-Spec coverage: 262/262 IDs realized (0 deferred)
-speccheck (mock): speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak,
+Spec coverage: 267/267 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 267/267 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: CONFORMING - 267/267 passing (100.0%), 0 failing, 0 skipped, 0 weak,
                   0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
                   (openai/gpt-6-luna-pro via OpenRouter, judge_available=true,
-                  unknown_rate=0.0182, strict_judge_failure=null). Third pass, against
-                  --proof/--proof-results checking speccheck's own real Lean proof against
-                  itself. Two real findings surfaced and fixed across the first two passes
-                  (E-34 twice, T-100 once) — see §0k for the full round-by-round account,
-                  including the prompt-injection misdiagnosis the first pass's framing corrected.
-Observed: no rendered surface; the two golden reports (T-46/T-99) and the four --help screens
-were the artifacts to read, and all were diffed byte-for-byte against their goldens (§0k)
+                  unknown_rate=0.0202, strict_judge_failure=null). Fourth pass over v1.20;
+                  rounds 1–3 each flagged one edge and rounds 1–2 each found a genuinely
+                  weak assertion (E-34, then R-16), both strengthened — see §0l.
+Observed: no rendered surface; the two golden reports (T-46/T-71) and the four --help screens
+were the artifacts to read, and all were diffed byte-for-byte against their goldens (§0l)
 Readiness: BUILT
 Conformance: PASS
 ```
 
-v1.19's deliverable (R-100, C-20, C-21, K-17, T-99, T-100) and v1.19.1's fix (I-018, E-62, E-63,
-E-65, D-45) are green on both gates. Every prior version's guarantee is unchanged: the fixture
-goldens are byte-identical to a fresh run without `--proof`/`--proof-results` (T-46/T-71/I-018),
-`_selfcheck/` equals `fixtures/target/` (T-60, now including the untouched `proof/` +
-`proof-results.json` siblings), the mock gate is 262/262 with 0 dangling and 0 stale, and the
-`check --help` golden gained exactly the two new flag rows T-100 names. Phase B, run three times
-by the requester (§0k), found two tests whose assertions were weaker than what they claimed to
-prove, both since strengthened and both confirmed clean on the third pass — this time judged
-against speccheck's own real Lean proof of itself (`--proof proof --proof-results
-build/proof/proof-results.json`), not only the synthetic golden fixture.
+v1.20's three rows (K-18, E-64, T-101..T-103) and its two amended ones (C-07, E-32) are green on
+both gates. Every prior version's guarantee is unchanged: the fixture goldens are byte-identical
+to a fresh run (T-46/T-71/I-018), `_selfcheck/` equals `fixtures/target/` (T-60), the mock gate is
+`267/267` with 0 dangling and 0 stale, and neither `check` nor `explain` help golden gained a row
+(the `explain` synopsis was already unbracketed — only the E-64 message is new). Phase B, run
+four times against `openai/gpt-6-luna-pro` (§0l), found two tests whose assertions were weaker than
+what they claimed to prove — E-34's killed-run-leftover tests (which planted the artifact but never
+asserted it existed) and R-16's determinism test (which compared runs' stdout and the golden
+fixture, never the two runs' own report files) — both since strengthened, and a fourth pass came
+back clean, `267/267`, `0 weak`.
 
 The notes are:
 
-- **The manifest-gating defect, caught by its own test before it shipped** — the first pipeline
-  draft nested the `--proof-results` read under `if config.proof:`, reintroducing F-504 in code
-  after it had just been fixed in the spec; `test_proof_results_alone_writes_the_top_level_key`
-  failed against that draft and named exactly the gap. Recorded in §0k in full, since it is the
-  most load-bearing fact of this increment: the model that found F-504 in the spec, and the test
-  that found its twin in the implementation, are two different mechanisms catching the same class
-  of mistake.
-- **T-99's cross-repository claim is evidence, not a gating test.** The proposal's own T-99 text
-  names a live run against `hello_world_deepseek` using `speccheck/tools/proof_evidence.py`; that
-  run is real (§0k's evidence trail below) but is not wired into `pytest`, since gating this
-  repository's suite on a sibling checkout's presence would make the suite non-hermetic. The
-  gating T-99 test runs entirely against `fixtures/target/`, extended in place.
-- **D-45's "given and readable" condition** is implemented by reading the top-level `proof.build`
-  key's presence rather than re-threading a separate boolean through `ReportInputs` — `proof.build`
-  is non-null exactly when `--proof-results` was given and successfully parsed, which is the same
-  fact D-45 needs, so no new field was added to carry it twice.
-- **Two mid-build messages were mistakenly declined as prompt injection, then corrected** — see
-  §0k's full account. Phase B was re-run three times against this increment: round 1 (no `--proof`
-  flags) found E-34 and T-100 weak; round 2 (fix applied, `--proof`/`--proof-results` now also
-  given) confirmed T-100 and found E-34 weak again on a narrower rationale; round 3 (second E-34
-  fix applied) came back clean, `262/262`, `0 weak`.
+- **Part A is the only behaviour-moving change, and it moves the undetermined path only.** C-07's
+  amended `judge_available` (false when at least one edge was judge-eligible and no call
+  succeeded, E-14 or E-35 alike) changes no golden — `--self-check` and §9.8 run `--judge mock` with
+  no budget — and turns a previously `null`-reasoned `--strict --judge llm` red run into one that
+  records `unavailable`, which is what R-28's gate exists to surface. `report.py`'s
+  `strict_judge_failure` needed no new branch: it already keys on `judge_available is False`.
+- **Part C moved no code, and that is the point.** K-18 states an order the implementation already
+  kept (argparse's flag checks, then every value/containment check, then the first content read);
+  T-103 makes it observable — the same two faults together exit `2` and alone exit `2`/`3` — rather
+  than leaving a prose stage order to be read two ways (F-503's `f503ExitPrecedenceDiffer`).
+- **Two pre-existing lint errors were fixed to make the gate honest.** `tools/lean_doc.py` (W292,
+  no trailing newline) and `tools/proof_evidence.py` (E741, ambiguous `l`) failed `ruff check src
+  tests tools` on the tree as received; both were corrected in place so the gate's "clean" is the
+  command's own verdict.
+- **The manifest-gating defect of §0k remains the load-bearing precedent.** As in v1.19.1, the
+  model that found `SPEC.md`'s three gaps and the §9 tests that found two weak assertions are two
+  different mechanisms catching the same class of mistake — spec under-determination on one side,
+  test under-assertion on the other.
 
-Nothing in the specification was scoped out: R-100, C-20, C-21, I-018, K-17, E-62, E-63, E-65,
-T-99 and T-100 are all realized and `PASSING` under both gates — the mock gate throughout, and the
-LLM gate as of round 3; D-43..D-45 and D-49 (confirmed, then amended) are folded exactly as
-`SPEC.md` states them.
+Nothing in the specification was scoped out: K-18, E-64, T-101, T-102 and T-103 are all realized
+and `PASSING` under both gates, and C-07/E-32's amendments are exactly as `SPEC.md` states them;
+D-46..D-48 (confirmed on the recommended branches) are folded.
 
-*Increment history:* §0k (v1.19 / v1.19.1, `--proof`/`--proof-results`), §0j (v1.18, the help
+*Increment history:* §0l (v1.20, the three determinacy fixes), §0k (v1.19 / v1.19.1, `--proof`/`--proof-results`), §0j (v1.18, the help
 contract), §0i (v1.17, `explain`), §0h (v1.16, the obligation-aware judge), §0g (v1.15, Jev
 pre-triage), §0f (v1.14, declared vs. incidental), §0e (v1.13, edges and `impact`), §0d (v1.11),
 §0c (v1.8), §0b (v1.6), §0a (v1.5), §0 (v1.4), then the v1.1 record in §§1–5.

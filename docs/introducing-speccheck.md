@@ -135,7 +135,7 @@ Given a `SPEC.md`, a source tree, a test tree, and a JUnit XML results file, it:
 - writes a Markdown report and a JSON report, byte-identical across runs, and prints one line:
 
 ```text
-speccheck: CONFORMING - 262/262 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
+speccheck: CONFORMING - 267/267 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
            0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
 ```
 
@@ -176,7 +176,7 @@ model for free, or against OpenRouter, Anthropic's compatibility endpoint, or an
 for cents.
 
 speccheck is written to its own `SPEC.md`, and it is the worked example of the method. The
-numbers in the summary line above are its self-application: 262 IDs, 149 tests, every one
+numbers in the summary line above are its self-application: 267 IDs, 153 tests, every one
 `PASSING`, and (this is the part I find most convincing) when the LLM judge was first pointed
 at the tool's own suite, it found five tests that proved their IDs only by implication. The tests
 were strengthened; the code was not touched. That is the judge doing its job.
