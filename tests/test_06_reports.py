@@ -373,14 +373,16 @@ def test_determinism_across_paths_out_placement_and_leftovers(tmp_path: Path):
     planted .tmp leftovers under --out (never scanned, deleted by the run). (R-16, I-002, E-23, E-34)"""
     a = _golden_copy(tmp_path / "one")
     first = run_cli(_golden_args("--judge", "mock", "--strict"), a)
+    first_json = (a / "speccheck.json").read_bytes()
+    first_md = (a / "SPEC_CONFORMANCE_REPORT.md").read_bytes()
     second = run_cli(_golden_args("--judge", "mock", "--strict"), a)
     assert first.stdout == second.stdout
-    assert (a / "speccheck.json").read_bytes() == (
-        FIXTURE / "golden" / "speccheck.json"
-    ).read_bytes()
-    assert (a / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == (
-        FIXTURE / "golden" / "SPEC_CONFORMANCE_REPORT.md"
-    ).read_bytes()
+    # R-16: the two runs' own report files are byte-identical to each other (both compared
+    # here, the same pair of files the clause names), and each to the fixture golden.
+    assert (a / "speccheck.json").read_bytes() == first_json
+    assert (a / "SPEC_CONFORMANCE_REPORT.md").read_bytes() == first_md
+    assert first_json == (FIXTURE / "golden" / "speccheck.json").read_bytes()
+    assert first_md == (FIXTURE / "golden" / "SPEC_CONFORMANCE_REPORT.md").read_bytes()
     b = _golden_copy(tmp_path / "two" / "deeper")
     run_cli(_golden_args("--judge", "mock", "--strict"), b)
     assert (b / "speccheck.json").read_bytes() == (a / "speccheck.json").read_bytes()
@@ -406,6 +408,11 @@ def test_determinism_across_paths_out_placement_and_leftovers(tmp_path: Path):
     m1 = (c / "src" / "out" / "SPEC_CONFORMANCE_REPORT.md").read_bytes()
     (c / "src" / "out" / ".speccheck.json.deadbeef.tmp").write_text("R-01 R-02 R-03 planted\n")
     (c / "src" / "out" / ".SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp").write_text("R-01 planted\n")
+    # E-34's own condition, asserted before the run rather than assumed: an artifact of this
+    # exact killed-run naming shape exists under --out, and --out here lies under the scan root
+    # (--src .), so a scan that failed to exclude --out would read it.
+    assert (c / "src" / "out" / ".speccheck.json.deadbeef.tmp").is_file()
+    assert (c / "src" / "out" / ".SPEC_CONFORMANCE_REPORT.md.deadbeef.tmp").is_file()
     r2 = run_cli(args, c)
     assert r1.stdout == r2.stdout
     # E-34: the two planted leftovers are never scanned -- their "R-01 ... planted" / "R-01
@@ -453,6 +460,10 @@ def test_killed_run_leftover_is_deleted_never_scanned_and_leaves_no_trace(tmp_pa
     marker = "UNMISTAKABLE-KILLED-RUN-LEFTOVER-MARKER-R-01"
     leftover_json.write_text(marker)
     leftover_md.write_text(marker)
+    # E-34's stated precondition, asserted rather than assumed: the killed-run artifact (this
+    # exact `.<nonce>.tmp` shape) really does exist under --out before the run begins, so its
+    # later absence cannot pass vacuously on a planting that silently failed.
+    assert leftover_json.is_file() and leftover_md.is_file()
     run_cli(_golden_args("--judge", "mock", "--strict", "--out", "out"), killed)
 
     # (a) deleted at step (1): the two leftovers, named exactly, are gone.

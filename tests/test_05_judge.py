@@ -890,8 +890,10 @@ def test_triage_orders_and_truncates_the_judge_queue(tmp_path: Path, monkeypatch
     them — in ascending-confidence order, and the other 7 are UNKNOWN with rationale
     `judge: budget` and coerced: true, with one Note reporting 7 and one reporting the single
     E-59 failure; --judge-budget 100% issues all 10; --judge-budget 0% issues none (judge call
-    count 0) while still running the triage pass, with judge_available true; a stub that fails
-    every C-17 call leaves judge_available and unknown_rate exactly as a triage-free run does.
+    count 0) while still running the triage pass, with judge_available FALSE (v1.20: at least
+    one edge was eligible and no call succeeded, C-07/E-35 — not vacuously true just because
+    the triage pass itself ran); a stub that fails every C-17 call leaves judge_available and
+    unknown_rate exactly as a triage-free run does.
     (K-16, K-12, C-17, I-015, E-35, E-59, I-006, D-30, D-32)"""
     write_tree(tmp_path, _ten_edge_project())
     # p(e) is the max over the returned labels (C-17), so every stub confidence stays >= 0.5
@@ -931,7 +933,7 @@ def test_triage_orders_and_truncates_the_judge_queue(tmp_path: Path, monkeypatch
 
     judge.order.clear()
     run = run_cli([*base, "--judge-budget", "0%"], tmp_path, env=JEV_ENV)
-    assert judge.order == [] and run.json["judge_available"] is True
+    assert judge.order == [] and run.json["judge_available"] is False  # v1.20: C-07, E-35
     assert run.json["metrics"]["unknown_rate"] == 1.0
 
     # a total C-17 failure changes nothing the judge records (E-59)

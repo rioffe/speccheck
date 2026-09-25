@@ -336,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
         "proof_repo": str(proof_root.relative_to(root)) if proof_root.is_relative_to(root) else str(proof_root),
         "build": {"exit": rc, "theorems_total": len(theorems),
                   "theorems_checked": n_checked,
-                  "errors": sorted(f"{f}:{l}" for f, l in err_lines)},
+                  "errors": sorted(f"{f}:{n}" for f, n in err_lines)},
         "pytest": {"skipped": args.skip_pytest, **junit},
         "theorems": theorems,
         "deferred_to_pytest": deferrals,

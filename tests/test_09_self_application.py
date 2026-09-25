@@ -31,7 +31,13 @@ ROOT = Path(__file__).resolve().parent.parent
 # R-40, C-18, I-016, E-60, E-61 and T-92..T-94 for the `explain` subcommand (D-33..D-36)
 # SPEC.md v1.18 declares 252 ids (41 R, 19 C, 17 I, 16 K, 61 E, 98 T; none retired); v1.18 added
 # R-41, C-19, I-017 and T-95..T-98 for the CLI help contract (D-37..D-42)
-DECLARED_IDS = 262
+# SPEC.md v1.19 declares 262 ids (42 R, 21 C, 18 I, 17 K, 63 E, 100 T; none retired); v1.19 added
+# R-100, C-20, C-21, I-018, K-17, E-62, E-63, E-65 and T-99/T-100 for the --proof parameter pair,
+# and v1.19.1 added no id (F-504 amended K-17's gate only)
+# SPEC.md v1.20 declares 267 ids (42 R, 21 C, 18 I, 18 K, 65 E, 103 T; none retired); v1.20 added
+# K-18, E-64 and T-101..T-103 for the three determinacy fixes (judge_available, explain's --spec,
+# exit-code precedence; D-46..D-48)
+DECLARED_IDS = 267
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

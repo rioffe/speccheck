@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -98,6 +99,44 @@ def test_t92_explain_golden_trace_is_stable(tmp_path: Path):
     deep = run_cli(ARGS + ["--root", ".", "--depth", "0"], target)
     assert deep.code == 0
     assert deep.stdout == run.stdout.replace("impact (1):", "impact (0):")
+
+
+def _spec_entry(help_text: str) -> str:
+    """The rendered `--spec` entry of a help screen, collapsed to one line, up to the next option."""
+    tail = help_text.split("\n  --spec FILE", 1)[1].splitlines()
+    para: list[str] = []
+    for line in tail:
+        if not line.strip() or line.startswith("  --"):
+            break
+        para.append(line.strip())
+    return " ".join(para)
+
+
+def test_t102_explain_requires_spec_flag(tmp_path: Path):
+    """T-102 (v1.20): `explain R-01` with no `--spec` exits 2 with E-64's own message
+    (`explain: --spec is required`) and writes no trace (stdout empty, the copy byte-identical);
+    `explain --help`'s synopsis shows `--spec` unbracketed and its `--spec` entry is the same
+    C-19 §3 paragraph the `check` entry carries, matching the rendered golden. (C-19, E-64, R-41)"""
+    target = _copy(tmp_path)
+    before = _tree_digest(target)
+    missing = run_cli(["explain", "R-01", "--root", "."], target)
+    assert missing.code == 2, missing.stderr
+    assert missing.stderr.strip().endswith("explain: --spec is required"), missing.stderr
+    assert missing.stdout == ""
+    assert _tree_digest(target) == before
+
+    env = dict(os.environ, COLUMNS="80")
+    screen = run_cli(["explain", "--help"], target, env=env)
+    assert screen.code == 0, screen.stderr
+    synopsis = " ".join(screen.stdout.split("Run the same pipeline", 1)[0].split())
+    assert "--spec FILE" in synopsis and "[--spec FILE]" not in synopsis
+    golden = (
+        Path(__file__).resolve().parent / "data" / "help" / "explain_help.txt"
+    ).read_text(encoding="utf-8")
+    assert screen.stdout == golden
+    check = run_cli(["check", "--help"], target, env=env)
+    assert _spec_entry(screen.stdout) == _spec_entry(check.stdout)
+    assert "required; must resolve inside --root" in _spec_entry(screen.stdout)
 
 
 def test_t93_explain_undeclared_retired_and_uncited(tmp_path: Path):

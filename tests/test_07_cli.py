@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from speccheck import cli, judge_llm, report
+from speccheck import cli, jev, judge_llm, report
 
 from .conftest import FIXTURE, SIMPLE_PROJECT, junit, run_cli, spec_table
 
@@ -622,6 +622,70 @@ def test_judge_budget(project, monkeypatch):
     assert (
         len(issued) == 6 and run.json["notes"] == [] and run.json["metrics"]["unknown_rate"] == 0.0
     )
+
+
+def test_t103_usage_fault_precedes_input_contract_violation(project):
+    """T-103 (v1.20): a run carrying both fault kinds — a `--src` element that is neither file nor
+    directory (E-52) together with a malformed `--results` (E-05) — exits `2`, not `3`, and writes
+    no report; the same two faults split across separate invocations exit `2` and `3`
+    respectively, so the precedence is observable and not merely asserted. (K-18, E-52, E-05,
+    §5.4)"""
+    proj = project({**SIMPLE_PROJECT, "bad-results.xml": "not xml <<<"})
+    base = ["check", "--spec", "SPEC.md", "--tests", "tests", "--judge", "mock", "--out", "out"]
+    both = run_cli([*base, "--src", "nope", "--results", "bad-results.xml"], proj.path)
+    assert both.code == 2, both.stderr
+    assert "--src" in both.stderr
+    assert not (proj.path / "out").exists()
+    usage_only = run_cli([*base, "--src", "nope"], proj.path)
+    assert usage_only.code == 2 and "--src" in usage_only.stderr
+    contract_only = run_cli([*base, "--src", "src", "--results", "bad-results.xml"], proj.path)
+    assert contract_only.code == 3, contract_only.stderr
+    assert "results:" in contract_only.stderr
+    assert not (proj.path / "out").exists()
+
+
+def test_judge_available_false_when_budget_skips_everything(project, monkeypatch):
+    """T-101 (v1.20): --judge-budget 0% with --jev-pre-triage under --judge llm, at least one
+    judge-eligible edge -- no C-06 request is issued, judge_available is false (never null), and
+    every eligible edge's verdict is the E-35 UNKNOWN with rationale "judge: budget"; --strict
+    then exits 1 with strict_judge_failure "unavailable" and the summary-line suffix
+    "(unavailable)". A second run with N above the eligible count leaves judge_available true.
+    (C-07, E-32, E-35, R-28)"""
+    proj = project(SIMPLE_PROJECT)  # one judge-eligible edge (R-01)
+    real_calls: list[tuple] = []
+    monkeypatch.setattr(
+        judge_llm, "_httpx_post", lambda *a: real_calls.append(a) or (200, _ok_reply())
+    )
+
+    def triage(url, headers, body, timeout):
+        return 200, json.dumps(
+            {"answers": {"verdict": {"choice": "ASSERTS", "probabilities": {"ASSERTS": 0.9}}}}
+        )
+
+    monkeypatch.setattr(jev, "_httpx_post", triage)
+    run = proj.check("--judge", "llm", "--jev-pre-triage", "--judge-budget", "0%", env=JEV_ENV)
+    assert run.code == 0 and real_calls == []
+    assert run.json["judge_available"] is False
+    for rec in run.json["ids"]:
+        for t in rec["tests"]:
+            if t["verdict"] is not None:
+                assert (
+                    t["verdict"]["verdict"] == "UNKNOWN"
+                    and t["verdict"]["coerced"] is True
+                    and t["verdict"]["rationale"] == "judge: budget"
+                )
+    strict = proj.check(
+        "--judge", "llm", "--strict", "--jev-pre-triage", "--judge-budget", "0%", env=JEV_ENV
+    )
+    assert strict.code == 1 and strict.json["strict_judge_failure"] == "unavailable"
+    assert strict.stdout.rstrip("\n").endswith("judge=llm (unavailable)")
+    assert SUMMARY_RE.match(strict.stdout.rstrip("\n"))
+    # N above the eligible count (1): every edge is issued, judge_available stays true
+    real_calls.clear()
+    above = proj.check(
+        "--judge", "llm", "--jev-pre-triage", "--judge-budget", "100%", env=JEV_ENV
+    )
+    assert above.code == 0 and above.json["judge_available"] is True and real_calls
 
 
 def test_jev_pre_triage_usage_errors_and_secret_hygiene(project, monkeypatch):

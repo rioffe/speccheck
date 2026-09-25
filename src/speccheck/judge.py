@@ -441,5 +441,10 @@ def run_judge(
         calls_made += 1
         if not verdict.call_failed:
             calls_ok += 1
-    available = calls_made == 0 or calls_ok > 0
+    # C-07 (v1.20, amended): boolean and total over the eligible-but-unissued case (E-35) --
+    # `requests` is non-empty here (the empty case returns early above, vacuously available), so
+    # at least one edge was judge-eligible; available iff at least one call actually succeeded,
+    # whether the rest failed (E-14) or were never issued at all (a 0% budget, or every edge
+    # skipped by a deadline reached before the first request).
+    available = calls_ok > 0
     return JudgeRun(verdicts, available, budget_unjudged)

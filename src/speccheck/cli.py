@@ -93,6 +93,15 @@ class _Parser(argparse.ArgumentParser):
         raise UsageError(message)
 
 
+def _explain_error(message: str) -> None:
+    """E-64 (v1.20): the missing-`--spec` error on the `explain` subparser carries its own
+    message (§5.1; `explain: --spec is required`), not argparse's generic missing-argument text;
+    every other `explain` parser error keeps argparse's wording verbatim."""
+    if message == "the following arguments are required: --spec":
+        raise UsageError("explain: --spec is required")
+    raise UsageError(message)
+
+
 @dataclass(frozen=True)
 class Config:
     spec: Path
@@ -390,6 +399,9 @@ def build_parser() -> _Parser:
         epilog=_EPILOG,
         formatter_class=_FORMATTER,
     )
+    # E-64 (v1.20): `--spec` is required on `explain` and its synopsis carries no brackets; a
+    # missing flag is this subparser's own message, not argparse's generic missing-argument text.
+    explain.error = _explain_error  # type: ignore[method-assign]
     explain.add_argument("id", metavar="ID", help=_HELP_ID)
     explain.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
     explain.add_argument("--src", action="append", default=None, metavar="PATHS", help=_HELP_SRC)
@@ -557,7 +569,10 @@ def _build_explain_config(
 
 
 def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
-    """argv + env -> Action (exit 2 on any usage error; K-01)."""
+    """argv + env -> Action (exit 2 on any usage error; K-01). K-18 (v1.20): argparse itself
+    performs the flag-level usage checks — an undefined flag (E-54), a missing required flag
+    (E-64 on `explain`) — and `_build_check_config`/`_build_impact_config` then complete the
+    value and containment checks, all before any spec/results/out content is read."""
     parser = build_parser()
     args = parser.parse_args(list(argv))
     verbose = _validate_verbose(args.verbose)
@@ -584,7 +599,15 @@ def _build_check_config(
 ) -> Config:
     """The `check` validation (C-03, C-09, E-09, E-52, E-58, K-11, K-12). `explain` reuses it:
     its subparser defines neither `--out` nor `--strict`, so both fall back here (D-33: the trace
-    is stdout-only, and nothing it renders is pass/fail)."""
+    is stdout-only, and nothing it renders is pass/fail).
+
+    K-18 (v1.20): every usage-fault check — the `--judge`/`--max-unknown`/`--judge-concurrency`/
+    `--judge-budget`/`--progress` values, `--root` containment, and each path's file/directory
+    shape (E-52) — completes here, in this function and in `parse_args`' undefined-flag/required
+    rejection, before the pipeline reads `SPEC.md`, the results file, `--proof-results` or the
+    `--out` directory for content. So an invocation carrying both a usage fault (exit `2`) and
+    what would be an input-contract violation (E-01/E-02/E-03/E-05/E-18, exit `3`) exits `2`:
+    the contract check is never reached. `_build_impact_config` orders `--against` the same way."""
     out_arg = getattr(args, "out", ".")
     strict = bool(getattr(args, "strict", False))
     if args.judge not in JUDGE_MODES:
