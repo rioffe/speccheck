@@ -1,5 +1,6 @@
 {
-  "schema_version": "1.5",
+  "schema_version": "1.6",
+  "dialect": "house",
   "spec": "SPEC.md",
   "judge": "mock",
   "judge_available": true,

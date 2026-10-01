@@ -15,8 +15,19 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-# C-01 TOKEN regex; K-04 (1-3 digits, alphanumeric-bounded).
-ID_RE = re.compile(r"(?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])")
+# C-01 TOKEN regex; K-04 (1-3 digits, alphanumeric-bounded); R-44 (v1.19): a token immediately
+# preceded by an uppercase-alphanumeric character and a hyphen is no token at all, so `IR-C-001`
+# never yields a `C-001` citation in either dialect.
+ID_RE = re.compile(r"(?<![A-Z0-9]-)(?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])")
+
+# C-20 TERSE-ID (v1.19): PREFIX "-" FAMILY "-" DIGITS, bounds per K-17, boundary per R-44.
+TERSE_ID_RE = re.compile(
+    r"(?<![A-Z0-9]-)(?<![A-Za-z0-9])"
+    r"([A-Z][A-Z0-9]{0,3})-([A-Z]{1,2})-([0-9]{1,3})"
+    r"(?![A-Za-z0-9])"
+)
+
+DIALECTS = ("house", "terse")  # C-21 (v1.19); "auto" is CLI-only and resolves before parsing
 
 FAMILY_ORDER = "RCIKET"
 FAMILIES = frozenset(FAMILY_ORDER)
@@ -40,30 +51,67 @@ class SpecError(Exception):
     """An input-contract violation in SPEC.md (E-01, E-02, E-03) -> exit 3."""
 
 
+class DialectError(Exception):
+    """A C-21/C-20 dialect-selection violation (E-62, E-64) -> exit 2."""
+
+
 def normalize_id(family: str, number: int) -> str:
     """C-01 normalized form; I-011 (injective within a family)."""
     width = 3 if family == "I" else 2
     return f"{family}-{number:0{width}d}"
 
 
+def normalize_terse_id(prefix: str, family: str, number: int) -> str:
+    """C-20 normalized form: digits zero-padded to three, as the house of record (`ir-control`)
+    writes them, so `IR-RX-1` and `IR-RX-001` are one id."""
+    return f"{prefix}-{family}-{number:03d}"
+
+
 def family_rank(family: str) -> int:
     return FAMILY_ORDER.index(family)
 
 
-def id_sort_key(ident: str) -> tuple[int, int]:
-    family, num = ident.split("-", 1)
-    return (family_rank(family), int(num))
+def id_sort_key(ident: str) -> tuple[str, int, int]:
+    """House: FAMILY_ORDER rank then number. Terse (C-20): lexicographic family then number.
+    The two never co-occur in one run (C-21)."""
+    parts = ident.split("-")
+    if len(parts) == 3:
+        return (parts[1], 0, int(parts[2]))
+    return ("", family_rank(parts[0]), int(parts[1]))
 
 
-def edge_id_key(ident: str) -> tuple[int, int]:
+def edge_id_key(ident: str) -> tuple[int, str, int, int]:
     """C-12 order: like id_sort_key, but the family alphabet includes "D" (decisions), which
-    sorts last."""
-    family, num = ident.split("-", 1)
-    return (EDGE_FAMILY_ORDER.index(family), int(num))
+    sorts last in both dialects."""
+    parts = ident.split("-")
+    if len(parts) == 3:
+        return (0, parts[1], 0, int(parts[2]))
+    family, num = parts
+    if family == "D":
+        return (1, "", 0, int(num))
+    return (0, "", family_rank(family), int(num))
 
 
-def tokens_in_line(line: str) -> list[tuple[str, str, int]]:
-    """Every ID token on a line as (normalized_id, family, number)."""
+def spec_sort_key(spec: SpecId) -> tuple[str, int, int]:
+    if spec.prefix:
+        return (spec.family, 0, spec.number)
+    return ("", family_rank(spec.family), spec.number)
+
+
+def is_test_family(spec: SpecId) -> bool:
+    """C-05/R-25 family-T semantics apply to house T ids only; no terse family receives them
+    (R-43, D-45)."""
+    return spec.family == "T" and not spec.prefix
+
+
+def tokens_in_line(line: str, dialect: str = "house") -> list[tuple[str, str, int]]:
+    """Every ID token on a line as (normalized_id, family, number), per the run's dialect
+    (R-43: terse citation is full-token only)."""
+    if dialect == "terse":
+        return [
+            (normalize_terse_id(m[1], m[2], int(m[3])), m[2], int(m[3]))
+            for m in TERSE_ID_RE.finditer(line)
+        ]
     return [
         (normalize_id(m.group(1), int(m.group(2))), m.group(1), int(m.group(2)))
         for m in ID_RE.finditer(line)
@@ -83,10 +131,13 @@ class SpecId:
     text: str  # C-02: the statement; == title for a row, title + "\n" + SECTION BODY for a heading
     line: int
     retired: bool
-    recorded: bool = False  # C-01 RECORDED marker (R-35); only ever True for family T
+    recorded: bool = False  # C-01 RECORDED marker (R-35); only ever True for house family T
+    prefix: str = ""  # C-20 (v1.19): the terse PREFIX; "" for a house id
 
     @property
     def id(self) -> str:
+        if self.prefix:
+            return normalize_terse_id(self.prefix, self.family, self.number)
         return normalize_id(self.family, self.number)
 
 
@@ -322,6 +373,190 @@ def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bo
 
 
 # --------------------------------------------------------------------------------------------
+# C-20 terse-IEEE declaration grammar (v1.19)
+# --------------------------------------------------------------------------------------------
+
+_TERSE_TOK = r"[A-Z][A-Z0-9]{0,3}-[A-Z]{1,2}-[0-9]{1,3}"
+# C-20 (d): a list item whose first token after the bullet marker is **TERSE-ID — Title:** or
+# **TERSE-ID:** (the em-dash and title are optional; the title is then empty);
+# retirement by strike-through, either nesting.
+_TERSE_BULLET_RE = re.compile(
+    r"^(?P<indent>[ \t]*)[-*+][ \t]+"
+    r"(?P<open>~~\*\*|\*\*~~|\*\*)"
+    r"(?P<tok>" + _TERSE_TOK + r")"
+    r"(?:[ \t]+—[ \t]+(?P<title>.*))?:"
+    r"(?P<close>~~\*\*|\*\*~~|\*\*)"
+    r"(?P<rest>.*)$"
+)
+# C-20 (a)/(b): C-01's forms accepting a TERSE-ID where C-01 accepts an ID.
+_TERSE_FIRST_CELL_RE = re.compile(
+    r"^(?:\*\*(?P<a>" + _TERSE_TOK + r")\*\*"
+    r"|~~\*\*(?P<b>" + _TERSE_TOK + r")\*\*~~"
+    r"|\*\*~~(?P<c>" + _TERSE_TOK + r")~~\*\*)(?:$|\s)"
+)
+_TERSE_HEADING_RE = re.compile(
+    r"^ {0,3}#{1,6}\s+(?P<tok>~~" + _TERSE_TOK + r"~~|" + _TERSE_TOK + r")"
+    r"(?![A-Za-z0-9])(?P<rest>.*)$"
+)
+_BULLET_LINE_RE = re.compile(r"^[ \t]*[-*+][ \t]")
+
+
+def _split_terse(tok: str) -> tuple[str, str, int]:
+    prefix, family, num = tok.rsplit("-", 2)
+    return prefix, family, int(num)
+
+
+def _bullet_item_body(lines: list[str], start: int, indent: str) -> list[str]:
+    """C-20 (d): the continuation lines of the list item declared at 0-based `start` — up to the
+    next list item at the same or shallower indentation, a blank line followed by
+    non-continuation text, a HEADING LINE, or end of file; fenced code blocks inside the item
+    included."""
+    body: list[str] = []
+    fence: str | None = None
+    i = start + 1
+    while i < len(lines):
+        line = lines[i]
+        marker = _fence_marker(line)
+        if fence is not None:
+            body.append(line)
+            if marker == fence and line.strip() == fence:
+                fence = None
+            i += 1
+            continue
+        if is_blank(line):
+            # a blank line ends the item unless the next non-blank line is a continuation
+            j = i + 1
+            while j < len(lines) and is_blank(lines[j]):
+                j += 1
+            if j >= len(lines):
+                break
+            nxt = lines[j]
+            leading = len(nxt) - len(nxt.lstrip(" \t"))
+            if leading <= len(indent):
+                break
+            body.extend(lines[i:j])
+            i = j
+            continue
+        if heading_level(line) is not None:
+            break
+        if _BULLET_LINE_RE.match(line):
+            leading = len(line) - len(line.lstrip(" \t"))
+            if leading <= len(indent):
+                break
+        if marker is not None:
+            fence = marker
+        body.append(line)
+        i += 1
+    while body and is_blank(body[-1]):
+        body = body[:-1]
+    return body
+
+
+def iter_terse_declarations(
+    lines: list[str],
+) -> Iterable[tuple[str, str, int, str, str, bool, int, bool]]:
+    """Yield (prefix, family, number, title, statement, retired, lineno, recorded) for every
+    C-20 declaration outside fences. The statement is capped per K-14 by the caller."""
+    headings = _heading_lines(lines)
+    fence: str | None = None
+    for lineno, line in enumerate(lines, start=1):
+        marker = _fence_marker(line)
+        if fence is not None:
+            if marker == fence and line.strip() == fence:
+                fence = None
+            continue
+        if marker is not None:
+            fence = marker
+            continue
+        stripped = line.lstrip()
+        if stripped.startswith("|"):
+            cells = split_row(line)
+            if not cells:
+                continue
+            if all(_SEPARATOR_CELL_RE.match(c) for c in cells):
+                continue
+            first = cells[0].strip()
+            m = _TERSE_FIRST_CELL_RE.match(first)
+            if not m:
+                continue
+            tok = m.group("a") or m.group("b") or m.group("c")
+            retired = m.group("a") is None
+            decoration = first[m.end() :].split()
+            recorded = bool(decoration) and decoration[0] == RECORDED_MARKER
+            statement = collapse_ws(cells[1]) if len(cells) > 1 else ""
+            prefix, fam, num = _split_terse(tok)
+            yield prefix, fam, num, statement, statement, retired, lineno, recorded
+            continue
+        if stripped.startswith("#"):
+            m = _TERSE_HEADING_RE.match(line)
+            if not m:
+                continue
+            tok = m.group("tok")
+            retired = tok.startswith("~~")
+            tok = tok.strip("~")
+            rest = m.group("rest")
+            recorded = rest.split()[:1] == [RECORDED_MARKER]
+            if recorded:
+                rest = rest.lstrip()[len(RECORDED_MARKER) :]
+            title = heading_title(rest)
+            level = heading_level(line)
+            assert level is not None
+            body = section_body(lines, lineno - 1, level, headings)
+            if not body:
+                statement = title
+            elif not title:
+                statement = body
+            else:
+                statement = title + "\n" + body
+            prefix, fam, num = _split_terse(tok)
+            yield prefix, fam, num, title, statement, retired, lineno, recorded
+            continue
+        m = _TERSE_BULLET_RE.match(line)
+        if m is None:
+            continue
+        retired = "~~" in m.group("open")
+        title = collapse_ws(m.group("title") or "")
+        body = _bullet_item_body(lines, lineno - 1, m.group("indent"))
+        first_rest = m.group("rest").strip()
+        item = ([first_rest] if first_rest else []) + body
+        item_text = "\n".join(item)
+        if not item:
+            statement = title
+        elif not title:
+            statement = item_text  # title-less form: the item alone (as house F-305)
+        else:
+            statement = title + "\n" + item_text
+        prefix, fam, num = _split_terse(m.group("tok"))
+        yield prefix, fam, num, title, statement, retired, lineno, False
+        # the RECORDED marker is meaningful for no terse family (D-45); bullets never carry it
+
+
+def detect_dialect(text: str) -> str:
+    """C-21 census under --dialect auto: terse>0 and house=0 -> terse; terse=0 -> house;
+    both>0 -> DialectError (E-62). D rows (C-01 (c)) are counted in neither census."""
+    lines = split_spec_lines(text)
+    n_house = sum(1 for _ in iter_declarations(lines))
+    n_terse = sum(1 for _ in iter_terse_declarations(lines))
+    if n_terse and n_house:
+        raise DialectError(
+            f"dialect: ambiguous spec: {n_house} house declarations, "
+            f"{n_terse} terse declarations"
+        )
+    return "terse" if n_terse else "house"
+
+
+def count_foreign_house_tokens(lines: Iterable[str]) -> int:
+    """E-63: bare house-form tokens in a terse run — never citations, never dangling; the caller
+    folds the total into one Note. The R-27 ignore-line rule applies as it does to citations."""
+    count = 0
+    for line in lines:
+        if IGNORE_LINE in line:
+            continue
+        count += sum(1 for _ in ID_RE.finditer(line))
+    return count
+
+
+# --------------------------------------------------------------------------------------------
 # C-01 (c) decision table (v1.13)
 # --------------------------------------------------------------------------------------------
 
@@ -395,7 +630,9 @@ def _decision_rows(lines: list[str]) -> list[tuple[int, str, str]]:
 
 
 def _build_decisions_and_edges(
-    ids: tuple[SpecId, ...], decision_rows: list[tuple[int, str, str]]
+    ids: tuple[SpecId, ...],
+    decision_rows: list[tuple[int, str, str]],
+    dialect: str = "house",
 ) -> tuple[tuple[Decision, ...], tuple[Edge, ...], list[str]]:
     """C-12: statement-token edges among the declared ids, plus decision rows and their
     `affects` edges. Returns (decisions, edges, notes) with everything in C-12 order."""
@@ -406,8 +643,7 @@ def _build_decisions_and_edges(
     def targets_of(text: str, self_id: str) -> list[str]:
         seen: set[str] = set()
         out: list[str] = []
-        for m in ID_RE.finditer(text):
-            y = normalize_id(m.group(1), int(m.group(2)))
+        for y, _fam, _num in tokens_in_line(text, dialect):
             if y == self_id or y in seen:
                 continue
             seen.add(y)
@@ -424,9 +660,10 @@ def _build_decisions_and_edges(
             if target is None:
                 notes.add(f"edge to undeclared id: {s.id} -> {y}")
                 continue
-            if s.family == "T" and target.family != "T":
+            # R-43/D-45: "verifies" is a house family-T notion; every terse edge is depends_on
+            if is_test_family(s) and not is_test_family(target):
                 record(s.id, "verifies", y, dst_retired=target.retired)
-            elif target.family == "T" and s.family != "T":
+            elif is_test_family(target) and not is_test_family(s):
                 record(y, "verifies", s.id, dst_retired=s.retired)
             else:
                 record(s.id, "depends_on", y, dst_retired=target.retired)
@@ -458,35 +695,67 @@ def _build_decisions_and_edges(
     return decisions_sorted, edges, sorted(notes)
 
 
-def parse_spec(text: str, rel_path: str) -> SpecIndex:
-    """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
+def _check_duplicate(
+    seen: dict[tuple[str, int], SpecId],
+    key: tuple[str, int],
+    ident: str,
+    retired: bool,
+    lineno: int,
+) -> None:
+    """E-02/E-03: a second declaration of one id is an error, worded by the retired flags."""
+    prior = seen.get(key)
+    if prior is None:
+        return
+    if prior.retired == retired:
+        raise SpecError(f"duplicate declaration of {ident} at lines {prior.line} and {lineno}")
+    first_kind = "retired" if prior.retired else "non-retired"
+    second_kind = "retired" if retired else "non-retired"
+    raise SpecError(
+        f"{ident} declared {first_kind} at line {prior.line} and {second_kind} at line {lineno}"
+    )
+
+
+def parse_spec(text: str, rel_path: str, dialect: str = "house") -> SpecIndex:
+    """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03, and
+    DialectError for E-64 (terse prefix mismatch)."""
     seen: dict[tuple[str, int], SpecId] = {}
     notes: list[str] = []
-    for fam, num, title, statement, retired, lineno, recorded in iter_declarations(
-        split_spec_lines(text)
-    ):
-        key = (fam, num)
-        if key in seen:
-            prior = seen[key]
-            ident = normalize_id(fam, num)
-            if prior.retired == retired:
-                raise SpecError(
-                    f"duplicate declaration of {ident} at lines {prior.line} and {lineno}"
+    if dialect == "terse":
+        spec_prefix: str | None = None
+        for prefix, fam, num, title, statement, retired, lineno, recorded in (
+            iter_terse_declarations(split_spec_lines(text))
+        ):
+            if spec_prefix is None:
+                spec_prefix = prefix  # C-20: fixed by the first declaration in document order
+            elif prefix != spec_prefix:
+                raise DialectError(  # E-64
+                    f"dialect: prefix mismatch: {prefix} differs from {spec_prefix} "
+                    f"at line {lineno}"
                 )
-            first_kind = "retired" if prior.retired else "non-retired"
-            second_kind = "retired" if retired else "non-retired"
-            raise SpecError(
-                f"{ident} declared {first_kind} at line {prior.line} "
-                f"and {second_kind} at line {lineno}"
-            )
-        statement, truncated = cap_statement(statement)  # K-14
-        if truncated:
-            notes.append(f"statement truncated at K-14: {normalize_id(fam, num)}")  # E-46
-        if recorded and fam != "T":  # E-50: the marker is meaningful for family T only
-            notes.append(f"recorded marker ignored on {normalize_id(fam, num)}: not a T id")
-            recorded = False
-        seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded)
-    ids = tuple(sorted(seen.values(), key=lambda s: (family_rank(s.family), s.number)))
+            key = (fam, num)
+            ident = normalize_terse_id(prefix, fam, num)
+            _check_duplicate(seen, key, ident, retired, lineno)
+            statement, truncated = cap_statement(statement)  # K-14
+            if truncated:
+                notes.append(f"statement truncated at K-14: {ident}")  # E-46
+            if recorded:  # C-20/D-45: meaningful for no terse family; ignored with a Note
+                notes.append(f"recorded marker ignored on {ident}: no terse family is a T family")
+                recorded = False
+            seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded, prefix)
+    else:
+        for fam, num, title, statement, retired, lineno, recorded in iter_declarations(
+            split_spec_lines(text)
+        ):
+            key = (fam, num)
+            _check_duplicate(seen, key, normalize_id(fam, num), retired, lineno)
+            statement, truncated = cap_statement(statement)  # K-14
+            if truncated:
+                notes.append(f"statement truncated at K-14: {normalize_id(fam, num)}")  # E-46
+            if recorded and fam != "T":  # E-50: the marker is meaningful for family T only
+                notes.append(f"recorded marker ignored on {normalize_id(fam, num)}: not a T id")
+                recorded = False
+            seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded)
+    ids = tuple(sorted(seen.values(), key=spec_sort_key))
     if not any(not s.retired for s in ids):
         raise SpecError("spec declares no in-scope IDs")
 
@@ -500,7 +769,7 @@ def parse_spec(text: str, rel_path: str) -> SpecIndex:
                 f"duplicate declaration of {ident} at lines {seen_decisions[num]} and {lineno}"
             )
         seen_decisions[num] = lineno
-    decisions, edges, edge_notes = _build_decisions_and_edges(ids, decision_rows)
+    decisions, edges, edge_notes = _build_decisions_and_edges(ids, decision_rows, dialect)
     notes.extend(edge_notes)
 
     return SpecIndex(
@@ -661,12 +930,12 @@ class RawCitation:
     line: int
 
 
-def citations_in_file(scanned: ScannedFile) -> list[RawCitation]:
-    """Every TOKEN occurrence on a line not carrying speccheck:ignore (C-01, R-27)."""
+def citations_in_file(scanned: ScannedFile, dialect: str = "house") -> list[RawCitation]:
+    """Every TOKEN occurrence on a line not carrying speccheck:ignore (C-01, C-20, R-27)."""
     out: list[RawCitation] = []
     for lineno, line in enumerate(scanned.lines, start=1):
         if IGNORE_LINE in line:
             continue
-        for ident, _fam, _num in tokens_in_line(line):
+        for ident, _fam, _num in tokens_in_line(line, dialect):
             out.append(RawCitation(ident, scanned.path, lineno))
     return out

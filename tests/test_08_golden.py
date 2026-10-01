@@ -467,7 +467,7 @@ def test_fixture_gains_one_incidental_citation(tmp_path: Path):
 
 def test_declared_ratio_is_present_and_recomputable_under_every_judge_mode(tmp_path: Path):
     """T-88: `speccheck.json` under `--judge none` and `--judge mock` carries `declared_ratio` in
-    `metrics` and `"declared"` on every `tests[]` entry, `schema_version` `"1.5"`; `declared_ratio`
+    `metrics` and `"declared"` on every `tests[]` entry, `schema_version` per C-07; `declared_ratio`
     is recomputable from the report's own evidence — the DECLARED citations of in-scope R/C/I/K/E
     ids inside attributed cases over all such citations — and is identical under both modes
     (I-014). (C-07, C-16, R-39)"""
@@ -492,7 +492,7 @@ def test_declared_ratio_is_present_and_recomputable_under_every_judge_mode(tmp_p
             target,
         )
         doc = run.json
-        assert doc["schema_version"] == "1.5" == report.SCHEMA_VERSION
+        assert doc["schema_version"] == "1.6" == report.SCHEMA_VERSION
         assert all(
             isinstance(t["declared"], bool) for rec in doc["ids"] for t in rec["tests"]
         )

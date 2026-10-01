@@ -1,6 +1,7 @@
-usage: speccheck impact [-h] --spec FILE [--changed IDS] [--against FILE]
-                        [--src PATHS] [--tests PATHS] [--root DIR] [--out DIR]
-                        [--depth N] [--verbose [LEVEL]]
+usage: speccheck impact [-h] --spec FILE [--dialect MODE] [--changed IDS]
+                        [--against FILE] [--src PATHS] [--tests PATHS]
+                        [--root DIR] [--out DIR] [--depth N]
+                        [--verbose [LEVEL]]
 
 Walk the spec's own cross-references from a changed set and write impact.json and IMPACT_REPORT.md under --out.
 
@@ -9,6 +10,11 @@ options:
   --spec FILE        the specification to check; decoded as UTF-8 (invalid
                      bytes are replaced and noted). required; must resolve
                      inside --root
+  --dialect MODE     spec dialect: auto, house, or terse (auto: the
+                     declaration census chooses house or terse, and a spec
+                     declaring under both grammars is an error, exit 2;
+                     house/terse: impose that grammar, no census). default:
+                     auto
   --changed IDS      the changed set: a comma-separated list of ids declared
                      in --spec (R/C/I/K/E/T or D). exactly one of --changed
                      and --against is required

@@ -16,13 +16,14 @@ from decimal import Decimal
 from pathlib import Path
 
 from .attribute import Citation
-from .extract import FAMILY_ORDER, Decision, Edge
+from .extract import Decision, Edge
 from .graph import IN_SCOPE_STATUSES, Graph, Metrics, TestEdge, compute_metrics
 from .results import RawResult
 
 SCHEMA_VERSION = (
-    "1.5"  # C-07: "1.0"-v1.6; "1.1" `title` (v1.7); "1.2" `clause` (v1.9); "1.3" `recorded`
-    # (v1.10); "1.4" `decisions`/`edges` (v1.13); "1.5" `declared`/`declared_ratio` (v1.14)
+    "1.6"  # C-07: "1.0"-v1.6; "1.1" `title` (v1.7); "1.2" `clause` (v1.9); "1.3" `recorded`
+    # (v1.10); "1.4" `decisions`/`edges` (v1.13); "1.5" `declared`/`declared_ratio` (v1.14);
+    # "1.6" top-level `dialect` (v1.19)
 )
 JSON_NAME = "speccheck.json"
 MD_NAME = "SPEC_CONFORMANCE_REPORT.md"
@@ -139,6 +140,7 @@ class ReportInputs:
     notes: list[str]
     decisions: tuple[Decision, ...] = ()  # v1.13, C-12
     edges: tuple[Edge, ...] = ()  # v1.13, C-12
+    dialect: str = "house"  # v1.19, C-21: the resolved dialect, carried into both reports
 
 
 def _edge_json(edge: TestEdge) -> dict:
@@ -172,6 +174,7 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
     metrics = compute_metrics(inputs.graph)
     report: dict = {
         "schema_version": SCHEMA_VERSION,
+        "dialect": inputs.dialect,  # C-21 (v1.19): immediately after schema_version
         "spec": inputs.spec_path,
         "judge": inputs.judge,
         "judge_available": inputs.judge_available,
@@ -222,7 +225,7 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
                 "passing": metrics.by_family[f]["passing"],
                 "ratio": _num(metrics.by_family[f]["ratio"]),
             }
-            for f in FAMILY_ORDER
+            for f in metrics.by_family  # house: FAMILY_ORDER; terse: declared families (C-20)
         },
     }
     if inputs.graph.judge_enabled:
@@ -278,7 +281,8 @@ def render_markdown(report: dict) -> str:
     out: list[str] = [
         "# Specification Conformance Report",
         "",
-        f"**Spec:** `{report['spec']}` \u00b7 **Judge:** {judge_text} \u00b7 "
+        f"**Spec:** `{report['spec']}` \u00b7 **Dialect:** {report['dialect']} \u00b7 "
+        f"**Judge:** {judge_text} \u00b7 "
         f"**Strict:** {'on' if report['strict'] else 'off'}",
         "",
         "## 1. Verdict",

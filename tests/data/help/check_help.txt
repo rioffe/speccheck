@@ -1,9 +1,9 @@
-usage: speccheck check [-h] --spec FILE [--src PATHS] [--tests PATHS]
-                       [--results FILE] [--root DIR] [--out DIR]
-                       [--judge MODE] [--strict] [--max-unknown FRACTION]
-                       [--judge-concurrency N] [--judge-budget SECONDS|N%]
-                       [--jev-pre-triage] [--progress MODE]
-                       [--verbose [LEVEL]]
+usage: speccheck check [-h] --spec FILE [--dialect MODE] [--src PATHS]
+                       [--tests PATHS] [--results FILE] [--root DIR]
+                       [--out DIR] [--judge MODE] [--strict]
+                       [--max-unknown FRACTION] [--judge-concurrency N]
+                       [--judge-budget SECONDS|N%] [--jev-pre-triage]
+                       [--progress MODE] [--verbose [LEVEL]]
 
 Run the conformance pipeline and write speccheck.json and SPEC_CONFORMANCE_REPORT.md under --out.
 
@@ -12,6 +12,11 @@ options:
   --spec FILE           the specification to check; decoded as UTF-8 (invalid
                         bytes are replaced and noted). required; must resolve
                         inside --root
+  --dialect MODE        spec dialect: auto, house, or terse (auto: the
+                        declaration census chooses house or terse, and a spec
+                        declaring under both grammars is an error, exit 2;
+                        house/terse: impose that grammar, no census). default:
+                        auto
   --src PATHS           source roots to scan for citations. repeatable; each
                         value is a comma-separated list of files and/or
                         directories. default: src if that directory exists,

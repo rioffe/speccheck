@@ -29,15 +29,21 @@ from .attribute import Citation, TestCase, attribute_file
 from .explain import render_trace
 from .extract import (
     ID_RE,
+    TERSE_ID_RE,
+    DialectError,
     ScanCounters,
     SpecError,
     SpecIndex,
     citations_in_file,
+    count_foreign_house_tokens,
     decode_text,
+    detect_dialect,
     edge_id_key,
     normalize_id,
+    normalize_terse_id,
     parse_spec,
     scan_roots,
+    split_spec_lines,
     to_posix_relative,
 )
 from .graph import Graph, apply_verdicts, build_graph, eligible_edges
@@ -79,6 +85,7 @@ log = logging.getLogger("speccheck")
 JUDGE_MODES = ("none", "mock", "llm")
 VERBOSE_LEVELS = ("INFO", "DEBUG")
 PROGRESS_MODES = ("auto", "always", "never")
+DIALECT_MODES = ("auto", "house", "terse")  # R-42, C-21 (v1.19)
 SELF_CHECK_FIXTURE = Path(__file__).parent / "_selfcheck"
 
 
@@ -107,6 +114,7 @@ class Config:
     verbose: str | None
     llm: LlmConfig | None
     spec_arg: str
+    dialect: str = "auto"  # R-42, C-21 (v1.19): resolved by the census when "auto"
     progress: str = "auto"
     triage: bool = False  # K-16 (v1.15): --jev-pre-triage, ignored unless --judge llm
     budget_percent: int | None = None  # K-12's N% form; None for the SECONDS form
@@ -130,6 +138,7 @@ class ImpactConfig:
     verbose: str | None
     spec_arg: str
     against_arg: str | None
+    dialect: str = "auto"  # R-42, C-21 (v1.19)
 
 
 @dataclass(frozen=True)
@@ -271,6 +280,11 @@ _HELP_IMPACT_TESTS = (
     "--tests, with no directory default here"
 )
 _HELP_ID = "the id to render, e.g. R-07; it must be declared in --spec, else exit 2"
+_HELP_DIALECT = (
+    f"spec dialect: {_expected(DIALECT_MODES)} (auto: the declaration census chooses house or "
+    "terse, and a spec declaring under both grammars is an error, exit 2; house/terse: impose "
+    "that grammar, no census). default: auto"
+)
 
 
 def build_parser() -> _Parser:
@@ -310,6 +324,7 @@ def build_parser() -> _Parser:
         formatter_class=_FORMATTER,
     )
     check.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
+    check.add_argument("--dialect", default="auto", metavar="MODE", help=_HELP_DIALECT)
     check.add_argument("--src", action="append", default=None, metavar="PATHS", help=_HELP_SRC)
     check.add_argument(
         "--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS
@@ -347,6 +362,7 @@ def build_parser() -> _Parser:
         formatter_class=_FORMATTER,
     )
     impact.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
+    impact.add_argument("--dialect", default="auto", metavar="MODE", help=_HELP_DIALECT)
     impact.add_argument("--changed", default=None, metavar="IDS", help=_HELP_CHANGED)
     impact.add_argument("--against", default=None, metavar="FILE", help=_HELP_AGAINST)
     impact.add_argument(
@@ -373,6 +389,7 @@ def build_parser() -> _Parser:
     )
     explain.add_argument("id", metavar="ID", help=_HELP_ID)
     explain.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
+    explain.add_argument("--dialect", default="auto", metavar="MODE", help=_HELP_DIALECT)
     explain.add_argument("--src", action="append", default=None, metavar="PATHS", help=_HELP_SRC)
     explain.add_argument(
         "--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS
@@ -399,6 +416,15 @@ def build_parser() -> _Parser:
         "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
     )
     return parser
+
+
+def _validate_dialect(value: str) -> str:
+    """R-42/C-21: --dialect accepts auto, house, or terse; anything else is a usage error."""
+    if value not in DIALECT_MODES:
+        raise UsageError(
+            f"--dialect: invalid value '{value}' (expected {_expected(DIALECT_MODES)})"
+        )
+    return value
 
 
 def _validate_verbose(value: str | None) -> str | None:
@@ -486,6 +512,7 @@ def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> Impac
     defined on this subparser at all, so argparse rejects them as unrecognized arguments (E-54)."""
     if (args.changed is None) == (args.against is None):
         raise UsageError("impact: exactly one of --changed, --against is required")  # E-54
+    dialect = _validate_dialect(args.dialect)
     root = Path(args.root).resolve()
     if not root.is_dir():
         raise UsageError(f"--root: not a directory: {args.root}")
@@ -525,6 +552,7 @@ def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> Impac
         verbose=verbose,
         spec_arg=args.spec,
         against_arg=args.against,
+        dialect=dialect,
     )
 
 
@@ -568,6 +596,7 @@ def _build_check_config(
     is stdout-only, and nothing it renders is pass/fail)."""
     out_arg = getattr(args, "out", ".")
     strict = bool(getattr(args, "strict", False))
+    dialect = _validate_dialect(args.dialect)
     if args.judge not in JUDGE_MODES:
         raise UsageError(
             f"--judge: invalid value '{args.judge}' (expected {_expected(JUDGE_MODES)})"
@@ -654,6 +683,7 @@ def _build_check_config(
         verbose=verbose,
         llm=llm,
         spec_arg=args.spec,
+        dialect=dialect,
         progress=args.progress,
         triage=triage_runs,
         budget_percent=budget_percent,
@@ -702,6 +732,7 @@ class _Stages:
     notes: list[str]
     judge_available: bool | None
     prompt_sha: str | None
+    dialect: str = "house"  # C-21 (v1.19): the resolved dialect
 
 
 def _run_stages(config: Config) -> _Stages:
@@ -716,8 +747,14 @@ def _run_stages(config: Config) -> _Stages:
     spec_text, replaced = decode_text(config.spec.read_bytes())
     if replaced:
         notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
-    index = parse_spec(spec_text, rel_spec)
+    dialect = config.dialect
+    if dialect == "auto":
+        dialect = detect_dialect(spec_text)  # C-21; DialectError (E-62) -> exit 2
+    index = parse_spec(spec_text, rel_spec, dialect)
     notes.extend(index.notes)  # K-14 / E-46: one Note per truncated statement
+    foreign = 0  # E-63: bare house-form tokens in a terse run, Noted once at the end
+    if dialect == "terse":
+        foreign += count_foreign_house_tokens(split_spec_lines(spec_text))
     stage.done(ids=len(index.ids), retired=sum(1 for s in index.ids if s.retired))
 
     excluded = _excluded_paths(config)
@@ -729,8 +766,11 @@ def _run_stages(config: Config) -> _Stages:
     for f in src_files:
         # E-56: a "src"-kind citation is never DECLARED
         src_citations.extend(
-            Citation(c.id, c.file, c.line, "src", None, False) for c in citations_in_file(f)
+            Citation(c.id, c.file, c.line, "src", None, False)
+            for c in citations_in_file(f, dialect)
         )
+        if dialect == "terse":
+            foreign += count_foreign_house_tokens(f.lines)
     stage.done(files=len(src_files), citations=len(src_citations))
 
     stage = _Stage("scan-tests")
@@ -739,13 +779,17 @@ def _run_stages(config: Config) -> _Stages:
     cases: list[TestCase] = []
     file_lines: dict[str, tuple[str, ...]] = {}
     for f in test_files:
-        attributed, file_notes = attribute_file(f)
+        attributed, file_notes = attribute_file(f, dialect)
         notes.extend(file_notes)
         cases.extend(attributed.cases)
         cases.append(attributed.file_case)
         test_citations.extend(attributed.citations)
         file_lines[f.path] = f.lines
+        if dialect == "terse":
+            foreign += count_foreign_house_tokens(f.lines)
     notes.extend(counters.notes())
+    if foreign:
+        notes.append(f"{foreign} foreign house-form tokens ignored (terse dialect)")  # E-63
     stage.done(files=len(test_files), cases=len(cases), citations=len(test_citations))
 
     stage = _Stage("map-results")
@@ -838,7 +882,7 @@ def _run_stages(config: Config) -> _Stages:
             unknown=sum(1 for v in run.verdicts.values() if v.verdict == "UNKNOWN"),
         )
 
-    return _Stages(index, graph, unattributed, notes, judge_available, prompt_sha)
+    return _Stages(index, graph, unattributed, notes, judge_available, prompt_sha, dialect)
 
 
 def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
@@ -865,6 +909,7 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             notes=notes,
             decisions=index.decisions,
             edges=index.edges,
+            dialect=stages.dialect,
         )
     )
     for note in report["notes"]:
@@ -886,10 +931,15 @@ def execute_explain(config: ExplainConfig, stdout: io.TextIOBase | None = None) 
     stages = _run_stages(check)
     by_id = stages.index.by_id()
     ident = config.ident.strip()
-    match = ID_RE.fullmatch(ident)
-    normalized = (
-        normalize_id(match.group(1), int(match.group(2))) if match is not None else None
-    )
+    normalized: str | None = None
+    if stages.dialect == "terse":
+        tmatch = TERSE_ID_RE.fullmatch(ident)
+        if tmatch is not None:
+            normalized = normalize_terse_id(tmatch.group(1), tmatch.group(2), int(tmatch.group(3)))
+    else:
+        match = ID_RE.fullmatch(ident)
+        if match is not None:
+            normalized = normalize_id(match.group(1), int(match.group(2)))
     if normalized is None or normalized not in by_id:
         raise UsageError(f"explain: undeclared id: {ident}")
     rec = next(r for r in stages.graph.records if r.id == normalized)
@@ -927,7 +977,10 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
     spec_text, replaced = decode_text(config.spec.read_bytes())
     if replaced:
         notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
-    index = parse_spec(spec_text, rel_spec)
+    dialect = config.dialect
+    if dialect == "auto":
+        dialect = detect_dialect(spec_text)  # C-21; DialectError (E-62) -> exit 2
+    index = parse_spec(spec_text, rel_spec, dialect)
     notes.extend(index.notes)
 
     against_path: str | None = None
@@ -943,7 +996,8 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
         if against_replaced:
             notes.append(f"invalid UTF-8 decoded with replacement: {against_path}")
         try:
-            old_index = parse_spec(against_text, against_path)
+            # C-21: --against is a prior version of the same spec; the resolved dialect applies
+            old_index = parse_spec(against_text, against_path, dialect)
         except SpecError as exc:
             raise SpecError(f"--against: {exc}") from None
         changed = diff_changed_set(old_index, index)
@@ -974,7 +1028,7 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
             src_files = scan_roots(config.src, root, excluded, config.out, counters)
             hits: dict[str, dict[str, set[int]]] = {}
             for f in src_files:
-                for c in citations_in_file(f):
+                for c in citations_in_file(f, dialect):
                     if c.id in target_ids:
                         hits.setdefault(c.id, {}).setdefault(f.path, set()).add(c.line)
             for ident in sorted(hits, key=edge_id_key):
@@ -986,7 +1040,7 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
             test_files = scan_roots(config.tests, root, excluded, config.out, counters)
             case_rows = []
             for f in test_files:
-                attributed, file_notes = attribute_file(f)
+                attributed, file_notes = attribute_file(f, dialect)
                 notes.extend(file_notes)
                 all_cases = list(attributed.cases) + [attributed.file_case]
                 for case in all_cases:
@@ -1206,7 +1260,7 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
             return execute_explain(action.explain_config)
         assert action.config is not None
         return execute(action.config)
-    except UsageError as exc:
+    except (UsageError, DialectError) as exc:  # E-62/E-64 (C-21, C-20) exit 2 like usage errors
         log.error("%s", exc)
         return 2
     except (SpecError, ResultsError, OutError) as exc:

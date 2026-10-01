@@ -1336,13 +1336,15 @@ Declaration (in the spec only, outside fenced code blocks, fences per C-01):
   E-50 applying by family-T absence, D-45).
 - **(d) bullet** — a list item whose first non-space characters are a bullet marker (`-`, `*`
   or `+` followed by whitespace) and whose first token after the marker begins a bold form
-  `**TERSE-ID — Title:**` (an em-dash between id and title, a colon ending the title inside
-  the closing `**`): title := the text between the em-dash and the closing `:**`, trimmed and
-  whitespace-collapsed; statement := title, a newline, and the whole list item — the rest of
-  the declaring line plus its continuation lines (indented or lazy) up to the next list item
-  at the same or shallower indentation, a blank line followed by non-continuation text, a
-  HEADING LINE, or end of file — fenced code blocks inside the item included, capped at K-14
-  bytes. A bold terse id elsewhere in the item is not a declaration.
+  `**TERSE-ID — Title:**` or `**TERSE-ID:**` (an em-dash between id and title when a title is
+  present, a colon ending the form inside the closing `**`): title := the text between the
+  em-dash and the closing `:**`, trimmed and whitespace-collapsed, or `""` in the title-less
+  form; statement := title, a newline, and the whole list item — the rest of the declaring
+  line plus its continuation lines (indented or lazy) up to the next list item at the same or
+  shallower indentation, a blank line followed by non-continuation text, a HEADING LINE, or
+  end of file — fenced code blocks inside the item included, capped at K-14 bytes; when the
+  title is `""` the statement is the item alone (as C-01's F-305). A bold terse id elsewhere
+  in the item is not a declaration.
 - Retirement is strike-through, as in C-01: `~~**IR-C-003 — Title:**~~` (either nesting).
 - The plain-cell decision rule C-01 (c) applies unchanged: `| D-01 | … |` rows are
   declaration-only decisions in both dialects.

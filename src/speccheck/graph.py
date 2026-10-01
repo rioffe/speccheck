@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, Context, Decimal
 
 from .attribute import Citation, TestCase
-from .extract import FAMILY_ORDER, SpecId, SpecIndex, family_rank
+from .extract import FAMILY_ORDER, SpecId, SpecIndex, is_test_family, spec_sort_key
 from .judge import JudgedVerdict
 from .results import CaseOutcome, RawResult
 
@@ -82,9 +82,10 @@ def deterministic_status(
     if spec.retired:
         return "RETIRED"
     if not tests:
-        if spec.family != "T" and not src:
+        # R-43/D-45: family-T semantics are house-only; a terse id is never a T id here
+        if not is_test_family(spec) and not src:
             return "UNCITED"
-        if spec.family == "T":
+        if is_test_family(spec):
             return "UNCITED"  # F-001: source citations are evidence only
         return "UNTESTED"
     outcomes = [t.outcome for t in tests if t.outcome is not None]
@@ -150,8 +151,9 @@ def build_graph(
 
     dangling.sort(key=cit_key)
     stale.sort(key=cit_key)
-    # C-16: R-39's population — in-scope R/C/I/K/E ids, attributed non-file-level test cases.
-    ratio_ids = {s.id for s in index.ids if not s.retired and s.family != "T"}
+    # C-16: R-39's population — in-scope R/C/I/K/E ids, attributed non-file-level test cases;
+    # under the terse dialect every id counts (no family is a T family, R-43/D-45).
+    ratio_ids = {s.id for s in index.ids if not s.retired and not is_test_family(s)}
     declared_hits = 0
     population = 0
     for cit in test_citations:
@@ -224,7 +226,10 @@ def compute_metrics(graph: Graph) -> Metrics:
     by_status = {s: sum(1 for r in records if r.status == s) for s in IN_SCOPE_STATUSES}
     passing = by_status["PASSING"]
     by_family: dict[str, dict] = {}
-    for fam in FAMILY_ORDER:
+    # House: the fixed six families. Terse (C-20): the declared families, lexicographic.
+    terse = any(r.spec.prefix for r in records)
+    families = sorted({r.spec.family for r in records}) if terse else list(FAMILY_ORDER)
+    for fam in families:
         fam_records = [r for r in records if r.spec.family == fam and r.status != "RETIRED"]
         fam_passing = sum(1 for r in fam_records if r.status == "PASSING")
         by_family[fam] = {
@@ -269,4 +274,4 @@ def compute_metrics(graph: Graph) -> Metrics:
 
 
 def sort_records(records: list[IdRecord]) -> list[IdRecord]:
-    return sorted(records, key=lambda r: (family_rank(r.spec.family), r.spec.number))
+    return sorted(records, key=lambda r: spec_sort_key(r.spec))

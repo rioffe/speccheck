@@ -227,7 +227,9 @@ def test_verbosity_levels(project, monkeypatch):
     bare = proj.check("--judge", "mock", "--verbose")
     info = proj.check("--judge", "mock", "--verbose", "INFO")
     assert quiet.stderr == ""
-    assert bare.stderr == info.stderr and bare.stderr != ""
+    # two separate runs: stage timings may differ, the content must not
+    _no_ms = lambda s: re.sub(r"ms=\d+", "ms=_", s)  # noqa: E731
+    assert _no_ms(bare.stderr) == _no_ms(info.stderr) and bare.stderr != ""
     for line in info.stderr.splitlines():
         assert line.startswith("INFO "), line
     assert (

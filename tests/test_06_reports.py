@@ -23,6 +23,7 @@ LLM_ENV = {
 }
 TOP_KEYS = [
     "schema_version",
+    "dialect",  # since 1.6 (R-42, C-21)
     "spec",
     "judge",
     "judge_available",
@@ -277,7 +278,7 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
 
 
 def test_decisions_and_edges_in_json(tmp_path: Path):
-    """T-79: `speccheck.json` carries `decisions` and `edges` after `ids` (schema "1.5"); an
+    """T-79: `speccheck.json` carries `decisions` and `edges` after `ids` (since schema "1.4"); an
     edge's shape is {src, kind, dst, retired}; a decision's is {id, line, affects}; a spec with
     no decision table has both as []; the Markdown report is untouched by their presence.
     (R-36, C-07, C-12)"""
@@ -288,7 +289,7 @@ def test_decisions_and_edges_in_json(tmp_path: Path):
     write_tree(tmp_path / "p", {"SPEC.md": spec})
     run = run_cli(["check", "--spec", "SPEC.md"], tmp_path / "p")
     doc = run.json
-    assert doc["schema_version"] == "1.5" == report.SCHEMA_VERSION
+    assert doc["schema_version"] == "1.6" == report.SCHEMA_VERSION
     assert doc["decisions"] == [{"id": "D-01", "line": 12, "affects": ["R-01", "C-01"]}]
     # order: (edge_id_key(src), kind, edge_id_key(dst)); D sorts last among families
     assert doc["edges"] == [
@@ -326,11 +327,11 @@ def test_markdown_layout(tmp_path: Path):
         "## 9. Notes",
     ]
     assert md.startswith(
-        "# Specification Conformance Report\n\n**Spec:** `SPEC.md` · **Judge:** mock (available) · **Strict:** on\n"
+        "# Specification Conformance Report\n\n**Spec:** `SPEC.md` · **Dialect:** house · **Judge:** mock (available) · **Strict:** on\n"
     )
     # F-207: the parenthetical is absent when judge_available is null (--judge none)
     none_run = run_cli(_golden_args("--judge", "none"), target)
-    assert "**Judge:** none · **Strict:** off" in none_run.md.splitlines()[2]
+    assert "**Dialect:** house · **Judge:** none · **Strict:** off" in none_run.md.splitlines()[2]
     assert run.stdout.strip() in md
     per_id = md.split("## 3. Per-ID evidence\n\n", 1)[1].split("\n## 4.", 1)[0].splitlines()[2:]
     assert len(per_id) == len(doc["ids"]) == 22  # fixture v1.3: 20 in scope + 2 retired

@@ -1,6 +1,6 @@
 # Specification Conformance Report
 
-**Spec:** `SPEC.md` · **Judge:** mock (available) · **Strict:** on
+**Spec:** `SPEC.md` · **Dialect:** house · **Judge:** mock (available) · **Strict:** on
 
 ## 1. Verdict
 

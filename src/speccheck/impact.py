@@ -11,9 +11,19 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 
-from .extract import Decision, Edge, SpecIndex, collapse_ws, edge_id_key, normalize_id
+from .extract import (
+    Decision,
+    Edge,
+    SpecIndex,
+    collapse_ws,
+    edge_id_key,
+    normalize_id,
+    normalize_terse_id,
+)
 
 _CHANGE_TOKEN_RE = re.compile(r"^([RCIKETD])-([0-9]{1,3})$")
+# C-20 (v1.19): a terse element of --changed; D-nn decisions keep the house form in both dialects
+_TERSE_CHANGE_TOKEN_RE = re.compile(r"^([A-Z][A-Z0-9]{0,3})-([A-Z]{1,2})-([0-9]{1,3})$")
 
 
 class ChangedError(Exception):
@@ -70,6 +80,17 @@ def resolve_changed_ids(index: SpecIndex, raw: str) -> tuple[ChangedEntry, ...]:
     decisions_by_id = {d.id: d for d in index.decisions}
     seen: dict[str, ChangedEntry] = {}
     for element in elements:
+        # "D-01" has two segments and never matches the three-segment terse form
+        tm = _TERSE_CHANGE_TOKEN_RE.match(element)
+        if tm is not None:
+            ident = normalize_terse_id(tm.group(1), tm.group(2), int(tm.group(3)))
+            spec_id = by_id.get(ident)
+            if spec_id is None:
+                raise ChangedError(f"--changed: undeclared id: {element}")
+            seen[ident] = ChangedEntry(
+                ident, spec_id.family, spec_id.line, spec_id.retired, "changed"
+            )
+            continue
         m = _CHANGE_TOKEN_RE.match(element)
         if not m:
             raise ChangedError(f"--changed: undeclared id: {element}")

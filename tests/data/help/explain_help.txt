@@ -1,8 +1,9 @@
-usage: speccheck explain [-h] --spec FILE [--src PATHS] [--tests PATHS]
-                         [--results FILE] [--root DIR] [--judge MODE]
-                         [--max-unknown FRACTION] [--judge-concurrency N]
-                         [--judge-budget SECONDS|N%] [--jev-pre-triage]
-                         [--progress MODE] [--depth N] [--verbose [LEVEL]]
+usage: speccheck explain [-h] --spec FILE [--dialect MODE] [--src PATHS]
+                         [--tests PATHS] [--results FILE] [--root DIR]
+                         [--judge MODE] [--max-unknown FRACTION]
+                         [--judge-concurrency N] [--judge-budget SECONDS|N%]
+                         [--jev-pre-triage] [--progress MODE] [--depth N]
+                         [--verbose [LEVEL]]
                          ID
 
 Run the same pipeline as check and render one id's trace to stdout; writes no report file.
@@ -16,6 +17,11 @@ options:
   --spec FILE           the specification to check; decoded as UTF-8 (invalid
                         bytes are replaced and noted). required; must resolve
                         inside --root
+  --dialect MODE        spec dialect: auto, house, or terse (auto: the
+                        declaration census chooses house or terse, and a spec
+                        declaring under both grammars is an error, exit 2;
+                        house/terse: impose that grammar, no census). default:
+                        auto
   --src PATHS           source roots to scan for citations. repeatable; each
                         value is a comma-separated list of files and/or
                         directories. default: src if that directory exists,

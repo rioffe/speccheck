@@ -555,8 +555,9 @@ def test_llm_response_path_fences_and_prompt_hash(tmp_path: Path, monkeypatch):
     )
     assert run.code == 0
     assert run.json["judge_prompt_sha256"] == expected_hash
-    assert list(run.json)[:5] == [
+    assert list(run.json)[:6] == [
         "schema_version",
+        "dialect",
         "spec",
         "judge",
         "judge_available",

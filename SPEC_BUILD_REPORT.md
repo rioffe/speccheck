@@ -1,4 +1,4 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.18.0 against `SPEC.md` (v1.18)
+# SPEC_BUILD_REPORT — `speccheck` v1.19.0 against `SPEC.md` (v1.19)
 
 > - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), and 2026-09-21 to v1.18 (§0j); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
@@ -1533,3 +1533,25 @@ environment block names every variable the kernel reads, and the goldens cover a
 obligation-aware judge), §0g (v1.15, Jev pre-triage), §0f (v1.14, declared vs. incidental), §0e
 (v1.13, edges and `impact`), §0d (v1.11), §0c (v1.8), §0b (v1.6), §0a (v1.5), §0 (v1.4), then the
 v1.1 record in §§1–5.
+
+## v1.19 — terse-IEEE dialect: the T-99 recorded run
+
+**T-99 *(recorded)*** — `speccheck check --root . --spec SPEC.md --src c/src,c/include --tests
+c/tests --out <out>` over `soundguardian-device/ir-control` at `b82ed2a`, 2026-09-30, speccheck
+1.19.0 (the first checker build that can read the spec at all; 1.18.0 exited
+`ERROR spec declares no in-scope IDs` against the same tree):
+
+- dialect detected: **terse** (`--dialect auto`, census: 0 house, 90 terse declarations);
+- declared: **90 ids across 12 families** — A 3, C 7, D 3, E 5, I 5, IF 8, K 10, L 5, RX 12,
+  S 5, TX 7, V 20;
+- bare-token citations from prefixed ids: **0** (R-44; 1.18.0 extracted 104 such substrings
+  from this spec alone);
+- summary: `speccheck: CONFORMING - 0/90 passing (0.0%), 0 failing, 0 skipped, 0 weak,
+  74 unverified, 9 untested, 7 uncited; 7 dangling, 0 stale; judge=none` (no `--results`
+  joined: the component's C suite publishes no JUnit XML yet, so UNVERIFIED is the ceiling);
+- dangling: 7 citations of one id, `IR-IF-009` — referenced by the spec's own §15 and the C
+  tests but never declared: a real `ir-control` spec gap, the tool working as intended
+  (proposal §6);
+- notes: `8 foreign house-form tokens ignored (terse dialect)` (E-63: the §16 provenance ids
+  and two legacy comments), plus three `edge to undeclared id` notes (`IR-C-004`, retired in
+  prose rather than by strike-through, and `IR-IF-009` again).

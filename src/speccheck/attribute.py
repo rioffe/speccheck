@@ -168,7 +168,9 @@ class AttributedFile:
     citations: tuple[Citation, ...]
 
 
-def attribute_file(scanned: ScannedFile) -> tuple[AttributedFile, list[str]]:
+def attribute_file(
+    scanned: ScannedFile, dialect: str = "house"
+) -> tuple[AttributedFile, list[str]]:
     """Attribute every citation in a test file to its enclosing case, or to the file-level case."""
     notes: list[str] = []
     n_lines = max(1, len(scanned.lines))
@@ -201,7 +203,7 @@ def attribute_file(scanned: ScannedFile) -> tuple[AttributedFile, list[str]]:
     cases.sort(key=lambda c: (c.start, c.end, c.name))
     citations: list[Citation] = []
     raw: RawCitation
-    for raw in citations_in_file(scanned):
+    for raw in citations_in_file(scanned, dialect):
         owner = file_case
         for case in cases:
             if case.start <= raw.line <= case.end:
