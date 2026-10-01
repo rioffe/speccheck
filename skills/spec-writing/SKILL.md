@@ -248,6 +248,50 @@ so a typo there goes unflagged unless someone reads the Notes. Fill the column c
 `R-nn`/`C-nn`/`I-nnn`/`K-nn`/`E-nn`/`T-nn` the decision's own prose says it affects, not just the
 one or two the author had in mind — and keep it declared-ids only.
 
+## The terse-IEEE component dialect (speccheck v1.19+)
+
+A second, equally checkable spec shape exists for **reusable components**: a terse
+IEEE/RFC-2119 component specification — numbered sections (Purpose and scope, Terminology,
+Constants, …, Verification, Traceability), the RFC 2119 key declared in the front matter, and
+**prefixed, multi-letter-family ids**. `ir-control`'s `SPEC.md` is the house exemplar.
+`speccheck` reads either dialect (`--dialect auto` detects from the declarations; a document
+declaring under both grammars is an error), so choose ONE per document:
+
+- **House format (the 13-section template above)** — the default: applications, products,
+  tools, anything whose §12 decision log and T-family test rows drive a spec-build.
+- **Terse dialect** — a component with its own domain vocabulary, where family letters like
+  `RX`/`TX`/`IF`/`V` carry more meaning than the fixed `R/C/I/K/E/T` alphabet, and where the
+  component tag makes ids collision-proof across a workspace of sibling components.
+
+The grammar (speccheck `C-20`/`K-17`):
+
+```text
+TERSE-ID := PREFIX "-" FAMILY "-" DIGITS     # IR-RX-001, EA-C-002, MP-IF-010
+PREFIX   := [A-Z][A-Z0-9]{0,3}               # the component tag; ONE per document, fixed by
+                                             # the first declaration — a mismatch is an error
+FAMILY   := [A-Z]{1,2}                       # open set the component defines (RX, TX, IF, V, ...)
+DIGITS   := [0-9]{1,3}                       # normalized to three digits (IR-RX-1 == IR-RX-001)
+```
+
+Declaration forms (any mix): a bold bullet — `- **IR-RX-001 — Title:** statement …` or the
+title-less `- **IR-L-001:** statement …` — a heading (`### IR-C-001 Title`), or a table row
+(`| **IR-K-001** | statement |`). The statement of a bullet is its whole list item,
+continuation lines included. Rules that carry over from the house format unchanged:
+
+- **Retirement is strike-through** (`~~**IR-C-003 — Title:**~~`), never prose. A sentence like
+  "Retired ids: IR-C-003 → IR-C-007" declares nothing and leaves the old id undeclared.
+- **Decisions stay `D-nn`** in a plain-cell table with an *Affects* column (machine-read).
+- **Citation is literal and full-token**: code and tests cite `IR-RX-001`, never `RX-001`.
+  A bare house-form token (`C-10`) in a terse document is a *foreign* reference — the checker
+  ignores it with a Note — so legacy/provenance ids may be mentioned, never relied on.
+- **Never renumber**; fresh ids only.
+
+What does NOT carry over: no family has T semantics — verification rows (`IR-V-nnn`) are
+obligations *cited by* tests like any other id, there is no `*(recorded)*` marker, and the
+checker applies its deterministic status algorithm uniformly to every family. Define each
+family's meaning in the spec's own Terminology or Traceability section; the checker treats the
+letters as opaque.
+
 ## Normative language discipline
 
 - `MUST` / `MUST NOT` / `SHALL` / `SHALL NOT` — the normative verbs. A violation is a defect.
