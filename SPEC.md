@@ -1,6 +1,8 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.18 — the CLI documents its own parameters and environment (R-41, C-19, I-017; T-95..T-98; `docs/proposals/PROPOSAL_v1.18_cli_help_contract.md`, 2026-09-20; D-37..D-42 confirmed on the recommended branches). Every argument definition of the three parsers carries a help entry naming purpose, accepted values as literal tokens, the default and every precondition (C-19), and every `--help` screen carries an `environment:` block naming the eight `SPECCHECK_*` variables with their read condition, requiredness and default plus `COLUMNS` (D-41), and an exit-code/summary-line epilog (D-40). The help's value tokens are the validator's own usage-error tokens (T-95), every definition must carry help and a C-19 metavar (T-96), the screens are byte-pinned at `COLUMNS=80` (T-97, D-39), and the environment block is bound to the code's own `SPECCHECK_*` literals (T-98). No accepted value, default or exit code changes; C-06's wrong variable name (`SPECCHECK_LLMMODEL` → `SPECCHECK_JUDGE_MODEL`) is fixed here because v1.16 and v1.17 had already landed (D-42).
+> - **Status:** v1.19 — a second spec dialect: terse-IEEE component specs with prefixed, multi-letter-family ids (`IR-RX-001`) declared as bold bullets (R-42..R-44, C-20, C-21, K-17, E-62..E-64, T-99, T-100; `docs/proposals/PROPOSAL_v1.19_terse_ieee_dialect.md`, 2026-09-30; D-43..D-47 confirmed on the recommended branches). `check`, `impact` and `explain` gain `--dialect {auto,house,terse}` (default `auto`): under `auto` the declaration census decides — terse declarations present and house absent → terse, no terse declarations → house, both present → exit `2` naming both counts (C-21, E-62). A terse spec declares ids of the shape `PREFIX-FAMILY-DIGITS` (K-17) by bullet, heading or table row (C-20), all declarations sharing the PREFIX of the spec's first declaration (E-64, D-44); citation is full-token only, and a bare house-form token in a terse run is a foreign reference counted once in a Note, never a citation and never dangling (E-63, D-46); every terse id takes the C-05 status algorithm steps 1–4 uniformly, no family receiving family-T semantics (R-43, D-45). In both dialects a token immediately preceded by an uppercase-alphanumeric character and a hyphen is no token at all, so `IR-C-001` never cites `C-001` (R-44, D-47, C-01). `speccheck.json` gains top-level `dialect`; `schema_version` `"1.6"` (C-07). The judge, the status algorithm, the impact walk and `explain` are mechanism-unchanged.
+>
+> - **Previous status:** v1.18 — the CLI documents its own parameters and environment (R-41, C-19, I-017; T-95..T-98; `docs/proposals/PROPOSAL_v1.18_cli_help_contract.md`, 2026-09-20; D-37..D-42 confirmed on the recommended branches). Every argument definition of the three parsers carries a help entry naming purpose, accepted values as literal tokens, the default and every precondition (C-19), and every `--help` screen carries an `environment:` block naming the eight `SPECCHECK_*` variables with their read condition, requiredness and default plus `COLUMNS` (D-41), and an exit-code/summary-line epilog (D-40). The help's value tokens are the validator's own usage-error tokens (T-95), every definition must carry help and a C-19 metavar (T-96), the screens are byte-pinned at `COLUMNS=80` (T-97, D-39), and the environment block is bound to the code's own `SPECCHECK_*` literals (T-98). No accepted value, default or exit code changes; C-06's wrong variable name (`SPECCHECK_LLMMODEL` → `SPECCHECK_JUDGE_MODEL`) is fixed here because v1.16 and v1.17 had already landed (D-42).
 >
 > - **Previous status:** v1.17 — `speccheck explain <ID>` (R-40, C-18, I-016, E-60, E-61; `docs/proposals/PROPOSAL_v1.17_explain_id.md`, 2026-09-20; D-33..D-36 confirmed) adds a third subcommand that renders one id's evidence trail — its statement, its status and the C-05 step that set it, its source and test citations with each citing case's outcome and verdict, and the C-12 blast radius at `--depth` — as one stdout trace. It computes nothing new: it is a renderer over the `IdRecord`/edge/`Verdict` facts `check` already produces and the `walk`/`reverify` facts `impact` already runs (I-016), writes no report file (D-33), and carries `check`'s judge contract unchanged (E-61).
 >
@@ -120,6 +122,9 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-39** | The checker MUST compute, for every citation of an in-scope R/C/I/K/E id inside an attributed (non-file-level) test case, whether it is DECLARED (a citation line inside the case's own docstring, or a whole-line comment) or INCIDENTAL (C-03, C-14); the fact MUST be available under every `--judge` mode, including `none`, and MUST NOT depend on the results file, the judge, or any network access (I-014). | `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` §1–2 |
 | **R-40** | The checker MUST accept a third subcommand, `speccheck explain <ID>`, that runs the same extract / attribute / map-results / graph / (triage /) judge stages as `check` over the same inputs, then renders the one id named by `<ID>` as a single human-readable trace on stdout (C-18); `explain` produces no status, verdict, citation, metric or note that a `check` run over the same inputs does not already compute, and its stdout is a pure function of those inputs and of C-18 (I-016). | `docs/proposals/PROPOSAL_v1.17_explain_id.md` §1 |
 | **R-41** | The checker MUST document its own interface: for every flag the parser defines on `speccheck`, `speccheck check`, `speccheck impact` and `speccheck explain`, the `--help` output MUST name the flag's purpose, every accepted value as a literal token where the set is finite, the default where the flag has one, and every precondition under which the flag is ignored or rejected — `--judge-budget N%`'s companion (`--jev-pre-triage` with `--judge llm`, E-58), every judge flag's `--judge llm` precondition, `--root` containment (E-09), and `impact`'s absent directory default for `--src`/`--tests` (C-13) — and the help MUST also name every environment variable the checker reads (C-09, C-17) with the condition under which it is read, whether it is required and its default, and MUST carry the §5.4 exit codes and the §5.1 summary line (C-19). | `docs/proposals/PROPOSAL_v1.18_cli_help_contract.md` §1–2 |
+| **R-42** | The checker MUST support two spec dialects — `house` (C-01) and `terse` (C-20) — selected per run by `--dialect {auto,house,terse}` (default `auto`) on `check`, `impact` and `explain`, per the detection rule in C-21; the selected dialect MUST be recorded in `speccheck.json` (top-level `dialect`, C-07) and stated in the Markdown report (C-08). | `docs/proposals/PROPOSAL_v1.19_terse_ieee_dialect.md` §1 |
+| **R-43** | Under the terse dialect the checker MUST extract every declared terse id with its family, title and statement per C-20, and MUST record citations by full terse-id token only; every declared, non-retired terse id receives exactly one status by C-05 steps 1–4 — judge eligibility unchanged — with no family receiving family-T semantics (D-45). | `docs/proposals/PROPOSAL_v1.19_terse_ieee_dialect.md` §1 (1), §2 Part D |
+| **R-44** | In both dialects, an ID or terse-id token immediately preceded by an uppercase-alphanumeric character and a hyphen MUST NOT be recognized as a token — neither declaration nor citation — so `IR-C-001` yields no `C-001` citation and no `C-001` declaration anywhere in the spec, source, or test scan (C-01, C-20, D-47). | `docs/proposals/PROPOSAL_v1.19_terse_ieee_dialect.md` §1 (2) |
 
 ---
 
@@ -212,7 +217,7 @@ stage, reads no report file as input (§0's boundary), and writes nothing at all
 | Artifact | Written to | Version | Shape |
 | -------- | ---------- | ------- | ----- |
 | `SPEC_CONFORMANCE_REPORT.md` | `--out` (default `.`) | mirrors JSON `schema_version` | C-08 |
-| `speccheck.json` | `--out` | `schema_version: "1.5"` (`"1.0"` through v1.6; `"1.1"` added `title` in v1.7; `"1.2"` `clause` per verdict in v1.9; `"1.3"` `recorded` per id in v1.10; `"1.4"` `decisions` and `edges` in v1.13; `"1.5"` `declared` per test edge and `declared_ratio` in v1.14) | C-07 |
+| `speccheck.json` | `--out` | `schema_version: "1.6"` (`"1.0"` through v1.6; `"1.1"` added `title` in v1.7; `"1.2"` `clause` per verdict in v1.9; `"1.3"` `recorded` per id in v1.10; `"1.4"` `decisions` and `edges` in v1.13; `"1.5"` `declared` per test edge and `declared_ratio` in v1.14; `"1.6"` top-level `dialect` in v1.19) | C-07 |
 | `IMPACT_REPORT.md` | `--out`, by `impact` only | mirrors `impact.json` `schema_version` | C-13 |
 | `impact.json` | `--out`, by `impact` only | `schema_version: "1.0"` (v1.13) | C-13 |
 
@@ -231,7 +236,9 @@ ID        := FAMILY "-" DIGITS
 FAMILY    := "R" | "C" | "I" | "K" | "E" | "T"          # O-n, D-nn and F-nnn are NOT conformance IDs;
                                                         # D-nn is DECLARATION-ONLY since v1.13 — rule (c)
 DIGITS    := [0-9]{1,3}
-TOKEN     := ID bounded by non-alphanumerics on both sides   # regex: (?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])
+TOKEN     := ID bounded by non-alphanumerics on both sides, and not immediately preceded by
+             an uppercase-alphanumeric character and a hyphen (R-44, v1.19)
+             # regex: (?<![A-Z0-9]-)(?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])
 
 Declaration (in SPEC.md only) — an ID is DECLARED when, outside fenced code blocks,
 either form occurs (F-009). A fenced code block (F-108) opens at a line whose first non-space
@@ -698,11 +705,12 @@ Mock provider (judge_mock.py):
              semantics and stays deterministic (R-16, R-22)
 ```
 
-### C-07 JSON report (`speccheck.json`, `schema_version` "1.5")
+### C-07 JSON report (`speccheck.json`, `schema_version` "1.6")
 
 ```json
 {
-  "schema_version": "1.5",
+  "schema_version": "1.6",
+  "dialect": "house | terse",
   "spec": "SPEC.md",
   "judge": "none | mock | llm",
   "judge_available": null,
@@ -777,7 +785,8 @@ Title and statement (R-33): `title` is `SpecId.title` and `statement` is `SpecId
   object, after `verdict`; R-34), and `"1.3"` from v1.10 (`recorded` added to every id record, after
   `family`; R-35 — `true` only for a T id carrying the C-01 marker), `"1.4"` from v1.13 (`decisions`
   and `edges` after `ids`; R-36), and `"1.5"` from v1.14 (`declared` added to every `tests[]` entry,
-  after `lines`, and `declared_ratio` added to `metrics`; R-39, C-14); no other key changed.
+  after `lines`, and `declared_ratio` added to `metrics`; R-39, C-14), and `"1.6"` from v1.19
+  (top-level `dialect` after `schema_version`; R-42, C-21); no other key changed.
   The literal is stated in this contract (heading and example) and in §3.3 only; no §9 row repeats
   it — a test asserts "the C-07 value" (F-401).
 Verdict field (Q-001): every `tests[]` entry has the key `verdict`. It is a verdict object when
@@ -822,8 +831,9 @@ Shape rules (F-016): `by_family` ALWAYS has exactly the six keys R, C, I, K, E, 
 ```markdown
 # Specification Conformance Report
 
-**Spec:** `SPEC.md` · **Judge:** none|mock|llm (available|unavailable) · **Strict:** on|off
+**Spec:** `SPEC.md` · **Dialect:** house|terse · **Judge:** none|mock|llm (available|unavailable) · **Strict:** on|off
 # the parenthetical is omitted (with its leading space) when `judge_available` is null, i.e. under --judge none (F-207)
+# the Dialect segment is new in v1.19 (R-42, C-21)
 
 ## 1. Verdict
 <one line: the §5.1 summary line, verbatim>
@@ -1305,6 +1315,66 @@ rendered bytes are pinned by T-97's golden at `COLUMNS=80`, and a wording change
 not a spec revision. `--help` itself is inert: it exits `0`, writes only to stdout, and reads no
 project file, no environment variable and no socket (I-017).
 
+### C-20 Terse-IEEE dialect: id grammar, declaration, citation, retirement (v1.19; R-42, R-43)
+
+The second dialect the checker reads (R-42). Its grammar:
+
+```text
+TERSE-ID  := PREFIX "-" FAMILY "-" DIGITS
+PREFIX    := [A-Z][A-Z0-9]{0,3}      # the component tag: IR, EA, MP ... (K-17)
+FAMILY    := [A-Z]{1,2}              # open set: RX, TX, IF, V, C, K, E, I, ... (K-17)
+DIGITS    := [0-9]{1,3}              # (K-17)
+TOKEN     := TERSE-ID bounded by non-alphanumerics on both sides, and not immediately
+             preceded by an uppercase-alphanumeric character and a hyphen (R-44)
+```
+
+Declaration (in the spec only, outside fenced code blocks, fences per C-01):
+
+- **(a) table row** and **(b) heading** — exactly C-01's forms, accepting a TERSE-ID where
+  C-01 accepts an ID, with the same statement, title, body, DECORATION and RECORDED-marker
+  rules (the marker is meaningful for no terse family in v1.19 and is ignored with a Note,
+  E-50 applying by family-T absence, D-45).
+- **(d) bullet** — a list item whose first non-space characters are a bullet marker (`-`, `*`
+  or `+` followed by whitespace) and whose first token after the marker begins a bold form
+  `**TERSE-ID — Title:**` (an em-dash between id and title, a colon ending the title inside
+  the closing `**`): title := the text between the em-dash and the closing `:**`, trimmed and
+  whitespace-collapsed; statement := title, a newline, and the whole list item — the rest of
+  the declaring line plus its continuation lines (indented or lazy) up to the next list item
+  at the same or shallower indentation, a blank line followed by non-continuation text, a
+  HEADING LINE, or end of file — fenced code blocks inside the item included, capped at K-14
+  bytes. A bold terse id elsewhere in the item is not a declaration.
+- Retirement is strike-through, as in C-01: `~~**IR-C-003 — Title:**~~` (either nesting).
+- The plain-cell decision rule C-01 (c) applies unchanged: `| D-01 | … |` rows are
+  declaration-only decisions in both dialects.
+
+All declarations in one spec MUST carry one PREFIX — the PREFIX of the spec's first
+declaration in document order; a declaration whose PREFIX differs is an error (E-64, D-44).
+Citation (in source and test trees, and for C-12 edges inside the spec) is by full TERSE-ID
+token only; a bare house-form token in a terse run is a foreign reference per E-63, never a
+citation, never dangling, never stale. Dangling and stale citations are computed over
+TERSE-ID tokens exactly as C-03 computes them over house tokens. Families carry no built-in
+meaning: every terse family is a uniform obligation family under C-05 steps 1–4 (R-43, D-45),
+and family ordering for reports is lexicographic by family, then numeric by DIGITS.
+
+### C-21 Dialect detection and the `dialect` report field (v1.19; R-42)
+
+Under `--dialect auto` the extractor counts declarations in the spec under C-01's grammar
+($n_{house}$) and C-20's grammar ($n_{terse}$), outside fenced code blocks, before any
+citation scan:
+
+- $n_{terse} > 0 \wedge n_{house} = 0$ → the run is **terse**;
+- $n_{terse} = 0$ → the run is **house** (including $n_{house} = 0$, which then fails with
+  the existing `spec declares no in-scope IDs` error exactly as today);
+- $n_{terse} > 0 \wedge n_{house} > 0$ → exit `2` naming both counts (E-62); no report is
+  written.
+
+An explicit `--dialect house` or `--dialect terse` skips the census and imposes the grammar;
+D-nn decision rows (C-01 (c)) are not counted in either census. The selected dialect is
+carried into both reports: `speccheck.json` gains a top-level `"dialect": "house" | "terse"`
+immediately after `"schema_version"`, and `schema_version` becomes `"1.6"`; the Markdown
+report's header line carries a `**Dialect:** house|terse` segment (C-08). Detection
+is deterministic: two runs over identical inputs choose identically (I-002 applies).
+
 ---
 
 ## 5. Interface specification
@@ -1331,6 +1401,7 @@ speccheck --help
 | ------ | ---------------- | --- |
 | `check` | Run the §3.1 pipeline; write both reports; print the summary line. | `0` conforming, `1` not, `2` usage, `3` input contract |
 | `--spec FILE` | Required. Path to the specification; decoded as UTF-8 with `errors="replace"` (a Note is recorded if any byte was replaced). Missing flag or unreadable file → usage error. | `2` |
+| `--dialect MODE` | v1.19 (R-42, C-21). `auto` (default): the declaration census chooses `house` or `terse`, and an ambiguous spec is E-62; `house`/`terse`: impose that grammar, no census. Any other value → usage error. Accepted by `check`, `impact` and `explain` alike. | `2` |
 | `--src PATHS` | Repeatable; each value is a **PATHS list** — comma-separated files and/or directories per C-03, D-23. A resolved path is descended if a directory, scanned as one file otherwise; a segment inside `--root` that is neither a file nor a directory → usage error (E-52). Default: `src` if the directory exists, else none, only when the flag is absent. | `2` |
 | `--tests PATHS` | As `--src` — a comma-separated list of files/directories (C-03, D-23) — but for test files and their case attribution; a directly-named `.swift` file's `MODULE` is its parent's last path component (D-18, D-23). Default: `tests` if the directory exists, else none, only when the flag is absent. | `2` |
 | `--results FILE` | Optional JUnit XML. Absent → every cited ID is at most `UNVERIFIED`. Unreadable → usage error; malformed → E-05. | `2` / `3` |
@@ -1451,6 +1522,7 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **K-10** | `--version` prints a PEP 440 version equal to the package metadata version. |
 | **K-11** | `--max-unknown` defaults to `0.2`, accepts a decimal in `[0, 1]` (parsed as a Decimal from its literal text), and is compared to the quantized `unknown_rate` of C-07 (Decimal, 4 places, ROUND_HALF_EVEN; Q-009); equality passes; a `null` `unknown_rate` (zero judged edges) never exceeds it (F-105). |
 | **K-16** | `--jev-pre-triage` (boolean, default off; ignored unless `--judge llm` — under `--judge none`/`mock` no C-17 request is made and no C-17 variable is read). Before any real-judge request is issued, the kernel MUST build one triage task per judge-eligible edge (I-010) in C-17's request shape — the C-06 request object for that edge, `{id, statement, related, declared, file, start, end, source}` (the `related` neighbourhood rides the triage `state` as it does the real-judge request, D-28b, R-38), rendered as C-17's `state` text — and send it to the C-17 endpoint at `--judge-concurrency`, with no retries (K-06). The edges are then handed to the otherwise unchanged real-judge issue loop (K-05, K-12, C-06) in ascending $p(e)$ (C-17), ties broken by ascending id in C-07's id order; a per-edge Jev failure is ordered first and counted in one Note (E-59) and never aborts the run. Jev's answer is discarded once the order is computed (I-015). Under `--judge-budget 0` the pass changes no report content — only the issue order, visible in the C-11 indicator — and one Note `jev-pre-triage had no effect: --judge-budget is unlimited` records that (D-30). |
+| **K-17** | Terse-id bounds (C-20): PREFIX matches `[A-Z][A-Z0-9]{0,3}` (1–4 characters), FAMILY matches `[A-Z]{1,2}`, DIGITS matches `[0-9]{1,3}`; these are the only lengths recognized, in declarations and citations alike, and in both the spec and the source/test scans. |
 
 ---
 
@@ -1519,6 +1591,9 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **E-59** | A C-17 triage request fails during `--jev-pre-triage`: non-200 status, transport error, timeout (`SPECCHECK_JEV_TIMEOUT`), non-JSON body, missing `answers.verdict`, a `choice` that is not one of C-06's four verdict tokens, or `probabilities` that are missing, empty, or non-numeric | That edge is ordered first (K-16) and one Note records how many edges this happened to; the run is not aborted, no edge is skipped because of it, and no edge's final `Verdict` is affected beyond its position in the issue order (I-015). A triage failure never sets `judge_available` false — that flag is the C-06 judge's fact (E-14) — and never enters `unknown_rate`. |
 | **E-60** | `explain <ID>` names an id the spec does not declare | Exit `2`, message `explain: undeclared id: <ID>` (the R-07 dangling wording), and no trace is written. An id that *is* declared but has no citation and no edge is not an error: its trace carries the C-05 status with its reason and an empty `sources:` and `tests:` block, and exits `0` (E-13/E-19 style). |
 | **E-61** | `--judge` on `explain` | Carries `check`'s contract exactly: the same provider, the same I-010 eligibility, the same C-06 validation and coercion, and the same `--judge-concurrency` / `--judge-budget` / `--jev-pre-triage` semantics. A coerced or failed verdict is rendered verbatim (`UNKNOWN (coerced)` with its rationale, E-14/E-15); under `--judge none`, and for any edge no provider judged, the verdict reads `not judged`; `explain` neither issues nor omits a judge call `check` would not make. |
+| **E-62** | `--dialect auto` and the spec declares ids under both grammars (C-01 and C-20) | Exit `2`, message naming both counts (`dialect: ambiguous spec: N house declarations, M terse declarations`); no report is written. Mixed-dialect documents are undefined in v1.19 (C-21). |
+| **E-63** | A bare house-form token (`C-10`) in a terse-dialect run — in the spec, a source file, or a test file | Not a citation, not dangling, not stale, not an edge; the run counts all such tokens once in one Note (`N foreign house-form tokens ignored (terse dialect)`), and `--strict` is unaffected by them (D-46). |
+| **E-64** | A terse declaration whose PREFIX differs from the PREFIX of the spec's first declaration | Exit `2`, message naming both prefixes and the declaring line number; no report is written (C-20, D-44). |
 
 ---
 
@@ -1697,6 +1772,14 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-97** | With `COLUMNS=80` fixed, the four `--help` screens render byte-stable text compared against checked-in goldens under `tests/data/help/` (not §9.8 report goldens: C-19's wording is not normative, D-38), so a dropped value token, a dropped default, a new flag without help, or an unintended rewording is a visible diff. (R-41, C-19, D-39) |
 | **T-98** | The `environment:` block names exactly the variables the kernel reads and no others: scanning `src/speccheck/*.py` for string literals matching `SPECCHECK_[A-Z_]+` yields the same set the rendered `check --help` block lists (8 — `SPECCHECK_JUDGE_URL`/`_MODEL`/`_API_KEY`/`_TIMEOUT`, `SPECCHECK_JEV_URL`/`_MODEL`/`_API_KEY`/`_TIMEOUT`), each entry naming its read condition and requiredness, with `COLUMNS` documented beside them (D-41); a variable read by the kernel but absent from the block, or named in the block but read by no code, fails the test; and no `_API_KEY` value ever appears in any help screen or usage-error message (R-23, I-007). (R-41, C-19) |
 
+### 9.15 Terse-IEEE dialect (C-20, C-21; v1.19)
+
+| ID | Test |
+| -- | ---- |
+| **T-99** *(recorded)* | `speccheck check --dialect auto` over `soundguardian-device/ir-control` at `b82ed2a` (`--spec SPEC.md --src c/src,c/include --tests c/tests`) detects the terse dialect, declares 90 ids across 12 families (A 3, C 7, D 3 as decisions excluded, E 5, I 5, IF 8, K 10, L 5, RX 12, S 5, TX 7, V 20 declared), records zero bare house-form citations from prefixed tokens, writes both reports with `dialect: terse`, and Notes the foreign house-form tokens of its §16; the outcome is recorded in `SPEC_BUILD_REPORT.md`. The suite carries a presence check that the recorded figures exist. (R-42, R-43, R-44, C-20, C-21, E-63) |
+| **T-100** | House-dialect regression: the §9.8 golden fixture and this repository's own `SPEC.md` produce reports identical to their pre-v1.19 form except for the `dialect` field, `schema_version` `"1.6"`, and the C-08 dialect line, before and after the R-44 boundary rule — proving R-44 changes no existing house extraction; and a synthetic spec containing `IR-C-001` in prose yields no `C-001` citation or dangling under either dialect. (R-44, C-01, C-21) |
+| **T-101** | A synthetic terse spec fixture exercises C-20: bullet, heading and table-row declarations extract with correct title and statement (continuation lines included); a strike-through bullet retires; a second-prefix declaration exits `2` per E-64; a mixed house+terse spec under `--dialect auto` exits `2` per E-62 while `--dialect terse` imposes the terse grammar on it; and `--dialect` appears in all three subcommands' `--help` per C-19. (C-20, C-21, E-62, E-64, R-42) |
+
 ---
 
 ## 10. Dependencies and environment
@@ -1777,6 +1860,9 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-39 | `attribute.py` (docstring-span and whole-line-comment detection, Python and Swift), `report.py` (`declared`, `declared_ratio`) | T-85, T-86, T-88 |
 | R-40 | `cli.py` (the `explain` subparser, `ExplainConfig`, the render wiring), `explain.py` (the C-18 trace renderer) | T-92, T-93, T-94 |
 | R-41 | `cli.py` (the help strings, metavars and epilogs of the four parsers) | T-95, T-96, T-97, T-98 |
+| R-42 | `cli.py` (`--dialect` on the three subcommands), `extract.py` (the census, C-21), `report.py` (the `dialect` field and line) | T-99, T-101 |
+| R-43 | `extract.py` (terse grammar and declaration forms), `attribute.py` (full-token citation), `graph.py` (uniform C-05 application) | T-99, T-101 |
+| R-44 | `extract.py` (the hardened token boundary, both dialects) | T-99, T-100 |
 | C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, decision rows (c), ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77, T-79 |
 | C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `Decision`, `Edge`, `SpecIndex`) | T-01, T-06, T-72, T-77, T-79 |
 | C-03 | `attribute.py` (`TestCase`, `Citation` incl. `declared`, `test*` methods, Swift adapter), `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78, T-85 |
@@ -1796,6 +1882,8 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | C-17 | `jev.py` (the four C-17 variables, the request body and `state` template — now including the D-28b `Related obligations:` section, R-38 — the `answers.verdict` parse and `p(e)`), `cli.py` (variable validation and redaction) | T-89, T-90 |
 | C-18 | `explain.py` (the trace renderer: section order, headings, the C-05 reason, the verdict lines, the impact section) | T-92, T-93, T-94 |
 | C-19 | `cli.py` (every argument definition's help, the C-19 metavar vocabulary, the `environment:` and exit-code epilogs) | T-95, T-96, T-97, T-98 |
+| C-20 | `extract.py` (the terse grammar, bullet/heading/row declarations, retirement, single-prefix rule) | T-99, T-101 |
+| C-21 | `extract.py` (the census), `cli.py` (`--dialect`), `report.py` (`dialect` in both reports, `schema_version` `"1.6"`) | T-99, T-100, T-101 |
 | I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
 | I-003 | `report.py` | T-25, T-35 |
@@ -1829,6 +1917,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | K-14 | `extract.py` (statement cap at line boundary, marker line, Note) | T-72 |
 | K-15 | `judge.py` (whitespace-collapsed substring matcher, 12/280 bounds) | T-75 |
 | K-16 | `jev.py` (triage pass over the `related`-bearing `state` (D-28b), confidence ordering, D-30 Note), `judge.py` (issue order), `cli.py` (`--jev-pre-triage`) | T-89, T-90 |
+| K-17 | `extract.py` (the terse-id bound regexes) | T-101 |
 | E-01 | `extract.py`, `cli.py` | T-07 |
 | E-02 | `extract.py` | T-06 |
 | E-03 | `extract.py` | T-04 |
@@ -1890,6 +1979,9 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-59 | `jev.py` (per-edge failure ordered first, counted in one Note; `judge_available`/`unknown_rate` untouched) | T-89 |
 | E-60 | `cli.py` (the `explain` id validation and its message) | T-93 |
 | E-61 | `cli.py` (the judge flags carried over), `explain.py` (verdict rendering incl. `coerced` and `not judged`) | T-94 |
+| E-62 | `extract.py` / `cli.py` (the ambiguous-census exit and message) | T-101 |
+| E-63 | `attribute.py` (foreign house-form tokens skipped and counted), `report.py` (the Note) | T-99, T-101 |
+| E-64 | `extract.py` (the prefix-mismatch exit and message) | T-101 |
 
 ---
 
@@ -1941,6 +2033,11 @@ Every row below is a decision the specification's author made on the requester's
 | D-40 | What the screens carry beyond the per-flag entries (v1.18) | **per-flag help plus an exit-code and summary-line epilog** on every `--help` (the codes are the second thing an operator or agent needs, and they are printed nowhere the CLI can be asked about; §5.4 is a stable K-01-pinned set) | strictly per-flag help (smallest surface, no fourth copy of §5.4); per-flag help plus a machine-readable `--help-json` (exact for a parsing agent, but a new interface, a new contract, and a second rendering of the same facts to keep equal) | R-41, C-19, §5.4, §5.1, T-96, T-97 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.18_cli_help_contract.md` §5, recommended branch) |
 | D-41 | What the `environment:` block lists (v1.18) | **the eight `SPECCHECK_*` names with read condition, requiredness and default, plus one clause for `COLUMNS`** — the only variable that changes a `--help` run's own output, and the one T-97's golden pins | the eight names only (`COLUMNS` stays undocumented and T-97's fixed width unexplained); also documenting `install.sh`'s `~/.config/speccheck/judge.env` and its shell-rc `source` line (helpful for a first-time installer, but no kernel code reads that file — it is the installer's shell convenience) | R-41, C-19, T-97, T-98 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.18_cli_help_contract.md` §5, recommended branch) |
 | D-42 | Where C-06's wrong variable name is fixed (v1.18) | **in this version's own fold** — `SPECCHECK_LLMMODEL` becomes `SPECCHECK_JUDGE_MODEL`, matching C-06's own request block two lines above it, C-09's block and `judge_llm.py`'s `ENV_MODEL`; the proposal's recommended branch (ride along in the still-uncommitted v1.16 fold) is no longer available because v1.16 and v1.17 have landed, so the fix lands here | leaving it (the name stays wrong and contradicts C-06's own block; T-98 still passes, because it binds the help to the code, not to that sentence) | R-41, C-19, C-06, C-09, T-98 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.18_cli_help_contract.md` §5; branch adapted — see the v1.18 history row) |
+| D-43 | How the dialect is selected (v1.19) | **`--dialect auto` by declaration census, `house`/`terse` as overrides** — the document itself decides, deterministically, and a mixed document fails loudly | explicit flag only (one more thing every caller must know per spec) | R-42, C-21, E-62, T-101 | requester / confirmed 2026-09-30 (`docs/proposals/PROPOSAL_v1.19_terse_ieee_dialect.md` §5, recommended branch) |
+| D-44 | Prefix discipline within one terse spec (v1.19) | **one PREFIX, fixed by the first declaration; mismatch is an error** — catches typos like `IRC-` and keeps foreign-id detection trivial | any prefix accepted per declaration (tolerant, but a typo silently declares another component's id) | C-20, E-64, T-101 | requester / confirmed 2026-09-30 (proposal §5, recommended branch) |
+| D-45 | Family semantics in the terse dialect (v1.19) | **all families uniform, no family-T equivalent** — `ir-control`'s `V` rows are obligations cited *by* tests; T semantics can follow with its own evidence | a designated family (default `V`) mapped to house-T semantics now (speculative today) | R-43, C-20, T-99 | requester / confirmed 2026-09-30 (proposal §5, recommended branch) |
+| D-46 | Bare house-form tokens in a terse run (v1.19) | **ignored, one Note** — `ir-control:SPEC.md` line 210's `C-10, C-16` are provenance; four false danglings would fail `--strict` for a non-defect | reported as dangling citations (louder, but wrong about what they are) | E-63, T-99 | requester / confirmed 2026-09-30 (proposal §5, recommended branch) |
+| D-47 | Where the hardened token boundary applies (v1.19) | **both dialects** — the mis-citation (`IR-K-006` read as `K-006` in a house scan) is a live bug today, and T-100 proves no existing extraction changes | terse mode only (house byte-identity by construction, keeping the known false-citation path) | R-44, C-01, C-20, T-100 | requester / confirmed 2026-09-30 (proposal §5, recommended branch) |
 
 None of the first fourteen was raised as a question before v1.1; each was decided and reviewed for precision only. That is the defect this section corrects: a specification can be implementation-grade and still not be what was asked for.
 
@@ -1974,3 +2071,4 @@ D-28 (and its sub-decision D-28b), E-57 and R-38 — the obligation-aware judge 
 | v1.16 | Obligation-aware judge (`docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md`, 2026-09-20; D-28 and its sub-decision D-28b confirmed). Evidence: `JUDGE_CROSSCHECK_REPORT.md` §2b flagged that a test can cite an id as placeholder data while asserting something about a *neighbouring* id it names; a statement's C-12 `depends_on` neighbourhood — the ids it names and that name it — is the context a judge needs to tell its own clause apart from a neighbour's, at a cost of roughly doubling the per-edge judge input, which is cents against the per-edge real judge and the one pass a `--judge llm` run already makes. Changes: R-38 the request carries `related` — the C-12 `depends_on` neighbourhood, both directions, the statement's own references first, at most eight total, each a whitespace-collapsed title of at most 160 characters, a retired neighbour tagged `(retired)` (E-57), the empty list when the id has no neighbour; C-06 `JudgeRequest` gains `related` as a request-side, non-report field (no C-06 coercion rule reads it, so C-16, C-07 and C-08 are unchanged); C-10 gains the field and its rule (an assertion corresponding only to a related obligation is not evidence this statement holds; advisory, no model coercion — D-28's stance extends D-26's); C-17's triage `state` gains a `Related obligations:` section built from the same neighbourhood (D-28b — include, not strip, so Jev ranks the exact request the real judge gets, at roughly double the per-edge triage input); E-57 a retired `related` neighbour keeps its `(retired)` title; §11 rows; §12 D-28 (with D-28b). `related` is never a status, a metric, or a JSON field, so `speccheck.json`, `schema_version` `"1.5"`, the Markdown report, every status, the mock judge, and both reports are unchanged; the C-10 text changed, so `judge_prompt_sha256` is re-pinned by the build (F-004). §9 gains T-83 and T-84 *(recorded)*; T-89 (triage) and T-76 (the label fixture, now ≥ 37 entries, ≥ 8 downgraded on an adjacent edge — the build of this version found the row's `UNRELATED` too narrow: C-10's vocabulary grades a test that runs the statement's code and asserts a neighbour's fact `EXECUTES_ONLY`, F-1) are amended for the `related` section and the adjacent subset. The reservation that held D-28/E-57/R-38 in v1.15 is discharged (§12 note). |
 | v1.17 | `speccheck explain <ID>` (`docs/proposals/PROPOSAL_v1.17_explain_id.md`, 2026-09-20; D-33..D-36 confirmed, all four on the proposal's recommended branch). Evidence: this is a capability addition, not a defect fix — the tool already computes every fact a reader wants about one id, but a human assembles the trail by hand across `speccheck.json`, the cited source lines and an `impact` run (three structured artifacts plus two greps); §0's own promise is a path to the evidence, and the path was not rendered as one thing. Changes: R-40 the third subcommand runs `check`'s stages and renders one id; C-18 the stdout contract (section order, headings, the C-05 reason per status, the outcome/verdict line, the `clause:`/`rationale:` lines, the `impact (<depth>):` section from C-12's `walk` and C-13's `reverify`, and the exit codes `0`/`2`/`3`); I-016 `explain` is additive and read-only (no report, no new judge call, statuses agree with `check`); E-60 an undeclared id is exit `2` while a declared-but-uncited one renders its reason and exits `0`; E-61 `--judge` carries over `check`'s contract verbatim; §3.1 gains the surface's paragraph, §3.3 records that it writes no durable artifact (D-33), §5.1 gains the synopsis line and the `explain`/`--depth` rows, §5.4 its exit codes; §9.13 gains T-92 (the golden trace and its byte-stability), T-93 (E-60, the retired id, the uncited id) and T-94 *(recorded)* (the live-LLM trace); §11 rows; §12 D-33..D-36. No status, verdict, citation, metric, `schema_version`, `check`/`impact` report or golden moves. |
 | v1.18 | The CLI documents its own parameters and environment (`docs/proposals/PROPOSAL_v1.18_cli_help_contract.md`, 2026-09-20; D-37..D-42 confirmed on the recommended branches — D-42's branch adapted, because its preferred landing (the uncommitted v1.16 fold) no longer existed once v1.16 and v1.17 shipped). Evidence: `check --help` rendered 755 bytes of flag names and argparse dest names with no help text at all (14 `check` flags and 9 `impact` flags, 0 with help; `grep -c "choices=" src/speccheck/cli.py` = 0), the only machine-readable statement of a flag's values was its usage error, the environment was stated on five surfaces and one of them was wrong (C-06's `SPECCHECK_LLMMODEL`, read by no code), and the one surface that *was* documented had already drifted — six README statements still said `DIR` two versions after D-23 made `--src`/`--tests` PATHS. Changes: R-41 every flag documents purpose, values, default and preconditions, plus the environment, the exit codes and the summary line; C-19 the entry order, the metavar vocabulary, the `environment:` block and the exit-code epilog; I-017 `--help` is inert; T-95 the help↔usage-error token equality and the acceptance round-trip; T-96 every definition carries help and a C-19 metavar, and the screens render inertly; T-97 the byte-pinned goldens at `COLUMNS=80`; T-98 the environment block is bound to the code's own `SPECCHECK_*` literals; §5.1 and §5.4 gain their pointers; §9.14 the new test group; §10 the help goldens; §11 rows; §12 D-37..D-42; C-06's variable name corrected. No accepted value, default, exit code, report byte or golden moves. |
+| v1.19 | A second spec dialect: terse-IEEE component specs (`docs/proposals/PROPOSAL_v1.19_terse_ieee_dialect.md`, 2026-09-30; D-43..D-47 confirmed on the recommended branches). Evidence: `check` over `soundguardian-device/ir-control` at `b82ed2a` exited `ERROR spec declares no in-scope IDs` against a spec declaring 90 ids in 12 families as bold bullets; `ID_RE` fired 108 times over that spec with 104/108 (96.3%) being substrings of prefixed ids (`IR-C-001` read as `C-001`); `c/tests/test_learn.c` carried 28 prefixed citations of which 7 mis-extracted as house ids and 21 were invisible; and the 4 genuine bare tokens were another project's legacy ids. Changes: R-42 `--dialect {auto,house,terse}` on all three subcommands with the selected dialect in both reports; R-43 terse extraction, full-token citation, uniform C-05 status; R-44 the hardened token boundary in both dialects (C-01's TOKEN rule tightened); C-20 the terse grammar — `PREFIX-FAMILY-DIGITS` (K-17), bullet/heading/table-row declarations, strike-through retirement, single prefix per spec; C-21 the census, E-62 ambiguity, E-63 foreign house-form tokens Noted, E-64 prefix mismatch; C-07 `schema_version` `"1.6"` with top-level `dialect`; C-08 the `**Dialect:**` header segment; §9.15 T-99 *(recorded)*, T-100, T-101; §11 rows; §12 D-43..D-47. The judge, status algorithm, impact walk and `explain` are mechanism-unchanged; house reports change only by the dialect field/segment and version literal. |
