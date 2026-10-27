@@ -1,75 +1,58 @@
-# Detailed implementation plan — W2: README, the conformance report and both gates
+# Detailed implementation plan — W2: foreign references and `--namespace`
 
-> - **Wave:** W2 of W1–W2 (`docs/plans/IMPLEMENTATION_PLAN.md` §4 item 2).
-> - **Spec basis:** `SPEC.md` v1.18; §9.14, §10, §11, §5.1, §5.4, T-48, T-95..T-98.
-> - **Gate:** the full Phase 1 exit gate, then Phase A and Phase B, both exit 0.
-> - **Budget:** docs and test-side pins only.
-> - **Depends on:** W1.
+> - **Wave:** W2 of W1–W4 (`IMPLEMENTATION_PLAN.md` §4 item 2).
+> - **Spec basis:** `SPEC.md` v1.23.1; not edited by this wave.
+> - **Gate:** `tests/test_16_namespaces.py` green; every golden byte-identical (I-019, half).
+> - **Budget:** 80–140 production lines. **Depends on:** W1 gate. **Unlocks:** W3 (`namespace` threaded through `Config`/`ImpactConfig`/`ExplainConfig`).
 
 ## 1. Objective and spec obligations
 
-| id | obligation (≤20 words) | how this wave discharges it |
-| --- | --- | --- |
-| §11 | every id traces to component → behaviour → test | `DECLARED_IDS = 252`; the report's §5 rows for R-41/C-19/I-017/T-95..T-98 |
-| T-48 | the self-application recorded | the mock gate on this tree, recorded |
-| Phase B | `--judge llm --strict` exit 0 | run with `google/gemini-3.8-flash` |
+| id | obligation | how |
+|---|---|---|
+| R-101, C-22, E-67 | `<ns>:ID` (ns uncapped, not ID-shaped, ≠ `--namespace`) is no citation; listed in `foreign`; one Note naming the first three | `extract.FOREIGN_RE`, `citations_in_file(scanned, namespace)` returns citations + foreign |
+| E-69, C-12, F-716 (b) | in a statement or Affects cell: no edge, no Note; not a range endpoint | `targets_of` skips FOREIGN spans before ID_RE and RANGE_RE |
+| R-102, E-68 | `--namespace NS` on check/impact/explain, at most once, `{0,31}` grammar; `NS:ID` local | `cli.build_parser`, validation, config field |
+| C-07 | `foreign` key after `unattributed_results`, only when non-empty | `report.to_json` |
+| T-107, T-108, T-109 (half) | the §9.17 rows | `tests/test_16_namespaces.py` |
 
 ## 2. Entry preconditions
 
-- W1 committed; the suite green apart from `test_09`'s `DECLARED_IDS`.
-- The provider reachable.
+W1 committed; gate 1 shows only the `DECLARED_IDS` failures.
 
 ## 3. Deliverables
 
-- `tests/test_09_self_application.py`: `DECLARED_IDS = 252` with the per-version comment.
-- `README.md`: a "the CLI documents itself" note (what `--help` now carries, the environment block,
-  the exit codes), the verification commands, the layout (`tests/test_13_help.py`,
-  `tests/data/help/`), the version 1.18.0.
-- `SPEC_BUILD_REPORT.md`: §0j (why, plan, wave ledger, the four screens quoted at `COLUMNS=80`, the
-  T-95 token table, the interpretations), the §5 rows, §6's verdict with both gates verbatim.
-- The root `speccheck.json` / `SPEC_CONFORMANCE_REPORT.md` from the final mock run.
+- **`extract.py` — EDIT (~40–60):** `FOREIGN_RE = (?<![A-Za-z0-9])(?P<ns>[A-Za-z][A-Za-z0-9_-]*):(?P<id>[RCIKET]-[0-9]{1,3})(?![A-Za-z0-9])`, ID-shaped ns rejected; `foreign_spans(line, namespace) -> list[(start, end, ns, id)]`; `citations_in_file` skips tokens inside a foreign span and returns `RawForeign` entries; `parse_spec(text, rel, namespace=None)` passes it to `targets_of`, which blanks foreign spans before both regexes (no Note, no range).
+- **`cli.py` — EDIT (~30–50):** `--namespace` on three subparsers (C-19 help, metavar `NS`), `action` that rejects a second occurrence with `--namespace: given more than once`; `--namespace: invalid namespace: <value>`; thread into `_run_stages` and `execute_impact`; collect `foreign`, sort `(file, line, namespace, id)`, add the E-67 Note.
+- **`report.py` — EDIT (~10–20):** `foreign` key, conditional.
+- **`tests/test_16_namespaces.py` — NEW; `tests/data/namespaces/` — NEW** fixture files carrying `platform:R-99` (F-713).
+- **`tests/data/help/{check,impact,explain}_help.txt` — REGENERATE** at `COLUMNS=80`.
 
 ## 4. Work items
 
-- **W3-01** — `DECLARED_IDS` 252 (RED first).
-- **W3-02** — README; every command in it run as written.
-- **W3-03** — the report; both gates; the verdict block; commit.
+- **W2-01** T-107 core (R-99 UNCITED with `platform:R-99`; `foreign` entry; Note) red → FOREIGN in `citations_in_file` → green.
+- **W2-02** T-107 `--namespace platform` → PASSING, no `foreign`, no Note; second `--namespace` and a 33-char value exit 2; 41-char ns foreign.
+- **W2-03** T-107 `R-01:R-02` both local; four tokens → ` and 1 more`; impact and explain agree.
+- **W2-04** T-108 statement/Affects edges, range `platform:R-01..R-05` → one edge to R-05.
+- **W2-05** T-109 (half): goldens and `--self-check` unchanged (already covered by gate; add the explicit test with the summary line and exit code).
+- **W2-06** help goldens regenerated; T-95..T-97 green.
 
 ## 5. Test plan
 
-| group | ids | what must be asserted | how it runs |
-| --- | --- | --- | --- |
-| whole suite | all | 134 tests green | `pytest tests -q --junitxml=junit.xml` |
-| Phase A | all | `CONFORMING`, 0 dangling, 0 stale, exit 0 | `check --judge mock --strict` |
-| Phase B | all | exit 0, judge available, `unknown_rate` within bound, 0 weak | `check --judge llm --strict` |
+`uv run python -m pytest tests/test_16_namespaces.py tests/test_13_help.py tests/test_10_edges.py -q`.
 
 ## 6. Gate
 
-```bash
-uv run python -m pytest tests -q --junitxml=junit.xml
-uv run ruff check src tests tools
-uv run speccheck --self-check
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --strict --out build/speccheck-llm
-```
-Expected: 252/252, 0 dangling, 0 stale, exit 0 on both.
+W1 gate items 1–4 (same expected results), plus `uv run python -m pytest tests/test_16_namespaces.py -q` — expected: all pass.
 
 ## 7. Traceability
 
-| id | file.symbol | test | status now → after |
-| --- | --- | --- | --- |
-| R-41, C-19, I-017, T-95..T-98 | as W1 | T-95..T-98 | PASSING |
-| §11 | every row | the report's §5 walk | complete |
+R-101, R-102, C-22, E-67, E-68, E-69, T-107, T-108: UNCITED → PASSING. T-109: UNCITED → PASSING (half; W3 extends to `--citation-map` absent).
 
 ## 8. Traps
 
-- **Phase B is model-sensitive**: record the model, `unknown_rate` and `judge_strength`; a
-  `WEAKLY_PASSING` id is a test defect to fix, never a reason to raise `--max-unknown`.
-- **The help screens quoted in the report must be the rendered bytes**, not a paraphrase, and at
-  the pinned width where the golden is cited.
-- **No new §9.8 golden**: `explain`/help change no report; the root reports are gitignored build
-  output.
+- This `SPEC.md` contains `platform:R-99` in statements: after W2 the C-07/C-23/R-101/T-107/T-108 `-> R-99` undeclared-target Notes lose the foreign ones. Expected, since E-69 says so, but it changes this repo's own `speccheck.json` notes; check `edge to undeclared id` Notes before and after.
+- argparse `append`-free single flag: a second occurrence silently overwrites unless the action counts. Use a custom action.
 
-## 9. Exit criteria
+## 9. Exit and handoff
 
-- Both gates' summary lines pasted verbatim; the verdict block written; the increment committed.
+Frozen: `extract.FOREIGN_RE`, `citations_in_file(scanned, namespace=None)`, `Config.namespace`. W3 re-runs this gate.

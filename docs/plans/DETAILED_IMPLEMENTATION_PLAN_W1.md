@@ -1,128 +1,64 @@
-# Detailed implementation plan — W1: the help contract
+# Detailed implementation plan — W1: v1.23.1 corrections to existing behaviour
 
-> - **Wave:** W1 of W1–W2 (`docs/plans/IMPLEMENTATION_PLAN.md` §4 item 1).
-> - **Spec basis:** `SPEC.md` v1.18 (the fold at `56e1465`): R-41, C-19, I-017, T-95..T-98, §5.1,
->   §5.4, §9.14, §10. Not edited by this wave.
-> - **Gate:** `tests/test_13_help.py` green (T-95..T-98), the whole suite green, `ruff` clean,
->   `--self-check` `ok`.
-> - **Budget:** 90–140 production lines in `cli.py`; 200–280 test lines + four goldens.
-> - **Depends on:** nothing. **Unlocks:** W2 (the gates and the report).
+> - **Wave:** W1 of W1–W4 (`IMPLEMENTATION_PLAN.md` §4 item 1).
+> - **Spec basis:** `SPEC.md` v1.23.1 (re-measure the sha256 at wave start); not edited by this wave.
+> - **Gate:** the full suite red only on the two `DECLARED_IDS` tests; goldens and `--self-check` unchanged.
+> - **Budget:** 15–40 production lines. **Depends on:** v1.22 build. **Unlocks:** W2 (a baseline where every failure is new).
 
 ## 1. Objective and spec obligations
 
-| id | obligation (≤20 words) | how this wave discharges it |
-| --- | --- | --- |
-| R-41 | every flag documents purpose, values, default, preconditions; the screens carry the environment, the exit codes and the summary line | `cli.py`: help strings, metavars, the two epilogs |
-| C-19 | the entry order, the metavar vocabulary, the `environment:` block, the exit-code epilog | the same, pinned by T-96/T-97 |
-| I-017 | `--help` is inert | no help path reads a file, an env var or a socket; T-96 renders from an empty dir under the socket guard |
-| T-95 | help tokens == the flag's own usage-error tokens; every named token accepted | `test_t95_help_values_match_the_validator` |
-| T-96 | every definition carries help and a C-19 metavar; the screens render inertly | `test_t96_every_flag_documents_itself` |
-| T-97 | the four screens are byte-stable at `COLUMNS=80` | `test_t97_help_screens_match_their_goldens` + `tests/data/help/*.txt` |
-| T-98 | the environment block == the code's own `SPECCHECK_*` literals | `test_t98_environment_block_matches_the_code` |
+| id | obligation | how |
+|---|---|---|
+| R-22, C-06 (F-706) | mock: a JS/TS line with `expect(`/`expect.` is an assertion token | `judge_mock.is_assertion_line` |
+| C-03 (F-708) | `/` is a regex iff the previous token is absent, punctuation other than `) ] }`, or a listed keyword | `jsts._starts_regex`, `_REGEX_PRECEDERS` |
+| C-18, R-40 (F-711) | reason strings name C-05's steps; `<outcome>` includes `error` | `explain._REASONS`, outcome rendering |
+| C-10, R-26 (F-703) | `judge_prompt.md` equals the C-10 block | copy the block |
+| C-06 (F-701) | request `messages` = [system, user] | test only (code already right) |
+| C-14 (F-705) | a JS `/* … */` second line is DECLARED | test only (T-115 extension) |
+| K-18 (F-709) | unreadable `--results` + E-01 → exit 2 | test only (T-103 extension) |
 
 ## 2. Entry preconditions
 
-- `56e1465` is HEAD; `SPEC.md` declares 252 ids and 42 decisions; the seven new ids are `UNCITED`.
-- `cli.py` has `build_parser()` (four parsers), `parse_config`/`_build_check_config`/
-  `_build_impact_config`/`_build_explain_config`, and the constants `JUDGE_MODES`,
-  `VERBOSE_LEVELS`, `PROGRESS_MODES`.
-- `judge_llm.py` and `jev.py` carry the eight `SPECCHECK_*` literals as `ENV_*` constants.
-- `tests/conftest.py` provides `run_cli(argv, cwd, env=...)` (in-process, captures stdout/stderr).
+`spec/v1.23.1` at or after `50b723d`; `uv sync --extra dev`; the 161/164 baseline of plan §2.
 
 ## 3. Deliverables
 
-### 3.1 `src/speccheck/cli.py` — EDIT (~90–140 lines)
+- **`src/speccheck/judge_mock.py` — EDIT (~3 lines):** add `"expect(", "expect."` to the token check (C-06).
+- **`src/speccheck/jsts.py` — EDIT (~10 lines):** `_REGEX_PRECEDERS` = every one-char punctuation except `)`, `]`, `}`, plus `return typeof instanceof in of new delete void throw case do else yield await` (C-03 F-708). Regex flags already consumed; verify the class `[ … ]` rule.
+- **`src/speccheck/explain.py` — EDIT (~12 lines):** `_REASONS` per C-18 (RETIRED `step 1: struck through in the specification`; UNCITED `step 2a: …`, a T id `step 2b: no test citation`; UNTESTED `step 2a: no test citation`; UNVERIFIED `step 3: …`; FAILING/SKIPPED/PASSING `step 4: …`; WEAKLY_PASSING `step 5: no judged edge asserts the statement`); `error` rendered as an outcome.
+- **`src/speccheck/judge_prompt.md` — EDIT:** the C-10 fenced block, byte for byte.
+- **Tests — EDIT:** `test_05_judge.py` (T-69 JS sub-test; T-33 two-message assertion), `test_15_jsts.py` (T-113 regex cases, T-115 `/* */` line), `test_12_explain.py` (T-92/T-93 strings, UNVERIFIED step 3, `(error)`), `test_07_cli.py` (T-103 pair).
 
-- A metavar and a help string on every argument definition of `speccheck`, `check`, `impact` and
-  `explain`: purpose, values (literal tokens for a finite set, the range for a bounded number),
-  `default: …` where one exists, and the preconditions (`ignored unless --judge llm`,
-  `requires --jev-pre-triage with --judge llm`, `must resolve inside --root`).
-- The three enumerated clauses built from `JUDGE_MODES`/`VERBOSE_LEVELS`/`PROGRESS_MODES`
-  (`f"none, mock, or llm"`-style joins), so Part B's equality is structural for those flags.
-- Two module constants, shared by all four parsers as their `epilog`: `ENVIRONMENT_EPILOG` (the
-  eight `SPECCHECK_*` names with read condition, requiredness and default, plus the `COLUMNS`
-  clause) and `EXIT_CODE_EPILOG` (the §5.4 codes and the §5.1 summary line).
-- `argparse`'s `RawDescriptionHelpFormatter` where the epilog needs its layout preserved.
+## 4. Work items
 
-### 3.2 `tests/test_13_help.py` — NEW (~200–280 lines)
-
-- `test_t95_help_values_match_the_validator` — for each of the seven finite-set flags, the tokens in
-  its help entry equal those in its own usage error, and each token is accepted by the parser
-  (`bogus` is the control, exit `2`).
-- `test_t96_every_flag_documents_itself` — introspection over the four parsers: every definition
-  carries non-empty help; every value-taking flag's metavar is in C-19's vocabulary; each screen
-  renders from an empty directory with the socket guard installed, exit `0`, non-empty stdout,
-  empty stderr.
-- `test_t97_help_screens_match_their_goldens` — `COLUMNS=80` in the environment, compare the four
-  screens to `tests/data/help/*.txt` byte for byte.
-- `test_t98_environment_block_matches_the_code` — the `SPECCHECK_[A-Z_]+` literals in
-  `src/speccheck/*.py` equal the names the block lists; no `_API_KEY` value appears in any screen.
-
-### 3.3 `tests/data/help/{speccheck,check,impact,explain}_help.txt` — NEW
-
-The four screens as rendered at `COLUMNS=80`, generated by running the product and then read
-(D-39, §10).
-
-### 3.4 `README.md` — EDIT (~8 lines)
-
-Part D: the six `DIR` statements become `PATHS` (the grammar D-23 gave them in v1.12), so the
-README's synopsis and rows match what the kernel accepts.
-
-## 4. Work items, in order (red → green → refactor)
-
-- **W1-01** — RED: `test_t96_every_flag_documents_itself` fails on the first definition with an
-  empty help string; then the help strings and metavars; GREEN.
-- **W1-02** — RED: `test_t95_help_values_match_the_validator` fails until every finite set's help
-  clause names its own tokens; GREEN.
-- **W1-03** — RED: `test_t98_environment_block_matches_the_code` fails until the block exists;
-  write `ENVIRONMENT_EPILOG` and `EXIT_CODE_EPILOG`; GREEN.
-- **W1-04** — the goldens: render the four screens at `COLUMNS=80` into `tests/data/help/`, read
-  them, then GREEN T-97.
-- **W1-05** — README Part D; the wave gate; commit.
+- **W1-01** T-69 JS sub-test (red: `EXECUTES_ONLY`) → mock tokens → green.
+- **W1-02** T-113 cases `return /c)/`, `x = /d[/)]/g`, file-start `/e)/`, and `a } /x)/` behaviour (red on `}` and missing keywords) → `_REGEX_PRECEDERS` → green.
+- **W1-03** T-92/T-93 new strings, UNVERIFIED/`error` cases (red) → `explain.py` → green.
+- **W1-04** sync `judge_prompt.md` → `test_llm_response_path_fences_and_prompt_hash` green.
+- **W1-05** characterization tests T-33 (two messages), T-115 (`/* */`), T-103 pair: written to
+  pin behaviour the spec now states and the code already has. They are expected to pass at once;
+  the commit body says so rather than claiming a red phase.
 
 ## 5. Test plan
 
-| group | ids | what must be asserted | how it runs |
-| --- | --- | --- | --- |
-| `tests/test_13_help.py` | T-95..T-98, R-41, C-19, I-017 | the token equality and acceptance; help on every definition and the metavar vocabulary; the inert render; the byte-pinned goldens; the environment block against the code | `pytest tests/test_13_help.py -q` |
-| whole suite | all | nothing regressed (the parser changed text only) | `pytest tests -q --junitxml=junit.xml` |
+`uv run python -m pytest tests/test_05_judge.py tests/test_15_jsts.py tests/test_12_explain.py tests/test_07_cli.py -q`.
 
-## 6. Gate: commands and expected results
+## 6. Gate
 
-```bash
-uv run python -m pytest tests/test_13_help.py -q          # expected: all green
-uv run python -m pytest tests -q --junitxml=junit.xml     # expected: 1 failed (test_09 DECLARED_IDS), rest green
-uv run ruff check src tests tools                         # expected: exit 0
-uv run speccheck --self-check                             # expected: "self-check: ok"
-COLUMNS=80 uv run speccheck check --help | head -20       # expected: help text, not bare flag names
-```
+1. `uv run python -m pytest tests -q --junitxml=junit.xml` — expected: exactly 2 failures, both `DECLARED_IDS` tests in `test_09_self_application.py`.
+2. `uv run ruff check src tests` — expected: exit 0.
+3. `uv run speccheck --self-check` — expected: `self-check: ok` (the T-46 goldens unchanged; no golden contains `expect(` outside `#expect(`).
+4. `uv run python -m pytest tests/test_08_golden.py -q` — expected: all pass (T-46, T-71 byte-identical).
 
 ## 7. Traceability
 
-| id | file.symbol | test | status now → after |
-| --- | --- | --- | --- |
-| R-41 | `cli.build_parser` (help strings, metavars, epilogs) | T-95, T-96, T-97, T-98 | UNCITED → PASSING |
-| C-19 | `cli.ENVIRONMENT_EPILOG`, `cli.EXIT_CODE_EPILOG`, the definitions | T-95..T-98 | UNCITED → PASSING |
-| I-017 | the help path in `cli.main` | T-96 | UNCITED → PASSING |
-| T-95..T-98 | `tests/test_13_help.py` | themselves | UNCITED → PASSING |
+R-22, C-06, C-03, C-18, R-40, C-10, R-26, C-14, K-18 stay PASSING; their tests gain the v1.23.1 clauses.
 
 ## 8. Traps
 
-- **`COLUMNS` must be set for the golden test** (and only there): argparse wraps to the terminal
-  width, so an unpinned golden flakes (the proposal measured `COLUMNS=40` vs `200` breaking the
-  same build differently). T-97 pins `80`; I-017 records that width affects wrapping alone.
-- **No environment *value* may reach a screen** (R-23, I-007): the block names variables only; the
-  test asserts no `_API_KEY` value appears.
-- **The three enumerated clauses must be built from the constants**, not re-typed: that is the
-  difference between Part B and a fourth prose copy.
-- **Do not make the help normative**: C-19 pins content, not wording (D-38); the golden in
-  `tests/` is what notices a change.
-- **`-h` is exempt** from the "every definition carries help" rule (T-96 says so explicitly).
-- **Do not touch an accepted value, a default or an exit code** — this increment is text only; the
-  suite's goldens prove nothing else moved.
+- T-62/T-92-style pinned strings elsewhere (`README.md`, `docs/introducing-speccheck.md`) quoting the old `step 4` line: grep for `step 2b:` and `step 3: a citing` and update them in W4, not here (docs last).
+- `expect(` also occurs in `#expect(`; the evidence list must not double-count a line (one entry per line).
 
-## 9. Exit criteria and handoff contract
+## 9. Exit and handoff
 
-- Frozen for W2: `cli.ENVIRONMENT_EPILOG`, `cli.EXIT_CODE_EPILOG`, the metavar vocabulary, and the
-  four goldens under `tests/data/help/`.
-- W2 re-runs the suite and both gates.
+Frozen: `judge_mock.is_assertion_line`, `explain.render_trace` signature. Next wave re-runs gate items 1–4.

@@ -1,75 +1,64 @@
-# Detailed implementation plan — W3: README, the conformance report, and both gates
+# Detailed implementation plan — W3: the citation map
 
-> - **Wave:** W3 of W1–W3 (`docs/plans/IMPLEMENTATION_PLAN.md` §4 item 3).
-> - **Spec basis:** `SPEC.md` v1.17; §9.13, §10, §11, §5.1, §5.4, T-48, T-92..T-94.
-> - **Gate:** the full Phase 1 exit gate, then Phase A and Phase B, both exit 0.
-> - **Budget:** docs and test-side pins only.
-> - **Depends on:** W1 and W2.
+> - **Wave:** W3 of W1–W4 (`IMPLEMENTATION_PLAN.md` §4 item 3).
+> - **Spec basis:** `SPEC.md` v1.23.1; not edited by this wave.
+> - **Gate:** `tests/test_17_citation_map.py` green; I-019 over every golden; W2 gate intact.
+> - **Budget:** 160–240 production lines. **Depends on:** W2 (`Config.namespace` threading). **Unlocks:** W4.
 
 ## 1. Objective and spec obligations
 
-| id | obligation (≤20 words) | how this wave discharges it |
-| --- | --- | --- |
-| §11 | every id traces to component → behaviour → test | `DECLARED_IDS = 245`; the report's §5 rows for R-40/C-18/I-016/E-60/E-61; the walk shows no gap |
-| T-48 | the self-application recorded | the mock gate on this tree, recorded |
-| T-92..T-94 | the new surface's rows | README + report carry their evidence |
-| Phase B | `--judge llm --strict` exit 0 | run with `google/gemini-3.8-flash` |
+| id | obligation | how |
+|---|---|---|
+| R-103, C-23 | `--citation-map FILE` on check/impact/explain; schema 1.0; entries resolve to a `TestCase` by (file, name), smallest `start` on a tie | `cli._load_citation_map`, `_apply_map` |
+| E-70, K-19, K-18 | unreadable/outside root → 2 at validation; shape faults and >2 MiB → 3 in apply-map | split read (validation) / parse (stage) |
+| E-71 | unresolved → one Note per entry; counted | `_apply_map` |
+| E-72, E-73, D-57 | mapped `Citation(kind test, line=start, declared=True, mapped=True)`; literal duplicate wins | `attribute.Citation.mapped` field |
+| C-03 (F-702) | map and `--proof-results` files excluded from every scan | `_excluded_paths`, `_impact_excluded_paths` |
+| C-07 (F-703) | `declared_ratio` excludes mapped citations | `graph.build_graph` population |
+| C-07, C-23 (F-704) | `mapped` on `tests[]`, `dangling`, `stale` (only with the flag); `citation_map` counts; `lines: []` | `report.to_json` |
+| C-08, C-18, §5.1 | `file (map)`; `(mapped)` in explain; `; citations: <M> mapped` | `report.to_markdown`, `explain`, summary line |
+| T-110, T-111, T-109 (rest) | the §9.17 rows | `tests/test_17_citation_map.py` |
 
 ## 2. Entry preconditions
 
-- W1 and W2 committed; the suite green apart from `test_09`'s `DECLARED_IDS`.
-- The provider reachable (same as W2).
+W2 committed, gate green.
 
 ## 3. Deliverables
 
-- `tests/test_09_self_application.py`: `DECLARED_IDS = 245` with the per-version comment.
-- `README.md`: the `explain` section (what it prints, the six sections, `--depth`, stdout-only,
-  exit codes), the synopsis block, the layout (`explain.py`, `tests/test_12_explain.py`), the
-  verification commands, the version 1.17.0, and the fixture/scope notes.
-- `SPEC_BUILD_REPORT.md`: §0i's increment narrative, the wave ledger, the §4/§5 rows, the §6 verdict
-  with both gates' summary lines verbatim.
-- The root `speccheck.json` / `SPEC_CONFORMANCE_REPORT.md` from the final mock run.
+- **`attribute.py` — EDIT (~3):** `Citation.mapped: bool = False`.
+- **`cli.py` — EDIT (~100–140):** flag on three parsers; read bytes in validation (E-70 exit 2); `apply-map` stage after scan-tests: JSON parse, `schema_version == "1.0"`, `citations` array, entries with exactly `id`/`file`/`test` strings, bare TOKEN id, 2 MiB cap (K-19); resolution; `citation_map` counts; exclusion of both files.
+- **`graph.py` — EDIT (~10–20):** ratio population skips `mapped`; dangling/stale carry `mapped`.
+- **`report.py` — EDIT (~30–50):** conditional keys and orders; Markdown `(map)`; summary suffix.
+- **`explain.py` — EDIT (~5–10):** `(mapped)` suffix; E-73 literal wins.
+- **`tests/test_17_citation_map.py`, `tests/data/citation_map/` — NEW.** Help goldens regenerated.
 
 ## 4. Work items
 
-- **W3-01** — `DECLARED_IDS` 245 (RED first).
-- **W3-02** — README; every command in it run as written.
-- **W3-03** — the report; both gates; the verdict block; commit.
+- **W3-01** T-111 faults (red) → read/validate.
+- **W3-02** T-110 Python + file-level + JS resolution and statuses (red) → `_apply_map`.
+- **W3-03** T-110 labels: JSON `mapped`, `lines: []`, Markdown `(map)`, summary `; citations: 3 mapped`, explain `(mapped)`, impact re-cite.
+- **W3-04** T-110 dangling/stale `mapped: true`, `declared: true` in the judge request, `declared_ratio` unchanged by the map.
+- **W3-05** T-110 map and manifest under `--tests` → identical reports (F-702).
+- **W3-06** T-109 (rest): absent flag → no new keys; goldens byte-identical. Help goldens.
 
 ## 5. Test plan
 
-| group | ids | what must be asserted | how it runs |
-| --- | --- | --- | --- |
-| whole suite | all | 127 tests green | `pytest tests -q --junitxml=junit.xml` |
-| Phase A | all | `CONFORMING`, 0 dangling, 0 stale, exit 0 | `check --judge mock --strict` |
-| Phase B | all | exit 0, judge available, `unknown_rate` within bound, 0 weak | `check --judge llm --strict` |
+`uv run python -m pytest tests/test_17_citation_map.py tests/test_13_help.py tests/test_06_reports.py -q`.
 
 ## 6. Gate
 
-```bash
-uv run python -m pytest tests -q --junitxml=junit.xml
-uv run ruff check src tests tools
-uv run speccheck --self-check
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --strict --out build/speccheck-llm
-```
-Expected: 245/245, 0 dangling, 0 stale, exit 0 on both.
+W2 gate (expected unchanged), plus `uv run python -m pytest tests/test_17_citation_map.py -q` — expected: all pass; and T-44's summary regex test green with and without the suffix.
 
 ## 7. Traceability
 
-| id | file.symbol | test | status now → after |
-| --- | --- | --- | --- |
-| R-40, C-18, I-016, E-60, E-61, T-92, T-93, T-94 | as W1/W2 | T-92..T-94 | PASSING |
-| §11 | every row | the report's §5 walk | complete |
+R-103, C-23, K-19, E-70..E-73, T-110, T-111: UNCITED → PASSING; T-109 complete.
 
 ## 8. Traps
 
-- **Phase B is model-sensitive**: record the model, `unknown_rate` and `judge_strength`; a
-  `WEAKLY_PASSING` id is a test defect to fix, never a reason to raise `--max-unknown`.
-- **The README's `explain` example must be run as written** on the fixture (its trace is long:
-  quote the command, not the whole trace).
-- **No new golden**: the root reports are gitignored build output, regenerated for the reader.
+- Key order: `citation_map` directly before `foreign`, both after `unattributed_results`; `mapped` after `declared` in `tests[]`, after `line` in dangling/stale. T-34 pins key order.
+- E-73 duplicates count as resolved each time, so `resolved + unresolved == entries` must hold with duplicates present.
+- A map entry for a test in a file excluded by `speccheck:ignore-file` is unresolved (E-71), not an error.
 
-## 9. Exit criteria
+## 9. Exit and handoff
 
-- Both gates' summary lines pasted verbatim; the verdict block written; the increment committed.
+Frozen: the JSON keys. W4 re-runs W1–W3 gates.
