@@ -613,9 +613,11 @@ JavaScript/TypeScript adapter (files ending .ts .tsx .mts .cts .js .jsx .mjs .cj
     placeholders filled ("sums 1 and 2" for "sums %i and %i"), a skipped test carrying <skipped/>.
     jest-junit matches when configured `classNameTemplate: "{filepath}"`,
     `titleTemplate: "{classname} > {title}"` and `ancestorSeparator: " > "` (its defaults do not:
-    classname "describe title", and nested describe titles joined by one space; F-707). The
-    jest-junit shape is taken from its documented options, NOT measured from a run; it is claimed
-    only once T-117 records one.
+    classname "describe title", and nested describe titles joined by one space; F-707). Measured
+    2026-10-27 (T-117, jest 30.5.2, jest-junit 17.0.0): under that configuration a nested test is
+    `name="calc > inner (x) > subtracts [neg]"`, without `ancestorSeparator` it is
+    `"calc inner (x) > subtracts [neg]"` (no join), and a test outside every `describe` is
+    `" > top level"`, which C-04's leading-separator rule joins.
 Fallback adapter (any other text file): one file-level case per file; its classname is derived
   exactly as for Python (path relative to --root, "/" -> ".", final extension dropped; F-108).
 
@@ -697,6 +699,10 @@ Join to a TestCase (F-006): a result joins the TestCase whose `join_name` equals
     becomes "." ("src/calc.test.ts" -> "src.calc.test.ts") -- before the suffix rule below, so it
     matches a JavaScript/TypeScript TestCase ("web.src.calc.test.ts") on a component boundary even when
     the test runner's root is a sub-directory of --root. A classname with no "/" is unchanged.
+  Leading separator (v1.23.1, measured by T-117): a result name that begins with " > " -- jest-junit's
+    `titleTemplate: "{classname} > {title}"` for a test outside every `describe`, whose `{classname}`
+    is empty -- has that prefix removed before step 1 (" > top level" -> "top level"). No Python,
+    Swift or vitest result name begins with it.
   Case names go through the same two steps (R-104): a TestCase is joined under join_name(case.name), not
     case.name, so a title that contains "[" or "(" ("subtracts [neg]") reduces to the same string
     as its result; for every Python and Swift case the step changes nothing.
@@ -2037,7 +2043,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-113** | A vitest-style file with nested `describe`s, `it.each`, `it.skip`, a regex literal containing `)` and a `/** … */` block above a test: the cases are exactly those calls, named `outer > inner > title`, with the comment block inside the span and the call's closing-paren line as its end; whole-line comment lines are flagged and code lines are not. REGEX vs DIVISION (F-708): `f(/a)b/)`, `return /c)/`, `x = /d[/)]/g` and a `/e)/` at the start of a file each read as one regex token (the `)` inside does not count toward balance), while `expect(a) / 2` and `total / count / 2` read as division; a file mixing them delimits its cases exactly as the rule predicts. (R-104, C-03) |
 | **T-114** | A non-literal title and an interpolated template are listed as `line N` and are not cases; `re.test(x)` is not a call; a file with an unclosed `(` raises the parse error that becomes `parse fallback: <path>`. (E-74, E-75) |
 | **T-115** | Attribution: a citation in a case's span attaches to it; classname is the path with `/` → `.` and the extension kept; a comment-only citation is DECLARED, a trailing comment is not; a citation on the second line of a multi-line `/* … */` comment inside the span is DECLARED (C-14's JS/TS bullet, F-705); a citation outside every case is file-level. (R-104, C-03, C-14) |
-| **T-117** *(recorded)* | One real `jest` + `jest-junit` run over a file with a nested `describe` (two levels), configured with C-03's three options, checked in as a fixture string: every `<testcase>` joins its C-03 case and none is unattributed; the jest and jest-junit versions and the date are recorded in `SPEC_BUILD_REPORT.md`. Until it is recorded, the jest path is documented, not claimed (C-03, F-707). The suite cites this id by a presence check that the recorded fixture exists. (R-104, C-04, D-56) |
+| **T-117** *(recorded)* | One real `jest` + `jest-junit` run over a file with a nested `describe` (two levels) and a test outside every `describe`, configured with C-03's three options, checked in as a fixture string: every `<testcase>` joins its C-03 case and none is unattributed — the top-level one through C-04's leading-separator rule; the jest and jest-junit versions and the date are recorded in `SPEC_BUILD_REPORT.md`. Until it is recorded, the jest path is documented, not claimed (C-03, F-707). (R-104, C-04, D-56) |
 | **T-116** | End to end over the `vitest run --reporter=junit` output measured 2026-10-27 (checked in as the test's fixture string): path classname relative to vitest's root joins under `--root`, titles containing `[` and `(` join, an `it.each` title with two filled results joins as one case, and the skipped test's id is `SKIPPED`; no result is unattributed. (R-104, C-04, E-76) |
 
 ### 9.17 Namespaces and the citation map (C-22, C-23, I-019, K-19, E-67..E-73; v1.23)
