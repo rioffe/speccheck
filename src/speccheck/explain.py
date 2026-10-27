@@ -18,17 +18,18 @@ NOT_JUDGED = "not judged"  # C-18: no verdict recorded for this edge
 FILE_LEVEL = "(file-level)"  # C-18: a case with no name (E-13)
 INDENT = "  "
 
-# C-18: the C-05 step that set each status, in C-05's own words.
+# C-18 (v1.23.1, F-711): the C-05 step that set each status, numbered as C-05 numbers it.
 REASON = {
-    "UNCITED": "step 1: no source or test citation",
-    "UNTESTED": "step 2: no test citation",
-    "UNVERIFIED": "step 2b: no citing test case has a result",
-    "FAILING": "step 3: a citing test case failed",
-    "SKIPPED": "step 3: a citing test case was skipped",
-    "PASSING": "step 4: every citing test case passed",
-    "WEAKLY_PASSING": "step 5: the judge downgraded every judged edge",
-    "RETIRED": "retired: struck through in the specification",
+    "RETIRED": "step 1: struck through in the specification",
+    "UNCITED": "step 2a: no source or test citation",
+    "UNTESTED": "step 2a: no test citation",
+    "UNVERIFIED": "step 3: no citing test case has a result",
+    "FAILING": "step 4: a citing test case failed or errored",
+    "SKIPPED": "step 4: every citing test case with a result was skipped",
+    "PASSING": "step 4: every citing test case with a result passed or was skipped",
+    "WEAKLY_PASSING": "step 5: no judged edge asserts the statement",
 }
+T_UNCITED = "step 2b: no test citation"  # C-05 step 2b: a T id's source citations are evidence only
 
 
 def _id_line(rec: IdRecord) -> str:
@@ -43,7 +44,8 @@ def _id_line(rec: IdRecord) -> str:
 
 def _status_line(rec: IdRecord) -> str:
     """C-18 section 2: the status and the C-05 step that set it."""
-    return f"status: {rec.status} ({REASON[rec.status]})"
+    reason = T_UNCITED if rec.status == "UNCITED" and rec.spec.family == "T" else REASON[rec.status]
+    return f"status: {rec.status} ({reason})"
 
 
 def _statement_lines(rec: IdRecord) -> list[str]:

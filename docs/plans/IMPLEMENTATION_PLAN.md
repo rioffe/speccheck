@@ -92,7 +92,7 @@ flowchart LR
    F-704 (`mapped` on dangling/stale), F-716 (a); T-110, T-111, T-109 (rest); help goldens again.
    Gate: `test_17_citation_map.py` green; I-019 holds over every golden.
 4. **W4 — prove it.** `DECLARED_IDS` and the article numbers, `__version__ = "1.23.1"`, README,
-   `SPEC_BUILD_REPORT.md` §0n, the recorded runs (T-112, T-117, T-49), both speccheck phases.
+   `SPEC_BUILD_REPORT.md` §0n, the recorded runs (T-112, T-117, T-49, and T-84/T-94, which the C-10 change voids — added during W1), both speccheck phases.
 
 ## 5. LOC budget (production)
 

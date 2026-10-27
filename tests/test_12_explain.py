@@ -8,6 +8,9 @@ import os
 import shutil
 from pathlib import Path
 
+from speccheck import attribute, graph
+from speccheck.explain import _status_line, _test_lines
+from speccheck.extract import parse_spec
 from speccheck.judge import Verdict
 
 from .conftest import FIXTURE, run_cli
@@ -31,7 +34,7 @@ ARGS = [
 # each with the mock's verdict, and the walk's one dependent plus the one T id that verifies it)
 R01_TRACE = """\
 ID R-01
-status: PASSING (step 4: every citing test case passed)
+status: PASSING (step 4: every citing test case with a result passed or was skipped)
 statement:
   `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
 sources:
@@ -155,13 +158,13 @@ def test_t93_explain_undeclared_retired_and_uncited(tmp_path: Path):
     assert retired.code == 0, retired.stderr
     assert retired.stdout.splitlines()[:2] == [
         "ID R-04 (RETIRED)",
-        "status: RETIRED (retired: struck through in the specification)",
+        "status: RETIRED (step 1: struck through in the specification)",
     ]
 
     untested = run_cli([*ARGS[:1], "C-02", *ARGS[2:], "--root", "."], target)
     assert untested.code == 0, untested.stderr
     body = untested.stdout.splitlines()
-    assert body[0] == "ID C-02" and body[1] == "status: UNTESTED (step 2: no test citation)"
+    assert body[0] == "ID C-02" and body[1] == "status: UNTESTED (step 2a: no test citation)"
     assert body[body.index("sources:") + 1] == "  src/calc/core.py:27"
     # an empty block: the heading is printed and the next line is the following heading (E-60)
     assert body[body.index("tests:") + 1] == "impact (1):"
@@ -212,7 +215,7 @@ def test_e61_explain_carries_the_judge_contract(tmp_path: Path, monkeypatch):
     )
     assert judged.code == 0, judged.stderr
     body = judged.stdout.splitlines()
-    assert body[1] == "status: WEAKLY_PASSING (step 5: the judge downgraded every judged edge)"
+    assert body[1] == "status: WEAKLY_PASSING (step 5: no judged edge asserts the statement)"
     assert "  tests/test_core.py::test_add (passed) [UNKNOWN (coerced)]" in body
     assert "    rationale: judge: unlocated clause" in body
     downgraded = [line for line in body if line.endswith("[EXECUTES_ONLY]")]
@@ -232,4 +235,26 @@ def test_e61_explain_carries_the_judge_contract(tmp_path: Path, monkeypatch):
     lines = unjudged.stdout.splitlines()
     assert all(line.endswith("[not judged]") for line in lines if " (passed) [" in line)
     assert "clause:" not in unjudged.stdout and "rationale:" not in unjudged.stdout
-    assert lines[1] == "status: PASSING (step 4: every citing test case passed)"
+    assert lines[1] == "status: PASSING (step 4: every citing test case with a result passed or was skipped)"
+
+
+def test_status_reasons_name_the_c05_step_and_error_renders():
+    """T-93 (v1.23.1, F-711): every reason names C-05's own step — UNCITED `step 2a` (a T id
+    `step 2b`), UNVERIFIED `step 3`, FAILING/SKIPPED/PASSING `step 4` — and a case whose result is
+    an `<error>` renders `(error)`. (R-40, C-18, C-05)"""
+    index = parse_spec("| ID | S |\n| -- | -- |\n| **R-01** | r |\n| **T-01** | t |\n", "SPEC.md")
+    r01, t01 = index.ids
+    expected = {
+        (r01, "UNCITED"): "step 2a: no source or test citation",
+        (t01, "UNCITED"): "step 2b: no test citation",
+        (r01, "UNVERIFIED"): "step 3: no citing test case has a result",
+        (r01, "FAILING"): "step 4: a citing test case failed or errored",
+        (r01, "SKIPPED"): "step 4: every citing test case with a result was skipped",
+    }
+    for (spec, status), reason in expected.items():
+        assert _status_line(graph.IdRecord(spec, status)) == f"status: {status} ({reason})"
+    case = attribute.TestCase("tests/test_x.py", "test_x", "tests.test_x", 3, 5)
+    edge = graph.TestEdge(case=case, lines=[4], outcome="error", results=[])
+    assert _test_lines(graph.IdRecord(r01, "FAILING", tests=[edge]))[1] == (
+        "  tests/test_x.py::test_x (error) [not judged]"
+    )

@@ -57,6 +57,32 @@ def test_delimits_describe_chains_modifiers_and_regex_literals():
     assert comment_only[2] and comment_only[12] and not comment_only[5] and not comment_only[3]
 
 
+def test_regex_versus_division_rule():
+    """T-113 (v1.23.1, F-708): a `/` begins a regex literal iff the previous significant token is
+    absent, one-character punctuation other than `)`, `]`, `}`, or a listed keyword; otherwise it is
+    division. Regexes holding `(` do not count toward balance; division leaves `(`/`)` counted; a
+    regex unterminated at the line end is a parse fallback (E-74). (R-104, C-03)"""
+    regexes = [
+        "/e(/.test(s)",  # absent previous token (file start)
+        "f(/a(b/)",
+        "x = a + /p(/.source.length",  # one-char punctuation `+`
+        "y = !/q(/.test(s)",
+        "z = typeof /r(/",
+        "void /t(/",
+        "w = /d[/(]/g",  # a `/` inside a class does not end it; flags follow
+    ]
+    src = "\n".join(regexes + ["test('ok', () => {", "  return /c(/", "})", ""])
+    cases, _, _ = delimit_js(tuple(src.split("\n")))
+    assert [(c.name, c.start, c.end) for c in cases] == [("ok", 8, 10)]
+    division = "test('div', () => {\n  expect(a) / 2\n  total / count / 2\n  arr[0] / (n)\n})\n"
+    cases, _, _ = delimit_js(tuple(division.split("\n")))
+    assert [(c.name, c.start, c.end) for c in cases] == [("div", 1, 5)]
+    with pytest.raises(JsParseError):  # `}` ends an expression: `/x)/` is division, `)` unbalances
+        delimit_js(tuple("if (ok) {}\n/x)/.test(s)\n".split("\n")))
+    with pytest.raises(JsParseError):  # unterminated before the line end
+        delimit_js(tuple("x = /abc\ntest('a', () => {})\n".split("\n")))
+
+
 def test_dynamic_titles_member_calls_and_unbalanced_files():
     """T-114: a non-literal title is reported as `line N` and is not a case; `re.test(x)` is not a
     test call; an unbalanced file raises JsParseError (the parse fallback, E-74). (E-74, E-75)"""
@@ -105,3 +131,14 @@ def test_joins_vitest_junit_end_to_end(project):
     assert run.json["unattributed_results"] == []
     each = run.ids()["R-03"]["tests"][0]
     assert each["name"] == "calc > sums %i and %i" and each["outcome"] == "passed"
+
+
+def test_multiline_block_comment_line_is_declared():
+    """T-115 (v1.23.1, F-705): a citation on the second line of a multi-line `/* … */` comment
+    inside a case's span is DECLARED — C-14's JS/TS bullet: a comment-only line, every line of
+    a block comment token included. (R-104, C-14)"""
+    src = "test('t', () => {\n  /* checks the sum,\n     per R-06 */\n  expect(1).toBe(1)\n})\n"
+    scanned = ScannedFile("web/t.test.ts", src, tuple(src.split("\n")), "web")
+    attributed, _ = attribute_file(scanned)
+    (cit,) = [c for c in attributed.citations if c.id == "R-06"]
+    assert cit.testcase.name == "t" and cit.line == 3 and cit.declared

@@ -32,7 +32,12 @@ _MODIFIERS = frozenset(
 )
 # these take one group (or a template table) before the title
 _ARGUMENT_MODIFIERS = frozenset({"each", "for", "runIf", "skipIf"})
-_REGEX_PRECEDERS = frozenset("(,=:[!&|?{};") | {"return", "typeof", "case"}
+# C-03 REGEX vs DIVISION (F-708): a `/` begins a regex literal iff the previous significant token is
+# absent, one-character punctuation other than `)`, `]`, `}`, or one of these identifiers
+_REGEX_KEYWORDS = frozenset(
+    "return typeof instanceof in of new delete void throw case do else yield await".split()
+)
+_DIVISION_PUNCTUATION = frozenset(")]}")
 
 # vitest / jest `each` placeholders: printf-style `%s %d %i %f %j %o %O %p %#`, `$name`, `$a.b`.
 _PLACEHOLDER_RE = re.compile(r"%[sdifjoOp#%]|\$[A-Za-z_][A-Za-z0-9_.]*")
@@ -176,9 +181,14 @@ def _tokenize(text: str) -> tuple[list[_Token], list[bool]]:
                 elif text[j] == "/" and not in_class:
                     break
                 j += 1
+            if j >= n or text[j] != "/":
+                raise JsParseError("unterminated regular expression literal")  # E-74
+            j += 1
+            while j < n and (text[j].isalnum() or text[j] in "_$"):  # flags
+                j += 1
             tokens.append(_Token("str", "", line))  # a regex literal is an opaque operand
             has_code[line] = True
-            i = j + 1
+            i = j
         else:
             tokens.append(_Token("p", ch, line))
             has_code[line] = True
@@ -192,9 +202,9 @@ def _starts_regex(tokens: list[_Token]) -> bool:
         return True
     last = tokens[-1]
     if last.kind == "p":
-        return last.value in _REGEX_PRECEDERS
+        return last.value not in _DIVISION_PUNCTUATION
     if last.kind == "id":
-        return last.value in _REGEX_PRECEDERS
+        return last.value in _REGEX_KEYWORDS
     return False
 
 
@@ -222,6 +232,14 @@ def delimit_js(lines: tuple[str, ...]) -> tuple[list[JsCase], list[str], list[bo
     JsParseError (E-74). The flags are the C-14 whole-line-comment test for every line."""
     text = "\n".join(lines)
     tokens, comment_only = _tokenize(text)
+    depth = 0  # C-03 / E-74: the whole file's parentheses balance, not only each call's
+    for tok in tokens:
+        if tok.kind == "p" and tok.value in "()":
+            depth += 1 if tok.value == "(" else -1
+            if depth < 0:
+                raise JsParseError("unbalanced parentheses")
+    if depth:
+        raise JsParseError("unbalanced parentheses")
     suites: list[tuple[int, int, str]] = []  # (open_idx, close_idx, title)
     raw_tests: list[tuple[int, int, int, str]] = []  # (open_idx, start, end, title)
     undelimited: list[str] = []

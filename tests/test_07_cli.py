@@ -644,6 +644,19 @@ def test_t103_usage_fault_precedes_input_contract_violation(project):
     assert not (proj.path / "out").exists()
 
 
+def test_t103_unreadable_file_is_a_usage_fault_before_parsing(project):
+    """T-103 (v1.23.1, F-709): an unreadable `--results` together with a spec that declares no
+    in-scope id (E-01) exits `2`, not `3` — a file's readability is decided with the flags,
+    before any file is parsed (K-18). (K-18, E-01, §5.4)"""
+    proj = project({**SIMPLE_PROJECT, "EMPTY.md": "# nothing declared here\n"})
+    base = ["check", "--spec", "EMPTY.md", "--src", "src", "--tests", "tests", "--out", "out"]
+    both = run_cli([*base, "--results", "tests"], proj.path)  # a directory: not a readable file
+    assert both.code == 2 and "--results" in both.stderr, both.stderr
+    assert not (proj.path / "out").exists()
+    contract_only = run_cli(base, proj.path)
+    assert contract_only.code == 3 and "no in-scope" in contract_only.stderr
+
+
 def test_judge_available_false_when_budget_skips_everything(project, monkeypatch):
     """T-101 (v1.20): --judge-budget 0% with --jev-pre-triage under --judge llm, at least one
     judge-eligible edge -- no C-06 request is issued, judge_available is false (never null), and

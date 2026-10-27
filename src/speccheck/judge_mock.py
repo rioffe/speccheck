@@ -16,14 +16,18 @@ _ASSERT_STMT = re.compile(r"^\s*assert\b")
 
 
 _SWIFT_TOKENS = ("#expect(", "#require(", "XCTAssert", "XCTFail(", "Issue.record(")
+# JavaScript/TypeScript (R-104, F-706): vitest/jest `expect(…)` and `expect.assertions(n)`; node's
+# `assert(…)` / `assert.equal(…)` already match ^\s*assert\b
+_JS_TOKENS = ("expect(", "expect.")
 
 
 def is_assertion_line(text: str) -> bool:
     """assertion token := a line matching ^\\s*assert\\b, or containing .assert or pytest.raises(,
-    or (Swift, R-31) containing #expect( / #require( / XCTAssert / XCTFail( / Issue.record("""
+    or (Swift, R-31) containing #expect( / #require( / XCTAssert / XCTFail( / Issue.record(,
+    or (JavaScript/TypeScript, R-104) containing expect( / expect."""
     if _ASSERT_STMT.match(text) or ".assert" in text or "pytest.raises(" in text:
         return True
-    return any(token in text for token in _SWIFT_TOKENS)
+    return any(token in text for token in _SWIFT_TOKENS + _JS_TOKENS)
 
 
 class MockJudge:

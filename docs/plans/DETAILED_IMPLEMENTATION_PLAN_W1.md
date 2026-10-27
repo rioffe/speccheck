@@ -45,7 +45,7 @@
 
 ## 6. Gate
 
-1. `uv run python -m pytest tests -q --junitxml=junit.xml` — expected: exactly 2 failures, both `DECLARED_IDS` tests in `test_09_self_application.py`.
+1. `uv run python -m pytest tests -q --junitxml=junit.xml` — expected: exactly 4 failures, all in `test_09_self_application.py`: the two `DECLARED_IDS` tests, and T-84 and T-94, whose recorded runs pin the old `judge_prompt_sha256` and are voided by the C-10 change (F-303); W4 re-records them. *(Amended during W1: the plan first expected 2.)*
 2. `uv run ruff check src tests` — expected: exit 0.
 3. `uv run speccheck --self-check` — expected: `self-check: ok` (the T-46 goldens unchanged; no golden contains `expect(` outside `#expect(`).
 4. `uv run python -m pytest tests/test_08_golden.py -q` — expected: all pass (T-46, T-71 byte-identical).

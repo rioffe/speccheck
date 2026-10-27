@@ -106,6 +106,19 @@ def test_mock_judge_recognizes_swift_assertion_tokens():
     )
 
 
+def test_mock_judge_recognises_javascript_assertion_tokens():
+    """T-69 (v1.23.1, F-706): ASSERTS for a JavaScript/TypeScript span containing
+    `expect(x).toBe(1)` or `expect.assertions(1)`, EXECUTES_ONLY for one that only calls
+    `add(1, 2)`. (R-22, C-06, R-104)"""
+    mock = MockJudge()
+    for token in ("expect(add(1, 1)).toBe(2);", "expect.assertions(1);"):
+        verdict = mock.judge(_req(['it("adds", () => {', "    " + token, "});"], start=5))
+        assert verdict.verdict == "ASSERTS", token
+        assert [e.line for e in verdict.evidence] == [6], token
+    executes = mock.judge(_req(['it("adds", () => {', "    add(1, 2);", "    const expected = 3;", "});"]))
+    assert (executes.verdict, executes.evidence) == ("EXECUTES_ONLY", ())
+
+
 def test_mock_judge_asserts_on_assertion_tokens_else_executes_only():
     """T-26: the mock returns ASSERTS with one evidence line per assertion token, and
     EXECUTES_ONLY with no evidence otherwise, including for an empty body — one verdict from the
@@ -1200,3 +1213,15 @@ def test_t83_related_neighbourhood_on_request_and_triage_state(tmp_path: Path, m
     # request-side only: neither report carries it, and no C-06 rule or C-08 section reads it
     raw = (tmp_path / "speccheck.json").read_text(encoding="utf-8")
     assert '"related"' not in raw and "related" not in run.md
+
+
+def test_spec_c06_pins_a_two_message_array():
+    """T-33 (v1.23.1, F-701): the C-06 wire format in `SPEC.md` itself pins `messages` as the
+    system object then the user object — the text the provider is built from, not only the code
+    T-33 checks — and no sentence contradicts it. (C-06, R-26)"""
+    spec = (C10_PATH.parent.parent.parent / "SPEC.md").read_text(encoding="utf-8")
+    c06 = spec[spec.index("### C-06 Judge interface") : spec.index("### C-07 ")]
+    system = c06.index('{ "role": "system", "content": <the C-10 instruction text, verbatim> },')
+    user = c06.index('{ "role": "user",   "content": <the JSON text of the object')
+    assert system < user
+    assert "not sent as an array" not in c06

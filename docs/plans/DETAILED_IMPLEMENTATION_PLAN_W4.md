@@ -13,6 +13,7 @@
 | T-112 *(recorded)* | `check --strict` before/after over this repo + two projects (§7 fork) | run with v1.22 (`main`) and v1.23.1 builds; record counts |
 | T-117 *(recorded)* | one real jest + jest-junit run, nested describe | scratch dir, `npm install jest jest-junit`, record versions; check in the fixture string |
 | T-49 *(recorded)* | three fresh runs under the new prompt hash | `tools/eval_judge.py` with `openai/gpt-6-luna-pro` |
+| T-84, T-94 *(recorded)* | re-recorded under the new `judge_prompt_sha256` (their presence checks pin the shipped digest; added during W1) | the runs `SPEC_BUILD_REPORT.md` §0h/§0i describe, repeated with `openai/gpt-6-luna-pro` |
 | all | Phase A and Phase B | commands below |
 
 ## 2. Entry preconditions
