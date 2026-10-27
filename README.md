@@ -551,6 +551,21 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
   At `--verbose DEBUG` the traffic is logged as `jev>` / `jev<` with the key redacted; nothing
   about it is logged at `INFO` beyond the endpoint and model.
 
+### When the test code cannot leave your network
+
+`--judge llm` sends each test's source to whatever `SPECCHECK_JUDGE_URL` names, so for sensitive
+code point it at a model you host (the Ollama setup above is exactly that; `localhost` is the only
+host that sees the code). Phase B of the method stays the same: the judge may only lower a
+`PASSING` ID to `WEAKLY_PASSING`, never raise one, so a small local model is safe to use and the
+worst it can do is make the report more cautious. Expect a higher `unknown_rate`
+from a small model; `--max-unknown` (with `--strict`) is the knob that decides how much of that you
+accept.
+
+If not even a local model is allowed, run without `--judge` (statuses come from citations and
+results alone) and apply the judge contract (`src/speccheck/judge_prompt.md`) by hand or
+in-session to a sample of the `PASSING` links. Record the sample size and the outcome next to the
+report; a sampled judge is evidence about the suite, not a replacement for the gate.
+
 ### LLM judge via OpenRouter (or any hosted endpoint)
 
 [OpenRouter](https://openrouter.ai) fronts many vendors' models behind the same chat-completions

@@ -130,3 +130,71 @@ def test_decision_numbers_are_normalized_and_no_decision_table_yields_empty():
     index2 = parse_spec(plain, "SPEC.md")
     assert index2.decisions == ()
     assert index2.edges == ()
+
+
+def _edges(text: str) -> set[tuple[str, str, str]]:
+    return {(e.src, e.kind, e.dst) for e in parse_spec(text, "SPEC.md").edges}
+
+
+@pytest.mark.parametrize(
+    "phrase", ["R-01..R-03", "R-01 to R-03", "R-01 through R-03", "R-01–R-03", "R-01..03"]
+)
+def test_range_names_the_declared_ids_between_its_endpoints(phrase):
+    """T-104: a range in a statement names every declared id of the family between its
+    endpoints; an undeclared id inside it is silently skipped; a reversed, cross-family or
+    over-wide range names only its endpoints. (R-36, C-12)"""
+    rows = [("R-01", "a."), ("R-02", "b."), ("R-03", "c."), ("R-04", f"spans {phrase}.")]
+    got = {d for s, k, d in _edges(spec_table(rows)) if s == "R-04"}
+    assert got == {"R-01", "R-02", "R-03"}, phrase
+
+    without_middle = [r for r in rows if r[0] != "R-02"]
+    index = parse_spec(spec_table(without_middle), "SPEC.md")
+    assert {e.dst for e in index.edges if e.src == "R-04"} == {"R-01", "R-03"}
+    assert not any("R-02" in n for n in index.notes)
+
+    for odd, expected in (("R-03..R-01", {"R-01", "R-03"}), ("R-01..E-03", {"R-01", "E-03"})):
+        rows = [("R-01", "a."), ("R-02", "b."), ("R-03", "c."), ("E-03", "d."), ("R-04", odd)]
+        assert {d for s, k, d in _edges(spec_table(rows)) if s == "R-04"} == expected, odd
+    wide = [("R-01", "a."), ("R-02", "b."), ("R-102", "c."), ("R-04", "spans R-01..R-102.")]
+    assert {d for s, k, d in _edges(spec_table(wide)) if s == "R-04"} == {"R-01", "R-102"}
+
+
+def test_non_statement_cells_feed_edges_but_not_the_statement():
+    """T-105: an edge-case row's outcome column is read for edges; `text` and `title` stay the
+    statement cell alone. (R-36, C-12)"""
+    text = (
+        "# S\n\n| ID | Condition | Outcome |\n| -- | --------- | ------- |\n"
+        "| **R-02** | base | x |\n| **E-01** | condition | outcome naming R-02 |\n"
+    )
+    index = parse_spec(text, "SPEC.md")
+    assert ("E-01", "depends_on", "R-02") in {(e.src, e.kind, e.dst) for e in index.edges}
+    e01 = index.by_id()["E-01"]
+    assert e01.text == "condition" and e01.title == "condition"
+
+
+def test_odd_math_delimiters_note_and_symlink_hint(tmp_path):
+    """T-106: a row cut at an unescaped `|` inside `$..$` gets one Note; escaped, backticked and
+    balanced rows get none; a symlinked --out that escapes --root names its target. (E-66, E-09)"""
+
+    def notes(cell: str) -> tuple[str, ...]:
+        text = f"# S\n\n| ID | Statement | More |\n| -- | -- | -- |\n| **R-05** | {cell} |\n"
+        return parse_spec(text, "SPEC.md").notes
+
+    assert notes("value $a | b$ holds") == ("statement may be cut at an unescaped '|': R-05",)
+    assert notes(r"value $a \| b$ holds | x") == ()
+    assert notes("value `$a | b$` holds | x") == ()
+    assert notes("value $a$ and $b$ | x") == ()
+
+    from .conftest import run_cli
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "SPEC.md").write_text(spec_table([("R-01", "x.")]))
+    (proj / "link").symlink_to(outside)
+    run = run_cli(["check", "--spec", "SPEC.md", "--out", "link"], proj)
+    assert run.code == 2 and run.stderr.startswith("ERROR path outside --root: link")
+    assert run.stderr.rstrip().endswith(f"(resolves to {outside.resolve()})")
+    plain = run_cli(["check", "--spec", "SPEC.md", "--out", ".."], proj)
+    assert plain.stderr == "ERROR path outside --root: ..\n"

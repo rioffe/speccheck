@@ -18,6 +18,13 @@ from pathlib import Path, PurePosixPath
 # C-01 TOKEN regex; K-04 (1-3 digits, alphanumeric-bounded).
 ID_RE = re.compile(r"(?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])")
 
+# C-12 (1) range: `R-07..R-10`, `R-07 to R-10`, `R-07 through R-10`, `R-07–R-10`, `R-07..10`
+RANGE_RE = re.compile(
+    r"(?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})\s*(?:\.\.\.?|\u2026|\u2013|\u2014|\bto\b|\bthrough\b)\s*"
+    r"(?:([RCIKET])-)?([0-9]{1,3})(?![A-Za-z0-9])"
+)
+RANGE_MAX_SPAN = 100  # a range wider than this names only its endpoints
+
 FAMILY_ORDER = "RCIKET"
 FAMILIES = frozenset(FAMILY_ORDER)
 EDGE_FAMILY_ORDER = FAMILY_ORDER + "D"  # C-12 sort order: decisions (D) sort last
@@ -84,6 +91,7 @@ class SpecId:
     line: int
     retired: bool
     recorded: bool = False  # C-01 RECORDED marker (R-35); only ever True for family T
+    extra: str = ""  # C-12: the other non-ID cells of a table row; read for edges, never judged
 
     @property
     def id(self) -> str:
@@ -260,9 +268,11 @@ def heading_title(rest: str) -> str:
     return collapse_ws(_CLOSING_HASHES_RE.sub("", rest))
 
 
-def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bool, int, bool]]:
-    """Yield (family, number, title, statement, retired, lineno, recorded) for every declaration
-    outside fences (C-01). The statement is capped per K-14 by the caller."""
+def iter_declarations(
+    lines: list[str],
+) -> Iterable[tuple[str, int, str, str, bool, int, bool, str]]:
+    """Yield (family, number, title, statement, retired, lineno, recorded, extra) for every
+    declaration outside fences (C-01). The statement is capped per K-14 by the caller."""
     headings = _heading_lines(lines)
     fence: str | None = None
     for lineno, line in enumerate(lines, start=1):
@@ -291,9 +301,10 @@ def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bo
             decoration = first[m.end() :].split()
             recorded = bool(decoration) and decoration[0] == RECORDED_MARKER  # R-35
             statement = collapse_ws(cells[1]) if len(cells) > 1 else ""
+            extra = collapse_ws(" ".join(cells[2:]))  # C-12: remaining cells, edges only
             fam, num = tok.split("-")
             # C-01 (a): a table declaration's title is its statement
-            yield fam, int(num), statement, statement, retired, lineno, recorded
+            yield fam, int(num), statement, statement, retired, lineno, recorded, extra
             continue
         if stripped.startswith("#"):
             m = _HEADING_RE.match(line)
@@ -318,7 +329,7 @@ def iter_declarations(lines: list[str]) -> Iterable[tuple[str, int, str, str, bo
                 statement = body
             else:
                 statement = title + "\n" + body
-            yield fam, int(num), title, statement, retired, lineno, recorded
+            yield fam, int(num), title, statement, retired, lineno, recorded, ""
 
 
 # --------------------------------------------------------------------------------------------
@@ -406,12 +417,23 @@ def _build_decisions_and_edges(
     def targets_of(text: str, self_id: str) -> list[str]:
         seen: set[str] = set()
         out: list[str] = []
+
+        def add(y: str) -> None:
+            if y != self_id and y not in seen:
+                seen.add(y)
+                out.append(y)
+
         for m in ID_RE.finditer(text):
-            y = normalize_id(m.group(1), int(m.group(2)))
-            if y == self_id or y in seen:
+            add(normalize_id(m.group(1), int(m.group(2))))
+        for m in RANGE_RE.finditer(text):  # C-12 (1): a range also names the ids between
+            family = m.group(1)
+            lo, hi = int(m.group(2)), int(m.group(4))
+            if m.group(3) not in (None, family) or not lo < hi <= lo + RANGE_MAX_SPAN:
                 continue
-            seen.add(y)
-            out.append(y)
+            for n in range(lo + 1, hi + (m.group(3) is None)):  # `R-01..03` has no end token
+                y = normalize_id(family, n)
+                if y in by_id:  # an undeclared id strictly inside a range is not a Note
+                    add(y)
         return out
 
     def record(src: str, kind: str, dst: str, *, dst_retired: bool) -> None:
@@ -419,7 +441,7 @@ def _build_decisions_and_edges(
         edge_retired[key] = edge_retired.get(key, False) or dst_retired
 
     for s in ids:  # retired included (E-55)
-        for y in targets_of(s.text, s.id):
+        for y in targets_of(f"{s.text} {s.extra}" if s.extra else s.text, s.id):
             target = by_id.get(y)
             if target is None:
                 notes.add(f"edge to undeclared id: {s.id} -> {y}")
@@ -458,11 +480,22 @@ def _build_decisions_and_edges(
     return decisions_sorted, edges, sorted(notes)
 
 
+_BACKTICK_SPAN_RE = re.compile(r"`[^`]*`")
+_ESCAPED_DOLLAR_RE = re.compile(r"\\\$")
+
+
+def _odd_math_delimiters(statement: str) -> bool:
+    """E-66: an odd number of unescaped `$` outside backtick spans, i.e. an inline-math span
+    that the row splitter cut at an unescaped `|`."""
+    bare = _ESCAPED_DOLLAR_RE.sub("", _BACKTICK_SPAN_RE.sub("", statement))
+    return bare.count("$") % 2 == 1
+
+
 def parse_spec(text: str, rel_path: str) -> SpecIndex:
     """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
     seen: dict[tuple[str, int], SpecId] = {}
     notes: list[str] = []
-    for fam, num, title, statement, retired, lineno, recorded in iter_declarations(
+    for fam, num, title, statement, retired, lineno, recorded, extra in iter_declarations(
         split_spec_lines(text)
     ):
         key = (fam, num)
@@ -485,7 +518,9 @@ def parse_spec(text: str, rel_path: str) -> SpecIndex:
         if recorded and fam != "T":  # E-50: the marker is meaningful for family T only
             notes.append(f"recorded marker ignored on {normalize_id(fam, num)}: not a T id")
             recorded = False
-        seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded)
+        if extra and _odd_math_delimiters(statement):  # a "|" inside $..$ split the cell (E-66)
+            notes.append(f"statement may be cut at an unescaped '|': {normalize_id(fam, num)}")
+        seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded, extra)
     ids = tuple(sorted(seen.values(), key=lambda s: (family_rank(s.family), s.number)))
     if not any(not s.retired for s in ids):
         raise SpecError("spec declares no in-scope IDs")

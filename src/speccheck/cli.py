@@ -476,7 +476,8 @@ def _inside(path: Path, root: Path) -> bool:
 def _resolve_inside(raw: str, root: Path) -> Path:
     path = Path(raw).resolve()
     if not _inside(path, root):
-        raise UsageError(f"path outside --root: {raw}")
+        hint = f" (resolves to {path})" if str(path) != os.path.abspath(raw) else ""  # E-09
+        raise UsageError(f"path outside --root: {raw}{hint}")
     return path
 
 
