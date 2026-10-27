@@ -230,7 +230,7 @@ speccheck --help
 | --- | --- |
 | `--spec FILE` | Required. The specification (UTF-8; invalid bytes are replaced and noted). Required on `explain` too (v1.20): a missing flag exits `2` with `explain: --spec is required`. |
 | `--src PATHS` | Repeatable; each value is a comma-separated list of **files and/or directories** (D-23), resolved inside `--root`. Default: `src` if it exists, and only when the flag is absent. |
-| `--tests PATHS` | Repeatable; comma-separated files and/or directories, as `--src`. Test roots; Python files are split into test cases with `ast`, Swift files by the line-based adapter (Swift Testing `@Test` functions and XCTest `test*` methods, doc comment and attributes included in the span; pass the `Tests` directory so the SwiftPM target name becomes the module in classnames), anything else is attributed at file level. Default: `tests` if it exists. |
+| `--tests PATHS` | Repeatable; comma-separated files and/or directories, as `--src`. Test roots; Python files are split into test cases with `ast`, Swift files by the line-based adapter (Swift Testing `@Test` functions and XCTest `test*` methods, doc comment and attributes included in the span; pass the `Tests` directory so the SwiftPM target name becomes the module in classnames), JavaScript/TypeScript files (`.ts .tsx .js .jsx .mts .cts .mjs .cjs`) by the token adapter (`it`/`test` calls named by their `describe` chain; see *TypeScript and JavaScript tests*), anything else is attributed at file level. Default: `tests` if it exists. |
 | `--results FILE` | JUnit XML. Without it no ID can be better than `UNVERIFIED`. |
 | `--proof PATHS` | v1.19, `check`-only. Repeatable, comma-separated Lean source files/directories, scanned by the lean adapter: each declaration's doc comment (`/-- **R-09** ... -/`, ending ≤1 line above the head) attributes a proof citation per (declaration, id) pair. Absent: no Lean file scanned, no `proof` key written. |
 | `--proof-results FILE` | v1.19, `check`-only. A JSON proof manifest (`build`, `theorems[]`, optional `deferred_to_pytest`) — read and joined to the `--proof` citations by declaration name and file, never executed. A `checked`/`failed` state comes from the manifest; a citation the manifest doesn't mention is `unknown`; a manifest entry naming a different file/line than the scan found is `stale`. Under `--strict`, a `failed` state fails the gate only when this flag was given and the file was readable. |
@@ -411,6 +411,35 @@ screens byte for byte at `COLUMNS=80` under `tests/data/help/`, and `T-98` binds
 block to the `SPECCHECK_*` literals in the code. `--help` itself reads no file, no environment
 variable and no socket (I-017).
 
+### TypeScript and JavaScript tests
+
+`.ts .tsx .mts .cts .js .jsx .mjs .cjs` files under `--tests` are split into test cases, so a
+citation in a vitest or jest test joins its result like a Python one. Write the citation where
+`spec-build` puts it: in a comment block directly above the `it(...)` / `test(...)` call, or inside
+the call.
+
+```ts
+describe('review', () => {
+  // R-07: the clinician sees the segmentation before approving
+  it('shows the segmentation first', () => { /* ... */ })
+})
+```
+
+The join needs JUnit XML whose `classname` is the test file's path and whose `name` is the
+`describe` titles and the test title joined with ` > `. vitest writes exactly that:
+
+```bash
+npx vitest run --reporter=junit --outputFile=junit.xml
+uv run speccheck check --spec SPEC.md --tests web/src --results junit.xml --root .
+```
+
+The runner's root may be a sub-directory of `--root` (`web/`): the path is matched as a suffix.
+With jest, use `jest-junit` configured `classNameTemplate: "{filepath}"` and
+`titleTemplate: "{classname} > {title}"`; its defaults carry no file path and cannot be joined.
+`it.each` titles are matched by their placeholders (`%s`, `%i`, `$name`), and the rows join one case
+as pytest parameters do. A test whose title is not a literal (`it(name, ...)`) is not delimited: its
+citations are file-level and a Note names the lines.
+
 ### LLM judge via Ollama
 
 `--judge llm` posts one OpenAI-compatible chat-completions request per (test case, ID) edge of a
@@ -479,7 +508,7 @@ mechanism with the obligation. This project's tests are expected to name the ids
 their own docstring or a comment, so the kernel can tell the two apart mechanically, from data it
 already has. A citation of an in-scope R/C/I/K/E id inside an attributed (non-file-level) test case
 is **DECLARED** when its line sits inside that case's own docstring or is a whole-line comment
-(Python `#`; Swift the `///` / `/** … */` doc-comment line the adapter already tracks), and
+(Python `#`; Swift the `///` / `/** … */` doc-comment line the adapter already tracks; JavaScript/TypeScript any comment-only line), and
 **INCIDENTAL** otherwise — including a citation on a code line with a trailing comment, a string
 literal, a `"src"`-kind citation, and one attributed to a file-level case (`declared: false`;
 E-56). The fact is computed identically under every `--judge` mode, needs no results file, judge
@@ -682,6 +711,8 @@ src/speccheck/
   attribute.py                  test-case delimitation (Python `ast`, Swift via swift.py, fallback), citation
                                 attribution, and the C-14 DECLARED/INCIDENTAL classification (v1.14)
   swift.py                      the Swift adapter: line-based @Test / XCTest delimiting, brace spans, MODULE (R-31)
+  jsts.py                       the JavaScript/TypeScript adapter: token-based it/test delimiting, describe chains,
+                                `it.each` patterns (R-104, v1.22)
   results.py                    JUnit XML parsing and the classname/join_name join
   graph.py                      status algorithm (C-05), edge selection for the judge, metrics (C-07) incl.
                                 `declared_ratio` (C-16, v1.14)

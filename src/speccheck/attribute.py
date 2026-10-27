@@ -1,11 +1,12 @@
 """Attributor: map test-file citations to the enclosing test case (C-03).
 
 Python files are delimited with `ast` (module-level `test_*` functions; `test*` methods of
-recognized classes); Swift files by the line-based adapter in `swift.py` (R-31); everything
-else, and any file that fails to delimit, is one file-level case.
+recognized classes); Swift files by the line-based adapter in `swift.py` (R-31); JavaScript
+and TypeScript files by the token adapter in `jsts.py` (R-104); everything else, and any file
+that fails to delimit, is one file-level case.
 
-Spec IDs realized here (§11): R-04, R-16, R-31, R-39, C-03, C-14, I-002, I-014, K-08, E-12, E-13,
-E-22, E-28, E-42, E-43, E-56.
+Spec IDs realized here (§11): R-04, R-16, R-31, R-39, R-104, C-03, C-14, I-002, I-014, K-08,
+E-12, E-13, E-22, E-28, E-42, E-43, E-56, E-74, E-75.
 """
 
 from __future__ import annotations
@@ -14,6 +15,8 @@ import ast
 from dataclasses import dataclass
 
 from .extract import RawCitation, ScannedFile, citations_in_file
+from .jsts import EXTENSIONS as JS_EXTENSIONS
+from .jsts import JsParseError, delimit_js
 from .swift import SwiftParseError, delimit_swift, swift_module
 
 
@@ -197,6 +200,19 @@ def attribute_file(scanned: ScannedFile) -> tuple[AttributedFile, list[str]]:
                 classname = ".".join((module, *sc.chain))
                 cases.append(TestCase(scanned.path, sc.name, classname, sc.start, sc.end))
             if undelimited:  # E-43
+                notes.append(f"undelimited tests in {scanned.path}: {', '.join(undelimited)}")
+    elif scanned.path.endswith(JS_EXTENSIONS):
+        try:
+            js_cases, undelimited, doc_lines = delimit_js(scanned.lines)
+        except JsParseError:
+            notes.append(f"parse fallback: {scanned.path}")  # E-74
+            cases = []
+        else:
+            classname = scanned.path.replace("/", ".")  # the extension is kept (C-04, R-104)
+            cases = [
+                TestCase(scanned.path, jc.name, classname, jc.start, jc.end) for jc in js_cases
+            ]
+            if undelimited:  # E-75
                 notes.append(f"undelimited tests in {scanned.path}: {', '.join(undelimited)}")
     cases.sort(key=lambda c: (c.start, c.end, c.name))
     citations: list[Citation] = []

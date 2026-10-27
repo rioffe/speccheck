@@ -39,7 +39,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # exit-code precedence; D-46..D-48)
 # SPEC.md v1.21 declares 271 ids (42 R, 21 C, 18 I, 18 K, 66 E, 106 T; none retired); v1.21 added
 # E-66 and T-104..T-106 for range edges, row-cell edges, the cut-row Note and the symlink hint (D-50)
-DECLARED_IDS = 271
+# SPEC.md v1.22 declares 279 ids (43 R, 21 C, 18 I, 18 K, 69 E, 110 T; none retired); v1.22 added
+# R-104, E-74..E-76 and T-113..T-116 for the JavaScript/TypeScript adapter (D-56)
+DECLARED_IDS = 279
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

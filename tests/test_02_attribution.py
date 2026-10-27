@@ -100,14 +100,15 @@ def test_unparseable_python_falls_back_to_file_level_with_note(project):
 
 
 def test_non_python_test_files_get_file_level_attribution(project):
-    """T-12: a non-Python test file (.go, .ts) gets file-level attribution. (R-04, O-2)"""
+    """T-12: a test file in no adapter's language (.go, .rb) gets file-level attribution.
+    (R-04, O-2)"""
     go = "package calc\n\nfunc TestAdd(t *testing.T) {\n\t// R-01\n}\n"
-    ts = "test('adds', () => { /* C-01 */ });\n"
+    ts = "# C-01\ndef test_adds\nend\n"
     run = project(
         {
             "SPEC.md": spec_table([("R-01", "a"), ("C-01", "b")]),
             "tests/core_test.go": go,
-            "tests/core.test.ts": ts,
+            "tests/core_test.rb": ts,
         }
     ).check()
     go_edge = run.ids()["R-01"]["tests"][0]
@@ -119,9 +120,9 @@ def test_non_python_test_files_get_file_level_attribution(project):
         [4],
     )
     assert (ts_edge["file"], ts_edge["name"], ts_edge["classname"]) == (
-        "tests/core.test.ts",
+        "tests/core_test.rb",
         "",
-        "tests.core.test",
+        "tests.core_test",
     )
     assert module_classname("tests/core_test.go") == "tests.core_test"
     assert module_classname("tests/noext") == "tests.noext"

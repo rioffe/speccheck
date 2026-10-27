@@ -1,14 +1,18 @@
 """Results Mapper: JUnit XML -> outcomes per attributed test case (C-04).
 
-Spec IDs realized here (§11): R-05, R-16, C-04, I-002, K-08, E-05, E-06, E-07, E-24, E-27.
+Spec IDs realized here (§11): R-05, R-16, R-104, C-04, I-002, K-08, E-05, E-06, E-07, E-24, E-27,
+E-76.
 """
 
 from __future__ import annotations
 
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
 from .attribute import TestCase
+from .jsts import EXTENSIONS as JS_EXTENSIONS
+from .jsts import each_pattern, is_each_template
 
 OUTCOMES = ("passed", "failed", "error", "skipped")
 _WORST_ORDER = {"error": 3, "failed": 2, "skipped": 1, "passed": 0}
@@ -16,6 +20,17 @@ _WORST_ORDER = {"error": 3, "failed": 2, "skipped": 1, "passed": 0}
 
 class ResultsError(Exception):
     """E-05 -> exit 3; the message is `results: <reason>`."""
+
+
+def join_name_of(name: str) -> str:
+    """C-04: step 1 strips a pytest `[param]`; step 2 (R-31) strips a Swift signature
+    `(label:...)`, which names the test rather than a variant. Applied to a TestCase's name as
+    well as to a result's (R-104), so a title that contains `[` or `(` reduces identically."""
+    if name.endswith("]") and "[" in name:
+        name = name[: name.index("[")]
+    if name.endswith(")") and "(" in name:
+        name = name[: name.index("(")]
+    return name
 
 
 @dataclass(frozen=True)
@@ -26,14 +41,13 @@ class RawResult:
 
     @property
     def join_name(self) -> str:
-        """C-04: step 1 strips a pytest `[param]`; step 2 (R-31) strips a Swift signature
-        `(label:...)`, which names the test rather than a variant."""
-        name = self.name
-        if name.endswith("]") and "[" in name:
-            name = name[: name.index("[")]
-        if name.endswith(")") and "(" in name:
-            name = name[: name.index("(")]
-        return name
+        return join_name_of(self.name)
+
+    @property
+    def dotted_classname(self) -> str:
+        """C-04 (R-104): a file-path classname (`src/a.test.ts`, vitest) reads as dotted."""
+        classname = self.classname[2:] if self.classname.startswith("./") else self.classname
+        return classname.replace("/", ".")
 
     @property
     def param(self) -> str | None:
@@ -109,10 +123,14 @@ def _common_suffix_len(a: str, b: str) -> int:
 def join_results(results: list[RawResult], cases: list[TestCase]) -> ResultsMap:
     """Join each result to a TestCase per C-04 (longest common dotted suffix; ties unattributed)."""
     by_name: dict[str, list[TestCase]] = {}
+    templated: list[tuple[re.Pattern[str], TestCase]] = []  # E-76: `it.each` titles
     for case in cases:
         if case.is_file_level:
             continue  # E-13: a file-level case has no outcome by construction
-        by_name.setdefault(case.name, []).append(case)
+        key = join_name_of(case.name)
+        by_name.setdefault(key, []).append(case)
+        if case.file.endswith(JS_EXTENSIONS) and is_each_template(key):
+            templated.append((each_pattern(key), case))
 
     outcomes: dict[TestCase, CaseOutcome] = {}
     unattributed: list[RawResult] = []
@@ -122,18 +140,17 @@ def join_results(results: list[RawResult], cases: list[TestCase]) -> ResultsMap:
     for result in results:
         key = (result.classname, result.name)
         seen_keys[key] = seen_keys.get(key, 0) + 1
-        candidates = [
-            c
-            for c in by_name.get(result.join_name, [])
-            if _suffix_matches(c.classname, result.classname)
-        ]
+        dotted = result.dotted_classname
+        matched = list(by_name.get(result.join_name, []))
+        matched += [c for p, c in templated if c not in matched and p.fullmatch(result.join_name)]
+        candidates = [c for c in matched if _suffix_matches(c.classname, dotted)]
         if not candidates:
             unattributed.append(result)
             continue
-        if result.classname == "":
+        if dotted == "":
             best = candidates
         else:
-            scored = [(_common_suffix_len(c.classname, result.classname), c) for c in candidates]
+            scored = [(_common_suffix_len(c.classname, dotted), c) for c in candidates]
             top = max(s for s, _ in scored)
             best = [c for s, c in scored if s == top]
         if len(best) > 1:
