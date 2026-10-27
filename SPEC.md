@@ -1,6 +1,38 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.20 — three places where the spec's own formal model (`proof_from_spec/`, via
+> - **Status:** v1.22 — the shipped version: the code, `__version__` and the README's claim all
+>   say v1.22 (`test_prose_artifacts_claim_the_shipped_version` binds them). A JavaScript/TypeScript
+>   test adapter (R-104, D-56, E-74..E-76, T-113..T-116): `it`/`test` calls under `--tests` are
+>   delimited by tokens and named by their `describe` chain, and C-04 joins them to vitest's and
+>   jest-junit's JUnit output (path classnames, `[`/`(` in titles, `it.each` placeholders). Built
+>   on v1.21 — four extractor/CLI gaps from a regulated-domain trial (C-12 range and row-cell
+>   edges, E-66, E-09's resolved-path hint; D-50). Full text of both: the revision history at the
+>   end of this document.
+>
+> - **Specified, not yet built:** v1.23.1 — v1.23 with the seventeen findings of the first full
+>   review since v1.10 folded in (`docs/reviews/SPEC_REVIEW_REPORT.md`, F-701..F-717, 2026-10-27).
+>   The ones that change behaviour: C-06's pinned request body is restored (F-701); the
+>   `--citation-map` and `--proof-results` files are excluded from every scan (F-702); a mapped
+>   citation is DECLARED by a stated third rule and is outside `declared_ratio` (F-703); a mapped
+>   dangling or stale entry carries `mapped: true` (F-704); C-14 covers JavaScript/TypeScript
+>   comment lines (F-705); the mock judge recognises `expect(` (F-706); the JS/TS tokenizer has a
+>   pinned regex-versus-division rule (F-708); K-18 counts an unreadable file as a usage fault
+>   (F-709); C-18's reasons name the right C-05 steps (F-711); the FOREIGN grammar has no length
+>   cap (F-712). The rest are corrections to lists, tables and wording. Full text: the revision history.
+>
+> - **v1.23 (folded into v1.23.1, not built on its own):** namespaced ids and a citation map (`docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md`,
+>   2026-10-27; D-51..D-55 confirmed on the recommended branches, D-57 from the fold's review
+>   `docs/reviews/SPEC_REVIEW_v1.23_fold.md`). **(a)** A token written `<ns>:ID` is someone else's
+>   id, not a citation or an edge (R-101, C-22, E-67, E-69): a test docstring naming
+>   `platform:R-99` no longer makes a local id PASSING, and `--namespace NS` (R-102, E-68) turns
+>   `NS:ID` into a local citation for the project that owns `NS`. **(b)** `--citation-map FILE`
+>   (R-103, C-23, E-70..E-73, K-19) lets an owner of the specs but not of the tests state which
+>   existing test proves which id, labelled `mapped` in the JSON, the Markdown report, `explain`
+>   and the summary line, with C-05 untouched. Both flags are accepted by `check`, `impact` and
+>   `explain`. A run using neither flag and containing no `ns:`-prefixed token is byte-identical
+>   to v1.22 (I-019).
+>
+> - **Previous status:** v1.20 — three places where the spec's own formal model (`proof_from_spec/`, via
 >   `spec-model`) could not render a total function over the input space it enumerates, each fixed
 >   without waiting for a third-party review to find it first (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`,
 >   2026-09-24; D-46..D-48 confirmed on the recommended branches, same day). **(a)** `judge_available`
@@ -38,7 +70,7 @@
 >
 > - **Previous status:** v1.16 — a judged edge now receives `related`, the titles of the other obligations its own statement names and that name it (a C-12 `depends_on` neighbourhood, both directions), so the judge can tell an assertion about this clause apart from an assertion about a neighbour it refers to (`docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md`, 2026-09-20; D-28 and its sub-decision D-28b confirmed). R-38 requires the request to carry `related` — the neighbourhood, own references first, at most eight, each a whitespace-collapsed 160-character title, a retired neighbour tagged `(retired)` (E-57), `[]` when the id has no neighbour — and C-10 defines that an assertion corresponding only to a related obligation is not evidence this statement holds, advisory, no new coercion rule (D-28 extends D-26's stance); the field is request-side only, so no `speccheck.json` field, status, Markdown row, or `schema_version` changes, and it also rides the C-17 Jev triage `state` (D-28b), roughly doubling that input. v1.15 — a truncated judge budget can now be spent on the edges Jev is least sure about (`docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md`, 2026-09-20; D-29..D-32 confirmed). A new `--jev-pre-triage` flag (K-16) sends one triage task per judge-eligible edge — the C-06 request object for that edge, rendered as C-17's `state` text — to the C-17 Jev provider before any real-judge request is issued, and orders the otherwise unchanged real-judge issue loop (K-05, K-06, C-06) by ascending Jev top-choice probability, ties by ascending id; Jev's answer is read for that order and discarded (I-015). `--judge-budget` grows an `N%` form (K-12): exactly $\lceil N/100 \times E \rceil$ of the $E$ eligible edges, least-confident first, are issued, and the rest take today's `judge: budget` disposition; `N%` requires `--jev-pre-triage` under `--judge llm` (E-58), the `SECONDS` form is unchanged, and `0%` is a pure triage dry run. A per-edge Jev failure orders that edge first and is counted in one Note (E-59). No `speccheck.json` field, no status, no Markdown row, and no `schema_version` changes (D-29..D-32). v1.14 — a citation's own words now tell the checker, and the judge, whether a test *declares* an id or merely *reuses* it (`docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md`, 2026-09-20; D-26 and D-27 confirmed). A citation of an in-scope R/C/I/K/E id inside an attributed test case is **DECLARED** when its line sits inside that case's own docstring or is a whole-line comment, and **INCIDENTAL** otherwise (C-03, C-14; R-39); `Citation.declared` and a new `JudgeRequest.declared` (C-06, C-15) carry the fact into the judge, and `C-10`'s instruction text asks the model not to credit `ASSERTS` on an INCIDENTAL citation without checking the assertion is actually about that clause — advisory only, no new coercion rule (D-26's `yes` branch). `speccheck.json` gains `tests[].declared` and `metrics.declared_ratio` under every `--judge` mode, including `none` (C-07, C-16, `schema_version` `"1.5"`). Detection is whole-line-comment only, reusing the doc-comment-line recognition the Swift adapter already has rather than adding token-level parsing (D-27's `yes` branch; E-56, I-014). Statuses, the mock judge, and the Markdown report are unchanged. v1.13 made the edges this document already carries into data and added a second subcommand that walks them (D-24, D-25); v1.12 made `--src`/`--tests` comma-separated lists of files and/or directories (D-23, I-012, E-52); v1.11 applied F-401..F-407; v1.10 settled D-22 (R-35); v1.9 added clause-grounded verdicts (R-34). Earlier versions: see the revision history.
 > - **Language / stack:** Python 3.12 | standard library for the deterministic kernel (`re`, `ast`, `xml.etree`, `json`, `argparse`, `pathlib`) | CLI only; optional model-backed judge behind an `[llm]` extra
-> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `docs/reviews/SPEC_REVIEW_REPORT.md` (one file, rewritten per review: v0.1 → F-001..F-017, v1.3 → F-201..F-210, v1.7 → F-301..F-307, v1.10 → F-401..F-407; all cited below); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `docs/proposals/PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20); `docs/proposals/PROPOSAL_v1.9_clause_grounding.md` (the v1.9 change, its two-model evidence, D-21, and the D-22 question); `docs/proposals/PROPOSAL_v1.13_impact.md` (the v1.13 change, its measurement of the edges in this document — 186 `depends_on`, 240 `verifies`, 110 `affects` in v1.12 — and D-24, D-25); `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` (the v1.14 change; `JUDGE_CROSSCHECK_REPORT.md` §2b's cross-model evidence — 153/613 genuine judge conflicts on this document's own `check --judge llm` run, concentrated in ids reused as generic fixture data — and D-26, D-27); `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` (the v1.15 change; its §1 calibration measurement — Jev's top-choice probability bucketed against a real `check --judge llm --strict` run's committed verdicts on this repository's own `SPEC.md`, monotonic from 53/111 = 47.75% below 0.60 to 279/295 = 94.58% at $\geq$ 0.95 over 582 edges, and 51.5% of all judge-eligible edges already at $\geq$ 0.95 — plus D-29..D-32); `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md` (the v1.16 change; its sec. 1 evidence — the cross-checker's finding that a test can cite an id as placeholder data while asserting a fact about a neighbour it names, `JUDGE_CROSSCHECK_REPORT.md` sec. 2b — plus D-28 and its D-28b sub-decision)
+> - **Sources:** `one_sentence_prompt.md` (the brief); `../skills/spec-writing/SKILL.md` (the ID taxonomy and `SPEC.md` shape the checker consumes); `../skills/spec-build/SKILL.md` §Phase 3 (the manual conformance audit this tool automates); `../skills/spec-review/SKILL.md` §3.17 (the intent → requirement → contract → invariant → test → evidence chain); `../outline.md` Chapters 15–18 (where this system is the worked example); `docs/reviews/SPEC_REVIEW_REPORT.md` (one file, rewritten per review: v0.1 → F-001..F-017, v1.3 → F-201..F-210, v1.7 → F-301..F-307, v1.10 → F-401..F-407, v1.23 → F-701..F-717; all cited below); `FINAL_SPEC_REVIEW_REPORT.md` (review of v0.4; F-101..F-110 below point at it); `SPEC_v0.5_REVIEW_REPORT_by_QWEN.md` (independent review of v0.5 by a second model; its F-001..F-011 are cited below as Q-001..Q-011 to avoid collision); `docs/proposals/PROPOSAL_v1.7_heading_bodies.md` (the v1.7 change, its evidence, and D-20); `docs/proposals/PROPOSAL_v1.9_clause_grounding.md` (the v1.9 change, its two-model evidence, D-21, and the D-22 question); `docs/proposals/PROPOSAL_v1.13_impact.md` (the v1.13 change, its measurement of the edges in this document — 186 `depends_on`, 240 `verifies`, 110 `affects` in v1.12 — and D-24, D-25); `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` (the v1.14 change; `JUDGE_CROSSCHECK_REPORT.md` §2b's cross-model evidence — 153/613 genuine judge conflicts on this document's own `check --judge llm` run, concentrated in ids reused as generic fixture data — and D-26, D-27); `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` (the v1.15 change; its §1 calibration measurement — Jev's top-choice probability bucketed against a real `check --judge llm --strict` run's committed verdicts on this repository's own `SPEC.md`, monotonic from 53/111 = 47.75% below 0.60 to 279/295 = 94.58% at $\geq$ 0.95 over 582 edges, and 51.5% of all judge-eligible edges already at $\geq$ 0.95 — plus D-29..D-32); `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md` (the v1.16 change; its sec. 1 evidence — the cross-checker's finding that a test can cite an id as placeholder data while asserting a fact about a neighbour it names, `JUDGE_CROSSCHECK_REPORT.md` sec. 2b — plus D-28 and its D-28b sub-decision); `docs/proposals/PROPOSAL_v1.19_proof_parameter.md`, `docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` and `docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md` (the v1.19, v1.20 and v1.23 changes); `docs/reviews/SPEC_MODEL_FINDINGS.md` (F-501..F-504) and `docs/reviews/SPEC_REVIEW_v1.23_fold.md` (F-601..F-612)
 > - **Scope of this document:** The deterministic conformance kernel (spec-ID extraction, citation graph, test-result mapping, status computation, reporting) and the contract around the optional model-backed *judge*. It does not specify the quality of the specification under check (`spec-review` owns that), does not specify how tests are run (results are consumed, not produced), and does not specify any semantic analysis of source code. Since v1.13 it also specifies the typed edges between declared ids that the kernel records (C-12) and the `impact` walk over them (C-13); it does not specify what an edge *means* — an edge records that one statement names another id, nothing more. Since v1.15 it also specifies the optional Jev triage pass that orders — and, under `--judge-budget N%`, truncates — the queue of edges the judge is asked about (K-16, C-17, I-015); that pass is never the source of a status, and it does not change what the judge is asked or how its answer is validated. Since v1.16 it also specifies the `related` field a judged edge's request carries — the C-12 `depends_on` neighbourhood of the statement — so the judge can distinguish an assertion about the clause from one about a neighbour it names; `related` is a request-side, non-report field, carries no status or metric or `speccheck.json` key, and rides the triage `state` as well as the real-judge request (R-38, C-06, C-10, D-28, D-28b).
 > - **Normative language:** MUST/MUST NOT/SHALL/SHALL NOT = normative; SHOULD = strong recommendation; MAY = optional.
 > - **Principle:** *The model may only ever make the news worse.* Every status is computed deterministically from evidence the operator can `grep`; the judge is permitted to downgrade a status with cited evidence, never to upgrade one, and every claim in the report points at a file and line.
@@ -84,7 +116,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 - Language adapters exist for Python (v0.1), Swift (v1.6, R-31) and JavaScript/TypeScript (v1.22, R-104); every other language gets file-level attribution (O-2). No adapter parses its language with a real parser except Python (`ast`); the Swift adapter is line-based (D-17) and the JavaScript/TypeScript adapter is token-based (D-56).
 - The checker never reads its own outputs as inputs: the spec, the results file, the two report files of `check` and the two of `impact` are excluded from every scan (C-03, F-002).
 
-**A known limitation, stated rather than hidden (F-013):** citation is literal. A test that mentions `R-03` as *data* — asserting on a report that contains it, or on an error message — cites R-03 exactly as a test that proves it does. The `speccheck:ignore` markers in C-01 are the opt-out; they are the author's responsibility, and `speccheck` never infers intent from context.
+**A known limitation, stated rather than hidden (F-013):** citation is literal. A test that mentions `R-03` as *data* — asserting on a report that contains it, or on an error message — cites R-03 exactly as a test that proves it does. The `speccheck:ignore` markers in C-01 are the opt-out; they are the author's responsibility, and `speccheck` never infers intent from context. Since v1.23 two lexical, author-declared exceptions exist: a token written `ns:ID` is read as someone else's id (C-22), and `--citation-map` lets an owner of the specs but not of the tests state a citation outside the code (C-23) — labelled `mapped` everywhere it is read, never inferred.
 
 **Relationship to the skills:** `spec-writing` produces the input; `spec-review` grades it; `spec-build` builds from it and, in Phase 3, does by hand what this tool does by machine. The report this tool writes is intended to be pasted into `SPEC_BUILD_REPORT.md` as the per-ID evidence table.
 
@@ -153,6 +185,9 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-40** | The checker MUST accept a third subcommand, `speccheck explain <ID>`, that runs the same extract / attribute / map-results / graph / (triage /) judge stages as `check` over the same inputs, then renders the one id named by `<ID>` as a single human-readable trace on stdout (C-18); `explain` produces no status, verdict, citation, metric or note that a `check` run over the same inputs does not already compute, and its stdout is a pure function of those inputs and of C-18 (I-016). | `docs/proposals/PROPOSAL_v1.17_explain_id.md` §1 |
 | **R-41** | The checker MUST document its own interface: for every flag the parser defines on `speccheck`, `speccheck check`, `speccheck impact` and `speccheck explain`, the `--help` output MUST name the flag's purpose, every accepted value as a literal token where the set is finite, the default where the flag has one, and every precondition under which the flag is ignored or rejected — `--judge-budget N%`'s companion (`--jev-pre-triage` with `--judge llm`, E-58), every judge flag's `--judge llm` precondition, `--root` containment (E-09), and `impact`'s absent directory default for `--src`/`--tests` (C-13) — and the help MUST also name every environment variable the checker reads (C-09, C-17) with the condition under which it is read, whether it is required and its default, and MUST carry the §5.4 exit codes and the §5.1 summary line (C-19). | `docs/proposals/PROPOSAL_v1.18_cli_help_contract.md` §1–2 |
 | **R-100** | With `--proof PATHS`, the checker MUST scan the named Lean files or directories (repeatable, comma-separated, each element resolved inside `--root`, E-09) with the lean adapter (C-20) and attribute a proof citation per (declaration, spec id) pair to the id's `proof` field; without the flag it MUST scan no Lean file, run no prover, and write no `proof` key (I-018). Both proof flags are defined on `check` only; `impact`/`explain` reject them (E-54's pattern). | `docs/proposals/PROPOSAL_v1.19_proof_parameter.md` §1–2 |
+| **R-101** | The checker MUST treat a TOKEN immediately preceded by `<ns>:` — where `<ns>` matches `[A-Za-z][A-Za-z0-9_-]*` (no length cap in recognition, F-712), is not itself shaped like an ID (`[RCIKET]-[0-9]{1,3}`, so two adjacent ids joined by a colon stay two local tokens), and is not the `--namespace` value — as a *foreign reference*: it MUST NOT yield a citation, a C-12 edge, a dangling citation or an undeclared-target Note (C-22, E-67, E-69). | `docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md` §1 A: a test docstring naming `platform:R-99` made the local `R-99` PASSING (1/1), and an undeclared foreign id is a `--strict` dangling-citation failure |
+| **R-102** | `check`, `impact` and `explain` MUST accept `--namespace NS` (at most once; a second occurrence is exit `2`, `--namespace: given more than once`; the value matching `[A-Za-z][A-Za-z0-9_-]{0,31}` and not shaped like an ID); a token written `NS:ID` MUST then be a citation of local `ID`, identically to the bare token, and a bare token MUST remain a local citation (E-68, D-52). | proposal §2 Part A; a downstream project's tests cite the platform spec's ids |
+| **R-103** | `check`, `impact` and `explain` MUST accept `--citation-map FILE`; each resolving entry MUST yield one *mapped* test citation of its id on the named test case, marked in `speccheck.json`, the Markdown report, the `explain` trace and the summary line, and MUST NOT change C-05, the judge's eligibility or any exit code on its own (C-23, E-70..E-73, I-019). | proposal §1 B: a ~1,100-id retrofit needed an out-of-tool injector and a throwaway copy because the engineers own the repositories |
 | **R-104** | For every `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` file in the `--tests` list the checker MUST delimit test cases per the C-03 JavaScript/TypeScript adapter — `it` and `test` calls (with the `only`, `skip`, `todo`, `concurrent`, `each`, `runIf`, `skipIf` forms) named by the `describe` titles enclosing them — with a span that begins at the first line of the comment block above the call and ends at the line holding the call's closing parenthesis, and MUST join their citations to a JUnit `<testcase>` by C-04's path-classname and `describe > test` name rules, so that a citation written above or inside a vitest or jest test counts exactly as a Python citation does under R-04 and R-05. | a regulated-domain user's report (2026-10-14: "TypeScript tests can never join a result"; their review interface could reach `UNVERIFIED` and no further); `vitest run --reporter=junit` measured 2026-10-27 (C-04) |
 
 ---
@@ -169,6 +204,7 @@ A run is a single, stateless pipeline. There is no persistent state between runs
 | extract-spec | Extractor | `SPEC.md` | `SpecIndex` (C-02) | exit `3` (E-01, E-02, E-03) |
 | scan-src | Extractor | `--src` roots minus C-03 exclusions | `Citation[]` (C-03) | never (E-10, E-11 are notes) |
 | scan-tests + attribute | Extractor, Attributor | `--tests` roots | `TestCase[]`, `Citation[]` | never (E-12 is a note) |
+| apply-map (optional) | Extractor | `--citation-map` (C-23), the scanned `TestCase[]` | mapped `Citation[]` added to the scan's; `citation_map` counts; unresolved-entry Notes (E-71) | exit `3` (E-70) |
 | map-results | Results Mapper | `--results` | `Outcome[]` (C-04) | exit `3` (E-05) |
 | graph + status | Grapher | all of the above | `IdRecord[]` with deterministic status; dangling/stale lists; metrics | never |
 | triage (optional) | Triage provider | judge-eligible edges (I-010) | one confidence per edge, used to order the judge's queue and then discarded (K-16, C-17, I-015) | never (E-59 is a Note) |
@@ -184,7 +220,7 @@ A run is a single, stateless pipeline. There is no persistent state between runs
 | extract-spec | Extractor | `--spec` (and `--against`, parsed by the same C-01 rules) | `SpecIndex` ×1 or ×2 with `decisions` and `edges` (C-02, C-12) | exit `3` (E-01, E-02, E-03 — for `--against`, the message names that file) |
 | changed-set | Impact walker | `--changed` ids, or the diff of the two indexes (C-13) | `Changed[]` with a reason each; an undeclared `--changed` id → E-53 | exit `2` (E-53) |
 | walk | Impact walker | `edges`, changed set, `--depth` | `Impact[]` (id, depth, via), `Reverify[]` | never |
-| scan (optional) | Extractor, Attributor | `--src`/`--tests` per C-03 (no directory default here) | `Citation[]`, `TestCase[]` restricted to the impact and re-verify sets | never |
+| scan (optional) | Extractor, Attributor | `--src`/`--tests` per C-03 (no directory default here); `--citation-map` applied as in `check` (v1.23) | `Citation[]`, `TestCase[]` restricted to the impact and re-verify sets | exit `3` (E-70) |
 | report | Reporter | everything | `IMPACT_REPORT.md`, `impact.json` | exit `3` if `--out` unwritable |
 | exit | CLI | — | `0`; one summary line (§5.1) | — |
 
@@ -362,6 +398,10 @@ Citation (in --src / --tests files) — every TOKEN occurrence in a text file is
   fact (C-03, C-14): this changes nothing about what counts as a citation, only what the judge and
   the report are told about it.
 
+Foreign references (v1.23; R-101, C-22): a TOKEN immediately preceded by `<ns>:` is not a citation
+  and not an edge target unless `<ns>` is the --namespace value; C-22 states the grammar and wins
+  over the TOKEN rule above wherever the two disagree.
+
 Ignore markers (F-013), matched literally and case-sensitively:
   speccheck:ignore        anywhere on a line  -> that line yields no citations (the line still
                                                  counts toward a test case's span)
@@ -443,22 +483,12 @@ class Citation:
     kind: str            # "src" | "test"
     testcase: TestCase | None     # for kind=="test": the enclosing case, or the file-level case
     declared: bool        # kind=="test" only (v1.14, C-14, R-39); DECLARED vs INCIDENTAL, below
+    mapped: bool          # v1.23, R-103, C-23: True only for a citation made by a --citation-map entry
 
-DECLARED vs INCIDENTAL (v1.14; R-39; C-14). For a "test"-kind citation of id X inside test case
-  T's span, X is DECLARED in T when at least one citation line of X within [T.start, T.end] is:
-    - inside T's own docstring (Python: the line range of the `Expr` node `ast.get_docstring`
-      reads — the node, not its text; a multi-line docstring's later lines count too), or
-    - a whole-line comment: the first non-whitespace character on that citation's own line is
-      "#" for Python; for Swift, a line whose first non-space characters are "///", or that
-      lies inside a "/** ... */" block — the doc-comment line kind the ATTRIBUTE BLOCK rule
-      (below) already recognizes, reused here rather than re-detected.
-  Otherwise X is INCIDENTAL in T — including a citation on a code line that also carries a
-  trailing comment (`x = 1  # R-02`; a deliberate simplification, no column tracking). A "src"-kind
-  citation, and a "test"-kind citation attributed to a file-level case (T.name == ""), are always
-  INCIDENTAL (`declared: false`; E-56) — there is no per-test declaration of intent to check
-  against a file, or a case that was never delimited. `declared` is computed the same way
-  regardless of `--judge` mode, needs no results file, no judge call, and no network access
-  (I-014).
+DECLARED vs INCIDENTAL (v1.14; R-39): every "test"-kind citation carries `declared`, computed by
+  C-14's rule, which is stated there once (v1.23.1: this paragraph used to restate it, and the two
+  copies had drifted, F-705). Each adapter below says which of its lines are doc-comment or
+  comment-only lines; C-14 reads that, and nothing else, from the adapter (I-014).
 
 Python adapter (files ending .py under a --tests root):
   * parse with `ast`; a test case is (F-007):
@@ -541,6 +571,15 @@ JavaScript/TypeScript adapter (files ending .ts .tsx .mts .cts .js .jsx .mjs .cj
   template literals (including `${…}` bodies, nested) and regular-expression literals are single
   opaque tokens, identifiers and one-character punctuation are the rest, and every rule below reads
   tokens, never raw text.
+    REGEX vs DIVISION (F-708): a "/" that does not start a comment begins a regular-expression
+                 literal iff the previous significant token (comments skipped) is absent, or is
+                 one-character punctuation other than ")", "]" and "}", or is one of the identifiers
+                 return typeof instanceof in of new delete void throw case do else yield await;
+                 otherwise it is the division operator (one punctuation token). A regex literal ends
+                 at the next unescaped "/" outside a "[ … ]" class, then takes any following
+                 identifier characters as flags; a line end before that "/" makes it unterminated
+                 (E-74). A regex opening a statement right after "}" is misread as division; the
+                 worst cost is a parse fallback.
     CALL      := an identifier token `describe`, `suite`, `it` or `test` that is not preceded by a `.`
                  token (so `pattern.test(x)` is not a call), followed by zero or more `.modifier`
                  where modifier is one of only skip todo concurrent sequential fails failing shuffle
@@ -572,8 +611,11 @@ JavaScript/TypeScript adapter (files ending .ts .tsx .mts .cts .js .jsx .mjs .cj
     test, the classname the path RELATIVE TO VITEST'S ROOT (not necessarily --root), `describe`
     titles joined with " > ", an `it.each` row expanded to one <testcase> per row with its
     placeholders filled ("sums 1 and 2" for "sums %i and %i"), a skipped test carrying <skipped/>.
-    jest-junit matches when configured `classNameTemplate: "{filepath}"` and
-    `titleTemplate: "{classname} > {title}"` (its defaults do not: classname "describe title").
+    jest-junit matches when configured `classNameTemplate: "{filepath}"`,
+    `titleTemplate: "{classname} > {title}"` and `ancestorSeparator: " > "` (its defaults do not:
+    classname "describe title", and nested describe titles joined by one space; F-707). The
+    jest-junit shape is taken from its documented options, NOT measured from a run; it is claimed
+    only once T-117 records one.
 Fallback adapter (any other text file): one file-level case per file; its classname is derived
   exactly as for Python (path relative to --root, "/" -> ".", final extension dropped; F-108).
 
@@ -613,7 +655,9 @@ Text vs binary (F-008): a file is BINARY if any of its first 8192 bytes is 0x00.
 Excluded from every scan (F-002), whether or not they lie under a --src/--tests root, and
   whether or not they exist yet: the file named by --spec, the file named by --results,
   <out>/SPEC_CONFORMANCE_REPORT.md, <out>/speccheck.json, <out>/IMPACT_REPORT.md, <out>/impact.json
-  (v1.13), the file named by --against (impact only), and every file directly under <out> whose
+  (v1.13), the file named by --against (impact only), the file named by --citation-map and the
+  file named by --proof-results (v1.23.1, F-702: an input is never read as citations), and every
+  file directly under <out> whose
   name starts with ".speccheck.json.", ".SPEC_CONFORMANCE_REPORT.md.", ".impact.json." or
   ".IMPACT_REPORT.md." and ends with ".tmp" (the §3.1 temporaries, including leftovers from a
   killed run; F-103). Exclusion is by
@@ -757,12 +801,20 @@ LLM provider wire format (judge_llm.py; F-004) — an OpenAI-compatible chat-com
                 "max_tokens": 4000,
                 "messages": [
                   { "role": "system", "content": <the C-10 instruction text, verbatim> },
-   The user message of each request is, in JSON, the object `{id, statement, related, declared, file, start, end, source}` (Part A adds `declared`, C-14–C-16; **Part B adds `related`, C-10/D-28/R-38 — a neighbourhood of the names of the obligations this statement names and that name it, see below and R-38**). The field descriptions are below. The system message is the instruction text (C-10). The two messages of this request are not sent as an array of messages to the provider. The model is selected by a dedicated variable `SPECCHECK_JUDGE_MODEL`. The object carries two request-side, non-report fields with no effect on any status, metric, or report JSON — `declared`, from Part A, and `related` (R-38, D-28) from Part B: neither is reported, and no C-06 coercion rule acts on them.
-                                                     formatting; declared = Citation.declared for this edge (v1.14, C-14,
-                                                     C-15); statement = SpecId.text verbatim — body, fenced blocks and
-                                                     indentation included for a heading-declared ID (R-33, T-74);
-                                                     source = the span with every line prefixed by its absolute
-                                                     1-based line number and one TAB (F-109)> } ] }
+                  { "role": "user",   "content": <the JSON text of the object
+                                                  {id, statement, related, declared, file, start, end, source},
+                                                  keys in that order, `indent=2`, `ensure_ascii=False`, no
+                                                  trailing newline; id = the normalized id;
+                                                  statement = SpecId.text verbatim — body, fenced blocks and
+                                                  indentation included for a heading-declared ID (R-33, T-74);
+                                                  related = the R-38 neighbourhood (v1.16, D-28);
+                                                  declared = the C-14 edge value for this edge (v1.14, C-15);
+                                                  file, start, end = the TestCase's; source = the span with every
+                                                  line prefixed by its absolute 1-based line number and one TAB
+                                                  (F-109)> } ] }
+            `messages` is a JSON array of exactly these two objects, system first (F-701). `declared`
+            and `related` are request-side context only: neither is reported, and no C-06 coercion
+            rule acts on them.
   Response: HTTP 200 with a JSON body; the model's text is read from  choices[0].message.content .
             Any other status, a non-JSON body, or a missing path -> E-14 / E-15.
             The text is stripped of surrounding whitespace and of ONE enclosing ``` or ```json fence
@@ -775,6 +827,9 @@ Mock provider (judge_mock.py):
   verdict = ASSERTS if the span contains an assertion token, else EXECUTES_ONLY
   assertion token := a line matching ^\s*assert\b  or containing  .assert  or  pytest.raises(
                      or (Swift; R-31) containing  #expect(  or  #require(  or  XCTAssert  or  XCTFail(  or  Issue.record(
+                     or (JavaScript/TypeScript; R-104, F-706) containing  expect(  or  expect.  (vitest/jest
+                     `expect(x).toBe(…)`, `expect.assertions(n)`; node's `assert(…)`/`assert.equal(…)` already
+                     match ^\s*assert\b)
   evidence = every such line (file, line); rationale = "mock: assertion token on N line(s)" / "mock: no assertion token"
   clause   = the whitespace-collapsed statement cut to its first 280 characters — a prefix, so it is always LOCATED
              under K-15 (equal to a statement shorter than 12 characters, including ""); the mock reads no statement
@@ -868,6 +923,13 @@ Title and statement (R-33): `title` is `SpecId.title` and `statement` is `SpecId
   D-49) — unlike every prior addition above, which was unconditional and so bumped the version.
   The literal is stated in this contract (heading and example) and in §3.3 only; no §9 row repeats
   it — a test asserts "the C-07 value" (F-401).
+Citation-map and foreign keys (v1.23; R-101, R-103, C-22, C-23): `foreign` (top level, after
+  `unattributed_results`, before `notes`) is present only when at least one foreign reference was
+  found in a scanned file; `citation_map` (top level, directly before `foreign`) only when
+  `--citation-map` was given; `mapped` (in every `tests[]` entry, after `declared`) only when
+  `--citation-map` was given, as is `mapped` on every `dangling` and `stale` entry (after `line`;
+  true for an entry a map produced, F-704). `schema_version` stays `"1.5"` (I-019): like `proof`, these are
+  conditional keys, and a run that needs none of them is byte-identical to v1.22.
 Proof field (v1.19, amended v1.19.1 per F-504; R-100, C-20, C-21, D-49): `proof` is an array of
   `{name, file, line, state, error}`, one entry per declaration that cites the id (shaped like
   `tests`); `state` is `checked`, `failed`, `unknown`, or `stale` (K-17); `error` is the build's
@@ -899,9 +961,12 @@ Metrics:
                        RECORDED ids are PASSING without a judged edge and are outside this population — F-405;
                        `conformance` and `by_family` DO include them, since they are PASSING by citation and result)
   unknown_rate       = |edges with verdict UNKNOWN| / |judged edges| (judge enabled only; else absent)
-  declared_ratio     = |DECLARED citations of in-scope R/C/I/K/E ids| / |all such citations|   (v1.14,
-                       C-14, R-39; present under every --judge mode, including none; a T id's own
-                       citations are outside this count, matching R-39's scope)
+  declared_ratio     = |{c in C : c.declared}| / |C|, where C is every "test"-kind, non-mapped
+                       Citation of an in-scope R/C/I/K/E id — file-level ones included (always
+                       INCIDENTAL, E-56) — counted per citation line   (v1.14, C-14, R-39; present
+                       under every --judge mode, including none; a T id's own citations are outside
+                       C, matching R-39's scope; a mapped citation (C-23) is outside C, since the
+                       metric measures the in-code convention — F-703)
   proof_failed       = |{id : any proof[].state == "failed"}|                (v1.19, K-17; present only when --proof given)
   proof_unknown      = |{id : no "failed" proof[], any proof[].state in {"unknown","stale"}}|   (v1.19, K-17; present only when --proof given)
 Zero denominators: ratio = null (JSON) / "n/a" (Markdown); the "a/b" string is still emitted ("0/0");
@@ -946,7 +1011,7 @@ Shape rules (F-016): `by_family` ALWAYS has exactly the six keys R, C, I, K, E, 
 # label (R-35, F-404); the verdict position shows the em dash, as for any unjudged case;
 # the Statement cell renders the JSON `title` — the heading text or the table cell — never a section body, so
 # this table is byte-identical before and after v1.7 (R-33, T-73); the body the judge saw is in `speccheck.json`
-# citations rendered as `file:line`; verdict rendered as ASSERTS / EXECUTES_ONLY / UNRELATED / UNKNOWN(coerced),
+# citations rendered as `file:line` (a mapped citation, v1.23, as `file (map)` -- it has no line; C-23); verdict rendered as ASSERTS / EXECUTES_ONLY / UNRELATED / UNKNOWN(coerced),
 # or as an em dash (—) when the JSON `verdict` is null (Q-001); a file-level case is rendered with the
 # label `(file)` in place of its empty name (Q-011)
 
@@ -972,7 +1037,7 @@ and error messages (redact to "***").
 
 ### C-10 Judge instruction text (normative; F-004)
 
-The file `speccheck/judge_prompt.md` is shipped as package data and its content is exactly the text below (trailing newline, `\n` line endings). It is sent verbatim as the system message (C-06). Changing it is a spec change: bump this document's version and the file together (v1.7 added the any-clause rule for statements that carry a section body — R-33, D-20; v1.9 made the question clause-first and added the `clause` field — R-34, D-21; v1.14 added the `declared` field and the skepticism rule below — R-39, C-15, D-26; **v1.16 added the `related` field and its rule below, and sent it on the triage `state` as well as the real-judge request — R-38, D-28 incl. its D-28b sub-decision**).
+The file `speccheck/judge_prompt.md` is shipped as package data and its content is exactly the text below (trailing newline, `\n` line endings). It is sent verbatim as the system message (C-06). Changing it is a spec change: bump this document's version and the file together (v1.7 added the any-clause rule for statements that carry a section body — R-33, D-20; v1.9 made the question clause-first and added the `clause` field — R-34, D-21; v1.14 added the `declared` field and the skepticism rule below — R-39, C-15, D-26; **v1.16 added the `related` field and its rule below, and sent it on the triage `state` as well as the real-judge request — R-38, D-28 incl. its D-28b sub-decision**; v1.23.1 extended the `declared` definition to a mapped citation and stated the `related` order as specification id order — F-703, F-717, D-57; the build updates `speccheck/judge_prompt.md` in step, which changes `judge_prompt_sha256` and voids the recorded T-49 runs per F-303).
 
 ```text
 You are a test-strength judge for a specification conformance checker.
@@ -983,11 +1048,12 @@ You will receive one JSON object with these fields:
               by a heading, the section beneath it - prose, tables, and code blocks. A statement
               may have several clauses: a pinned interface, numbered rules, table rows.
   declared  - true when this test's own docstring or a comment names this ID - the convention
-              this project's tests are expected to follow; false when the ID appears only
-              elsewhere in the test body.
+              this project's tests are expected to follow - or when a citation map the project's
+              owner maintains names this test for this ID (the ID then need not appear in source);
+              false when the ID appears only elsewhere in the test body.
   related   - the names of the other obligations this statement names and that name it - its
               C-12 `depends_on` neighbourhood, both directions; the statement's own references first,
-              then the others, in the order of that section. Context only: an assertion that corresponds
+              then the others, each group in specification id order. Context only: an assertion that corresponds
               to a related obligation and not to this statement is not evidence that this statement holds
               (see the related rule in the Rules below). The empty list when the id has no neighbour.
   file      - the path of one test file
@@ -1025,8 +1091,8 @@ Rules:
     assertion exists nearby: check that the assertion's own subject is unambiguously this
     obligation, not a token reused as example or fixture data for a different one.
   - related lists the names of the other obligations this statement names and that name it (its C-12
-    depends_on neighbourhood, both directions; own references first, at most eight, in the order of that
-    section; a retired neighbour keeps its title with (retired) appended; the empty list when none).
+    depends_on neighbourhood, both directions; own references first, at most eight, in specification id
+    order; a retired neighbour keeps its title with (retired) appended; the empty list when none).
     An assertion that corresponds only to a related obligation is not evidence that this statement holds;
     judge this statement's own clauses, not a neighbour's. When no assertion corresponds to this
     statement's own clause, prefer EXECUTES_ONLY or UNRELATED over an ASSERTS that matches a related obligation only.
@@ -1116,6 +1182,8 @@ Sources of edges -- all read from the SpecIndex, nothing else:
       Decision.affects is the sorted, unique list of the DECLARED Y only.
   retired := Y is RETIRED (E-55). X being retired does not suppress X's edges: a retired statement
   still names what it named, and whether to walk from a retired id is the operator's call.
+  A foreign reference (C-22) is not a token for this pass: it yields no edge and no Note (E-69);
+  nor is it a range endpoint, so `platform:R-01..R-05` names R-05 alone (F-716).
   A self-reference (Y == X) and a repeated token produce nothing; each (src, kind, dst) is
   emitted at most once.
 
@@ -1125,7 +1193,8 @@ Order (total, so I-002 holds): edges sorted by (id_key(src), kind, id_key(dst)),
 
 What an edge is not (D-25; the scope note in the front matter): it is not a citation (C-05 never
   reads it), not a status or metric input, and it carries no meaning beyond "the statement of
-  src contains the token dst". The judge (C-06) is not shown edges in v1.13. The Markdown
+  src contains the token dst". The judge (C-06) is not shown edges as such; since v1.16 its
+  request carries the titles of a `depends_on` neighbourhood as `related` (R-38). The Markdown
   conformance report (C-08) does not render them; they live in the JSON and in `impact`.
 ```
 
@@ -1236,7 +1305,13 @@ one citation line of X within [T.start, T.end] is:
   - a whole-line comment: the first non-whitespace character on that citation's own line is "#"
     for Python; for Swift, a line whose first non-space characters are "///", or that lies inside
     a "/** ... */" block -- the doc-comment line kind the C-03 ATTRIBUTE BLOCK rule already
-    recognizes, reused here rather than re-detected.
+    recognizes, reused here rather than re-detected; for JavaScript/TypeScript (v1.23.1, F-705),
+    a comment-only line of the C-03 JS/TS adapter (comment text and no code token), every line
+    of a "/* ... */" or "/** ... */" comment token included; or
+  - a mapped citation (v1.23.1, F-703, D-57): a citation made by a resolving --citation-map
+    entry (C-23). The map is the owner's statement of which test proves which id, so the judge
+    is told `declared: true` (C-10 says so in its field definition); `mapped` is the separate
+    label for where that statement lives, and `declared_ratio` leaves mapped citations out (C-07).
 Otherwise X is INCIDENTAL -- including a citation on a code line that also carries a trailing
 comment (`x = 1  # R-02`; a deliberate simplification: line ranges only, no column tracking, and
 every real DECLARED citation found while drafting this rule was a whole-line comment or a
@@ -1275,12 +1350,11 @@ mechanical rule downgrades a verdict for carrying `declared: false`. Changing C-
 ```text
 `speccheck.json` (C-07) gains, on every `tests[]` entry, `"declared": bool` per C-14 (true iff any
 of the edge's citation lines is DECLARED), present after `"lines"` under every --judge mode
-including none. `metrics` gains `"declared_ratio"`: DECLARED citations of in-scope R/C/I/K/E ids
-over all such citations (a T id's own citations are outside this count, matching R-39's scope),
-computed as every other ratio is (Decimal, Q-009), null when the denominator is zero.
+including none. `metrics` gains `"declared_ratio"`, defined in C-07 (the DECLARED share of the
+test-kind, non-mapped citations of in-scope R/C/I/K/E ids), computed as every other ratio is
+(Decimal, Q-009), null when the denominator is zero.
 `schema_version` becomes "1.5". This contract is JSON-only: `SPEC_CONFORMANCE_REPORT.md` (C-08)
-is unchanged (Part C of the proposal that motivated this; the report's cost stays zero under
---judge none/mock).
+is unchanged (v1.14 kept the report's cost zero under --judge none/mock).
 ```
 
 ### C-17 Jev triage provider (v1.15; K-16, I-015)
@@ -1358,24 +1432,28 @@ impact (<depth>):
   <T-id> verifies <id>[, <id>...]
 ```
 
-- **Status and reason.** `<STATUS>` is the C-05 status, and the parenthetical is C-05's own step:
-  `UNCITED` → `step 1: no source or test citation`; `UNTESTED` → `step 2: no test citation`;
-  `UNVERIFIED` → `step 2b: no citing test case has a result`; `FAILING` → `step 3: a citing test
-  case failed`; `SKIPPED` → `step 3: a citing test case was skipped`; `PASSING` → `step 4: every
-  citing test case passed`; `WEAKLY_PASSING` → `step 5: the judge downgraded every judged edge`;
-  `RETIRED` → `retired: struck through in the specification`. The `RETIRED` marker in the `ID` line
+- **Status and reason.** `<STATUS>` is the C-05 status, and the parenthetical is C-05's own step
+  (v1.23.1, F-711: the step numbers are C-05's): `RETIRED` → `step 1: struck through in the
+  specification`; `UNCITED` → `step 2a: no source or test citation` (for a T id, `step 2b: no test
+  citation`); `UNTESTED` → `step 2a: no test citation`; `UNVERIFIED` → `step 3: no citing test case
+  has a result`; `FAILING` → `step 4: a citing test case failed or errored`; `SKIPPED` → `step 4:
+  every citing test case with a result was skipped`; `PASSING` → `step 4: every citing test case
+  with a result passed or was skipped`; `WEAKLY_PASSING` → `step 5: no judged edge asserts the
+  statement`. The `RETIRED` marker in the `ID` line
   is appended for a retired id and the `(recorded)` marker for an R-35 RECORDED id; both may appear.
 - **Statement.** `SpecId.text` verbatim (C-10: title, newline, body), each line prefixed by two
   spaces; a K-14 truncation marker is echoed as it stands.
 - **Sources.** One line per source citation, ascending by (file, line), each two-space indented as
   `<file>:<line>`; the heading alone when the id has none (E-60's empty-block rule).
 - **Tests.** One line per citing test case, ascending by (file, start): `<file>::<name> (<outcome>)
-  [<verdict>]`, where `<outcome>` is `passed`, `failed`, `skipped` or `—` (U+2014: no result
+  [<verdict>]`, where `<outcome>` is `passed`, `failed`, `error`, `skipped` or `—` (U+2014: no result
   joined); a file-level case renders as `<file> (file-level)`. `<verdict>` is the C-06 token with
   ` (coerced)` appended when the recorded verdict is coerced, and `not judged` when no verdict was
   recorded (under `--judge none`, and for any edge no provider judged; E-61). A `clause:` line is
   printed only when the recorded `clause` is non-empty, and a `rationale:` line only when a verdict
-  was recorded, both four-space indented under their case.
+  was recorded, both four-space indented under their case. A case whose citation of this id is
+  mapped (C-23) is rendered `<file>::<name> (<outcome>) [<verdict>] (mapped)`; a case with both a
+  literal and a mapped citation of the id is not mapped (E-73).
 - **Impact.** `impact (<depth>):` reuses C-12's `walk` from this id at `--depth` (default `1`,
   `0` = unbounded) and C-13's `reverify` set over `{id} ∪ walked`: one line per walked id in the
   walk's own order as `<id> (depth <n>, via <src> -<kind>-> <dst>)`, then one line per T id that
@@ -1462,6 +1540,66 @@ and file (line, where present; K-17): a citation without a matching manifest ent
 a manifest entry without a citation is a `notes` entry. `--proof-results FILE` given but
 unreadable, not well-formed JSON, or lacking `build`/`theorems` → E-65.
 
+### C-22 Foreign reference and namespace (v1.23; R-101, R-102)
+
+```text
+FOREIGN   := (?<![A-Za-z0-9])(?P<ns>[A-Za-z][A-Za-z0-9_-]*):(?P<id>[RCIKET]-[0-9]{1,3})(?![A-Za-z0-9])
+             with the added condition that `ns` does not match ^[RCIKET]-[0-9]{1,3}$.
+             Recognition has no length cap (v1.23.1, F-712: with v1.23's {0,31} a 33-character
+             label made no match and its id fell back to a local citation); the 32-character limit
+             belongs to the --namespace VALUE only (R-102), so a longer `ns` is always foreign.
+Evaluated on every line before the TOKEN rule (C-01), in SPEC.md statements and Affects cells as
+well as in --src / --tests files. A TOKEN that is the `id` of a FOREIGN match whose `ns` is not
+the --namespace value is a FOREIGN REFERENCE:
+  - in a scanned source or test file: no citation (so no dangling or stale entry), recorded in
+    the `foreign` array below, counted in one Note (E-67): `<N> foreign reference(s) ignored: ` followed by the first three
+    listed tokens, in `foreign` order, each `<ns>:<id> <file>:<line>`, comma-separated, and ` and <N-3> more`
+    when N > 3;
+  - in a declared statement or Affects cell: no C-12 edge and no Note (E-69); never listed.
+With --namespace NS, a FOREIGN match whose `ns` == NS (case-sensitive) is not foreign: its TOKEN is
+a local citation / edge target exactly as if the `NS:` were absent (E-68). A bare TOKEN (no `ns:`)
+is always local, with or without --namespace (D-52). `speccheck:ignore` (C-01) applies to a
+foreign reference as to any token on the line. Fenced code blocks in SPEC.md are not scanned for
+statements (C-01), so a foreign token there is irrelevant.
+JSON: top-level `foreign` = [ {"namespace","id","file","line"} ... ] sorted by
+  (file, line, namespace, id); the key is present only when the array is non-empty.
+```
+
+### C-23 The citation map (v1.23; R-103)
+
+```text
+File: UTF-8 JSON, resolved inside --root (E-09), at most 2 MiB (K-19).
+  {"schema_version": "1.0",
+   "citations": [ {"id": "R-99", "file": "tests/test_core.py", "test": "test_zero_rate"}, ... ]}
+  id    a bare TOKEN form (leading zeros do not matter; I-011); a `ns:`-prefixed id is E-70.
+  file  a POSIX path relative to --root, exactly as it appears in `tests[].file`.
+  test  the TestCase.name (C-03) to attribute to; "" selects the file-level case of `file`.
+  Unknown top-level keys are ignored; an unknown or missing key in an entry is E-70.
+Resolution (after the --tests scan, before C-05): the entry resolves when a TestCase with that
+  `file` and `name` exists among the scanned cases (a file-level case always exists for a scanned
+  file). Two cases with the same file and name (E-13 / E-27's ties) resolve to the one with the
+  smallest `start`. Resolved -> Citation(id, file, line = case.start, kind "test", testcase,
+  declared = true, mapped = true), unless a literal citation of the same (id, testcase) exists, in
+  which case the entry adds nothing and the literal citation keeps mapped = false (E-73).
+  An id the spec does not declare -> a dangling citation (R-07) at (file, case.start); a retired id
+  -> a stale citation (R-15's stale rule) there; either entry carries `"mapped": true`, and the
+  Markdown renders its location `<file> (map)`, so a reader looks in the map, not at that line
+  (F-704). An unresolved entry (E-71) adds nothing.
+  `test` matches `TestCase.name` exactly, and a Python method's name carries no class (C-03): two
+  same-named methods of different classes in one file are not distinguishable by an entry, which
+  resolves to the one with the smaller `start`; the other cannot be mapped (a stated limitation,
+  F-716; cite it literally instead).
+JSON: when --citation-map was given,
+  top-level `citation_map` = {"file": <path as given>, "entries": N, "resolved": R, "unresolved": U}
+    (R counts entries that resolved, E-73 duplicates included; R + U == N);
+  every `tests[]` entry gains `"mapped": true|false` after `declared`; a mapped entry's `lines` is [];
+  every `dangling` and `stale` entry gains `"mapped": true|false` after `line` (F-704).
+  Without the flag neither key exists (I-019). The Markdown report (C-08) renders a mapped citation as
+  `<file> (map)`. `schema_version` does not change: both keys are conditional (C-07).
+Summary line (§5.1): gains `; citations: <M> mapped` after the judge-suffix when M > 0, where M is
+  the number of Citations with mapped = true; absent when M == 0, even with the flag.
+```
+
 ---
 
 ## 5. Interface specification
@@ -1470,14 +1608,14 @@ unreadable, not well-formed JSON, or lacking `build`/`theorems` → E-65.
 
 ```text
 speccheck check --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
-                [--proof PATHS]... [--proof-results FILE]
+                [--proof PATHS]... [--proof-results FILE] [--namespace NS] [--citation-map FILE]
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--judge-concurrency N] [--judge-budget SECONDS|N%] [--jev-pre-triage]
                 [--max-unknown FRACTION] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src PATHS]... [--tests PATHS]...
-                 [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
+                 [--namespace NS] [--citation-map FILE] [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
 speccheck explain ID --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
-                 [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
+                 [--namespace NS] [--citation-map FILE] [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
                  [--judge-budget SECONDS|N%] [--jev-pre-triage] [--max-unknown FRACTION]
                  [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
@@ -1494,7 +1632,9 @@ speccheck --help
 | `--results FILE` | Optional JUnit XML. Absent → every cited ID is at most `UNVERIFIED`. Unreadable → usage error; malformed → E-05. | `2` / `3` |
 | `--proof PATHS` | `check`-only (v1.19, R-100). Repeatable; each value a comma-separated PATHS list of Lean source files/directories, scanned per C-20 and resolved inside `--root` (E-09). Absent → no Lean file scanned, no `proof` key written (I-018). | `2` |
 | `--proof-results FILE` | `check`-only (v1.19, C-21). A JSON proof manifest, read and joined to the C-20 citations (K-17); the checker never runs a prover. Absent → every citation's state is `unknown` (no manifest to confirm it). Unreadable, malformed, or missing `build`/`theorems` → E-65. | `2` / `3` |
-| `--root DIR` | Base for relative paths in reports; default `.`. All of `--spec/--src/--tests/--results/--out` MUST resolve inside it (E-09). | `2` |
+| `--namespace NS` | `check`, `impact`, `explain` (v1.23, R-102). At most once (a second occurrence → exit `2`, `--namespace: given more than once`). One value matching `[A-Za-z][A-Za-z0-9_-]{0,31}` and not shaped like an ID, else exit `2`, message `--namespace: invalid namespace: <value>`. Tokens written `NS:ID` are then local citations (C-22, E-68). Absent → every `<ns>:`-prefixed token is foreign (R-101); a run with none is unchanged (I-019). | `2` |
+| `--citation-map FILE` | `check`, `impact`, `explain` (v1.23, R-103, C-23). A JSON citation map, resolved inside `--root` (E-09), read after the `--tests` scan; each resolving entry is a mapped citation. Absent → no map is read and no `citation_map` key is written (I-019). Unreadable → E-70 (`2`); malformed, wrong `schema_version`, bad entry or over K-19 → E-70 (`3`). | `2` / `3` |
+| `--root DIR` | Base for relative paths in reports; default `.`. Every path flag — `--spec`, `--src`, `--tests`, `--results`, `--out`, `--proof`, `--proof-results`, `--against`, `--citation-map` — MUST resolve inside it (E-09). | `2` |
 | `--out DIR` | Where the two reports go; default `.`. MUST resolve inside `--root` (E-09; F-002). Created if missing; not writable → E-18. | `2` / `3` |
 | `--judge MODE` | `none` (default), `mock`, `llm`. Any other value → usage error. | `2` |
 | `--strict` | Apply R-15 and, with `--judge llm`, R-28. | — |
@@ -1504,15 +1644,15 @@ speccheck --help
 | `--jev-pre-triage` | K-16 (v1.15); boolean, default off. Runs the C-17 triage pass and orders the judge's issue queue by it. Ignored unless `--judge llm`: under `--judge none`/`mock` no Jev request is made and no C-17 variable is read. Requires `SPECCHECK_JEV_API_KEY` when it runs (E-21). | `2` |
 | `--progress MODE` | R-30, C-11. `auto` (default): draw the judge progress indicator iff `sys.stderr.isatty()` is true and verbosity is not `DEBUG`; `always`: draw it even when stderr is not a TTY (still suppressed under `--verbose DEBUG`, E-39); `never`: never draw it. Any other value → usage error. Ignored unless `--judge llm`. | `2` |
 | `--verbose [LEVEL]` | §5.3. Bare = `INFO`. `LEVEL` other than `INFO`/`DEBUG` → usage error. | `2` |
-
-Every row of this table is also stated, in the form C-19 pins, in the `--help` output of the subcommand that defines the flag (v1.18, R-41); the table stays normative and T-95 checks the values against the validator's own usage-error text, so the two cannot disagree about an accepted token.
 | `--self-check` | Copy the packaged fixture `speccheck/_selfcheck/` (a byte-identical copy of the §9.8 golden fixture `fixtures/target/`, its `golden/` directory included; F-107) into a fresh temporary directory `<tmp>`; install a socket guard; then run, **in the same process**, exactly `check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --root <tmp> --out <tmp>/out` with the working directory set to `<tmp>` (Q-003). The inner check is **expected** to exit `1` (the fixture has planted defects) and that exit code is not the self-check's result; compare `<tmp>/out/speccheck.json` and `<tmp>/out/SPEC_CONFORMANCE_REPORT.md` to `<tmp>/golden/` byte-for-byte; remove `<tmp>`; print `self-check: ok` when both match, else one line naming the first mismatch or failure (F-011). | `0` / `1` |
 | `--version` | Print `speccheck <semver>` and exit. | `0` |
-| `impact` | v1.13 (R-37, C-13). Run the §3.1 `impact` pipeline; write `impact.json` and `IMPACT_REPORT.md` under `--out`; print the C-13 summary line. Accepts `--spec`, `--src`, `--tests`, `--root`, `--out`, `--verbose` with the meanings above, except that `--src`/`--tests` have **no directory default** here: absent means not scanned (C-13), since the scan is optional for `impact`; no `--results`, no judge flags, no `--proof`/`--proof-results` (v1.19) — any of them → usage error (E-54). | `0` written, `2` usage, `3` input contract |
+| `impact` | v1.13 (R-37, C-13). Run the §3.1 `impact` pipeline; write `impact.json` and `IMPACT_REPORT.md` under `--out`; print the C-13 summary line. Accepts `--spec`, `--src`, `--tests`, `--namespace`, `--citation-map` (v1.23), `--root`, `--out`, `--depth`, `--verbose` with the meanings above, except that `--src`/`--tests` have **no directory default** here: absent means not scanned (C-13), since the scan is optional for `impact`; no `--results`, no judge flags, no `--proof`/`--proof-results` (v1.19) — any of them → usage error (E-54). | `0` written, `2` usage, `3` input contract |
 | `--changed IDS` | `impact` only. Comma-separated ids (R/C/I/K/E/T or D), each declared in `--spec`; an undeclared one → E-53; empty → usage error. Mutually exclusive with `--against` (E-54). | `2` |
 | `--against FILE` | `impact` only. A prior version of the spec, inside `--root` (E-09), parsed by C-01; the changed set is the C-13 diff. Unreadable → usage error; its E-01/E-02/E-03 → `3` with `--against: ` prefixed. Mutually exclusive with `--changed` (E-54). | `2` / `3` |
 | `--depth N` | `impact` (v1.13) and `explain` (v1.17). Integer `0..999`, default `1`; `0` = unbounded (C-13; for `explain`, the reach of C-18's `impact (<depth>):` section). Other values → usage error. | `2` |
-| `explain ID` | v1.17 (R-40, C-18). Run the §3.1 pipeline over the same inputs as `check` and render the C-18 trace for the one id `ID` to stdout; write no report file. Accepts `--spec`, `--src`, `--tests`, `--results`, `--root`, `--judge`, `--judge-concurrency`, `--judge-budget`, `--jev-pre-triage`, `--max-unknown`, `--progress`, `--verbose` and `--depth` with the meanings above, and `ID` as a positional argument (one id per invocation, D-36). No `--out`, no `--strict`, no `--proof`, no `--proof-results` (v1.19): they are not defined on this subparser, so argparse rejects them as unrecognized arguments (E-54's pattern). An undeclared `ID` → E-60. | `0` rendered, `2` usage, `3` input contract |
+| `explain ID` | v1.17 (R-40, C-18). Run the §3.1 pipeline over the same inputs as `check` and render the C-18 trace for the one id `ID` to stdout; write no report file. Accepts `--spec`, `--src`, `--tests`, `--results`, `--namespace`, `--citation-map` (v1.23), `--root`, `--judge`, `--judge-concurrency`, `--judge-budget`, `--jev-pre-triage`, `--max-unknown`, `--progress`, `--verbose` and `--depth` with the meanings above, and `ID` as a positional argument (one id per invocation, D-36). No `--out`, no `--strict`, no `--proof`, no `--proof-results` (v1.19): they are not defined on this subparser, so argparse rejects them as unrecognized arguments (E-54's pattern). An undeclared `ID` → E-60. | `0` rendered, `2` usage, `3` input contract |
+
+Every row of this table is also stated, in the form C-19 pins, in the `--help` output of the subcommand that defines the flag (v1.18, R-41); the table stays normative and T-95 checks the values against the validator's own usage-error text, so the two cannot disagree about an accepted token.
 
 **The `--src`/`--tests` PATHS list (D-23).** Each flag value is a comma-separated list, one list per occurrence. To build the effective list the extractor walks, each occurrence is split on the literal `,`, every resulting segment is whitespace-trimmed and empty segments dropped; the surviving paths are resolved inside `--root` (E-09) and deduplicated (I-012). Each resolved path is a directory (descended as in v1.11: K-02/K-03, E-10/E-11/E-13/E-29/E-30/E-33 apply) or a regular file (scanned as one, no descent); a segment that resolves inside `--root` but exists as neither is a usage error (E-52), replacing the former "non-directory → usage error". The full rule — including the absent-flag-only default, the directly-named-file Swift `MODULE`, and the determinism of the emitted order — is C-03 *PATHS*; the summary-line regex, both report files, and the exit codes are otherwise unchanged for two inputs that name the same file set. Example: `--src a.py,b.py,src --tests tests/unit,tests/core` is equivalent to `--src a.py --src b.py --src src --tests tests/unit --tests tests/core` (the list is repeatable), and `--src a.py,,src,` trims and drops to `[a.py, src]`.
 
@@ -1527,13 +1667,14 @@ single `\n`, and written to stdout as UTF-8 regardless of locale (R-29; F-010). 
 `CONFORMING` (exit 0) or `NOT CONFORMING` (exit 1); `<pct>` is `conformance × 100` rounded
 half-even to one decimal; `<judge-suffix>` is empty unless R-28 forced exit 1, in which case it is
 ` (unavailable)` or ` (unknown_rate <rate> > max_unknown <max>)` with both numbers as in the JSON;
-when both R-28 reasons hold the suffix is ` (unavailable)` (Q-004). The seven counts after the
+when both R-28 reasons hold the suffix is ` (unavailable)` (Q-004). After the judge-suffix, and
+only when at least one citation is mapped (C-23), the line ends `; citations: <M> mapped` (v1.23). The seven counts after the
 ratio are the seven in-scope statuses of C-07 `by_status`, each exactly once (Q-005).
 
 Regex the line MUST match (T-44):
 
 ```text
-^speccheck: (CONFORMING|NOT CONFORMING) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, \d+ weak, \d+ unverified, \d+ untested, \d+ uncited; \d+ dangling, \d+ stale; judge=(none|mock|llm)( \(unavailable\)| \(unknown_rate \d\.\d{4} > max_unknown \d\.\d{4}\))?$
+^speccheck: (CONFORMING|NOT CONFORMING) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, \d+ weak, \d+ unverified, \d+ untested, \d+ uncited; \d+ dangling, \d+ stale; judge=(none|mock|llm)( \(unavailable\)| \(unknown_rate \d\.\d{4} > max_unknown \d\.\d{4}\))?(; citations: \d+ mapped)?$
 ```
 
 ### 5.2 GUI
@@ -1555,17 +1696,17 @@ None. This system has no graphical surface, and O-3 explicitly leaves one out of
 | `0` | `CONFORMING`: no in-scope ID is `FAILING`; and if `--strict`, every in-scope ID has status `PASSING`, `dangling` and `stale` are empty, and — with `--judge llm` only — `judge_available` is `true` and `unknown_rate` $\leq$ `max_unknown` (R-28). Beyond R-28, status is the only judge-related input (F-003). | yes |
 | `1` | `NOT CONFORMING`: anything else the report can express | yes |
 | `2` | Usage error (bad flag/value, missing required, path outside root, missing judge env) | no |
-| `3` | Input contract violation (E-01, E-02, E-03, E-05, E-18) | no |
+| `3` | Input contract violation — every E row whose Semantics column exits `3`: E-01, E-02, E-03, E-05, E-18, E-65 (malformed manifest), E-70 (map shape faults) | no |
 
 Any uncaught exception MUST also map to `3` with a one-line message; a traceback is printed only under `--verbose DEBUG`. `KeyboardInterrupt` is treated the same way, with the message `interrupted` (E-41).
 
-`impact` (v1.13) uses `0` (both C-13 reports written; there is no `1`: nothing it reports is pass/fail), `2` (usage, E-53, E-54), and `3` (E-01/E-02/E-03 on either spec, E-18); the same "reports written?" column applies.
+`impact` (v1.13) uses `0` (both C-13 reports written; there is no `1`: nothing it reports is pass/fail), `2` (usage, E-53, E-54), and `3` (E-01/E-02/E-03 on either spec, E-18, E-70); the same "reports written?" column applies.
 
-`explain` (v1.17) uses `0` (the C-18 trace written; there is no `1`: nothing it renders is pass/fail), `2` (usage, E-60) and `3` (E-01/E-02/E-03); it writes no file, so E-18 and the "reports written?" column do not apply to it.
+`explain` (v1.17) uses `0` (the C-18 trace written; there is no `1`: nothing it renders is pass/fail), `2` (usage, E-60, E-64) and `3` (E-01/E-02/E-03, E-05, E-70); it writes no file, so E-18 and the "reports written?" column do not apply to it.
 
 Since v1.18 this set is reachable from the CLI itself: every `--help` screen carries the exit-code epilog C-19 pins (D-40), naming the four codes and the summary line.
 
-**Precedence between `2` and `3` (v1.20, K-18).** Flag, value and `--root`-containment validation (the usage-fault class, `2`) is completed in full before `SPEC.md`, the results file, the output directory, or (for `impact`) `--against` is read at all — so an invocation carrying both a usage fault and what would otherwise be an input-contract violation (`3`) exits `2`; a run never reaches the contract check that would have failed. No other precedence exists between the two classes, since no other invocation can trigger both.
+**Precedence between `2` and `3` (v1.20, K-18).** Flag, value, `--root`-containment and file-readability validation (the usage-fault class, `2`) is completed in full before `SPEC.md`, the results file, the proof manifest, the citation map, the output directory, or (for `impact`) `--against` is parsed at all — so an invocation carrying both a usage fault and what would otherwise be an input-contract violation (`3`) exits `2`; a run never reaches the contract check that would have failed. No other precedence exists between the two classes, since no other invocation can trigger both.
 
 ---
 
@@ -1591,6 +1732,7 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **I-016** | **`explain` is additive and read-only (v1.17).** `explain` writes no report file, changes no status, verdict, citation, metric or note, and issues no judge call a `check` run over the same inputs would not issue (E-61). The facts it renders are the same `IdRecord`/edge/`Verdict` facts that run produces and the same `walk`/`reverify` facts `impact` produces (C-12, C-13), so a `check` and an `explain` over identical inputs agree on every status the trace shows, and no `--strict` gate moves. |
 | **I-017** | **`--help` is inert (v1.18).** `speccheck --help`, `speccheck check --help`, `speccheck impact --help` and `speccheck explain --help` exit `0`, write only to stdout, and read no project file, no environment variable and no socket — naming the C-09/C-17 variables in the epilog is printing their names, not reading them. They therefore behave identically inside a project tree and in an empty directory, and the help text is a pure function of the installed version and the terminal width, which affects line wrapping only (C-19, T-96). |
 | **I-018** | **Proof-input inertness (v1.19).** A `check` run without `--proof`/`--proof-results` writes `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical to a v1.18 run on the same inputs: no `proof` key in the JSON (top-level or per-id), no proof column in the Markdown, no Lean file read, no exit-code difference (T-100). |
+| **I-019** | **Namespace and map inertness (v1.23).** A `check` run given neither `--namespace` nor `--citation-map`, over inputs in which no scanned file and no declared statement or *Affects* cell contains a `<ns>:`-prefixed token, writes `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical to a v1.22 run on the same inputs, prints the same summary line, and exits the same (T-109). The converse is deliberate: the same inputs *with* such a token change by exactly that token's citation or edge (E-67, E-69). |
 
 ---
 
@@ -1606,7 +1748,7 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **K-06** | Exactly one HTTP request per judged edge; no retries, no batching. Requests MAY be issued concurrently, at most `--judge-concurrency` at a time (default `4`, integer `1..32`); output order is fixed by C-07 and MUST NOT depend on completion order (F-110). |
 | **K-12** | `--judge-budget` has two forms (v1.15). `SECONDS` (default `0` = unlimited; integer `0..86400`): bounds the wall-clock spent in the judge stage, measured from the first request issued. The deadline is `start + budget`. A request is *started* when it is issued; no request is issued at or after the deadline; requests in flight at the deadline are allowed to complete (each still bounded by K-05) and their verdicts count. `N%` (an integer `0..100` followed by `%`; accepted only with `--jev-pre-triage` under `--judge llm`, else E-58): exactly $\lceil N/100 \times E \rceil$ of the $E$ judge-eligible edges (I-010) are issued, in K-16's ascending-confidence order, and no other edge is issued, regardless of wall-clock time elapsed. Under both forms every edge not issued receives `UNKNOWN` with rationale `judge: budget` and `coerced: true`, and one Note records how many (F-110, Q-010). `SECONDS 0` is unlimited; `N%`'s `0%` issues none (a pure triage dry run) and its `100%` issues every eligible edge — the same report content as `SECONDS 0`, by an explicit count instead of a deadline that never arrives. |
 | **K-13** | The progress indicator (C-11) is drawn once when the judge stage starts (with $d = 0$, `0:00 elapsed`); every determined verdict is reflected by a draw within 100 ms of its determination (a burst of verdicts MAY be coalesced into one draw); it is redrawn at least once per second of wall-clock while any request is in flight so that `elapsed` and `left` keep moving; and it is never drawn more than 10 times per second. Each draw and the erase is one atomic write, serialized across threads. The bar has exactly 20 cells. From the first draw to the erase nothing else is written to stderr (F-201). The indicator is erased exactly once, when the judge stage ends, after the final state has been drawn and before the `report` stage begins — before any INFO stage line, Note, error message, or the summary line is written. |
-| **K-14** | A statement (C-01: title, newline, section body) is at most 16,384 bytes of UTF-8. A longer statement is truncated to the longest prefix of whole lines whose UTF-8 length, joined by `\n`, is $\leq$ 16,384 — the title line is always kept — followed by `\n` and the marker line `… (statement truncated by speccheck at K-14)` (U+2026, one space, then ASCII); the marker does not count toward the cap. The truncated text is what `SpecId.text`, the judge, and the JSON carry; `title` is unaffected; one Note `statement truncated at K-14: <ID>` is recorded per truncated ID (E-46). Table declarations never approach the cap. Reference points: the largest contract of the MonteCarloPi spec is 2.7 kB and the largest in this document is C-03 at 8.4 kB, so neither T-48 nor any known spec is truncated; the cap is a bound on the judge payload (about 4 k tokens per edge at most), not a working limit (D-20). |
+| **K-14** | A statement (C-01: title, newline, section body) is at most 16,384 bytes of UTF-8. A longer statement is truncated to the longest prefix of whole lines whose UTF-8 length, joined by `\n`, is $\leq$ 16,384 — the title line is always kept — followed by `\n` and the marker line `… (statement truncated by speccheck at K-14)` (U+2026, one space, then ASCII); the marker does not count toward the cap. The truncated text is what `SpecId.text`, the judge, and the JSON carry; `title` is unaffected; one Note `statement truncated at K-14: <ID>` is recorded per truncated ID (E-46). Table declarations never approach the cap. Reference points: the largest contract of the MonteCarloPi spec is 2.7 kB and the largest in this document is C-03 at 16.2 kB in v1.23.1 (8.4 kB when this row was written; the Swift and JS/TS adapters grew it), about 200 bytes under the cap, so neither T-48 nor any known spec is truncated today — the next addition to C-03 should move an adapter into a contract of its own rather than cross the cap; the cap is a bound on the judge payload (about 4 k tokens per edge at most), not a working limit (D-20). |
 | **K-15** | A `clause` is LOCATED when, after collapsing every run of whitespace in both strings to one space, trimming the clause (F-406), and cutting it to its first 280 characters, it is a case-sensitive substring of the statement and is at least 12 characters long — or the statement itself is shorter than 12 characters and the clause equals it (an empty statement is matched by an empty clause). The cut, not truncated-with-ellipsis, form is what is recorded (a prefix of a located excerpt is still located). |
 | **K-07** | `rationale` $\leq$ 280 characters after truncation; single line (newlines replaced by spaces). |
 | **K-08** | Kernel performance, measured on the reference machine named in `SPEC_BUILD_REPORT.md` (CPU model, RAM, OS, Python build, run in isolation): `check --judge mock` on the §9.8 golden fixture completes in $\leq$ 2 s wall-clock, and a generated 10,000-file tree with 100 declared IDs in $\leq$ 60 s. Both bounds are recorded, not CI-gated (F-017). |
@@ -1615,7 +1757,8 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **K-11** | `--max-unknown` defaults to `0.2`, accepts a decimal in `[0, 1]` (parsed as a Decimal from its literal text), and is compared to the quantized `unknown_rate` of C-07 (Decimal, 4 places, ROUND_HALF_EVEN; Q-009); equality passes; a `null` `unknown_rate` (zero judged edges) never exceeds it (F-105). |
 | **K-16** | `--jev-pre-triage` (boolean, default off; ignored unless `--judge llm` — under `--judge none`/`mock` no C-17 request is made and no C-17 variable is read). Before any real-judge request is issued, the kernel MUST build one triage task per judge-eligible edge (I-010) in C-17's request shape — the C-06 request object for that edge, `{id, statement, related, declared, file, start, end, source}` (the `related` neighbourhood rides the triage `state` as it does the real-judge request, D-28b, R-38), rendered as C-17's `state` text — and send it to the C-17 endpoint at `--judge-concurrency`, with no retries (K-06). The edges are then handed to the otherwise unchanged real-judge issue loop (K-05, K-12, C-06) in ascending $p(e)$ (C-17), ties broken by ascending id in C-07's id order; a per-edge Jev failure is ordered first and counted in one Note (E-59) and never aborts the run. Jev's answer is discarded once the order is computed (I-015). Under `--judge-budget 0` the pass changes no report content — only the issue order, visible in the C-11 indicator — and one Note `jev-pre-triage had no effect: --judge-budget is unlimited` records that (D-30). |
 | **K-17** | **Proof staleness (v1.19; the file match refined v1.19.1).** A manifest theorem (C-21) whose name matches a scanned declaration (C-20) in a *different* file or line is `stale`, surfaced like a stale citation; a scanned declaration absent from the manifest is `unknown`, never `failed`; a `failed` state carries the build error line from `build.errors`. The file comparison is exact-match first, then a path-suffix match (either side a suffix of the other): a citation's `file` is posix-relative to `--root` (R-20), while a manifest a foreign producer wrote commonly records `file` relative to its own `--proof` scan root instead — `proof/HelloProof/Hello/Theorems.lean` (citation) and `HelloProof/Hello/Theorems.lean` (manifest) name the same file and MUST NOT join as `stale` on that account alone. Stale/unknown/failed proof states appear in `notes` and the `proof_failed`/`proof_unknown` metrics and, per D-45, affect `--strict`. |
-| **K-18** | **Exit-code precedence (v1.20).** When one invocation carries both a usage fault (§5.4 `2`: an undefined flag, an out-of-range or malformed value, a missing required flag, a path outside `--root`) and an input-contract violation (§5.4 `3`: E-01, E-02, E-03, E-05, E-18), the usage fault is reported: flag, value and `--root`-containment validation are completed before `SPEC.md`, the results file, the output directory or `--against` is read at all, so a run never reaches the contract check that would have failed. No other precedence exists — the two are never both live. |
+| **K-18** | **Exit-code precedence (v1.20).** When one invocation carries both a usage fault (§5.4 `2`: an undefined flag, an out-of-range or malformed value, a missing required flag, a path outside `--root`) and an input-contract violation (§5.4 `3`: E-01, E-02, E-03, E-05, E-18, and from v1.23 the shape faults of E-70), the usage fault is reported: flag, value and `--root`-containment validation — including that every file a flag names (`--spec`, `--results`, `--proof-results`, `--against`, `--citation-map`) exists and can be read as bytes, the "unreadable → `2`" halves of §5.1, E-65 and E-70 (v1.23.1, F-709: a readability check is a read, so v1.20's "before … is read at all" could not be met) — are completed before any of those files is *parsed* or the output directory is touched, so a run never reaches the contract check (E-01..E-03, E-05, E-65's and E-70's shape halves, E-18) that would have failed. No other precedence exists — the two are never both live. |
+| **K-19** | **Citation-map size (v1.23).** A citation map (C-23) is at most 2 MiB, the K-02 file cap. Over it, E-70 (exit `3`), before any entry is resolved. (No entry-count limit: the smallest well-formed entry is about 40 bytes, so 2 MiB already bounds the count near 52,000.) |
 
 ---
 
@@ -1631,12 +1774,12 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **E-06** | Duplicate `(classname, name)` in results | Single outcome = worst of them (C-04); a Note records the count. |
 | **E-07** | Result `<testcase>` joins no attributed test case | Listed under `unattributed_results`; not counted for any ID; exit unaffected. |
 | **E-08** | Test case cites an ID but has no result (results absent, or case not run) | Case listed under that ID's `unrun`; ignored in C-05 step 4; if *no* citing case has a result → `UNVERIFIED`. |
-| **E-09** | Any of `--spec/--src/--tests/--results/--out/--proof/--proof-results` (v1.19) — including any element of a `--src`/`--tests`/`--proof` PATHS list — resolves outside `--root` (after symlink resolution) | Exit `2`, message `path outside --root: <path>`; when the path as given differs from its resolved form (a symlink in it) the message ends ` (resolves to <resolved path>)` so the cause is visible (v1.21). A PATHS element that is itself a symlink and resolves inside `--root` is used in resolved form and descended (a directory) or scanned (a file); it is not an E-30 skip (Q-007, D-23). |
+| **E-09** | Any of `--spec/--src/--tests/--results/--out/--proof/--proof-results` (v1.19), `--against` (v1.13) or `--citation-map` (v1.23) — including any element of a `--src`/`--tests`/`--proof` PATHS list — resolves outside `--root` (after symlink resolution) | Exit `2`, message `path outside --root: <path>`; when the path as given differs from its resolved form (a symlink in it) the message ends ` (resolves to <resolved path>)` so the cause is visible (v1.21). A PATHS element that is itself a symlink and resolves inside `--root` is used in resolved form and descended (a directory) or scanned (a file); it is not an E-30 skip (Q-007, D-23). |
 | **E-10** | File > 2 MiB under a scan root | Skipped; Note `skipped 1 file over 2 MiB: <path>`. |
 | **E-11** | A scanned file — or `SPEC.md` itself — is not valid UTF-8 | Decoded with replacement; Note; citations on replaced bytes are impossible (token requires ASCII) so no false citations arise. |
 | **E-12** | `.py` test file fails to parse | Whole file is one file-level case; Note `parse fallback: <path>`. |
 | **E-13** | Test citation lands in a file-level case (module docstring, helper, fixture) | Attributed to the file-level case; that case has no JUnit outcome by construction (name `""`), so it can only ever contribute `UNVERIFIED`; the JSON carries `"name": ""` and the Markdown renders the label `(file)` (Q-011). |
-| **E-14** | Judge provider unreachable, times out, or returns HTTP $\geq$ 400 | Verdict `UNKNOWN`, `coerced: true`, rationale `judge: unavailable` / `judge: timeout` / `judge: http <code>`; `judge_available` set `false` if *every* call failed; exit unaffected unless `--strict` (E-32). |
+| **E-14** | Judge provider unreachable, times out, or returns HTTP $\geq$ 400 | Verdict `UNKNOWN`, `coerced: true`, rationale `judge: unavailable` / `judge: timeout` / `judge: http <code>`; `judge_available` set `false` if no call succeeded (every call failed, or — E-35 — none was issued; C-07 owns the rule); exit unaffected unless `--strict` (E-32). |
 | **E-15** | Judge returns non-JSON or JSON lacking `verdict` | `UNKNOWN`, `coerced: true`, rationale `judge: malformed response`. |
 | **E-16** | Judge returns `ASSERTS` with no evidence, or evidence outside the span / in another file | `UNKNOWN`, `coerced: true`, rationale `judge: ungrounded`. When the same reply also fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is available only at DEBUG. |
 | **E-17** | Judge returns a valid verdict for an ID whose test span contains no code at all (empty function) | Verdict recorded as returned; the kernel does not second-guess content, only grounding. |
@@ -1679,7 +1822,7 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **E-54** | `impact` given both `--changed` and `--against`, or neither; or given `--results`, any judge flag, or `--proof`/`--proof-results` (v1.19) | Exit `2`, message `impact: exactly one of --changed, --against is required` (or `impact: --results is not accepted` / `impact: --judge is not accepted` / `impact: --proof is not accepted`); no reports written. An `--against` file that is unreadable or outside `--root` is the ordinary usage error (E-09); one that fails C-01 is exit `3` with `--against: ` prefixed to the E-01/E-02/E-03 message. |
 | **E-55** | A statement or an *Affects* cell names a retired id | The edge is recorded with `retired: true` (C-12); `impact` walks it like any other, and every report row for a retired id — changed, impact, re-verify — strikes through the ID cell; a retired id in `--changed` is accepted. No Note: retirement is declared, not accidental. |
 | **E-56** | A citation of family R/C/I/K/E has no test-case span to check for declaration — a `"src"`-kind citation, or a `"test"`-kind citation attributed to a file-level case (no enclosing named test case delimited it) | Always `declared: false`; no Note (this is definitional, not an anomaly — there is no per-test declaration of intent to check a file or an undelimited case against). |
-| **E-57** | A `related` edge — a C-12 `depends_on`, both directions (R-38, D-28) — names a retired id, and a `related` field is built for a judged edge | The retired neighbour is included in the edge's `related` with its `title` and `(retired)` appended: a test asserting the retired obligation is exactly the off-topic `ASSERTS` this change exists to catch. The retired target on its `affects`/`depends_on` edge is marked `retired: true` (E-55), and the `affects`/`depends_on` edge is still recorded; an id with no neighbour at all sends `related` `[]`. Not a Note and not a status: it is how the judge's `related` neighbourhood (C-06 Part B, C-10) handles a retired target. |
+| **E-57** | A `related` edge — a C-12 `depends_on`, both directions (R-38, D-28) — names a retired id, and a `related` field is built for a judged edge | The retired neighbour is included in the edge's `related` with its `title` and `(retired)` appended: a test asserting the retired obligation is exactly the off-topic `ASSERTS` this change exists to catch. The retired target on its `affects`/`depends_on` edge is marked `retired: true` (E-55), and the `affects`/`depends_on` edge is still recorded; an id with no neighbour at all sends `related` `[]`. Not a Note and not a status: it is how the judge's `related` neighbourhood (C-06's `related` field, v1.16; C-10) handles a retired target. |
 | **E-58** | `--judge-budget N%` given without `--jev-pre-triage`, or with `--jev-pre-triage` under `--judge none`/`--judge mock` (where K-16 ignores the flag, so there is no ordering for K-12 to issue in) | Exit `2`, message naming both flags (`--judge-budget N% requires --jev-pre-triage with --judge llm`), before any request of either kind is issued and with no reports written; the message never contains a C-09 or C-17 key value (I-007). The `SECONDS` form is unaffected: it stays accepted-and-ignored unless `--judge llm`, exactly as before v1.15. |
 | **E-59** | A C-17 triage request fails during `--jev-pre-triage`: non-200 status, transport error, timeout (`SPECCHECK_JEV_TIMEOUT`), non-JSON body, missing `answers.verdict`, a `choice` that is not one of C-06's four verdict tokens, or `probabilities` that are missing, empty, or non-numeric | That edge is ordered first (K-16) and one Note records how many edges this happened to; the run is not aborted, no edge is skipped because of it, and no edge's final `Verdict` is affected beyond its position in the issue order (I-015). A triage failure never sets `judge_available` false — that flag is the C-06 judge's fact (E-14) — and never enters `unknown_rate`. |
 | **E-60** | `explain <ID>` names an id the spec does not declare | Exit `2`, message `explain: undeclared id: <ID>` (the R-07 dangling wording), and no trace is written. An id that *is* declared but has no citation and no edge is not an error: its trace carries the C-05 status with its reason and an empty `sources:` and `tests:` block, and exits `0` (E-13/E-19 style). |
@@ -1687,17 +1830,24 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **E-62** | An unreadable or non-Lean file in a `--proof` path (binary, or no declaration head parseable) | Recorded as a `notes` entry naming the file; MUST NOT be a usage error and MUST NOT change the exit code of a run whose ids are all otherwise decided (v1.19). |
 | **E-63** | A proof state (`checked`/`failed`/`unknown`/`stale`) is computed for an id | It never changes that id's status: C-05 reads citations, tests, results and the judge only — a `checked` proof never promotes an `UNVERIFIED` id, and a `failed`/`unknown`/`stale` proof never demotes a `PASSING` one (R-06). `impact` MUST ignore proof citations: a theorem's file is not a scanned source file, so proof carries no blast radius (v1.19). |
 | **E-64** | `explain` invoked without `--spec` (v1.20) | The flag is required on this subparser (D-47), and its synopsis carries no brackets (E-54's pattern). Exit `2`, message `explain: --spec is required`, and no trace is written; no `explain` stage runs. |
+| **E-65** | `--proof-results FILE` given but unreadable, not well-formed JSON, or lacking the `build`/`theorems` keys C-21 requires | Unreadable → exit `2`, message `--proof-results: <reason>`; malformed JSON or missing required keys → exit `3`, message `proof-results: <reason>` (the `--results`/E-05 pattern; v1.19). No report is written. |
 | **E-66** | A table-declared row whose statement cell contains an odd number of unescaped `$` outside backtick spans and which has further cells — an unescaped `\|` inside an inline-math span split the cell, and the rest of the formula was read as another column (v1.21) | The statement is the cell as split (unchanged); one Note `statement may be cut at an unescaped '\|': <ID>` per such row. The fix is `\|` or a backtick span. (R-36) |
+| **E-67** | A scanned `--src`/`--tests` file contains a foreign reference (C-22) — a TOKEN preceded by `<ns>:`, `<ns>` not the `--namespace` value | No citation; the token is listed in `foreign`; one Note `<N> foreign reference(s) ignored: <ns>:<id> <file>:<line>, …` (N the count of listed tokens; the first three in `foreign` order, then ` and <N-3> more` when N > 3, so a reader sees what was dropped without opening the JSON). It is neither dangling nor stale. (R-101) |
+| **E-68** | `--namespace NS` is given and a scanned file or a declared statement contains `NS:ID` | Read as the bare `ID`: a local citation / edge target, not listed in `foreign`. A bare `ID` is unaffected. A `--namespace` value outside `[A-Za-z][A-Za-z0-9_-]{0,31}` or shaped like an ID → exit `2`, message `--namespace: invalid namespace: <value>`; a second `--namespace` → exit `2`, message `--namespace: given more than once`; both before any file is read (K-18). (R-102) |
+| **E-69** | A declared statement or an *Affects* cell contains a foreign reference | No C-12 edge and no Note for it; a bare token to the same id in the same statement still yields its edge. Foreign references in `SPEC.md` are never listed in `foreign`. (R-101, C-12) |
+| **E-70** | `--citation-map FILE` is unreadable, outside `--root`, not UTF-8 JSON, not an object, has a `schema_version` other than `"1.0"`, has no `citations` array, has an entry that is not an object with exactly the string keys `id`, `file`, `test` (a missing, extra or non-string key), has an `id` that is not a bare TOKEN form (a `ns:`-prefixed id included), or is over K-19's 2 MiB | Unreadable or outside `--root` → exit `2`, message `--citation-map: <reason>` (E-09 for containment), decided with the other flags (K-18); every other fault → exit `3`, message `citation-map: <reason>`, decided in the apply-map stage (§3.1). No report is written. (R-103, C-23, K-19) |
+| **E-71** | A map entry's `file` and `test` match no scanned `TestCase` (the file was not scanned, or its test was renamed) | Adds nothing; one Note per entry `citation-map entry unresolved: <id> <file> <test>`; counted in `citation_map.unresolved`; the exit code is unchanged by it (D-55). (R-103) |
+| **E-72** | A map entry resolves (C-23) and no literal citation of the same (id, testcase) exists | One Citation with `kind` `test`, `declared` true (D-57), `mapped` true, `line` the case's `start`; its `tests[]` entry has `mapped: true` and `lines: []`; the summary line gains `; citations: <M> mapped`. A mapped citation is judge-eligible and counts toward C-05 exactly as a literal one. (R-103, C-05) |
+| **E-73** | A map entry resolves to a (id, testcase) already cited literally, or two entries name the same (id, testcase) | Adds no second Citation; the literal one stays `mapped: false`; the entry counts as resolved. A repeated entry counts as resolved each time. (R-103) |
 | **E-74** | A JavaScript/TypeScript test file whose parentheses do not balance, or with an unterminated block comment, string or template literal | The whole file is one file-level case; one Note `parse fallback: <path>` (E-12's rule). (R-104) |
 | **E-75** | An `it`/`test` call whose first argument is not a literal title (a variable, an interpolated template), or a `describe` with such a title | Not a case; its citations are file-level; one Note per file `undelimited tests in <path>: line N, …` (E-43's rule). A result for such a test is unattributed (E-07). (R-104) |
 | **E-76** | A JavaScript/TypeScript case whose title carries `each` placeholders, and several results that fill them | All results join the one case as variants; its outcome is the worst of them (E-06). If the placeholders make two cases' patterns match the same result, the result ties and is unattributed (E-27). (R-104, C-04) |
-| **E-65** | `--proof-results FILE` given but unreadable, not well-formed JSON, or lacking the `build`/`theorems` keys C-21 requires | Unreadable → exit `2`, message `--proof-results: <reason>`; malformed JSON or missing required keys → exit `3`, message `proof-results: <reason>` (the `--results`/E-05 pattern; v1.19). No report is written. |
 
 ---
 
 ## 9. Acceptance criteria, tests, and evals
 
-Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E ids it proves, so that `speccheck` can check itself (§9.9; F-001) — and, since v1.14, that citation is what `declared` (C-14) checks mechanically: an id cited only elsewhere in a test's body is not this convention's declaration, whatever else it may be evidence of (R-39). Test inputs that contain the literal marker strings of C-01 (`speccheck:ignore`, `speccheck:ignore-file`) MUST live in data files under `tests/data/`, never inline in a test module, so self-application cannot ignore its own tests (F-109). Groups are ordered by pipeline stage.
+Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E ids it proves, so that `speccheck` can check itself (§9.9; F-001) — and, since v1.14, that citation is what `declared` (C-14) checks mechanically: an id cited only elsewhere in a test's body is not this convention's declaration, whatever else it may be evidence of (R-39). Test inputs that contain the literal marker strings of C-01 (`speccheck:ignore`, `speccheck:ignore-file`) MUST live in data files under `tests/data/`, never inline in a test module, so self-application cannot ignore its own tests (F-109); likewise every test input containing a `<ns>:ID` foreign-reference form (C-22), so self-application and T-112 do not count the suite's own fixtures as foreign references (v1.23.1, F-713). Groups are ordered by pipeline stage.
 
 ### 9.1 Extraction (C-01, C-02)
 
@@ -1763,7 +1913,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | ID | Test |
 | -- | ---- |
 | **T-26** | Mock judge returns `ASSERTS` with one evidence line per assertion token, and `EXECUTES_ONLY` with no evidence when none is present, including for an empty test body. (R-22, E-17) |
-| **T-69** | The mock judge returns `ASSERTS` with the line as evidence for a Swift span containing `#expect(`, `#require(`, `XCTAssertEqual(`, `XCTFail(` or `Issue.record(` (one sub-test each), and `EXECUTES_ONLY` for a Swift body that only calls code (`_ = add(1, 2)`). (R-22, C-06) |
+| **T-69** | The mock judge returns `ASSERTS` with the line as evidence for a Swift span containing `#expect(`, `#require(`, `XCTAssertEqual(`, `XCTFail(` or `Issue.record(` (one sub-test each), and `EXECUTES_ONLY` for a Swift body that only calls code (`_ = add(1, 2)`); likewise `ASSERTS` for a JavaScript/TypeScript span containing `expect(x).toBe(1)` or `expect.assertions(1)`, and `EXECUTES_ONLY` for one that only calls `add(1, 2)` (v1.23.1, F-706). (R-22, C-06, R-104) |
 | **T-27** | A `PASSING` ID whose only passed edges are `EXECUTES_ONLY` becomes `WEAKLY_PASSING`; with any `ASSERTS` edge it stays `PASSING` and passes `--strict`; with only `UNKNOWN` it stays `PASSING`. (C-05 step 5, R-11, E-26) |
 | **T-28** | Disabling the judge changes no status except `WEAKLY_PASSING` → `PASSING` (property test over random fixtures). (I-004) |
 | **T-29** | A stub provider returning `ASSERTS` without evidence, evidence outside the span, or evidence in another file is coerced to `UNKNOWN` with `coerced: true` and rationale `judge: ungrounded`. (E-16, I-005) |
@@ -1775,7 +1925,6 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-74** | Extends T-33: for a heading-declared ID with a body, the LLM request's user message carries `statement` equal to `SpecId.text` — title, newline, body with its fenced block and indentation, byte for byte — under the keys `{id, statement, related, declared, file, start, end, source}` (`declared` added in v1.14, C-15; `related` added in v1.16, R-38, D-28) and the system message that is the C-10 text; the C-10 file contains the any-clause rule added in v1.7 and `judge_prompt_sha256` is its SHA-256 (recorded HTTP stub). (R-33, C-06, C-15, C-10, R-26) |
 | **T-75** | Clause grounding: a stub returning `ASSERTS` with a clause that is a verbatim excerpt of the statement differing only in line breaks and indentation is accepted and recorded with the collapsed excerpt; a 300-character excerpt is accepted and recorded cut to 280; a paraphrase, an 8-character fragment of a longer statement, a missing key, and `""` each yield `UNKNOWN`, `coerced: true`, `judge: unlocated clause`, for `ASSERTS` and for `EXECUTES_ONLY` alike; an `UNRELATED` with a clause is recorded with `""` and not coerced; `"clause": null` on an `UNRELATED` is `""` and not coerced, on an `ASSERTS` it is E-48; an `ASSERTS` whose clause is unlocated *and* whose evidence lies outside the span records `judge: unlocated clause` (rule order); a clause with a leading space that otherwise matches the statement's first words is LOCATED (K-15 trims); a statement of 9 characters is matched by itself and by nothing shorter; the mock judge's clause is the collapsed statement's first 280 characters on every edge of the golden fixture and equals `""` for an ID whose statement is `""`; the LLM request's system message equals the current C-10 text; the JSON verdict object's keys are `verdict, clause, evidence, rationale, coerced` in that order and `schema_version` is the C-07 value; report §8 shows the clause column with an em dash for `""`. (R-34, K-15, E-48, E-49, I-005, C-06, C-07, C-08, C-10, R-22) |
 | **T-83** | For a judged edge, the C-06 request's user message now carries `related` — the whitespace-collapsed titles (each at most 160 characters) of the obligations the statement names and that name it, its own references first, at most eight in C-07 id order, a retired neighbour keeping its `(retired)` title (E-57), and the empty list when the id has no neighbour — a request-side field like `declared`: absent from `speccheck.json` and from the Markdown report and not inspected by any C-06 coercion rule or by C-08 (D-28); the C-10 system message contains the `related` rule. The triage `state` (C-17) carries the same `related` section (D-28b). (R-38, C-06, C-10, D-28, E-57) |
-
 | **T-89** | Triage and the `N%` budget (v1.15): with `--judge llm --jev-pre-triage` over a stub fixture of 10 judge-eligible edges, a stub C-17 provider returning fixed confidences (one edge deliberately failing with HTTP 500) and a stub judge recording every edge it is asked about, `--judge-budget 30%` issues exactly $\lceil 0.30 \times 10 \rceil = 3$ edges — the three with the lowest $p(e)$, the failing edge first among them — in ascending-confidence order, and the other 7 are `UNKNOWN` with rationale `judge: budget` and `coerced: true`, with one Note reporting 7 and one reporting the single E-59 failure; `--judge-budget 100%` issues all 10; `--judge-budget 0%` issues none (judge call count 0) while still running the triage pass (10 C-17 requests, none of them in either report); the C-17 stub receives exactly one request per eligible edge, never more than `--judge-concurrency` at once, each carrying `state` equal to C-17's template for that edge — now including its `Related obligations:` section, the neighbourhood of that edge (D-28b, R-38, E-57) — and `questions.verdict.criteria` covering the four C-06 tokens, and none carrying `clause` or `evidence`; the same run under `--judge mock` (K-16 ignored) makes no C-17 request, needs no `SPECCHECK_JEV_API_KEY`, and leaves the golden reports byte-identical; with `--judge-budget 0` the pass reorders but changes no report content, and the D-30 Note is present; a stub that fails every C-17 call leaves `judge_available` and `unknown_rate` exactly as a triage-free run does. (K-16, K-12, C-17, I-015, E-35, E-59, I-006, D-30, D-32, D-28, R-38, E-57) |
 
 ### 9.6 Reports and determinism (C-07, C-08)
@@ -1798,7 +1947,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-104** | A spec whose `R-04` statement reads `R-01..R-03`, `R-01 to R-03` and `R-01 through R-03`, with `R-01`, `R-02`, `R-03` declared: `R-04` has `depends_on` edges to all three; with `R-02` undeclared, edges to `R-01` and `R-03` only and no Note for `R-02`; `R-03..R-01`, a cross-family range, and a range wider than 100 name only their endpoints. (R-36, C-12; v1.21) |
 | **T-105** | A table row `\| **E-01** \| condition \| outcome naming R-02 \|` yields a `depends_on` edge E-01 → R-02, while `E-01`'s `text` and `title` are `condition` alone. (R-36, C-12; v1.21) |
 | **T-106** | A row `\| **R-05** \| value $a \| b$ holds \|` yields exactly one Note `statement may be cut at an unescaped '\|': R-05`; the same row with `\|` or inside a backtick span, and a row with an even number of `$`, yield none. A symlink under `--root` pointing outside it, given as `--out`, exits `2` with a message starting `path outside --root: ` and ending ` (resolves to <the target>)`. (E-66, E-09; v1.21) |
-| **T-103** | A run that carries both fault kinds — a `--src` element that is neither file nor directory (E-52) together with a malformed `--results` (E-05) — exits `2`, not `3`, and writes no report; the same two faults split across separate invocations exit `2` and `3` respectively, so the precedence is observable and not merely asserted. (K-18, §5.4; v1.20) |
+| **T-103** | A run that carries both fault kinds — a `--src` element that is neither file nor directory (E-52) together with a malformed `--results` (E-05) — exits `2`, not `3`, and writes no report; the same two faults split across separate invocations exit `2` and `3` respectively, so the precedence is observable and not merely asserted; likewise an unreadable `--results` together with a spec that declares no in-scope id (E-01) exits `2` (v1.23.1, F-709). (K-18, §5.4; v1.20) |
 | **T-41** | Bare `--verbose` $\equiv$ `--verbose INFO`; INFO emits stage lines with counts and no statement text, file contents, or prompts; DEBUG emits `judge>`/`judge<` lines with the key redacted; stdout is the single summary line in all cases. (R-17, I-007) |
 | **T-42** | With no `--verbose`, stderr is empty on exit 0/1 even when the run produced Notes; with `--verbose`, each Note appears once at `INFO`. (§5.3) |
 | **T-43** | With `--judge none` and `--judge mock`, a socket-creation guard installed for the process lifetime is never triggered; `speccheck --self-check` passes from an installed wheel in an empty working directory, invokes the inner check in-process with exactly the §5.1 argument list (asserted via a recorded `Config`), prints `self-check: ok` although its inner check exits `1`, leaves no files behind, and writes nothing outside its temporary directory. (R-18, I-006, I-001, Q-003) |
@@ -1813,7 +1962,6 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-45** | Unwritable `--out` exits `3` with nothing written; a failure injected after the JSON rename and before the Markdown rename exits `3` with no `.tmp` left, no `speccheck.json`, and the previous run's `SPEC_CONFORMANCE_REPORT.md` intact (the one stale combination E-18 permits); leftover temporaries from an earlier run are deleted first; on success no `.tmp` remains and the two temporaries used carried the same 8-hex-digit nonce. (E-18, I-001, §3.1) |
 | **T-50** | `speccheck --version` prints `speccheck <version>` where `<version>` is PEP 440 and equals `importlib.metadata.version("speccheck")`. (K-10) |
 | **T-78** | PATHS parsing (D-23, C-03): `--src a.py,b.py,src --tests tests/unit,tests/core` produces byte-identical reports to `--src a.py --src b.py --src src --tests tests/unit --tests tests/core` (one list ≡ repeatable occurrences); `--src ,,,a,` and `--src a ,, b ,` each yield the list `[a, b]` with no Note and no error; a `--src` or `--tests` whose only occurrence is empty (e.g. `--src \" \"`) yields the empty list, and the `src`/`tests` directory default (when it exists) applies only when the flag is *entirely* absent; a directly-named file is scanned as that one file with every per-file filter applied (K-02/E-10 oversized, E-11 UTF-8 replace, E-13 file-level case, E-29 binary, E-33 ignore files/markers), and a directory element is descended per K-03; a file covered by both a direct element and an overlapping directory element is scanned and produces citations exactly once (I-012), its recorded `--src`/`--tests` root — and hence a directly-named `.swift` file's `MODULE` — being the first covering element in list order, and two inputs naming the same physical file set yield byte-identical reports (I-002); a segment that resolves inside `--root` but exists as neither directory nor file exits `2` with message `--<flag>: no such file or directory: <segment>` and writes no reports (E-52), while a segment outside `--root` exits `2` per E-09. (R-03, R-04, C-03, I-012, D-23, E-52, E-09; the scan-filter half cross-references T-13) |
-
 | **T-90** | `--judge-budget 30%` without `--jev-pre-triage` exits `2` with a message naming both flags, before any request of either kind is issued (both stubs record zero calls) and with no report written; so does `--judge-budget 30% --jev-pre-triage --judge mock`; `--judge-budget 30` (the `SECONDS` form) under `--judge mock` is still accepted and ignored, exactly as before v1.15; `--judge-budget 30% --jev-pre-triage --judge llm` with `SPECCHECK_JEV_API_KEY` unset exits `2` naming that variable; no C-09 or C-17 key value appears in any of these messages, and `--judge-budget 101%` and `--judge-budget %` each exit `2` as bad values. (E-58, E-21, K-12, K-16, I-007) |
 
 ### 9.8 Golden fixture (end to end)
@@ -1825,7 +1973,7 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-71** | `fixtures/target-swift/` — a SwiftPM-shaped project with its own `SPEC.md` ($\geq$ 10 IDs across all six families, one carrying `**[port]**` decoration), `Sources/`, `Tests/<Module>/` holding one Swift Testing file (nested suite, parameterized test, disabled test, doc-comment citations) and one XCTest file, and a checked-in `junit.xml` that concatenates the `junit-swift-testing.xml` SwiftPM wrote and an XCTest `<testsuite>` in SwiftPM's shape — contains planted defects: one `UNCITED` R, one `UNTESTED` C, one `UNVERIFIED` file-level citation, one `FAILING` T, one `SKIPPED` K (the disabled test), one `EXECUTES_ONLY`-only test, one undelimited `test*` helper (E-43), one unattributed result. With `--judge mock` both reports are byte-identical to `fixtures/target-swift/golden/`, and the summary line is exactly the one recorded in that golden. (R-31, R-32, R-16, R-24) |
 | **T-73** | Both golden fixtures regenerated for v1.7 and, as properties of the current output: each `golden/speccheck.json` carries the C-07 `schema_version` and a `title` per ID; in `fixtures/target/golden/speccheck.json` C-01's `statement` is its `title`, a newline, and `The error message MUST name the dividend.` while C-02's (empty body) equals its `title`; in each `golden/SPEC_CONFORMANCE_REPORT.md` the Statement cell of every §3 row equals that ID's JSON `title`, contains no newline, and no row contains the K-14 marker; the set of IDs in the Markdown equals the set in the JSON; `speccheck/_selfcheck/` is updated in step (T-60) and `--self-check` prints `self-check: ok`. The one-time v1.6 → v1.7 golden diff (only `schema_version` and the `title` keys added, heading-declared `statement`s changed, Markdown unchanged) is recorded in `SPEC_BUILD_REPORT.md`, not asserted by a test (F-302). (R-33, C-07, C-08, T-46, T-71) |
 | **T-76** | `fixtures/target/SPEC.md` declares one heading-declared contract whose SECTION BODY is at least 2,048 bytes and consists of a fenced code block pinning a struct with field comments followed by at least five numbered rules; `tests/` holds four tests that each assert exactly one of those rules or the struct's shape and cite the contract, one test that calls the code and asserts nothing about it while citing the contract, and one test that asserts a different ID's behaviour while citing the contract; the six are attributed to their own cases and appear in `golden/judge_labels.json` as `ASSERTS` ×4, `EXECUTES_ONLY` ×1, `UNRELATED` ×1; the label file has at least 37 entries of which at least 8 are downgraded (`EXECUTES_ONLY` or `UNRELATED`) on an adjacent edge — a test that cites an id, runs its code, and asserts only a fact about an id that id's *statement* names (the v1.16 adjacent subset, T-84; C-10's vocabulary makes such a test `EXECUTES_ONLY`, since it does exercise the statement's code) — and at least 6 are edges of an ID whose statement exceeds 2,048 bytes; under `--judge mock` the contract is `PASSING` and the T-46 goldens are byte-identical. (T-46, T-49, T-84, R-34, R-38, D-28) |
-| **T-86** | `fixtures/target/` gains one test whose own docstring names a different id (its DECLARED citation) but whose body also cites an existing id only as fixture/example data (mirroring the real `R-01`/`R-02`/`R-03` pattern `JUDGE_CROSSCHECK_REPORT.md` §2b found): under `--judge none`, `speccheck.json` records `declared: false` for that second edge and the fixture's `declared_ratio` reflects it; `SPEC_CONFORMANCE_REPORT.md` is unchanged by this test (C-16's Part C is JSON-only), and every other T-46 row stays byte-identical. (C-14, C-16, R-39, T-46) |
+| **T-86** | `fixtures/target/` gains one test whose own docstring names a different id (its DECLARED citation) but whose body also cites an existing id only as fixture/example data (mirroring the real `R-01`/`R-02`/`R-03` pattern `JUDGE_CROSSCHECK_REPORT.md` §2b found): under `--judge none`, `speccheck.json` records `declared: false` for that second edge and the fixture's `declared_ratio` reflects it; `SPEC_CONFORMANCE_REPORT.md` is unchanged by this test (C-16 is JSON-only), and every other T-46 row stays byte-identical. (C-14, C-16, R-39, T-46) |
 
 ### 9.9 Self-application (recorded, not gating)
 
@@ -1845,9 +1993,8 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | -- | ---- |
 | **T-49** *(recorded)* | On the golden fixture's judged edges (each hand-labeled `ASSERTS`/`EXECUTES_ONLY`/`UNRELATED`), the LLM judge's non-`UNKNOWN` verdicts agree with labels at $\geq$ 0.90 accuracy and `unknown_rate` $\leq$ 0.10 in **each** of three independent runs (no pooling; one failing run fails T-49); all three per-run figures are recorded with model name, date, and `judge_prompt_sha256`. The labels live in `fixtures/target/golden/judge_labels.json`, a JSON object mapping `"<ID> <file>::<name>"` (the judged edge) to its label, with at least 20 entries of which at least 6 are edges of a statement over 2,048 bytes (T-76), so that a judge which grades a body by its gist fails the run while one that locates the clause passes; the runner is `tools/eval_judge.py` (not collected by pytest), which runs the check three times and scores each run against the labels (F-210). A run counts toward T-49 only if its recorded `judge_prompt_sha256` equals the SHA-256 of the current C-10 text; a change to C-10, or to C-01's statement rule, therefore voids the recorded runs and requires three fresh ones, and the labels are re-read against the current statements before those runs (F-303). (R-10, R-26) |
 | **T-87** *(recorded)* | Re-run the three real edges named in `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md`'s evidence (`R-03`/`test_fenced_code_blocks_are_ignored`, `R-03`/`test_row_and_heading_grammar_edge_cases`, `R-02`/`test_judge_called_once_per_eligible_edge_only`, all recorded `ASSERTS` by `gpt-4o-mini` under the pre-v1.14 `C-10` text and `UNRELATED` by an independent second model) under the v1.14 `C-10` text with the same model, and record the three verdicts and `judge_prompt_sha256` in `SPEC_BUILD_REPORT.md`. Not gating: the claim this proposal makes is falsifiable, and this is the test of it — the honest possible outcomes are "moved on all three," "on some," or "on none," and D-26 is revisited if the answer is the last (§3 of that proposal). (R-39, C-15, D-26) |
-
 | **T-91** *(recorded)* | The calibration measurement of `docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` §1 re-run against this repository's own current `SPEC.md`/`src`/`tests`: a `check --judge llm --strict` run, its committed verdicts (recorded `UNKNOWN` excluded) bucketed by each edge's C-17 $p(e)$ against the C-17 model's own `answers.verdict.choice`, with the bucket sizes, the per-bucket agreement, and the C-17 model name, date and `judge_prompt_sha256` recorded in `SPEC_BUILD_REPORT.md`. Passes — non-gating, like T-49 and T-87 — when the buckets are monotonically non-increasing; a failure is a lead to re-examine D-30 and D-32, not a build break. The suite cites this id by a presence check that the recorded bucket table exists and has at least three rows. (K-16, C-17, D-32) |
-| **T-84** *(recorded)* | Part A's evidence (D-28b): the golden fixture's adjacent subset — the judged edges that cite an id but assert only a fact about an id that id's *statement* names — is measured to be not all `EXECUTES_ONLY`/`UNRELATED` (which would leave the neighbourhood change a no-op on this fixture); `judge_labels.json` holds at least 37 entries of which at least 8 are downgraded (`EXECUTES_ONLY` or `UNRELATED`) on an adjacent edge, mirroring T-76's extension, and the measured downgrades are recorded with `model`, `date` and `judge_prompt_sha256` in `SPEC_BUILD_REPORT.md`. Not gating: the honest outcomes are "moved", "on some", or "on none", and if the fixture's adjacent subset is all `EXE`/`UNREL` the fixture is grown, not the claim (T-49, T-87). (R-38, C-10, D-28, T-76, T-49) |
+| **T-84** *(recorded)* | The v1.16 evidence (D-28b): the golden fixture's adjacent subset — the judged edges that cite an id but assert only a fact about an id that id's *statement* names — is measured to be not all `EXECUTES_ONLY`/`UNRELATED` (which would leave the neighbourhood change a no-op on this fixture); `judge_labels.json` holds at least 37 entries of which at least 8 are downgraded (`EXECUTES_ONLY` or `UNRELATED`) on an adjacent edge, mirroring T-76's extension, and the measured downgrades are recorded with `model`, `date` and `judge_prompt_sha256` in `SPEC_BUILD_REPORT.md`. Not gating: the honest outcomes are "moved", "on some", or "on none", and if the fixture's adjacent subset is all `EXE`/`UNREL` the fixture is grown, not the claim (T-49, T-87). (R-38, C-10, D-28, T-76, T-49) |
 
 ### 9.12 Edges and impact (C-12, C-13; v1.13)
 
@@ -1862,8 +2009,8 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 
 | ID | Test |
 | -- | ---- |
-| **T-92** | `speccheck explain R-01 --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --root .` on a copy of the fixture prints exactly the C-18 trace for R-01 — `ID R-01`, `status: PASSING (step 4: every citing test case passed)`, `statement:`, its `sources:` line, its `tests:` case with outcome and `[ASSERTS]`, and the `impact (1):` section — exits `0`, writes nothing at all (the fixture copy is byte-identical before and after, T-38's rule; `explain` has no `--out`, D-33), and a second identical run is byte-identical; the status shown equals R-01's status in `golden/speccheck.json` from the same inputs (I-016, I-002 extended to this surface). (R-40, C-18, I-016) |
-| **T-93** | `explain R-09 …` (an id `fixtures/target` does not declare) exits `2` with the E-60 message and writes no trace; `explain R-04` (the fixture's retired id) renders `ID R-04 (RETIRED)` with `status: RETIRED (retired: struck through in the specification)` and exits `0`; `explain C-02` (declared, cited in `src/` only) renders its status reason with an empty `tests:` block and exits `0`. (R-40, C-18, E-60) |
+| **T-92** | `speccheck explain R-01 --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --root .` on a copy of the fixture prints exactly the C-18 trace for R-01 — `ID R-01`, `status: PASSING (step 4: every citing test case with a result passed or was skipped)`, `statement:`, its `sources:` line, its `tests:` case with outcome and `[ASSERTS]`, and the `impact (1):` section — exits `0`, writes nothing at all (the fixture copy is byte-identical before and after, T-38's rule; `explain` has no `--out`, D-33), and a second identical run is byte-identical; the status shown equals R-01's status in `golden/speccheck.json` from the same inputs (I-016, I-002 extended to this surface). (R-40, C-18, I-016) |
+| **T-93** | `explain R-09 …` (an id `fixtures/target` does not declare) exits `2` with the E-60 message and writes no trace; `explain R-04` (the fixture's retired id) renders `ID R-04 (RETIRED)` with `status: RETIRED (step 1: struck through in the specification)` and exits `0`; `explain C-02` (declared, cited in `src/` only) renders `status: UNTESTED (step 2a: no test citation)` with an empty `tests:` block and exits `0`; an `UNVERIFIED` id's reason names `step 3`, and a case with an `<error>` result renders `(error)` (v1.23.1, F-711). (R-40, C-18, E-60) |
 | **T-102** | `speccheck explain R-01` with no `--spec` exits `2` with the E-64 message and writes no trace; `speccheck explain --help`'s synopsis shows `--spec` unbracketed and its entry carries the C-19 §3 `default:`/precondition clause the `check` entry carries; the rendered `explain` help golden is updated for that one entry. (C-19, E-64, R-41; v1.20) |
 | **T-94** *(recorded)* | Under `--judge llm`, `explain <a judge-eligible id>` renders the C-06 verdict with its `clause:` and `rationale:` lines; under `--judge none` the same id's edge lines read `not judged`; in both, the id's status in the trace equals its status in `speccheck.json` from the same inputs (I-016). Recorded in `SPEC_BUILD_REPORT.md`; not gating, like T-49 — it exercises a live model. (R-40, C-18, E-61) |
 
@@ -1887,10 +2034,22 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 
 | ID | Test |
 | -- | ---- |
-| **T-113** | A vitest-style file with nested `describe`s, `it.each`, `it.skip`, a regex literal containing `)` and a `/** … */` block above a test: the cases are exactly those calls, named `outer > inner > title`, with the comment block inside the span and the call's closing-paren line as its end; whole-line comment lines are flagged and code lines are not. (R-104, C-03) |
+| **T-113** | A vitest-style file with nested `describe`s, `it.each`, `it.skip`, a regex literal containing `)` and a `/** … */` block above a test: the cases are exactly those calls, named `outer > inner > title`, with the comment block inside the span and the call's closing-paren line as its end; whole-line comment lines are flagged and code lines are not. REGEX vs DIVISION (F-708): `f(/a)b/)`, `return /c)/`, `x = /d[/)]/g` and a `/e)/` at the start of a file each read as one regex token (the `)` inside does not count toward balance), while `expect(a) / 2` and `total / count / 2` read as division; a file mixing them delimits its cases exactly as the rule predicts. (R-104, C-03) |
 | **T-114** | A non-literal title and an interpolated template are listed as `line N` and are not cases; `re.test(x)` is not a call; a file with an unclosed `(` raises the parse error that becomes `parse fallback: <path>`. (E-74, E-75) |
-| **T-115** | Attribution: a citation in a case's span attaches to it; classname is the path with `/` → `.` and the extension kept; a comment-only citation is DECLARED, a trailing comment is not; a citation outside every case is file-level. (R-104, C-03, C-14) |
+| **T-115** | Attribution: a citation in a case's span attaches to it; classname is the path with `/` → `.` and the extension kept; a comment-only citation is DECLARED, a trailing comment is not; a citation on the second line of a multi-line `/* … */` comment inside the span is DECLARED (C-14's JS/TS bullet, F-705); a citation outside every case is file-level. (R-104, C-03, C-14) |
+| **T-117** *(recorded)* | One real `jest` + `jest-junit` run over a file with a nested `describe` (two levels), configured with C-03's three options, checked in as a fixture string: every `<testcase>` joins its C-03 case and none is unattributed; the jest and jest-junit versions and the date are recorded in `SPEC_BUILD_REPORT.md`. Until it is recorded, the jest path is documented, not claimed (C-03, F-707). The suite cites this id by a presence check that the recorded fixture exists. (R-104, C-04, D-56) |
 | **T-116** | End to end over the `vitest run --reporter=junit` output measured 2026-10-27 (checked in as the test's fixture string): path classname relative to vitest's root joins under `--root`, titles containing `[` and `(` join, an `it.each` title with two filled results joins as one case, and the skipped test's id is `SKIPPED`; no result is unattributed. (R-104, C-04, E-76) |
+
+### 9.17 Namespaces and the citation map (C-22, C-23, I-019, K-19, E-67..E-73; v1.23)
+
+| ID | Test |
+| -- | ---- |
+| **T-107** | A test docstring naming `platform:R-99` against a spec declaring `R-99` leaves `R-99` `UNCITED`, lists the token in `foreign` with its file and line, and emits the Note `1 foreign reference(s) ignored: platform:R-99 <file>:<line>` naming the docstring's file and line; with four such tokens the Note lists three and ends ` and 1 more`; with `--namespace platform` the same project reports `R-99` `PASSING`, `foreign` is absent and no Note is emitted; `impact` and `explain` over the same inputs agree. Two ids joined by a colon in a test comment (the first one an ID-shaped label) are both local citations. A namespace longer than 32 characters (`regulated_platform_core_services_v2_extra:R-99`) is foreign, not local (F-712), while `--namespace` with a 33-character value exits `2`. (R-101, R-102, E-67, E-68, C-22) |
+| **T-108** | A declared statement containing `platform:R-99` yields no `depends_on` edge to `R-99` and no Note, while a bare `R-99` in the same statement still yields it; an *Affects* cell likewise; `foreign` does not list either. A range `platform:R-01..R-05` with R-01..R-05 declared yields one edge, to R-05 (F-716). (R-101, E-69, C-12) |
+| **T-109** | Inertness: the §9.8 golden fixture, the Swift fixture and `--self-check` outputs are byte-identical to v1.22's, the summary line and the exit code included. (I-019) |
+| **T-110** | A map resolving a Python test case, a file-level case and a JavaScript case reproduces the statuses of the same project with literal citations; each mapped `tests[]` entry has `mapped: true` and `lines: []`; the summary line ends `; citations: 3 mapped`; the Markdown renders `<file> (map)`; under `--judge mock` the mapped edge is judged and its request carries `declared: true` (D-57); `explain` renders `(mapped)`; `impact` lists the mapped test as a re-cite site; a literal duplicate stays `mapped: false` and does not raise the count; an undeclared id is dangling and a retired one stale, at the case's start line, each entry carrying `mapped: true` while literal dangling/stale entries carry `mapped: false` (F-704); `declared_ratio` is the same with and without the map (mapped citations are outside it, F-703); and the same run with the map file placed under `--tests` produces byte-identical reports — the map is never scanned (F-702), nor is a `--proof-results` manifest under `--tests`. (R-103, C-23, C-03, C-07, E-72, E-73) |
+| **T-111** | Map faults: an unresolved entry (Note, `citation_map.unresolved`, exit code unchanged), malformed JSON, wrong `schema_version`, an entry with a missing or extra key, a `ns:`-prefixed id, a map over 2 MiB, a map path outside `--root` and an unreadable one each exit as E-70 specifies and write no report; an invalid `--namespace` exits `2` before any file is read. (E-70, E-71, E-68, K-19) |
+| **T-112** *(recorded)* | `check --strict` over this repository and over at least two further real projects (named in the run's record), before and after v1.23: ids, statuses and exit code identical, and the number and first three of the foreign references found recorded (expected `0` here). Recorded, not gating: it measures D-51's claim that default-on recognition moves nothing in a real project, and a non-zero count in another project is the evidence to reopen D-51. (R-101, D-51) |
 
 ---
 
@@ -1921,7 +2080,7 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
 
 - **Optional items:**
   - **O-1** LLM judge provider (`--judge llm`, `[llm]` extra). Specified fully in C-06/C-09; gated by flag and extra. The C-17 triage provider (`--jev-pre-triage`, `[llm]` extra, v1.15) is the same kind of item: fully specified in C-17/K-16, gated by flag and extra, and never the source of a status (I-015).
-  - **O-2** Additional language adapters for test-case attribution (Go `func Test*`, JS/TS `test(`/`it(`). Not in v0.1; the fallback path is what v0.1 ships and tests (T-12). Swift joined the shipped adapters in v1.6 (R-31, C-03); Go and JS/TS remain optional.
+  - **O-2** Additional language adapters for test-case attribution (Go `func Test*`, and others). Not in v0.1; the fallback path is what v0.1 ships and tests (T-12). Swift joined the shipped adapters in v1.6 (R-31, C-03) and JavaScript/TypeScript in v1.22 (R-104, C-03); Go remains optional.
   - **O-3** Any non-CLI surface (GUI, HTTP, editor plugin). Not in v0.1 and not designed for.
 
 ---
@@ -1953,7 +2112,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-19 | `report.py` (only writer, temp-and-rename), `cli.py` | T-38, T-43, T-45 |
 | R-20 | `extract.py`, `report.py` (path normalization) | T-34, T-36 |
 | R-21 | `cli.py` (summary line) | T-44, T-59 |
-| R-22 | `judge_mock.py` (Python and Swift assertion tokens; prefix clause) | T-26, T-69, T-75 |
+| R-22 | `judge_mock.py` (Python, Swift and JS/TS assertion tokens; prefix clause) | T-26, T-69, T-75 |
 | R-23 | `judge_llm.py`, `cli.py` (env validation, redaction) | T-40, T-41 |
 | R-24 | `report.py` (evidence table completeness) | T-37, T-48 |
 | R-25 | `graph.py` (C-05 step 2b) | T-53 |
@@ -1970,25 +2129,28 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-36 | `extract.py` (decision-table scan, `Decision`, `Edge`, C-12 edge builder and Notes), `report.py` (`decisions`, `edges`) | T-79 |
 | R-37 | `impact.py` (changed set, `--against` diff, walk, re-verify, re-cite), `cli.py` (`impact` subcommand), `report.py` (C-13 renderers) | T-80, T-81, T-82 |
 | R-38 | `judge_llm.py` (builds the `related` neighbourhood into the C-06 request: the statement's own references first, then those that name it, at most eight, each a 160-char whitespace-collapsed title, a retired neighbour tagged `(retired)` (E-57), the empty list when none), `jev.py` (the D-28b `Related obligations:` section in the C-17 `state` template), `speccheck/judge_prompt.md` (the `related` field and its rule, C-10) — a request-side field: not in `speccheck.json`, C-16, or C-08 | T-83, T-84 |
-| R-39 | `attribute.py` (docstring-span and whole-line-comment detection, Python and Swift), `report.py` (`declared`, `declared_ratio`) | T-85, T-86, T-88 |
+| R-39 | `attribute.py` (docstring-span and whole-line-comment detection, Python, Swift and JS/TS; mapped citations DECLARED), `report.py` (`declared`, `declared_ratio`) | T-85, T-86, T-88 |
 | R-40 | `cli.py` (the `explain` subparser, `ExplainConfig`, the render wiring), `explain.py` (the C-18 trace renderer) | T-92, T-93, T-94 |
 | R-41 | `cli.py` (the help strings, metavars and epilogs of the four parsers) | T-95, T-96, T-97, T-98, T-102 |
 | R-100 | `lean.py` (new adapter), `cli.py` (`--proof` parsing) | T-99 |
-| R-104 | `jsts.py` (tokenizer, CALL/TITLE/span rules), `attribute.py` (dispatch, classname), `results.py` (path classname, case join_name, templated titles) | T-113, T-114, T-115, T-116 |
+| R-101 | `extract.py` (foreign pass before the TOKEN rule; `citations_in_file`, `targets_of`), `cli.py` | T-107, T-108, T-112 |
+| R-102 | `cli.py` (`--namespace` on `check`/`impact`/`explain`), `extract.py` | T-107, T-111 |
+| R-103 | `cli.py` (`--citation-map`), `attribute.py` (`Citation.mapped`), `report.py` (`mapped`, `citation_map`, summary suffix, `(map)`), `explain.py` (`(mapped)`) | T-110, T-111 |
+| R-104 | `jsts.py` (tokenizer, CALL/TITLE/span rules), `attribute.py` (dispatch, classname), `results.py` (path classname, case join_name, templated titles) | T-113, T-114, T-115, T-116, T-117 |
 | C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, decision rows (c), ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77, T-79 |
 | C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `Decision`, `Edge`, `SpecIndex`) | T-01, T-06, T-72, T-77, T-79 |
-| C-03 | `attribute.py` (`TestCase`, `Citation` incl. `declared`, `test*` methods, Swift adapter, JavaScript/TypeScript adapter), `jsts.py`, `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78, T-85, T-113, T-114, T-115 |
-| C-04 | `results.py` (two-step `join_name` on results and cases, path classnames, templated titles) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68, T-116 |
+| C-03 | `attribute.py` (`TestCase`, `Citation` incl. `declared`, `test*` methods, Swift adapter, JavaScript/TypeScript adapter), `jsts.py`, `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78, T-85, T-110, T-113, T-114, T-115 |
+| C-04 | `results.py` (two-step `join_name` on results and cases, path classnames, templated titles) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68, T-116, T-117 |
 | C-05 | `graph.py` (`IdStatus`, `compute_status`, recorded skip in step 5) | T-20, T-21, T-27, T-53, T-77 |
 | C-06 | `judge.py` (`JudgeRequest` with numbered `source`, full statement, `declared`, and `related` (R-38), `Verdict` with `clause`, validation incl. K-15), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74, T-75, T-83, T-87 |
-| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; `decisions`; `edges`; `declared`; `declared_ratio`; Decimal quantization; `verdict: null`; Note order; `judge_available` total over the eligible-but-unissued case, v1.20) | T-34, T-37, T-59, T-73, T-75, T-77, T-79, T-86, T-88, T-101 |
+| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; `decisions`; `edges`; `declared`; `declared_ratio`; Decimal quantization; `verdict: null`; Note order; `judge_available` total over the eligible-but-unissued case, v1.20) | T-34, T-37, T-59, T-73, T-75, T-77, T-79, T-86, T-88, T-101, T-110 |
 | C-08 | `report.py` (`to_markdown`; Statement cell from `title`; `(recorded)` ID cell; §8 Clause column; em dash and `(file)` renderings) | T-35, T-73, T-75, T-77 |
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
 | C-10 | `speccheck/judge_prompt.md` (incl. `declared` and `related` fields, the skepticism rule, and the `related` rule (R-38)), `judge_llm.py` (system message) | T-33, T-54, T-74, T-75, T-83, T-84, T-87 |
 | C-11 | `judge.py` (progress line rendering, draw/erase sequences) | T-62 |
-| C-12 | `extract.py` (token pass over `SpecId.text` and `SpecId.extra`, ranges, direction rules, order, undeclared-target Notes) | T-79, T-104, T-105 |
+| C-12 | `extract.py` (token pass over `SpecId.text` and `SpecId.extra`, ranges, direction rules, order, undeclared-target Notes, foreign endpoints) | T-79, T-104, T-105, T-108 |
 | C-13 | `impact.py` (changed set and reasons, breadth-first walk, `via`, depth cap, REVERIFY, RECITE, TEST_CASES), `report.py` (`impact.json`, `IMPACT_REPORT.md`, summary line) | T-80, T-81 |
-| C-14 | `attribute.py` (docstring-span and whole-line-comment classification, Python and Swift) | T-85, T-86 |
+| C-14 | `attribute.py` (docstring-span and whole-line-comment classification, Python, Swift and JS/TS; the mapped-citation rule) | T-85, T-86, T-110, T-115 |
 | C-15 | `judge.py` (`JudgeRequest.declared`), `judge_llm.py` (`declared` in the request body), `speccheck/judge_prompt.md` (field definition, skepticism rule) | T-87 |
 | C-16 | `report.py` (`tests[].declared`, `metrics.declared_ratio`) | T-86, T-88 |
 | C-17 | `jev.py` (the four C-17 variables, the request body and `state` template — now including the D-28b `Related obligations:` section, R-38 — the `answers.verdict` parse and `p(e)`), `cli.py` (variable validation and redaction) | T-89, T-90 |
@@ -1996,6 +2158,8 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | C-19 | `cli.py` (every argument definition's help, the C-19 metavar vocabulary, the `environment:` and exit-code epilogs) | T-95, T-96, T-97, T-98, T-102 |
 | C-20 | `lean.py` (declaration split, doc-comment tag extraction) | T-99 |
 | C-21 | `lean.py`/`cli.py` (manifest read and join) | T-99 |
+| C-22 | `extract.py` (`FOREIGN` pass, `foreign` list), `cli.py` | T-107, T-108, T-111 |
+| C-23 | `cli.py` (map read, validation, resolution), `attribute.py` (`Citation.mapped`), `report.py` | T-110, T-111 |
 | I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
 | I-003 | `report.py` | T-25, T-35 |
@@ -2014,6 +2178,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | I-016 | `cli.py` (the explain path writes no report and carries the judge contract unchanged), `explain.py` (reads only pipeline facts) | T-92, T-94 |
 | I-017 | `cli.py` (no help path reads a file, an environment variable or a socket) | T-96 |
 | I-018 | `cli.py`, `report.py` (conditional `proof` key, absent-flag byte-identity) | T-100 |
+| I-019 | `extract.py`, `cli.py`, `report.py` (every addition conditional on its input) | T-109 |
 | K-01 | `cli.py` | T-39, T-40, T-19, T-64 |
 | K-02 | `extract.py` (file filters, binary rule) | T-13 |
 | K-03 | `extract.py` (walker, no symlinks) | T-13 |
@@ -2032,6 +2197,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | K-16 | `jev.py` (triage pass over the `related`-bearing `state` (D-28b), confidence ordering, D-30 Note), `judge.py` (issue order), `cli.py` (`--jev-pre-triage`) | T-89, T-90 |
 | K-17 | `lean.py` (join on name/file/line; stale/unknown/failed states) | T-99 |
 | K-18 | `cli.py` (validation stage order: flags/values/containment before spec/results/out reads) | T-103 |
+| K-19 | `cli.py` (map size check) | T-111 |
 | E-01 | `extract.py`, `cli.py` | T-07 |
 | E-02 | `extract.py` | T-06 |
 | E-03 | `extract.py` | T-04 |
@@ -2092,12 +2258,19 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-58 | `cli.py` (`--judge-budget N%` requires `--jev-pre-triage` with `--judge llm`; message names both flags) | T-90 |
 | E-59 | `jev.py` (per-edge failure ordered first, counted in one Note; `judge_available`/`unknown_rate` untouched) | T-89 |
 | E-60 | `cli.py` (the `explain` id validation and its message) | T-93 |
-| E-64 | `cli.py` (`explain`'s required `--spec`, its message) | T-102 |
 | E-61 | `cli.py` (the judge flags carried over), `explain.py` (verdict rendering incl. `coerced` and `not judged`) | T-94 |
 | E-62 | `lean.py` (unreadable/non-Lean file → notes entry) | T-99 |
 | E-63 | `graph.py` (C-05 untouched by proof), `impact.py` (proof edges ignored) | T-99 |
+| E-64 | `cli.py` (`explain`'s required `--spec`, its message) | T-102 |
 | E-65 | `cli.py` (`--proof-results` read/validation) | T-99 |
 | E-66 | `extract.py` (`_odd_math_delimiters`, Note in `parse_spec`) | T-106 |
+| E-67 | `extract.py` (`foreign` list, Note), `report.py` | T-107 |
+| E-68 | `extract.py`, `cli.py` (`--namespace` validation) | T-107, T-111 |
+| E-69 | `extract.py` (`targets_of`) | T-108 |
+| E-70 | `cli.py` (map read and validation) | T-111 |
+| E-71 | `cli.py` (map resolution, Note), `report.py` | T-110, T-111 |
+| E-72 | `cli.py` (map resolution), `report.py`, `explain.py` | T-110 |
+| E-73 | `cli.py` (map resolution) | T-110 |
 | E-74 | `jsts.py` (`JsParseError`), `attribute.py` (`parse fallback` Note) | T-114 |
 | E-75 | `jsts.py` (`undelimited`), `attribute.py` (Note) | T-114 |
 | E-76 | `jsts.py` (`each_pattern`), `results.py` (templated join) | T-116 |
@@ -2136,7 +2309,7 @@ Every row below is a decision the specification's author made on the requester's
 | D-24 | Where the change-impact backtest lives | `tools/impact_backtest.py`: a script outside the kernel that shells out to `git` for two spec versions and a build range, calls `speccheck impact --against`, and scores the prediction against the touched citations (T-82). The kernel exposes only the pure function of files (`--against FILE`) and never invokes `git` or any subprocess. | a kernel `--since REF` that reads the prior spec from `git` (one command for the operator, but the kernel gains a subprocess, a history-dependent input, and a failure mode per git state; I-001/I-002's "same bytes in, same bytes out" would need a git-state clause) | R-37, C-13, §3.1, §10, T-82, I-002 | requester / confirmed 2026-09-19 (`docs/proposals/PROPOSAL_v1.13_impact.md` §5) |
 | D-25 | How decision rows enter the JSON | a separate `decisions` array (C-07) under a declaration-only family D (C-01 (c)): never in `ids`, never a citation target, never in `by_status`, `by_family`, `conformance`, `dangling`, or `stale`; I-003 and every existing golden §3 row are untouched | a seventh family in `ids` with a status of its own (uniform with the other families, but every denominator, the T-46 goldens, and the C-08 table change, `by_family` needs a seventh key, and `UNCITED`/`UNTESTED` are meaningless for a decision) | R-36, C-01, C-02, C-07, C-12, I-003, T-79 | requester / confirmed 2026-09-19 (`docs/proposals/PROPOSAL_v1.13_impact.md` §5) |
 | D-26 | Whether `declared: false` changes the judge's verdict on its own | advisory only (Part B as written): `C-10`'s instruction text tells the model `declared` and asks it not to credit `ASSERTS` on an INCIDENTAL citation without checking the assertion's subject, but no C-06 rule coerces the verdict — preserves the model's judgment for the real, undocumented-but-correct cases; T-87 measures whether the text alone is enough | hard coercion: `declared: false` forces `ASSERTS` to `EXECUTES_ONLY` automatically, no model discretion — stronger and fully deterministic, but risks false downgrades on tests that simply predate or don't follow the docstring convention perfectly; kept as the fallback if T-87 shows the advisory text moves nothing | C-06, C-10, C-15, T-87 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` §5) |
-| D-27 | How a citation line is classified DECLARED | whole-line-comment detection: the first non-whitespace character on the citation's own line is `#` (Python) or the line is a doc-comment line by the Swift adapter's existing recognition (C-14) — no new parsing machinery, matches every real DECLARED example found while drafting the proposal | full token-level comment detection (via `tokenize`, distinguishing a trailing comment from code): more precise (would credit `x = 1  # R-02` as DECLARED) but needs column-accurate token classification the citation scanner does not carry today, for a case that did not appear once in the real evidence read for the proposal; left for a later proposal if it proves necessary | C-03, C-14, T-85 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` §5) |
+| D-27 | How a citation line is classified DECLARED | whole-line-comment detection: the first non-whitespace character on the citation's own line is `#` (Python) or the line is a doc-comment line by the Swift adapter's existing recognition (C-14) — no new parsing machinery, matches every real DECLARED example found while drafting the proposal; v1.23.1 extends it to the JS/TS adapter's comment-only lines, which that adapter's tokens already identify (F-705) | full token-level comment detection (via `tokenize`, distinguishing a trailing comment from code): more precise (would credit `x = 1  # R-02` as DECLARED) but needs column-accurate token classification the citation scanner does not carry today, for a case that did not appear once in the real evidence read for the proposal; left for a later proposal if it proves necessary | C-03, C-14, T-85, T-115 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` §5) |
 | D-28 | How wide the judge request's `related` neighbourhood reaches, and whether it rides the Jev triage `state` (this row carries both: the reach decision and its sub-decision, recorded here as **D-28b**) | **(a)** `related` is the titles of the obligations this statement names **and** of those that name it (C-12 `depends_on`, both directions), the statement's own references first, at most eight total, each a whitespace-collapsed title tail-truncated to 160 characters with `…`, `[]` when the id has no neighbour; a retired neighbour keeps its title with `(retired)` appended (E-57). `(b)` **D-28b**: `related` is included in the C-17 triage `state` (not stripped) — Jev ranks the exact request the real judge gets — at a cost of roughly doubling the per-edge triage input, which is cents (§3 of `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md`). | **(a-alt)** own references only, uncapped: smaller on heavily-depended-on ids (C-01 and C-07 have dozens of dependents) but misses the reverse-direction case the §4 flags — a test that cites E-09 yet asserts E-52's message is the same off-topic `ASSERTS` the other way round. **(b-alt)** strip `related` from the triage `state`: cheaper (no neighbourhood pass) at the price of a weaker proxy for "least-sure-about"; kept as the fallback if a T-89 run shows triage ranking is insensitive to the neighbourhood. Advisory: the `related` rule in C-10 tells the model not to credit an `ASSERTS` that matches only a related obligation, but no C-06 rule coerces a verdict for it. | R-38, C-06, C-10, C-16, C-17, K-16, I-015, E-57, T-83, T-84, T-89 | requester / confirmed 2026-09-20 (reach — both directions, own-first, cap 8 — per `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md` §5; the D-28b sub-decision — include in the triage `state` — per that proposal's §7 addendum; both the recommended options) |
 | D-29 | How the triage provider is configured | dedicated variables, `SPECCHECK_JEV_URL` / `SPECCHECK_JEV_MODEL` / `SPECCHECK_JEV_API_KEY` / `SPECCHECK_JEV_TIMEOUT` (C-17), read only when the triage pass runs | reusing `OPENROUTER_API_KEY`, as `tools/jev_client.py` already does — one fewer variable to set, but it couples the kernel's own configuration to a `tools/`-script naming choice and cannot be scoped or rotated independently of any other OpenRouter use | C-17, K-16, §10 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` §5) |
 | D-30 | Whether `--jev-pre-triage` with `--judge-budget 0` complains | yes — one informational Note, `jev-pre-triage had no effect: --judge-budget is unlimited` (K-16). The combination pays Jev's latency and dollar cost for zero effect on the report, and a Note costs nothing while catching a likely mistake, consistent with this project's Notes-not-errors style | silently proceeding — no new Note text, but the one combination that buys nothing looks exactly like the one that buys something | K-16, K-12, E-59, T-89 | requester / confirmed 2026-09-20 (`docs/proposals/PROPOSAL_v1.16_jev_pre_triage.md` §5) |
@@ -2157,7 +2330,13 @@ Every row below is a decision the specification's author made on the requester's
 | D-45 | Whether a `failed` proof trips `--strict` (v1.19) | **only when `--proof-results` was given and is readable**: the gate fails on a broken proof it was explicitly handed, while a missing manifest keeps the gate exactly as robust as v1.18 — a repo that never had a proof is never punished for the absence of one, and a proof failure is a defect of the proof repo, not the checked system | proof states strictly advisory in all modes — maximally decoupled, but "did the formal half break?" never answers through `--strict` | K-17, E-63, §5.4 | requester / confirmed v1.19 (`docs/proposals/PROPOSAL_v1.19_proof_parameter.md` §5, recommended branch, 2026-09-24) |
 | D-49 | Exact JSON shape of `proof` (v1.19, amended v1.19.1) | the confirming proposal pins conditional presence (D-44) and says the per-id field is "shaped like `tests`" but not its literal keys; this fold pins: per-id `proof` is an array of `{name, file, line, state, error}` (`state` $\in$ `{checked, failed, unknown, stale}`; `error` non-null only when `failed`; an id with `--proof` given but no citation has `proof: []`; key omitted per-id only when `--proof` was not given); the top-level `proof` is `{"build": {…} | null}`, present whenever `--proof` **or** `--proof-results` was given (amended v1.19.1: `proof_from_spec`'s modeling of this row found a run given only `--proof-results` read the manifest and wrote no `proof` key at all under the original `--proof`-only gate — F-504, `docs/reviews/SPEC_MODEL_FINDINGS.md`), echoing C-21's `build` verbatim when `--proof-results` was given, else `null` | a fourth literal `"absent"` instead of an empty array — rejected: every other evidence array in this schema (`src`, `tests`) uses emptiness for "no citation", and a fifth token here would be the only exception; no top-level `proof` object at all, aggregate build info left to a walk of `ids` — rejected: `judge`/`judge_available` already set the precedent that aggregate run configuration belongs at the top; (v1.19.1) leaving the `--proof`-only gate and documenting `--proof-results`-alone as an intentional no-op — rejected: a flag silently producing no observable effect at all is worse than widening its gate by one clause | C-07, C-21, K-17 | requester / confirmed v1.19 (2026-09-24); amended v1.19.1 (2026-09-24, F-504) |
 | D-50 | Whether a table row's non-statement cells feed C-12 edges, and whether ranges expand (v1.21) | **edges only**: the other cells are read for edges (so an edge-case row's outcome column reaches `impact`) but `text`, `title`, the judged statement and the C-13 diff are unchanged; a range names the declared ids between its endpoints | widen `text` to every cell (changes every judged statement and C-13's changed set) / leave ranges as two endpoints | C-12, R-36, E-66, T-104, T-105 | requester / confirm (letter from a regulated-domain user, 2026-10-14) |
-| D-56 | How JavaScript/TypeScript test files are delimited, and which runners' JUnit the join supports (v1.22) | by tokens inside `jsts.py` (comments, strings, templates and regex literals opaque; call parentheses balanced), so the kernel stays standard-library and needs no Node toolchain at check time; the join targets `vitest --reporter=junit`'s measured shape and jest-junit under the two-template configuration C-03 names | a real parser (`typescript`, `@babel/parser` need Node where the checker runs); regex or line matching like the Swift adapter (a call's closing line is not recoverable from lines alone once strings and arrow bodies nest); also supporting jest-junit's default `classname`/`name` (it carries no file path, so nothing could be joined to a file) | R-104, C-03, C-04, E-74..E-76, T-113..T-116 | requester / confirm |
+| D-56 | How JavaScript/TypeScript test files are delimited, and which runners' JUnit the join supports (v1.22) | by tokens inside `jsts.py` (comments, strings, templates and regex literals opaque; call parentheses balanced), so the kernel stays standard-library and needs no Node toolchain at check time; the join targets `vitest --reporter=junit`'s measured shape and jest-junit under the three-option configuration C-03 names (documented, not measured, until T-117 records a run; F-707) | a real parser (`typescript`, `@babel/parser` need Node where the checker runs); regex or line matching like the Swift adapter (a call's closing line is not recoverable from lines alone once strings and arrow bodies nest); also supporting jest-junit's default `classname`/`name` (it carries no file path, so nothing could be joined to a file) | R-104, C-03, C-04, E-74..E-76, T-113..T-117 | requester / confirm |
+| D-51 | Whether foreign references are recognised by default (v1.23) | **by default**, no flag needed: the false-green in `docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md` §1 A is silent, and this repository's own scan finds no code or test using the old reading (T-112) | only when `--namespace` is given (no behaviour change for existing runs, but the collision stays live for everyone who does not know to ask) | R-101, C-22, I-019, T-107, T-112 | requester / confirmed v1.23 (proposal §5, recommended branch, 2026-10-27) |
+| D-52 | What a bare ID means once `--namespace` is given | **still local**: no spec has to be rewritten to adopt the flag | a bare ID becomes foreign (stricter, but every existing citation must be rewritten) | R-102, E-68, T-107 | requester / confirmed v1.23 (recommended branch) |
+| D-53 | The citation map's file format | **JSON** (matches C-21; test names contain commas and brackets) | CSV (hand-editable in a spreadsheet, brittle on those names) | R-103, C-23, E-70 | requester / confirmed v1.23 (recommended branch) |
+| D-54 | Where a mapped citation is marked | **per-test in the JSON and Markdown, in the `explain` trace and in the summary line**: the one cost of the map is that the citation is not in the code, so the report says so where it is read | in the JSON only (quieter summary line, easier to miss) | R-103, C-23, E-72, T-110 | requester / confirmed v1.23 (recommended branch) |
+| D-55 | Whether an unresolved map entry can fail the gate | **no**: it is a Note, and a stale entry lowers that id's status anyway, which `--strict` already gates | an unresolved entry fails `--strict` (stricter, but a renamed test would break a gate for a reason `--strict` already measures) | R-103, E-71, T-111 | requester / confirmed v1.23 (recommended branch) |
+| D-57 | Whether a mapped citation is DECLARED (C-14) for the judge (v1.23) | **yes**: the map is the owner's statement of which test proves which id — the same intent a docstring citation states — so the judge's `declared` context is true (E-72); `mapped` is the separate label for where the statement lives | `declared: false`, treating it as INCIDENTAL (it understates a deliberate map and teaches the judge to distrust the one citation an owner wrote on purpose) | R-103, C-10, C-14, C-16, C-23, E-72, T-110 | requester / confirmed v1.23 (review F-610, recommended branch); amended v1.23.1 (F-703, F-714): the rule is stated in C-14 and in C-10's field definition, and mapped citations are outside `declared_ratio` |
 | D-46 | Whether `judge_available` becomes boolean and total over the eligible-but-unissued case (v1.20) | **boolean, total**: `false` whenever at least one edge was judge-eligible and no call succeeded, whether every call failed (E-14) or none was issued (E-35) — the field is what R-28 gates on, and "no usable judge" is one operational fact however it arose; T-101 measures both budget forms | leave C-07's two clauses and patch only E-32's reason — smaller diff, but `speccheck.json` keeps a field the contract doesn't fully determine for this cell | C-07, E-32, E-35, R-28, T-101 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
 | D-47 | Whether `--spec` becomes genuinely required on `explain` (v1.20) | **required**, synopsis brackets dropped — states existing behaviour (the flag table already said `Required.`; there was already no defined way to run `explain` without a spec) rather than inventing a new one; T-102 pins it | make `--spec` optional with a stated default — smaller for a quick `explain R-01`, but invents a fallback file the spec has never had and adds a second place the input spec is chosen | R-40, C-18, C-19, E-64, T-102 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
 | D-48 | Whether exit-code precedence (usage fault vs. input-contract violation) is pinned as a normative `K` row (v1.20) | **pinned**, K-18, beside K-01's exit set — one sentence, checkable by T-103 | leave §5.4 silent — two faithful implementations could then exit `2` or `3` on the same invocation | K-01, K-18, §5.4, T-103 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
@@ -2199,3 +2378,5 @@ D-28 (and its sub-decision D-28b), E-57 and R-38 — the obligation-aware judge 
 | v1.20 | Determinacy of three under-specified behaviours (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`, 2026-09-24; D-46..D-48 confirmed on the recommended branches). Evidence: `proof_from_spec/`'s formal model of `SPEC.md` v1.18 (built before v1.19 existed) could not render a total function over three enumerated inputs — `judge_available` in the eligible-but-unissued case, `explain` invoked without `--spec`, and one invocation triggering both an exit-`2` and an exit-`3` condition — each closed only by returning `none`; three kernel-checked witnesses (`f502JudgeAvailableBudgetSilent`, `f501ExplainAbsentSpecSilent`, `f503ExitPrecedenceDiffer`) exhibit the gaps (F-501, F-502, F-503). Changes: C-07 `judge_available` restated over the eligibility/issuance census — boolean, `false` whenever an edge was eligible and no call succeeded (E-14 or E-35), never `null` under `mock`/`llm`; E-32 extended so an E-35-caused unavailability also records `strict_judge_failure: "unavailable"`; §5.1's `explain` synopsis drops the misleading `[--spec SPEC.md]` brackets to match its own flag table (`Required.`); E-64 the resulting usage error, `explain: --spec is required`; K-18 states usage-fault precedence over an input-contract violation when an invocation could trigger both, closing the one case §5.4's table left silent; T-101 (both budget forms, `judge_available`/`strict_judge_failure` under each), T-102 (`explain`'s missing-`--spec` message, the corrected help golden), T-103 (both fault kinds in one invocation, and split across two, to show the precedence is observed not merely asserted); §11 rows; §12 D-46..D-48. No status, verdict, citation, or existing metric moves; the golden fixtures are byte-identical (`--self-check`/§9.8 run `--judge mock` with no budget, so Part A's changed case never appears in them) — the one behavioural change is the exit reason on an already-red `--strict --judge llm` run whose eligible edges were all budget-skipped, `null` → `"unavailable"`. |
 | v1.21 | Four extractor/CLI gaps reported from a regulated-domain trial: C-12 expands ranges (`R-07..R-10`) and reads a table row's non-statement cells for edges (D-50); E-66 Notes a row cut at an unescaped `\|` inside `$..$`; E-09's message names the resolved path of a symlink path. No status, verdict, metric, `text` or `title` moves. |
 | v1.22 | JavaScript/TypeScript adapter (R-104, D-56; requested in a regulated-domain trial, 2026-10-14, where TypeScript tests could reach `UNVERIFIED` and no further): `.ts .tsx .mts .cts .js .jsx .mjs .cjs` files under `--tests` are delimited into `it`/`test` cases named by their `describe` chain (C-03); C-04 reads a path classname as dotted, joins cases under `join_name(case.name)`, and matches `it.each` titles by placeholder pattern; E-74..E-76, T-113..T-116; T-12 now uses `.rb`. The join shape was measured with `vitest run --reporter=junit` 2.1.8. No status, verdict or metric moves for a project with no such file. |
+| v1.23 | Namespaced ids and a citation map (`docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md`, 2026-10-27; D-51..D-55 confirmed on the recommended branches, same day). Evidence: a test docstring naming `platform:C-03` made the local `C-03` PASSING (1/1) and an undeclared foreign id failed `--strict` as dangling (reproduced); a regulated-domain trial retrofitted ~1,100 ids with an out-of-tool injector. R-101..R-103, C-22, C-23, I-019, K-19, E-67..E-73, T-107..T-112; `--namespace` and `--citation-map` on `check`, `impact` and `explain`; the summary line gains an optional `; citations: <M> mapped` suffix. **Folded with three changes to the proposal**, each found reviewing the fold (and, from the review's open items, D-57 and a Note that names the first three foreign tokens): (a) `impact` and `explain` take both flags (the proposal covered `check` only, which would leave a retrofitted project's `impact` re-cite list empty); (b) a label shaped like an ID (`R-01:R-02`) is never a namespace; (c) the summary suffix is pinned in the T-44 regex. No status, verdict or metric moves for a project using neither flag and containing no `ns:`-prefixed token (I-019). |
+| v1.23.1 | The first full review since v1.10 (`docs/reviews/SPEC_REVIEW_REPORT.md`, F-701..F-717, 2026-10-27), folded before the v1.23 build. **Behaviour (all still unbuilt):** C-06's pinned request body restored — v1.16 had left a prose paragraph inside it, dropped the user-message opener and added a sentence contradicting `"messages": [`; the code was right (F-701). The `--citation-map` and `--proof-results` files are excluded from every scan (C-03, F-702). A mapped citation is DECLARED by a third C-14 rule, C-10's `declared` definition says so (so `judge_prompt.md` and `judge_prompt_sha256` change at the build and the recorded T-49 runs are void, F-303), and mapped citations are outside `declared_ratio`, now written as a formula (C-07, C-16, D-57; F-703, F-714). Mapped dangling/stale entries carry `mapped: true` (F-704). C-14 covers JS/TS comment-only lines (F-705, D-27). The mock judge recognises `expect(`/`expect.` (F-706; no golden changes). jest-junit needs `ancestorSeparator: " > "` and is documented, not claimed, until the new recorded T-117 (F-707, D-56). The JS/TS tokenizer has a pinned regex-versus-division rule (F-708). K-18 counts every file flag's readability as a usage fault decided before parsing (F-709). C-18's reasons name C-05's own steps and `<outcome>` gains `error`; T-92/T-93 strings change (F-711). FOREIGN recognition has no length cap; the 32-character limit is the `--namespace` value's (R-101, R-102, C-22; F-712). Foreign-token test inputs live under `tests/data/` (§9 preamble, F-713). A foreign range endpoint names nothing; a map entry cannot address a Python method by class (C-12, C-23; F-716). **Lists and wording:** §5.4's exit-3 lists (F-710); §5.1's `impact`/`explain`/`--root`/`--namespace` rows and E-09, E-68 (F-715); the split §5.1 and §9 tables joined, §2/§8/§11 rows sorted by id, O-2, C-12, E-14 and the Sources bullet brought up to date, proposal-local "Part A/B/C" labels replaced (F-717); C-03's copy of the DECLARED rule replaced by a pointer to C-14, which keeps C-03 (16.2 kB) under K-14's cap, and K-14's stale 8.4 kB reference point corrected. New id: T-117. |
