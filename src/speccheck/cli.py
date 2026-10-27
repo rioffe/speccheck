@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import io
+import json
 import logging
 import os
 import re
@@ -130,6 +131,8 @@ class Config:
     proof: tuple[Path, ...] = ()  # v1.19 (R-100, C-20): --proof PATHS, check-only
     proof_results: Path | None = None  # v1.19 (C-21): --proof-results FILE, check-only
     namespace: str | None = None  # v1.23 (R-102, C-22): --namespace NS
+    citation_map: Path | None = None  # v1.23 (R-103, C-23): --citation-map FILE
+    citation_map_arg: str | None = None  # the path as given, echoed in `citation_map.file`
 
 
 @dataclass(frozen=True)
@@ -150,6 +153,8 @@ class ImpactConfig:
     spec_arg: str
     against_arg: str | None
     namespace: str | None = None  # v1.23 (R-102, C-22): --namespace NS
+    citation_map: Path | None = None  # v1.23 (R-103, C-23): --citation-map FILE
+    citation_map_arg: str | None = None  # the path as given, echoed in `citation_map.file`
 
 
 @dataclass(frozen=True)
@@ -300,6 +305,106 @@ def _validate_namespace(value: str | None) -> str | None:
     return value
 
 
+_HELP_CITATION_MAP = (
+    "a JSON citation map (schema_version \"1.0\") naming, per entry, an id and the existing test "
+    "case (file, test) that proves it; each resolving entry is a mapped test citation, labelled "
+    "as such in every report. must resolve inside --root; unreadable is a usage error, "
+    "malformed is an input-contract error. default: none"
+)
+CITATION_MAP_MAX = 2 * 1024 * 1024  # K-19: the K-02 file cap
+_MAP_KEYS = frozenset({"id", "file", "test"})
+_MAP_ID_RE = re.compile(r"([RCIKET])-([0-9]{1,3})")
+
+
+class CitationMapError(Exception):
+    """E-70's exit-3 half: a readable map that is not UTF-8 JSON, has the wrong shape or
+    `schema_version`, a bad entry, or is over K-19's 2 MiB (decided in the apply-map stage)."""
+
+
+@dataclass(frozen=True)
+class MapEntry:
+    id: str  # normalized (I-011)
+    file: str
+    test: str
+
+
+def _readable_map(arg: str | None, root: Path) -> Path | None:
+    """E-70's exit-2 half, decided with the other flags (K-18): inside --root, a readable file."""
+    if arg is None:
+        return None
+    path = _resolve_inside(arg, root)  # E-09
+    if not path.is_file():
+        raise UsageError(f"--citation-map: not a readable file: {arg}")
+    try:
+        with open(path, "rb"):
+            pass
+    except OSError:
+        raise UsageError(f"--citation-map: not a readable file: {arg}") from None
+    return path
+
+
+def load_citation_map(path: Path) -> list[MapEntry]:
+    """C-23 / E-70 / K-19: read and validate the map (raises CitationMapError, exit 3)."""
+    data = path.read_bytes()
+    if len(data) > CITATION_MAP_MAX:
+        raise CitationMapError("citation-map: over 2 MiB (K-19)")
+    try:
+        doc = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CitationMapError(f"citation-map: not UTF-8 JSON: {exc}") from None
+    if not isinstance(doc, dict):
+        raise CitationMapError("citation-map: not a JSON object")
+    if doc.get("schema_version") != "1.0":
+        raise CitationMapError('citation-map: schema_version is not "1.0"')
+    citations = doc.get("citations")
+    if not isinstance(citations, list):
+        raise CitationMapError("citation-map: no citations array")
+    entries: list[MapEntry] = []
+    for k, entry in enumerate(citations):
+        if (
+            not isinstance(entry, dict)
+            or set(entry) != _MAP_KEYS
+            or not all(isinstance(v, str) for v in entry.values())
+        ):
+            raise CitationMapError(
+                f"citation-map: entry {k} is not an object with exactly the string keys "
+                "id, file, test"
+            )
+        m = _MAP_ID_RE.fullmatch(entry["id"])
+        if m is None:  # a `ns:`-prefixed id included
+            raise CitationMapError(f"citation-map: entry {k}: not a bare id: {entry['id']}")
+        ident = normalize_id(m.group(1), int(m.group(2)))
+        entries.append(MapEntry(ident, entry["file"], entry["test"]))
+    return entries
+
+
+def apply_citation_map(
+    entries: list[MapEntry], cases: list[TestCase], test_citations: list[Citation]
+) -> tuple[list[Citation], dict[str, int], list[str]]:
+    """C-23 resolution: (mapped citations, {entries, resolved, unresolved}, E-71 Notes). A
+    resolving entry is one mapped `Citation` at the case's `start`, DECLARED (D-57), unless the
+    same (id, testcase) is already cited literally or by an earlier entry (E-73)."""
+    by_key: dict[tuple[str, str], TestCase] = {}
+    for case in sorted(cases, key=lambda c: c.start):  # a tie resolves to the smallest start
+        by_key.setdefault((case.file, case.name), case)
+    taken = {(c.id, c.testcase) for c in test_citations}
+    made: list[Citation] = []
+    resolved = 0
+    notes: list[str] = []
+    for e in entries:
+        case = by_key.get((e.file, e.test))
+        if case is None:
+            notes.append(f"citation-map entry unresolved: {e.id} {e.file} {e.test}")  # E-71
+            continue
+        resolved += 1
+        if (e.id, case) in taken:  # E-73
+            continue
+        taken.add((e.id, case))
+        made.append(Citation(e.id, case.file, case.start, "test", case, True, mapped=True))
+    counts = {"entries": len(entries), "resolved": resolved, "unresolved": len(entries) - resolved}
+    return made, counts, notes
+
+
 _HELP_CHANGED = (
     "the changed set: a comma-separated list of ids declared in --spec (R/C/I/K/E/T or D). "
     "exactly one of --changed and --against is required"
@@ -375,6 +480,9 @@ def build_parser() -> _Parser:
     check.add_argument(
         "--namespace", action=_Once, default=None, metavar="NS", help=_HELP_NAMESPACE
     )
+    check.add_argument(
+        "--citation-map", default=None, metavar="FILE", help=_HELP_CITATION_MAP
+    )
     check.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     check.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
     check.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
@@ -412,6 +520,9 @@ def build_parser() -> _Parser:
     impact.add_argument(
         "--namespace", action=_Once, default=None, metavar="NS", help=_HELP_NAMESPACE
     )
+    impact.add_argument(
+        "--citation-map", default=None, metavar="FILE", help=_HELP_CITATION_MAP
+    )
     impact.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     impact.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
     impact.add_argument("--depth", default="1", metavar="N", help=_HELP_DEPTH)
@@ -440,6 +551,9 @@ def build_parser() -> _Parser:
     explain.add_argument("--results", default=None, metavar="FILE", help=_HELP_RESULTS)
     explain.add_argument(
         "--namespace", action=_Once, default=None, metavar="NS", help=_HELP_NAMESPACE
+    )
+    explain.add_argument(
+        "--citation-map", default=None, metavar="FILE", help=_HELP_CITATION_MAP
     )
     explain.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     explain.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
@@ -569,6 +683,7 @@ def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> Impac
         except OSError:
             raise UsageError(f"--against: not a readable file: {args.against}") from None
     depth = _int_in_range("--depth", args.depth, 0, 999)
+    citation_map = _readable_map(args.citation_map, root)  # E-70's exit-2 half (K-18)
     src = _resolve_paths("--src", args.src, root, None)
     tests = _resolve_paths("--tests", args.tests, root, None)
     out = _resolve_inside(args.out, root)
@@ -587,6 +702,8 @@ def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> Impac
         spec_arg=args.spec,
         against_arg=args.against,
         namespace=namespace,
+        citation_map=citation_map,
+        citation_map_arg=args.citation_map,
     )
 
 
@@ -708,6 +825,7 @@ def _build_check_config(
                 pass
         except OSError:
             raise UsageError(f"--proof-results: not a readable file: {proof_results_arg}") from None
+    citation_map = _readable_map(args.citation_map, root)  # E-70's exit-2 half (K-18)
     out = _resolve_inside(out_arg, root)
 
     llm: LlmConfig | None = None
@@ -737,6 +855,8 @@ def _build_check_config(
         proof=proof,
         proof_results=proof_results,
         namespace=namespace,
+        citation_map=citation_map,
+        citation_map_arg=args.citation_map,
         root=root,
         out=out,
         judge=args.judge,
@@ -775,6 +895,9 @@ def _excluded_paths(config: Config) -> frozenset[Path]:
     paths = {config.spec, config.out / JSON_NAME, config.out / MD_NAME}
     if config.results is not None:
         paths.add(config.results)
+    for extra in (config.citation_map, config.proof_results):  # C-03 (v1.23.1, F-702)
+        if extra is not None:
+            paths.add(extra)
     return frozenset(paths)
 
 
@@ -782,6 +905,8 @@ def _impact_excluded_paths(config: ImpactConfig) -> frozenset[Path]:
     paths = {config.spec, config.out / IMPACT_JSON_NAME, config.out / IMPACT_MD_NAME}
     if config.against is not None:
         paths.add(config.against)
+    if config.citation_map is not None:  # C-03 (v1.23.1, F-702)
+        paths.add(config.citation_map)
     return frozenset(paths)
 
 
@@ -797,6 +922,7 @@ class _Stages:
     prompt_sha: str | None
     proof_build: dict | None = None  # v1.19 (C-21): the manifest's build object, echoed verbatim
     foreign: tuple[ForeignRef, ...] = ()  # v1.23 (C-22): sorted (file, line, namespace, id)
+    citation_map: dict | None = None  # v1.23 (C-23): {file, entries, resolved, unresolved}
 
 
 def _run_stages(config: Config) -> _Stages:
@@ -849,6 +975,17 @@ def _run_stages(config: Config) -> _Stages:
     if foreign:
         notes.append(foreign_note(foreign))  # E-67
     stage.done(files=len(test_files), cases=len(cases), citations=len(test_citations))
+
+    citation_map: dict | None = None
+    if config.citation_map is not None:  # §3.1 apply-map (v1.23; C-23, E-70..E-73)
+        stage = _Stage("apply-map")
+        mapped, counts, map_notes = apply_citation_map(
+            load_citation_map(config.citation_map), cases, test_citations
+        )
+        test_citations.extend(mapped)
+        notes.extend(map_notes)
+        citation_map = {"file": config.citation_map_arg, **counts}
+        stage.done(**counts)
 
     stage = _Stage("map-results")
     outcomes = {}
@@ -972,7 +1109,15 @@ def _run_stages(config: Config) -> _Stages:
         )
 
     return _Stages(
-        index, graph, unattributed, notes, judge_available, prompt_sha, proof_build, tuple(foreign)
+        index,
+        graph,
+        unattributed,
+        notes,
+        judge_available,
+        prompt_sha,
+        proof_build,
+        tuple(foreign),
+        citation_map,
     )
 
 
@@ -998,6 +1143,7 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             graph=graph,
             unattributed=unattributed,
             foreign=stages.foreign,
+            citation_map=stages.citation_map,
             notes=notes,
             decisions=index.decisions,
             edges=index.edges,
@@ -1122,21 +1268,29 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
         if config.tests_given:
             test_files = scan_roots(config.tests, root, excluded, config.out, counters)
             case_rows = []
+            all_cases: list[TestCase] = []
+            all_citations: list[Citation] = []
             for f in test_files:
                 attributed, file_notes = attribute_file(f, config.namespace)
                 foreign.extend(foreign_in_file(f, config.namespace))
                 notes.extend(file_notes)
-                all_cases = list(attributed.cases) + [attributed.file_case]
-                for case in all_cases:
-                    cited = {
-                        c.id
-                        for c in attributed.citations
-                        if c.id in target_ids and c.testcase == case
-                    }
-                    ids_here = sorted(cited, key=edge_id_key)
-                    if ids_here:
-                        row = (case.file, case.start, case.name, case.classname, ids_here)
-                        case_rows.append(row)
+                all_cases.extend(list(attributed.cases) + [attributed.file_case])
+                all_citations.extend(attributed.citations)
+            if config.citation_map is not None:  # v1.23: applied as in `check` (§3.1)
+                mapped, _counts, map_notes = apply_citation_map(
+                    load_citation_map(config.citation_map), all_cases, all_citations
+                )
+                all_citations.extend(mapped)
+                notes.extend(map_notes)
+            cited_by_case: dict[TestCase, set[str]] = {}
+            for c in all_citations:
+                if c.id in target_ids and c.testcase is not None:
+                    cited_by_case.setdefault(c.testcase, set()).add(c.id)
+            for case in all_cases:
+                ids_here = sorted(cited_by_case.get(case, ()), key=edge_id_key)
+                if ids_here:
+                    row = (case.file, case.start, case.name, case.classname, ids_here)
+                    case_rows.append(row)
             case_rows.sort(key=lambda r: (r[0], r[1]))
             for file, _start, name, classname, ids_here in case_rows:
                 test_cases.append(
@@ -1350,7 +1504,7 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
     except UsageError as exc:
         log.error("%s", exc)
         return 2
-    except (SpecError, ResultsError, OutError, ProofError) as exc:
+    except (SpecError, ResultsError, OutError, ProofError, CitationMapError) as exc:
         log.error("%s", exc)
         return 3
     except SystemExit as exc:  # argparse --help / --version

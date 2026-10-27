@@ -1,44 +1,53 @@
 usage: speccheck impact [-h] --spec FILE [--changed IDS] [--against FILE]
                         [--src PATHS] [--tests PATHS] [--namespace NS]
-                        [--root DIR] [--out DIR] [--depth N]
-                        [--verbose [LEVEL]]
+                        [--citation-map FILE] [--root DIR] [--out DIR]
+                        [--depth N] [--verbose [LEVEL]]
 
 Walk the spec's own cross-references from a changed set and write impact.json and IMPACT_REPORT.md under --out.
 
 options:
-  -h, --help         show this help message and exit
-  --spec FILE        the specification to check; decoded as UTF-8 (invalid
-                     bytes are replaced and noted). required; must resolve
-                     inside --root
-  --changed IDS      the changed set: a comma-separated list of ids declared
-                     in --spec (R/C/I/K/E/T or D). exactly one of --changed
-                     and --against is required
-  --against FILE     a prior version of the same spec; the changed set is the
-                     diff of its declarations. must resolve inside --root;
-                     exactly one of --changed and --against is required
-  --src PATHS        source roots to list re-citations from. repeatable,
-                     comma-separated, as check's --src, but there is no
-                     directory default here: absent means not scanned
-  --tests PATHS      test roots to list the citing test cases from.
-                     repeatable, comma-separated, as check's --tests, with no
-                     directory default here
-  --namespace NS     this project's namespace: a token written NS:ID is then a
-                     local citation of ID; every other <ns>:ID is a foreign
-                     reference and cites nothing. NS: a letter, then up to 31
-                     letters, digits, _ or -, not shaped like an id; at most
-                     once. default: none (every <ns>:ID is foreign)
-  --root DIR         base directory for the reports' relative paths and for
-                     the containment rule: every path flag (--spec, --src,
-                     --tests, --results, --out, --proof, --proof-results,
-                     --against, --citation-map) and every list element must
-                     resolve inside it. default: .
-  --out DIR          where the reports are written. default: .; must resolve
-                     inside --root
-  --depth N          walk depth: an integer 0..999 (0 = unbounded). default: 1
-  --verbose [LEVEL]  diagnostics on stderr: INFO or DEBUG (DEBUG adds the
-                     judge request and response lines, with the API key
-                     redacted); bare --verbose means INFO. default: ERROR
-                     (nothing below ERROR reaches stderr)
+  -h, --help           show this help message and exit
+  --spec FILE          the specification to check; decoded as UTF-8 (invalid
+                       bytes are replaced and noted). required; must resolve
+                       inside --root
+  --changed IDS        the changed set: a comma-separated list of ids declared
+                       in --spec (R/C/I/K/E/T or D). exactly one of --changed
+                       and --against is required
+  --against FILE       a prior version of the same spec; the changed set is
+                       the diff of its declarations. must resolve inside
+                       --root; exactly one of --changed and --against is
+                       required
+  --src PATHS          source roots to list re-citations from. repeatable,
+                       comma-separated, as check's --src, but there is no
+                       directory default here: absent means not scanned
+  --tests PATHS        test roots to list the citing test cases from.
+                       repeatable, comma-separated, as check's --tests, with
+                       no directory default here
+  --namespace NS       this project's namespace: a token written NS:ID is then
+                       a local citation of ID; every other <ns>:ID is a
+                       foreign reference and cites nothing. NS: a letter, then
+                       up to 31 letters, digits, _ or -, not shaped like an
+                       id; at most once. default: none (every <ns>:ID is
+                       foreign)
+  --citation-map FILE  a JSON citation map (schema_version "1.0") naming, per
+                       entry, an id and the existing test case (file, test)
+                       that proves it; each resolving entry is a mapped test
+                       citation, labelled as such in every report. must
+                       resolve inside --root; unreadable is a usage error,
+                       malformed is an input-contract error. default: none
+  --root DIR           base directory for the reports' relative paths and for
+                       the containment rule: every path flag (--spec, --src,
+                       --tests, --results, --out, --proof, --proof-results,
+                       --against, --citation-map) and every list element must
+                       resolve inside it. default: .
+  --out DIR            where the reports are written. default: .; must resolve
+                       inside --root
+  --depth N            walk depth: an integer 0..999 (0 = unbounded). default:
+                       1
+  --verbose [LEVEL]    diagnostics on stderr: INFO or DEBUG (DEBUG adds the
+                       judge request and response lines, with the API key
+                       redacted); bare --verbose means INFO. default: ERROR
+                       (nothing below ERROR reaches stderr)
 
 environment:
   SPECCHECK_JUDGE_URL, SPECCHECK_JUDGE_MODEL, SPECCHECK_JUDGE_API_KEY

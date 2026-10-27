@@ -123,8 +123,15 @@ def summary_line(report: dict) -> str:
         f"{s['FAILING']} failing, {s['SKIPPED']} skipped, {s['WEAKLY_PASSING']} weak, "
         f"{s['UNVERIFIED']} unverified, {s['UNTESTED']} untested, {s['UNCITED']} uncited; "
         f"{len(report['dangling'])} dangling, {len(report['stale'])} stale; "
-        f"judge={report['judge']}{suffix}"
+        f"judge={report['judge']}{suffix}{_mapped_suffix(report)}"
     )
+
+
+def _mapped_suffix(report: dict) -> str:
+    """§5.1 / C-23: `; citations: <M> mapped` when at least one citation is mapped."""
+    entries = [t for r in report["ids"] for t in r["tests"]] + report["dangling"] + report["stale"]
+    m = sum(1 for e in entries if e.get("mapped"))
+    return f"; citations: {m} mapped" if m else ""
 
 
 # --------------------------------------------------------------------------------------------
@@ -149,9 +156,10 @@ class ReportInputs:
     proof_results_given: bool = False  # v1.19: --proof-results was given
     proof_build: dict | None = None  # v1.19, C-21: the manifest's own `build` object, verbatim
     foreign: tuple = ()  # v1.23, C-22: ForeignRef entries, sorted (file, line, namespace, id)
+    citation_map: dict | None = None  # v1.23, C-23: {file, entries, resolved, unresolved}
 
 
-def _edge_json(edge: TestEdge) -> dict:
+def _edge_json(edge: TestEdge, map_given: bool = False) -> dict:
     verdict = None
     if edge.verdict is not None:
         verdict = {
@@ -167,14 +175,23 @@ def _edge_json(edge: TestEdge) -> dict:
         "classname": edge.case.classname,
         "lines": list(edge.lines),
         "declared": edge.declared,  # C-16 / C-14 (v1.14): DECLARED vs INCIDENTAL for this edge
+        **({"mapped": edge.mapped} if map_given else {}),  # C-23: only with --citation-map
         "outcome": edge.outcome,
         "results": [{"name": r.name, "param": r.param, "outcome": r.outcome} for r in edge.results],
         "verdict": verdict,
     }
 
 
-def _citation_json(c: Citation) -> dict:
-    return {"id": c.id, "file": c.file, "line": c.line}
+def _location(entry: dict) -> str:
+    """C-23 (F-704): a mapped dangling/stale entry renders its file as `<file> (map)`."""
+    return f"{entry['file']} (map)" if entry.get("mapped") else entry["file"]
+
+
+def _citation_json(c: Citation, map_given: bool = False) -> dict:
+    out = {"id": c.id, "file": c.file, "line": c.line}
+    if map_given:  # C-23 (v1.23.1, F-704): a reader looks in the map, not at that line
+        out["mapped"] = c.mapped
+    return out
 
 
 def _proof_json(edges: list) -> list[dict]:
@@ -189,6 +206,7 @@ def _proof_json(edges: list) -> list[dict]:
 def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
     """The C-07 object with `exit_code` filled in; ratios are `_Num` until `dumps`."""
     metrics = compute_metrics(inputs.graph)
+    map_given = inputs.citation_map is not None
     report: dict = {
         "schema_version": SCHEMA_VERSION,
         "spec": inputs.spec_path,
@@ -217,7 +235,7 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
             "status": rec.status,
             "src": [{"file": f, "lines": list(lines)} for f, lines in rec.src],
             **({"proof": _proof_json(rec.proof)} if inputs.proof_given else {}),
-            "tests": [_edge_json(e) for e in rec.tests],
+            "tests": [_edge_json(e, map_given) for e in rec.tests],
             "unrun": [{"file": e.case.file, "name": e.case.name} for e in rec.unrun],
         }
         for rec in inputs.graph.records
@@ -228,12 +246,14 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
     report["edges"] = [
         {"src": e.src, "kind": e.kind, "dst": e.dst, "retired": e.retired} for e in inputs.edges
     ]
-    report["dangling"] = [_citation_json(c) for c in inputs.graph.dangling]
-    report["stale"] = [_citation_json(c) for c in inputs.graph.stale]
+    report["dangling"] = [_citation_json(c, map_given) for c in inputs.graph.dangling]
+    report["stale"] = [_citation_json(c, map_given) for c in inputs.graph.stale]
     report["unattributed_results"] = [
         {"classname": r.classname, "name": r.name, "outcome": r.outcome}
         for r in inputs.unattributed
     ]
+    if map_given:  # C-23 / C-07: directly before `foreign`, only with --citation-map (I-019)
+        report["citation_map"] = dict(inputs.citation_map)
     if inputs.foreign:  # C-22 / C-07: present only when non-empty (I-019)
         report["foreign"] = [
             {"namespace": r.namespace, "id": r.id, "file": r.file, "line": r.line}
@@ -362,7 +382,11 @@ def render_markdown(report: dict) -> str:
         src = ", ".join(f"{s['file']}:{ln}" for s in rec["src"] for ln in s["lines"]) or EM_DASH
         tests = []
         for t in rec["tests"]:
-            cites = ", ".join(f"{t['file']}:{ln}" for ln in t["lines"])
+            cites = (
+                f"{t['file']} (map)"  # C-08 / C-23: a mapped citation has no line
+                if t.get("mapped")
+                else ", ".join(f"{t['file']}:{ln}" for ln in t["lines"])
+            )
             outcome = t["outcome"] or "unrun"
             tests.append(
                 f"`{_case_label(t['name'])}` {cites} "
@@ -397,12 +421,12 @@ def render_markdown(report: dict) -> str:
     section(
         "## 4. Dangling citations",
         ["ID", "File", "Line"],
-        [[d["id"], d["file"], str(d["line"])] for d in report["dangling"]],
+        [[d["id"], _location(d), str(d["line"])] for d in report["dangling"]],
     )
     section(
         "## 5. Stale citations",
         ["ID", "File", "Line"],
-        [[d["id"], d["file"], str(d["line"])] for d in report["stale"]],
+        [[d["id"], _location(d), str(d["line"])] for d in report["stale"]],
     )
     section(
         "## 6. Unattributed results",

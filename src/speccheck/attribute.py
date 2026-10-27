@@ -41,6 +41,7 @@ class Citation:
     kind: str  # "src" | "test"
     testcase: TestCase | None
     declared: bool = False  # C-14/R-39 (v1.14): DECLARED vs INCIDENTAL; always False for "src"
+    mapped: bool = False  # v1.23 (R-103, C-23): made by a --citation-map entry, not by a token
 
 
 def module_classname(rel_path: str) -> str:

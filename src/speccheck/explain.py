@@ -79,8 +79,10 @@ def _test_lines(rec: IdRecord) -> list[str]:
     for edge in rec.tests:
         case = edge.case
         label = f"{case.file}::{case.name}" if case.name else f"{case.file} {FILE_LEVEL}"
+        mapped = " (mapped)" if edge.mapped else ""  # C-18 / C-23; a literal citation wins (E-73)
         out.append(
             f"{INDENT}{label} ({edge.outcome or NO_RESULT}) [{_verdict_marker(edge.verdict)}]"
+            f"{mapped}"
         )
         if edge.verdict is not None:
             if edge.verdict.clause:

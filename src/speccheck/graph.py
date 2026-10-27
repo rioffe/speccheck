@@ -47,6 +47,7 @@ class TestEdge:
     results: list[RawResult]
     verdict: JudgedVerdict | None = None  # None -> not judged (Q-001)
     declared: bool = False  # C-14/C-16 (v1.14): true iff any citation line of this edge is DECLARED
+    mapped: bool = False  # v1.23 (C-23, E-73): the edge exists only by a citation-map entry
 
 
 @dataclass
@@ -126,7 +127,7 @@ def build_graph(
         else:
             assert cit.testcase is not None
             tests_by_id.setdefault(cit.id, {}).setdefault(cit.testcase, []).append(
-                (cit.line, cit.declared)
+                (cit.line, cit.declared, cit.mapped)
             )
 
     records: list[IdRecord] = []
@@ -135,14 +136,15 @@ def build_graph(
         tests: list[TestEdge] = []
         for case, flagged in tests_by_id.get(spec.id, {}).items():
             outcome = outcomes.get(case)
-            lines = sorted({ln for ln, _ in flagged})
+            lines = sorted({ln for ln, _, is_map in flagged if not is_map})  # C-23: mapped -> []
             tests.append(
                 TestEdge(
                     case,
                     lines,
                     outcome.outcome if outcome else None,
                     list(outcome.results) if outcome else [],
-                    declared=any(is_dec for _, is_dec in flagged),
+                    declared=any(is_dec for _, is_dec, _ in flagged),
+                    mapped=all(is_map for _, _, is_map in flagged),
                 )
             )
         tests.sort(key=lambda t: (t.case.file, t.case.start, t.case.name))
@@ -160,6 +162,8 @@ def build_graph(
     population = 0
     for cit in test_citations:
         if cit.id not in ratio_ids or cit.testcase is None or cit.testcase.is_file_level:
+            continue
+        if cit.mapped:  # C-07 (v1.23.1, F-703): the ratio measures the in-code convention
             continue
         population += 1
         declared_hits += cit.declared

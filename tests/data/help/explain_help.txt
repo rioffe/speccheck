@@ -1,9 +1,9 @@
 usage: speccheck explain [-h] --spec FILE [--src PATHS] [--tests PATHS]
-                         [--results FILE] [--namespace NS] [--root DIR]
-                         [--judge MODE] [--max-unknown FRACTION]
-                         [--judge-concurrency N] [--judge-budget SECONDS|N%]
-                         [--jev-pre-triage] [--progress MODE] [--depth N]
-                         [--verbose [LEVEL]]
+                         [--results FILE] [--namespace NS]
+                         [--citation-map FILE] [--root DIR] [--judge MODE]
+                         [--max-unknown FRACTION] [--judge-concurrency N]
+                         [--judge-budget SECONDS|N%] [--jev-pre-triage]
+                         [--progress MODE] [--depth N] [--verbose [LEVEL]]
                          ID
 
 Run the same pipeline as check and render one id's trace to stdout; writes no report file.
@@ -36,6 +36,12 @@ options:
                         then up to 31 letters, digits, _ or -, not shaped like
                         an id; at most once. default: none (every <ns>:ID is
                         foreign)
+  --citation-map FILE   a JSON citation map (schema_version "1.0") naming, per
+                        entry, an id and the existing test case (file, test)
+                        that proves it; each resolving entry is a mapped test
+                        citation, labelled as such in every report. must
+                        resolve inside --root; unreadable is a usage error,
+                        malformed is an input-contract error. default: none
   --root DIR            base directory for the reports' relative paths and for
                         the containment rule: every path flag (--spec, --src,
                         --tests, --results, --out, --proof, --proof-results,

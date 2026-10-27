@@ -25,7 +25,8 @@ from .conftest import FIXTURE, SIMPLE_PROJECT, junit, run_cli, spec_table
 SUMMARY_RE = re.compile(
     r"^speccheck: (CONFORMING|NOT CONFORMING) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, "
     r"\d+ weak, \d+ unverified, \d+ untested, \d+ uncited; \d+ dangling, \d+ stale; "
-    r"judge=(none|mock|llm)( \(unavailable\)| \(unknown_rate \d\.\d{4} > max_unknown \d\.\d{4}\))?$"
+    r"judge=(none|mock|llm)( \(unavailable\)| \(unknown_rate \d\.\d{4} > max_unknown \d\.\d{4}\))?"
+    r"(; citations: \d+ mapped)?$"  # §5.1 (v1.23): the citation-map suffix
 )
 LLM_ENV = {
     "SPECCHECK_JUDGE_URL": "http://localhost:11434/v1/chat/completions",
