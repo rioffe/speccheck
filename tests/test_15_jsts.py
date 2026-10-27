@@ -114,9 +114,17 @@ def test_joins_vitest_junit_end_to_end(project):
     --root), titles containing `[` and `(`, and a templated `it.each` title that expands to two
     results; the skipped case is SKIPPED. (R-104, C-04, E-76)"""
     spec = spec_table(
-        [("R-01", "adds"), ("R-02", "subtracts"), ("R-03", "sums"), ("R-04", "skipped"), ("R-05", "top")]
+        [
+            ("R-01", "adds"),
+            ("R-02", "subtracts"),
+            ("R-03", "sums"),
+            ("R-04", "skipped"),
+            ("R-05", "top"),
+        ]
     )
-    tests = SOURCE.replace("it.skip('skipped one', () => {})", "it.skip('skipped one', () => {}) // R-04")
+    tests = SOURCE.replace(
+        "it.skip('skipped one', () => {})", "it.skip('skipped one', () => {}) // R-04"
+    )
     run = project(
         {"SPEC.md": spec, "web/src/calc.test.ts": tests, "junit.xml": VITEST_JUNIT}
     ).check("--tests", "web/src", "--results", "junit.xml")
@@ -142,3 +150,52 @@ def test_multiline_block_comment_line_is_declared():
     attributed, _ = attribute_file(scanned)
     (cit,) = [c for c in attributed.citations if c.id == "R-06"]
     assert cit.testcase.name == "t" and cit.line == 3 and cit.declared
+
+
+# measured 2026-10-27 with jest 30.5.2 + jest-junit 17.0.0 over JEST_SOURCE, configured
+# classNameTemplate "{filepath}", titleTemplate "{classname} > {title}", ancestorSeparator " > "
+# (T-117); verbatim apart from the timestamp and the time attributes
+JEST_SOURCE = """describe('calc', () => {
+  it('adds', () => { expect(1 + 1).toBe(2) }) // R-01
+  describe('inner (x)', () => {
+    test('subtracts [neg]', () => { expect(2 - 1).toBe(1) }) // R-02
+  })
+  it.skip('skipped one', () => {}) // R-03
+})
+test('top level', () => { expect(true).toBe(true) }) // R-04
+"""
+JEST_JUNIT = """<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="4" failures="0" errors="0" time="0">
+  <testsuite name="calc" errors="0" failures="0" skipped="1" timestamp="" time="0" tests="4">
+    <testcase classname="src/calc.test.js" name="calc &gt; adds" time="0">
+    </testcase>
+    <testcase classname="src/calc.test.js" name="calc &gt; inner (x) &gt; subtracts [neg]" time="0">
+    </testcase>
+    <testcase classname="src/calc.test.js" name="calc &gt; skipped one" time="0">
+      <skipped/>
+    </testcase>
+    <testcase classname="src/calc.test.js" name=" &gt; top level" time="0">
+    </testcase>
+  </testsuite>
+</testsuites>
+"""
+
+
+def test_t117_measured_jest_junit_joins(project):
+    """T-117 *(recorded)*: one real jest + jest-junit run (nested describe, a test outside every
+    describe) under C-03's three options joins every `<testcase>` to its case — the top-level
+    one through C-04's leading-separator rule (" > top level" -> "top level"); none is
+    unattributed. The run itself is recorded in SPEC_BUILD_REPORT.md. (R-104, C-04, C-03, D-56)"""
+    spec = spec_table(
+        [("R-01", "adds"), ("R-02", "subtracts"), ("R-03", "skipped"), ("R-04", "top")]
+    )
+    run = project(
+        {"SPEC.md": spec, "web/src/calc.test.js": JEST_SOURCE, "junit.xml": JEST_JUNIT}
+    ).check("--tests", "web/src", "--results", "junit.xml")
+    assert run.json["unattributed_results"] == []
+    assert {i: run.status(i) for i in ("R-01", "R-02", "R-03", "R-04")} == {
+        "R-01": "PASSING",
+        "R-02": "PASSING",
+        "R-03": "SKIPPED",
+        "R-04": "PASSING",
+    }

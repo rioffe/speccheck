@@ -22,6 +22,9 @@ class ResultsError(Exception):
     """E-05 -> exit 3; the message is `results: <reason>`."""
 
 
+JEST_EMPTY_PREFIX = " > "
+
+
 def join_name_of(name: str) -> str:
     """C-04: step 1 strips a pytest `[param]`; step 2 (R-31) strips a Swift signature
     `(label:...)`, which names the test rather than a variant. Applied to a TestCase's name as
@@ -41,7 +44,14 @@ class RawResult:
 
     @property
     def join_name(self) -> str:
-        return join_name_of(self.name)
+        # C-04 leading separator (v1.23.1, T-117): jest-junit's "{classname} > {title}" for a test
+        # outside every `describe` writes " > title"; the prefix is dropped before step 1
+        name = (
+            self.name[len(JEST_EMPTY_PREFIX) :]
+            if self.name.startswith(JEST_EMPTY_PREFIX)
+            else self.name
+        )
+        return join_name_of(name)
 
     @property
     def dotted_classname(self) -> str:
