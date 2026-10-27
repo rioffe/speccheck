@@ -1,8 +1,36 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.20.0 against `SPEC.md` (v1.20)
+# SPEC_BUILD_REPORT — `speccheck` v1.22.0 against `SPEC.md` (v1.22)
 
 > - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0m. v1.21 / v1.22 increments (2026-10-27) — four extractor gaps, then a JavaScript/TypeScript adapter
+
+**Why.** A regulated-domain trial of the tool (a written debrief, 2026-10-14) reported ten gaps. Five
+small ones became v1.21 (commit `158bdb2`); the largest, that TypeScript tests could reach `UNVERIFIED`
+and no further, became v1.22 (commit `1dd0ba0`). The rest went to `docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md`
+(specified, not built) or were deferred.
+
+**v1.21 (R-36/C-12 amended, E-09 amended, E-66, T-104..T-106, D-50).** `extract.py`: a range
+(`R-07..R-10`, `to`, `through`) names the declared ids between its endpoints; a table row's other
+non-ID cells feed edges but not `text`/`title`; an odd number of unescaped `$` in a cut row gets a
+Note; `cli.py`: the outside-`--root` error names a symlink's resolved target. The "declared row with no
+references" lint was tried and withdrawn: it added a Note to every fixture's golden, and which rows it
+should cover is undecided.
+
+**v1.22 (R-104, C-03/C-04 amended, E-74..E-76, T-113..T-116, D-56).** New `jsts.py` (token-based, no
+parser); `results.py` joins path classnames as dotted, joins cases under `join_name(case.name)`, and
+matches `it.each` titles by placeholder pattern. The join shape was measured, not assumed: `vitest
+2.1.8 run --reporter=junit` over a sample file (classname = path relative to vitest's root, name =
+`describe > test`, one `<testcase>` per `it.each` row). T-12 now uses a `.rb` file.
+
+**Evidence.** `pytest`: 164 passed (was 153 at v1.20); `ruff check src tests`: clean. The self-application
+count is 279 ids at v1.22. **Not done, and said plainly:** these increments were built directly, not
+through `spec-build`'s planned waves; no independent Phase B judge pass was run over the new tests
+(one `--judge llm` run with `openai/gpt-6-luna-pro` finished against a `junit.xml` written mid-edit,
+so its 8 FAILING ids are an artefact of that snapshot and it is not evidence either way — its judge
+figures, 0 weak and `unknown_rate` 0.0173, are the only usable part); the jest-junit configuration is
+documented from its reader contract, not exercised against a real jest run.
 
 ## 0l. v1.20 increment (2026-09-24) — three determinacy fixes (K-18, E-64; C-07 and E-32 amended; T-101..T-103)
 
