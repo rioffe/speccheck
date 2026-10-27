@@ -1481,7 +1481,7 @@ flag's entry is one paragraph, in this order:
    `--root` containment, E-58).
 
 The flag's metavar MUST be the value vocabulary of §5.1's synopsis — `PATHS`, `FILE`, `DIR`,
-`IDS`, `MODE`, `FRACTION`, `N`, `SECONDS|N%`, `LEVEL` — never the argparse destination name.
+`IDS`, `MODE`, `FRACTION`, `N`, `SECONDS|N%`, `LEVEL`, and `NS` (v1.23) — never the argparse destination name.
 
 Each `--help` screen additionally carries:
 
