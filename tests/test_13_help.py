@@ -20,7 +20,19 @@ SCREENS = {
     "explain": ["explain", "--help"],
 }
 # C-19's metavar vocabulary: the value shapes §5.1's synopsis names
-METAVARS = {"PATHS", "FILE", "DIR", "IDS", "ID", "MODE", "FRACTION", "N", "SECONDS|N%", "LEVEL"}
+METAVARS = {
+    "PATHS",
+    "FILE",
+    "DIR",
+    "IDS",
+    "ID",
+    "MODE",
+    "FRACTION",
+    "N",
+    "SECONDS|N%",
+    "LEVEL",
+    "NS",
+}
 # T-95's oracle: each finite-set flag, a value its validator rejects, and the message it prints
 # (subcommand, flag, a value its validator rejects, whether the accepted set is enumerable)
 FINITE = [
@@ -105,9 +117,7 @@ def test_t95_help_values_match_the_validator(tmp_path: Path):
         screen = _help_text(target, [subcommand, "--help"])
         # each subcommand's own required companions, so the flag's validator is what fires
         companions = ["--changed", "K-02"] if subcommand == "impact" else []
-        rejected = run_cli(
-            [subcommand, flag, bad, "--spec", "SPEC.md", *companions], target
-        )
+        rejected = run_cli([subcommand, flag, bad, "--spec", "SPEC.md", *companions], target)
         assert rejected.code == 2, (subcommand, flag, rejected.stderr)
         phrase = re.search(r"\(expected (.+)\)\s*$", rejected.stderr.strip())
         assert phrase, rejected.stderr

@@ -1,9 +1,10 @@
 usage: speccheck check [-h] --spec FILE [--src PATHS] [--tests PATHS]
                        [--results FILE] [--proof PATHS] [--proof-results FILE]
-                       [--root DIR] [--out DIR] [--judge MODE] [--strict]
-                       [--max-unknown FRACTION] [--judge-concurrency N]
-                       [--judge-budget SECONDS|N%] [--jev-pre-triage]
-                       [--progress MODE] [--verbose [LEVEL]]
+                       [--namespace NS] [--root DIR] [--out DIR]
+                       [--judge MODE] [--strict] [--max-unknown FRACTION]
+                       [--judge-concurrency N] [--judge-budget SECONDS|N%]
+                       [--jev-pre-triage] [--progress MODE]
+                       [--verbose [LEVEL]]
 
 Run the conformance pipeline and write speccheck.json and SPEC_CONFORMANCE_REPORT.md under --out.
 
@@ -36,10 +37,17 @@ options:
                         must resolve inside --root; unreadable is a usage
                         error, malformed or missing 'build'/'theorems' is an
                         input-contract violation
+  --namespace NS        this project's namespace: a token written NS:ID is
+                        then a local citation of ID; every other <ns>:ID is a
+                        foreign reference and cites nothing. NS: a letter,
+                        then up to 31 letters, digits, _ or -, not shaped like
+                        an id; at most once. default: none (every <ns>:ID is
+                        foreign)
   --root DIR            base directory for the reports' relative paths and for
-                        the containment rule: --spec, --src, --tests,
-                        --results, --out and every list element must resolve
-                        inside it. default: .
+                        the containment rule: every path flag (--spec, --src,
+                        --tests, --results, --out, --proof, --proof-results,
+                        --against, --citation-map) and every list element must
+                        resolve inside it. default: .
   --out DIR             where the reports are written. default: .; must
                         resolve inside --root
   --judge MODE          judge to use: none, mock, or llm -- llm is model-

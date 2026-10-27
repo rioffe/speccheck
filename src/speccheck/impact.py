@@ -229,8 +229,7 @@ def reverify_set(edges: tuple[Edge, ...], ids: set[str]) -> tuple[ReverifyEntry,
             verifies[e.src].add(e.dst)
     t_ids = set(verifies) | {i for i in ids if _family(i) == "T"}
     out = [
-        ReverifyEntry(t, False, tuple(sorted(verifies.get(t, ()), key=edge_id_key)))
-        for t in t_ids
+        ReverifyEntry(t, False, tuple(sorted(verifies.get(t, ()), key=edge_id_key))) for t in t_ids
     ]
     return tuple(sorted(out, key=lambda r: edge_id_key(r.id)))
 

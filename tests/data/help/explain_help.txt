@@ -1,8 +1,9 @@
 usage: speccheck explain [-h] --spec FILE [--src PATHS] [--tests PATHS]
-                         [--results FILE] [--root DIR] [--judge MODE]
-                         [--max-unknown FRACTION] [--judge-concurrency N]
-                         [--judge-budget SECONDS|N%] [--jev-pre-triage]
-                         [--progress MODE] [--depth N] [--verbose [LEVEL]]
+                         [--results FILE] [--namespace NS] [--root DIR]
+                         [--judge MODE] [--max-unknown FRACTION]
+                         [--judge-concurrency N] [--judge-budget SECONDS|N%]
+                         [--jev-pre-triage] [--progress MODE] [--depth N]
+                         [--verbose [LEVEL]]
                          ID
 
 Run the same pipeline as check and render one id's trace to stdout; writes no report file.
@@ -29,10 +30,17 @@ options:
   --results FILE        JUnit XML results to join to the cited test cases;
                         without it no cited ID can be better than UNVERIFIED.
                         must resolve inside --root
+  --namespace NS        this project's namespace: a token written NS:ID is
+                        then a local citation of ID; every other <ns>:ID is a
+                        foreign reference and cites nothing. NS: a letter,
+                        then up to 31 letters, digits, _ or -, not shaped like
+                        an id; at most once. default: none (every <ns>:ID is
+                        foreign)
   --root DIR            base directory for the reports' relative paths and for
-                        the containment rule: --spec, --src, --tests,
-                        --results, --out and every list element must resolve
-                        inside it. default: .
+                        the containment rule: every path flag (--spec, --src,
+                        --tests, --results, --out, --proof, --proof-results,
+                        --against, --citation-map) and every list element must
+                        resolve inside it. default: .
   --judge MODE          judge to use: none, mock, or llm -- llm is model-
                         backed and requires SPECCHECK_JUDGE_*. default: none
   --max-unknown FRACTION

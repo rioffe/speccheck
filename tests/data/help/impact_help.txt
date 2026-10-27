@@ -1,6 +1,7 @@
 usage: speccheck impact [-h] --spec FILE [--changed IDS] [--against FILE]
-                        [--src PATHS] [--tests PATHS] [--root DIR] [--out DIR]
-                        [--depth N] [--verbose [LEVEL]]
+                        [--src PATHS] [--tests PATHS] [--namespace NS]
+                        [--root DIR] [--out DIR] [--depth N]
+                        [--verbose [LEVEL]]
 
 Walk the spec's own cross-references from a changed set and write impact.json and IMPACT_REPORT.md under --out.
 
@@ -21,10 +22,16 @@ options:
   --tests PATHS      test roots to list the citing test cases from.
                      repeatable, comma-separated, as check's --tests, with no
                      directory default here
+  --namespace NS     this project's namespace: a token written NS:ID is then a
+                     local citation of ID; every other <ns>:ID is a foreign
+                     reference and cites nothing. NS: a letter, then up to 31
+                     letters, digits, _ or -, not shaped like an id; at most
+                     once. default: none (every <ns>:ID is foreign)
   --root DIR         base directory for the reports' relative paths and for
-                     the containment rule: --spec, --src, --tests, --results,
-                     --out and every list element must resolve inside it.
-                     default: .
+                     the containment rule: every path flag (--spec, --src,
+                     --tests, --results, --out, --proof, --proof-results,
+                     --against, --citation-map) and every list element must
+                     resolve inside it. default: .
   --out DIR          where the reports are written. default: .; must resolve
                      inside --root
   --depth N          walk depth: an integer 0..999 (0 = unbounded). default: 1

@@ -14,6 +14,7 @@ import importlib.util
 import io
 import logging
 import os
+import re
 import shutil
 import socket
 import sys
@@ -29,12 +30,16 @@ from .attribute import Citation, TestCase, attribute_file
 from .explain import render_trace
 from .extract import (
     ID_RE,
+    ForeignRef,
     ScanCounters,
     SpecError,
     SpecIndex,
     citations_in_file,
     decode_text,
     edge_id_key,
+    foreign_in_file,
+    foreign_note,
+    id_sort_key,
     normalize_id,
     parse_spec,
     scan_roots,
@@ -124,6 +129,7 @@ class Config:
     jev: JevConfig | None = None  # C-17, read only when the triage pass runs
     proof: tuple[Path, ...] = ()  # v1.19 (R-100, C-20): --proof PATHS, check-only
     proof_results: Path | None = None  # v1.19 (C-21): --proof-results FILE, check-only
+    namespace: str | None = None  # v1.23 (R-102, C-22): --namespace NS
 
 
 @dataclass(frozen=True)
@@ -143,6 +149,7 @@ class ImpactConfig:
     verbose: str | None
     spec_arg: str
     against_arg: str | None
+    namespace: str | None = None  # v1.23 (R-102, C-22): --namespace NS
 
 
 @dataclass(frozen=True)
@@ -230,8 +237,9 @@ _HELP_RESULTS = (
     "than UNVERIFIED. must resolve inside --root"
 )
 _HELP_ROOT = (
-    "base directory for the reports' relative paths and for the containment rule: --spec, --src, "
-    "--tests, --results, --out and every list element must resolve inside it. default: ."
+    "base directory for the reports' relative paths and for the containment rule: every path "
+    "flag (--spec, --src, --tests, --results, --out, --proof, --proof-results, --against, "
+    "--citation-map) and every list element must resolve inside it. default: ."
 )
 _HELP_OUT = "where the reports are written. default: .; must resolve inside --root"
 _HELP_JUDGE = (
@@ -243,8 +251,7 @@ _HELP_MAX_UNKNOWN = (
     "--strict --judge llm"
 )
 _HELP_CONCURRENCY = (
-    f"judge requests in flight at once: {CONCURRENCY_RANGE}. default: 4; ignored unless "
-    "--judge llm"
+    f"judge requests in flight at once: {CONCURRENCY_RANGE}. default: 4; ignored unless --judge llm"
 )
 _HELP_BUDGET = (
     "judge-stage bound. SECONDS: " + BUDGET_SECONDS_RANGE + ", a wall-clock deadline; N%%: an "
@@ -267,6 +274,32 @@ _HELP_VERBOSE = (
     "(nothing below ERROR reaches stderr)"
 )
 _HELP_DEPTH = f"walk depth: {DEPTH_RANGE} (0 = unbounded). default: 1"
+_HELP_NAMESPACE = (
+    "this project's namespace: a token written NS:ID is then a local citation of ID; every "
+    "other <ns>:ID is a foreign reference and cites nothing. NS: a letter, then up to 31 "
+    "letters, digits, _ or -, not shaped like an id; at most once. "
+    "default: none (every <ns>:ID is foreign)"
+)
+_NAMESPACE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,31}$")
+_ID_SHAPED_RE = re.compile(r"^[RCIKET]-[0-9]{1,3}$")
+
+
+class _Once(argparse.Action):
+    """R-102: a flag that may be given at most once (argparse would keep the last)."""
+
+    def __call__(self, parser, namespace, values, option_string=None):  # type: ignore[override]
+        if getattr(namespace, self.dest) is not None:
+            raise UsageError(f"{option_string}: given more than once")
+        setattr(namespace, self.dest, values)
+
+
+def _validate_namespace(value: str | None) -> str | None:
+    """R-102 / E-68: the --namespace value grammar, decided before any file is read (K-18)."""
+    if value is not None and (not _NAMESPACE_RE.match(value) or _ID_SHAPED_RE.match(value)):
+        raise UsageError(f"--namespace: invalid namespace: {value}")
+    return value
+
+
 _HELP_CHANGED = (
     "the changed set: a comma-separated list of ids declared in --spec (R/C/I/K/E/T or D). "
     "exactly one of --changed and --against is required"
@@ -335,14 +368,13 @@ def build_parser() -> _Parser:
     )
     check.add_argument("--spec", required=True, metavar="FILE", help=_HELP_SPEC)
     check.add_argument("--src", action="append", default=None, metavar="PATHS", help=_HELP_SRC)
-    check.add_argument(
-        "--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS
-    )
+    check.add_argument("--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS)
     check.add_argument("--results", default=None, metavar="FILE", help=_HELP_RESULTS)
-    check.add_argument(
-        "--proof", action="append", default=None, metavar="PATHS", help=_HELP_PROOF
-    )
+    check.add_argument("--proof", action="append", default=None, metavar="PATHS", help=_HELP_PROOF)
     check.add_argument("--proof-results", default=None, metavar="FILE", help=_HELP_PROOF_RESULTS)
+    check.add_argument(
+        "--namespace", action=_Once, default=None, metavar="NS", help=_HELP_NAMESPACE
+    )
     check.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     check.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
     check.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
@@ -352,15 +384,9 @@ def build_parser() -> _Parser:
         help="exit 1 unless every in-scope ID is PASSING with no dangling or stale citation and, "
         "with --judge llm, the judge was available and unknown_rate <= --max-unknown. default: off",
     )
-    check.add_argument(
-        "--max-unknown", default="0.2", metavar="FRACTION", help=_HELP_MAX_UNKNOWN
-    )
-    check.add_argument(
-        "--judge-concurrency", default="4", metavar="N", help=_HELP_CONCURRENCY
-    )
-    check.add_argument(
-        "--judge-budget", default="0", metavar="SECONDS|N%", help=_HELP_BUDGET
-    )
+    check.add_argument("--max-unknown", default="0.2", metavar="FRACTION", help=_HELP_MAX_UNKNOWN)
+    check.add_argument("--judge-concurrency", default="4", metavar="N", help=_HELP_CONCURRENCY)
+    check.add_argument("--judge-budget", default="0", metavar="SECONDS|N%", help=_HELP_BUDGET)
     check.add_argument("--jev-pre-triage", action="store_true", help=_HELP_JEV)
     check.add_argument("--progress", default="auto", metavar="MODE", help=_HELP_PROGRESS)
     check.add_argument(
@@ -382,6 +408,9 @@ def build_parser() -> _Parser:
     )
     impact.add_argument(
         "--tests", action="append", default=None, metavar="PATHS", help=_HELP_IMPACT_TESTS
+    )
+    impact.add_argument(
+        "--namespace", action=_Once, default=None, metavar="NS", help=_HELP_NAMESPACE
     )
     impact.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     impact.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
@@ -409,6 +438,9 @@ def build_parser() -> _Parser:
         "--tests", action="append", default=None, metavar="PATHS", help=_HELP_TESTS
     )
     explain.add_argument("--results", default=None, metavar="FILE", help=_HELP_RESULTS)
+    explain.add_argument(
+        "--namespace", action=_Once, default=None, metavar="NS", help=_HELP_NAMESPACE
+    )
     explain.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     explain.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
     explain.add_argument(
@@ -417,12 +449,8 @@ def build_parser() -> _Parser:
         metavar="FRACTION",
         help=_HELP_MAX_UNKNOWN + " (inert here: explain has no --strict)",
     )
-    explain.add_argument(
-        "--judge-concurrency", default="4", metavar="N", help=_HELP_CONCURRENCY
-    )
-    explain.add_argument(
-        "--judge-budget", default="0", metavar="SECONDS|N%", help=_HELP_BUDGET
-    )
+    explain.add_argument("--judge-concurrency", default="4", metavar="N", help=_HELP_CONCURRENCY)
+    explain.add_argument("--judge-budget", default="0", metavar="SECONDS|N%", help=_HELP_BUDGET)
     explain.add_argument("--jev-pre-triage", action="store_true", help=_HELP_JEV)
     explain.add_argument("--progress", default="auto", metavar="MODE", help=_HELP_PROGRESS)
     explain.add_argument("--depth", default="1", metavar="N", help=_HELP_DEPTH)
@@ -518,6 +546,7 @@ def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> Impac
     defined on this subparser at all, so argparse rejects them as unrecognized arguments (E-54)."""
     if (args.changed is None) == (args.against is None):
         raise UsageError("impact: exactly one of --changed, --against is required")  # E-54
+    namespace = _validate_namespace(args.namespace)
     root = Path(args.root).resolve()
     if not root.is_dir():
         raise UsageError(f"--root: not a directory: {args.root}")
@@ -557,6 +586,7 @@ def _build_impact_config(args: argparse.Namespace, verbose: str | None) -> Impac
         verbose=verbose,
         spec_arg=args.spec,
         against_arg=args.against,
+        namespace=namespace,
     )
 
 
@@ -609,6 +639,7 @@ def _build_check_config(
     `--out` directory for content. So an invocation carrying both a usage fault (exit `2`) and
     what would be an input-contract violation (E-01/E-02/E-03/E-05/E-18, exit `3`) exits `2`:
     the contract check is never reached. `_build_impact_config` orders `--against` the same way."""
+    namespace = _validate_namespace(args.namespace)  # E-68, before any file is read (K-18)
     out_arg = getattr(args, "out", ".")
     strict = bool(getattr(args, "strict", False))
     if args.judge not in JUDGE_MODES:
@@ -705,6 +736,7 @@ def _build_check_config(
         results=results,
         proof=proof,
         proof_results=proof_results,
+        namespace=namespace,
         root=root,
         out=out,
         judge=args.judge,
@@ -764,6 +796,7 @@ class _Stages:
     judge_available: bool | None
     prompt_sha: str | None
     proof_build: dict | None = None  # v1.19 (C-21): the manifest's build object, echoed verbatim
+    foreign: tuple[ForeignRef, ...] = ()  # v1.23 (C-22): sorted (file, line, namespace, id)
 
 
 def _run_stages(config: Config) -> _Stages:
@@ -778,7 +811,7 @@ def _run_stages(config: Config) -> _Stages:
     spec_text, replaced = decode_text(config.spec.read_bytes())
     if replaced:
         notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
-    index = parse_spec(spec_text, rel_spec)
+    index = parse_spec(spec_text, rel_spec, config.namespace)
     notes.extend(index.notes)  # K-14 / E-46: one Note per truncated statement
     stage.done(ids=len(index.ids), retired=sum(1 for s in index.ids if s.retired))
 
@@ -788,11 +821,14 @@ def _run_stages(config: Config) -> _Stages:
     stage = _Stage("scan-src")
     src_files = scan_roots(config.src, root, excluded, config.out, counters)
     src_citations: list[Citation] = []
+    foreign: list[ForeignRef] = []  # C-22 / E-67
     for f in src_files:
         # E-56: a "src"-kind citation is never DECLARED
         src_citations.extend(
-            Citation(c.id, c.file, c.line, "src", None, False) for c in citations_in_file(f)
+            Citation(c.id, c.file, c.line, "src", None, False)
+            for c in citations_in_file(f, config.namespace)
         )
+        foreign.extend(foreign_in_file(f, config.namespace))
     stage.done(files=len(src_files), citations=len(src_citations))
 
     stage = _Stage("scan-tests")
@@ -801,13 +837,17 @@ def _run_stages(config: Config) -> _Stages:
     cases: list[TestCase] = []
     file_lines: dict[str, tuple[str, ...]] = {}
     for f in test_files:
-        attributed, file_notes = attribute_file(f)
+        attributed, file_notes = attribute_file(f, config.namespace)
+        foreign.extend(foreign_in_file(f, config.namespace))
         notes.extend(file_notes)
         cases.extend(attributed.cases)
         cases.append(attributed.file_case)
         test_citations.extend(attributed.citations)
         file_lines[f.path] = f.lines
     notes.extend(counters.notes())
+    foreign.sort(key=lambda r: (r.file, r.line, r.namespace, id_sort_key(r.id)))
+    if foreign:
+        notes.append(foreign_note(foreign))  # E-67
     stage.done(files=len(test_files), cases=len(cases), citations=len(test_citations))
 
     stage = _Stage("map-results")
@@ -886,9 +926,7 @@ def _run_stages(config: Config) -> _Stages:
         # answer is used for the issue order and nothing else (I-015).
         if config.triage and requests:
             triage_stage = _Stage("triage")
-            triage = run_triage(
-                _make_triage_provider(config), requests, concurrency=concurrency
-            )
+            triage = run_triage(_make_triage_provider(config), requests, concurrency=concurrency)
             requests = triage.order
             notes.extend(triage.notes())
             assert config.jev is not None
@@ -933,7 +971,9 @@ def _run_stages(config: Config) -> _Stages:
             unknown=sum(1 for v in run.verdicts.values() if v.verdict == "UNKNOWN"),
         )
 
-    return _Stages(index, graph, unattributed, notes, judge_available, prompt_sha, proof_build)
+    return _Stages(
+        index, graph, unattributed, notes, judge_available, prompt_sha, proof_build, tuple(foreign)
+    )
 
 
 def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
@@ -957,6 +997,7 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             max_unknown=config.max_unknown,
             graph=graph,
             unattributed=unattributed,
+            foreign=stages.foreign,
             notes=notes,
             decisions=index.decisions,
             edges=index.edges,
@@ -985,9 +1026,7 @@ def execute_explain(config: ExplainConfig, stdout: io.TextIOBase | None = None) 
     by_id = stages.index.by_id()
     ident = config.ident.strip()
     match = ID_RE.fullmatch(ident)
-    normalized = (
-        normalize_id(match.group(1), int(match.group(2))) if match is not None else None
-    )
+    normalized = normalize_id(match.group(1), int(match.group(2))) if match is not None else None
     if normalized is None or normalized not in by_id:
         raise UsageError(f"explain: undeclared id: {ident}")
     rec = next(r for r in stages.graph.records if r.id == normalized)
@@ -1025,7 +1064,7 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
     spec_text, replaced = decode_text(config.spec.read_bytes())
     if replaced:
         notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
-    index = parse_spec(spec_text, rel_spec)
+    index = parse_spec(spec_text, rel_spec, config.namespace)
     notes.extend(index.notes)
 
     against_path: str | None = None
@@ -1041,7 +1080,7 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
         if against_replaced:
             notes.append(f"invalid UTF-8 decoded with replacement: {against_path}")
         try:
-            old_index = parse_spec(against_text, against_path)
+            old_index = parse_spec(against_text, against_path, config.namespace)
         except SpecError as exc:
             raise SpecError(f"--against: {exc}") from None
         changed = diff_changed_set(old_index, index)
@@ -1065,6 +1104,7 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
 
     recite: list[dict] = []
     test_cases: list[dict] = []
+    foreign: list[ForeignRef] = []  # C-22: an impact scan Notes them too (C-13 scan Notes)
     if config.src_given or config.tests_given:
         excluded = _impact_excluded_paths(config)
         counters = ScanCounters()
@@ -1072,19 +1112,19 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
             src_files = scan_roots(config.src, root, excluded, config.out, counters)
             hits: dict[str, dict[str, set[int]]] = {}
             for f in src_files:
-                for c in citations_in_file(f):
+                foreign.extend(foreign_in_file(f, config.namespace))
+                for c in citations_in_file(f, config.namespace):
                     if c.id in target_ids:
                         hits.setdefault(c.id, {}).setdefault(f.path, set()).add(c.line)
             for ident in sorted(hits, key=edge_id_key):
                 for file in sorted(hits[ident]):
-                    recite.append(
-                        {"id": ident, "file": file, "lines": sorted(hits[ident][file])}
-                    )
+                    recite.append({"id": ident, "file": file, "lines": sorted(hits[ident][file])})
         if config.tests_given:
             test_files = scan_roots(config.tests, root, excluded, config.out, counters)
             case_rows = []
             for f in test_files:
-                attributed, file_notes = attribute_file(f)
+                attributed, file_notes = attribute_file(f, config.namespace)
+                foreign.extend(foreign_in_file(f, config.namespace))
                 notes.extend(file_notes)
                 all_cases = list(attributed.cases) + [attributed.file_case]
                 for case in all_cases:
@@ -1103,6 +1143,9 @@ def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) ->
                     {"file": file, "name": name, "classname": classname, "ids": ids_here}
                 )
         notes.extend(counters.notes())
+        foreign.sort(key=lambda r: (r.file, r.line, r.namespace, id_sort_key(r.id)))
+        if foreign:
+            notes.append(foreign_note(foreign))  # E-67
 
     inputs = ImpactInputs(
         spec_path=rel_spec,

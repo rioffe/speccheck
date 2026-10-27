@@ -115,9 +115,7 @@ def join_proof(
     if manifest is None:
         # --proof given, --proof-results absent: nothing to confirm status against.
         for cit in citations:
-            by_id.setdefault(cit.id, []).append(
-                ProofEdge(cit.name, cit.file, cit.line, "unknown")
-            )
+            by_id.setdefault(cit.id, []).append(ProofEdge(cit.name, cit.file, cit.line, "unknown"))
         return by_id, notes
 
     by_name: dict[str, list[ManifestTheorem]] = {}

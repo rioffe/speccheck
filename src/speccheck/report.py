@@ -148,6 +148,7 @@ class ReportInputs:
     proof_given: bool = False  # v1.19: --proof was given
     proof_results_given: bool = False  # v1.19: --proof-results was given
     proof_build: dict | None = None  # v1.19, C-21: the manifest's own `build` object, verbatim
+    foreign: tuple = ()  # v1.23, C-22: ForeignRef entries, sorted (file, line, namespace, id)
 
 
 def _edge_json(edge: TestEdge) -> dict:
@@ -233,6 +234,11 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
         {"classname": r.classname, "name": r.name, "outcome": r.outcome}
         for r in inputs.unattributed
     ]
+    if inputs.foreign:  # C-22 / C-07: present only when non-empty (I-019)
+        report["foreign"] = [
+            {"namespace": r.namespace, "id": r.id, "file": r.file, "line": r.line}
+            for r in inputs.foreign
+        ]
     report["notes"] = sorted(inputs.notes)
     m: dict = {
         "declared": metrics.declared,

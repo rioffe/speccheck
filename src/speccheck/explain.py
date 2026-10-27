@@ -89,16 +89,13 @@ def _test_lines(rec: IdRecord) -> list[str]:
     return out
 
 
-def _impact_lines(
-    walk: WalkResult, reverify: tuple[ReverifyEntry, ...], depth: int
-) -> list[str]:
+def _impact_lines(walk: WalkResult, reverify: tuple[ReverifyEntry, ...], depth: int) -> list[str]:
     """C-18 section 6: the C-12 walk from this id and the C-13 reverify set, in their own order."""
     out = [f"impact ({depth}):"]
     for entry in walk.impact:
         via = entry.via
         out.append(
-            f"{INDENT}{entry.id} (depth {entry.depth}, "
-            f"via {via.src} -{via.kind}-> {via.dst})"
+            f"{INDENT}{entry.id} (depth {entry.depth}, via {via.src} -{via.kind}-> {via.dst})"
         )
     for entry in reverify:
         out.append(f"{INDENT}{entry.id} verifies {', '.join(entry.verifies)}")

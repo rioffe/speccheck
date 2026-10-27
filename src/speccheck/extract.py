@@ -77,6 +77,36 @@ def tokens_in_line(line: str) -> list[tuple[str, str, int]]:
     ]
 
 
+# C-22 (v1.23, R-101; uncapped recognition v1.23.1, F-712): `<ns>:ID` is someone else's id unless
+# `ns` is the --namespace value. An ID-shaped `ns` (`R-01:R-02`) is two local tokens.
+FOREIGN_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?P<ns>[A-Za-z][A-Za-z0-9_-]*):(?P<id>([RCIKET])-([0-9]{1,3}))(?![A-Za-z0-9])"
+)
+_ID_SHAPED_RE = re.compile(r"^[RCIKET]-[0-9]{1,3}$")
+
+
+def foreign_in_line(line: str, namespace: str | None) -> list[tuple[int, int, str, str]]:
+    """The foreign references on a line as (id_start, id_end, ns, normalized_id) (C-22)."""
+    out = []
+    for m in FOREIGN_RE.finditer(line):
+        ns = m.group("ns")
+        if _ID_SHAPED_RE.match(ns) or ns == namespace:
+            continue
+        out.append((m.start("id"), m.end("id"), ns, normalize_id(m.group(3), int(m.group(4)))))
+    return out
+
+
+def mask_foreign(text: str, namespace: str | None) -> str:
+    """`text` with every foreign reference's id blanked, so neither the TOKEN rule nor a C-12
+    range sees it (E-67, E-69; a foreign range endpoint names nothing, F-716)."""
+    lines = text.split("\n")
+    for k, line in enumerate(lines):
+        for start, end, _ns, _id in reversed(foreign_in_line(line, namespace)):
+            line = line[:start] + " " * (end - start) + line[end:]
+        lines[k] = line
+    return "\n".join(lines)
+
+
 # --------------------------------------------------------------------------------------------
 # C-02
 # --------------------------------------------------------------------------------------------
@@ -406,7 +436,9 @@ def _decision_rows(lines: list[str]) -> list[tuple[int, str, str]]:
 
 
 def _build_decisions_and_edges(
-    ids: tuple[SpecId, ...], decision_rows: list[tuple[int, str, str]]
+    ids: tuple[SpecId, ...],
+    decision_rows: list[tuple[int, str, str]],
+    namespace: str | None = None,
 ) -> tuple[tuple[Decision, ...], tuple[Edge, ...], list[str]]:
     """C-12: statement-token edges among the declared ids, plus decision rows and their
     `affects` edges. Returns (decisions, edges, notes) with everything in C-12 order."""
@@ -423,6 +455,7 @@ def _build_decisions_and_edges(
                 seen.add(y)
                 out.append(y)
 
+        text = mask_foreign(text, namespace)  # E-69: a foreign reference is not a token here
         for m in ID_RE.finditer(text):
             add(normalize_id(m.group(1), int(m.group(2))))
         for m in RANGE_RE.finditer(text):  # C-12 (1): a range also names the ids between
@@ -491,7 +524,7 @@ def _odd_math_delimiters(statement: str) -> bool:
     return bare.count("$") % 2 == 1
 
 
-def parse_spec(text: str, rel_path: str) -> SpecIndex:
+def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIndex:
     """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
     seen: dict[tuple[str, int], SpecId] = {}
     notes: list[str] = []
@@ -535,7 +568,7 @@ def parse_spec(text: str, rel_path: str) -> SpecIndex:
                 f"duplicate declaration of {ident} at lines {seen_decisions[num]} and {lineno}"
             )
         seen_decisions[num] = lineno
-    decisions, edges, edge_notes = _build_decisions_and_edges(ids, decision_rows)
+    decisions, edges, edge_notes = _build_decisions_and_edges(ids, decision_rows, namespace)
     notes.extend(edge_notes)
 
     return SpecIndex(
@@ -696,12 +729,39 @@ class RawCitation:
     line: int
 
 
-def citations_in_file(scanned: ScannedFile) -> list[RawCitation]:
-    """Every TOKEN occurrence on a line not carrying speccheck:ignore (C-01, R-27)."""
+@dataclass(frozen=True)
+class ForeignRef:
+    namespace: str
+    id: str
+    file: str
+    line: int
+
+
+def citations_in_file(scanned: ScannedFile, namespace: str | None = None) -> list[RawCitation]:
+    """Every TOKEN occurrence on a line not carrying speccheck:ignore (C-01, R-27), except a
+    foreign reference's (C-22, E-67)."""
     out: list[RawCitation] = []
     for lineno, line in enumerate(scanned.lines, start=1):
         if IGNORE_LINE in line:
             continue
-        for ident, _fam, _num in tokens_in_line(line):
+        for ident, _fam, _num in tokens_in_line(mask_foreign(line, namespace)):
             out.append(RawCitation(ident, scanned.path, lineno))
     return out
+
+
+def foreign_in_file(scanned: ScannedFile, namespace: str | None = None) -> list[ForeignRef]:
+    """The C-22 foreign references of a scanned file (`speccheck:ignore` applies to them too)."""
+    out: list[ForeignRef] = []
+    for lineno, line in enumerate(scanned.lines, start=1):
+        if IGNORE_LINE in line:
+            continue
+        for _start, _end, ns, ident in foreign_in_line(line, namespace):
+            out.append(ForeignRef(ns, ident, scanned.path, lineno))
+    return out
+
+
+def foreign_note(refs: list[ForeignRef]) -> str:
+    """E-67: one Note naming the first three references in `foreign` order."""
+    shown = ", ".join(f"{r.namespace}:{r.id} {r.file}:{r.line}" for r in refs[:3])
+    more = f" and {len(refs) - 3} more" if len(refs) > 3 else ""
+    return f"{len(refs)} foreign reference(s) ignored: {shown}{more}"
