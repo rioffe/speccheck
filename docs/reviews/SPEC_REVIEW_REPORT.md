@@ -445,10 +445,10 @@ Every R/C/I/K/E id has at least one verifying T, and the shipped checker confirm
 `conformance`, `by_family`, `judge_strength`, `unknown_rate` and `declared_ratio` each have a formula, a population and a zero-denominator value. `declared_ratio`'s population becomes ambiguous under v1.23 (F-703). Its denominator, "all such citations", is still prose rather than an expression. A precise form would be:
 
 $$
-\mathrm{declared\_ratio} = \frac{|\{c \in C : c.\mathrm{declared}\}|}{|C|}, \qquad C = \{\, c : c.\mathrm{kind} = \texttt{test},\ c.\mathrm{family} \in \{R,C,I,K,E\},\ c.\mathrm{id} \text{ in scope} \,\}
+\mathrm{declared\_ratio} = \frac{|\{c \in C : c.\mathrm{declared}\}|}{|C|}, \qquad C = \{\, c : c.\mathrm{kind} = \texttt{test},\ c.\mathrm{family} \in \{R,C,I,K,E\},\ c.\mathrm{id} \text{ in scope},\ c.\mathrm{testcase} \text{ not file-level} \,\}
 $$
 
-Here $C$ includes file-level citations (always undeclared, E-56), and `null` when $|C| = 0$. Under F-703's recommendation, $C$ additionally requires $\neg c.\mathrm{mapped}$. T-49's judge-accuracy evaluation is well defined: three runs, no pooling, the hash tied to C-10.
+Here $C$ is restricted to citations in non-file-level cases, which is R-39's population and what the shipped code computes, and the ratio is `null` when $|C| = 0$. (The first version of this report wrote that file-level citations were included. That was wrong, and the v1.23.1 fold initially copied it. It was corrected before the build.) Under F-703's recommendation, $C$ additionally requires $\neg c.\mathrm{mapped}$. T-49's judge-accuracy evaluation is well defined: three runs, no pooling, the hash tied to C-10.
 
 ## 15. Traceability Review
 
