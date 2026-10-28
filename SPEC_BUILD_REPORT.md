@@ -44,25 +44,32 @@ speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, 0 weak, 
 notes: the eight `edge to undeclared id: … -> R-99` example Notes and `ignored 6 file(s) by
 speccheck:ignore-file` — no truncation, no cut row, no isolated id (every Note read)
 
-# Phase B: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict — NOT PASSED, NOT VALID
+# Phase B, first attempt: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict — NOT VALID
 speccheck: NOT CONFORMING - 298/307 passing (97.1%), 0 failing, 0 skipped, 9 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm (unknown_rate 0.3815 > max_unknown 0.2000)
+
+# Phase B, re-run after the account was topped up: same model, same flags, same junit.xml (sha256 3f708e9a…)
+speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
+judge_available=true  unknown_rate=0.0107  judge_strength=297/297  strict_judge_failure=null
+judged edges=1025: ASSERTS 604, UNRELATED 236, EXECUTES_ONLY 174, UNKNOWN 11 (8 unlocated clause,
+2 malformed response, 1 returned by the model); no transport error; notes as Phase A
 ```
 
-**Phase B is not evidence either way.** 385 of its 1,025 judge calls returned **HTTP 402 Payment
-Required**: the OpenRouter account ran out of credit mid-run. Those edges are `UNKNOWN` (`judge: http
+**The first Phase B attempt was not evidence either way.** 385 of its 1,025 judge calls returned
+**HTTP 402 Payment Required**: the OpenRouter account ran out of credit mid-run. Those edges are `UNKNOWN` (`judge: http
 402`), which is all of the `unknown_rate` above apart from 6 ordinary `judge: unlocated clause`
 answers. The 9 `WEAKLY_PASSING` ids (K-02, K-15, E-01, E-03, E-10, E-37, E-68, T-01, T-03) each lost
 most of their edges to the 402s, so step 5 judged each on the one to seven edges that came back
-(K-02: 8 unjudged, 1 `UNRELATED`). No test was changed against this run. Phase B must be re-run in
-full once the account has credit; until then the verdict is pending.
+(K-02: 8 unjudged, 1 `UNRELATED`). No test was changed against that run. The re-run, with the
+same inputs, judged every edge and found no weak id, which confirms the nine were artefacts of the
+partial run.
 
 ```text
 Spec coverage: 307/307 IDs realized (0 deferred)
 speccheck (mock): speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  not passed and not valid: HTTP 402 (credit exhausted) on 385 of 1,025 calls; re-run pending
+speccheck (llm):  speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm (openai/gpt-6-luna-pro, unknown_rate 0.0107, 1,025 judged edges; the re-run — the first attempt hit HTTP 402)
 Observed: no rendered surface; goldens (one added Note line each) and every Note of the runs read
 Readiness: BUILT
-Conformance: VERIFICATION PENDING (Phase B)
+Conformance: PASS
 ```
 
 ## 0n. v1.23 / v1.23.1 increment (2026-10-27) — namespaced ids, the citation map, and the full review's fold
