@@ -116,17 +116,18 @@ LaTeX, diagrams are mermaid, and the rows are normative while the pictures illus
 from speccheck's own specification:
 
 ```markdown
-| **R-11** | A judge verdict MUST only ever lower an ID's status (`PASSING` → `WEAKLY_PASSING`);
-the judge MUST NOT change any status other than `PASSING` and MUST NOT create, remove, or
-re-attribute citations. | §0 principle |
+| **R-11** | A judge verdict MUST only ever lower an ID's status (`PASSING` →
+`WEAKLY_PASSING`); the judge MUST NOT change any status other than `PASSING` and MUST
+NOT create, remove, or re-attribute citations. | §0 principle |
 ```
 
 and the edge case that pins what happens when a model misbehaves:
 
 ```markdown
-| **E-16** | Judge returns `ASSERTS` with no evidence, or evidence outside the span / in
-another file | `UNKNOWN`, `coerced: true`, rationale `judge: ungrounded`. When the same reply also
-fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is available only at DEBUG. |
+| **E-16** | Judge returns `ASSERTS` with no evidence, or evidence outside the span /
+in another file | `UNKNOWN`, `coerced: true`, rationale `judge: ungrounded`. When the
+same reply also fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is
+available only at DEBUG. |
 ```
 
 Both are checkable, and both are cited by the code that realizes them and the tests that
@@ -152,8 +153,8 @@ Given a `SPEC.md`, a source tree, a test tree, and a JUnit XML results file, it:
 - writes a Markdown report and a JSON report, byte-identical across runs, and prints one line:
 
 ```text
-speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
-           0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, \
+           0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
 ```
 
 With `--strict`, that line is a CI gate: exit `0` only when every ID is `PASSING` and nothing is
@@ -237,7 +238,8 @@ Everything is in one repository, MIT for the code and CC BY 4.0 for the document
 
 ```bash
 git clone https://github.com/rioffe/speccheck && cd speccheck
-# skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh, the speccheck CLI, a local judge, the Lean toolchain
+# installs the skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh,
+# the speccheck CLI, a local judge, and the Lean toolchain
 ./install.sh --interactive         
 speccheck --self-check
 ```

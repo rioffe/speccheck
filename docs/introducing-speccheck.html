@@ -530,13 +530,14 @@ dependencies, the traceability matrix, and the decisions to confirm.
 Formulas are LaTeX, diagrams are mermaid, and the rows are normative
 while the pictures illustrate. A row from speccheck’s own
 specification:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **R-11** <span class="pp">|</span> A judge verdict MUST only ever lower an ID&#39;s status (<span class="in">`PASSING`</span> → <span class="in">`WEAKLY_PASSING`</span>);</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>the judge MUST NOT change any status other than <span class="in">`PASSING`</span> and MUST NOT create, remove, or</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>re-attribute citations. | §0 principle |</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **R-11** <span class="pp">|</span> A judge verdict MUST only ever lower an ID&#39;s status (<span class="in">`PASSING`</span> →</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="in">`WEAKLY_PASSING`</span>); the judge MUST NOT change any status other than <span class="in">`PASSING`</span> and MUST</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>NOT create, remove, or re-attribute citations. | §0 principle |</span></code></pre></div>
 <p>and the edge case that pins what happens when a model misbehaves:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **E-16** <span class="pp">|</span> Judge returns <span class="in">`ASSERTS`</span> with no evidence, or evidence outside the span / in</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>another file | <span class="in">`UNKNOWN`</span>, <span class="in">`coerced: true`</span>, rationale <span class="in">`judge: ungrounded`</span>. When the same reply also</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is available only at DEBUG. |</span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **E-16** <span class="pp">|</span> Judge returns <span class="in">`ASSERTS`</span> with no evidence, or evidence outside the span /</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>in another file | <span class="in">`UNKNOWN`</span>, <span class="in">`coerced: true`</span>, rationale <span class="in">`judge: ungrounded`</span>. When the</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>same reply also fails K-15, E-48 wins (C-06 rule order, F-402). The raw answer is</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>available only at DEBUG. |</span></code></pre></div>
 <p>Both are checkable, and both are cited by the code that realizes them
 and the tests that prove them.</p>
 <h2 id="introducing-speccheck">Introducing speccheck</h2>
@@ -564,8 +565,8 @@ ID that was retired);</li>
 <li>writes a Markdown report and a JSON report, byte-identical across
 runs, and prints one line:</li>
 </ul>
-<pre class="text"><code>speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, \
-           0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock</code></pre>
+<pre class="text"><code>speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, \
+           0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock</code></pre>
 <p>With <code>--strict</code>, that line is a CI gate: exit
 <code>0</code> only when every ID is <code>PASSING</code> and nothing is
 dangling or stale.</p>
@@ -658,9 +659,10 @@ now work.</p>
 the documents:</p>
 <p><strong><a href="https://github.com/rioffe/speccheck">github.com/rioffe/speccheck</a></strong></p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone https://github.com/rioffe/speccheck <span class="kw">&amp;&amp;</span> <span class="bu">cd</span> speccheck</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh, the speccheck CLI, a local judge, the Lean toolchain</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="ex">./install.sh</span> <span class="at">--interactive</span>         </span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">speccheck</span> <span class="at">--self-check</span></span></code></pre></div>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="co"># installs the skills for Claude Code / Pi / Oh My Pi, spec2pdf.sh,</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="co"># the speccheck CLI, a local judge, and the Lean toolchain</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="ex">./install.sh</span> <span class="at">--interactive</span>         </span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="ex">speccheck</span> <span class="at">--self-check</span></span></code></pre></div>
 <p>Then pick something you were about to vibe-code anyway and say:
 <em>“Use the spec-writing skill to write SPEC.md for …”</em> Read §12.
 Review it. Build it. Run the gate. If the tool tells you something your

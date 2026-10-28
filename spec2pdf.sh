@@ -117,6 +117,31 @@ echo "Options: margin=${MARGIN_VAL} toc=$([[ ${#TOC_FLAG[@]} -gt 0 || $CLICK -eq
 
 MARGIN_HEADER_FILE=$(mktemp /tmp/spec2pdf_geometry_$$_XXXXXX)
 echo "\usepackage[margin=${MARGIN_VAL}]{geometry}" >"$MARGIN_HEADER_FILE"
+# Long code lines wrap at the margin instead of running off the page: highlighted blocks
+# (pandoc's Highlighting) and plain ones (verbatim) both become fvextra Verbatim with breaklines,
+# set \small so a typical ~100-column block still fits on one line.
+# A figure taller than SPEC2PDF_MAX_FIGURE_HEIGHT of the text height (default 0.6) is scaled
+# down, so a tall diagram stays beside its text instead of leaving a mostly blank page behind it.
+MAX_FIGURE_HEIGHT="${SPEC2PDF_MAX_FIGURE_HEIGHT:-0.6}"
+cat >>"$MARGIN_HEADER_FILE" <<EOF
+\\usepackage{fvextra}
+\\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,fontsize=\\small,commandchars=\\\\\\{\\}}
+\\renewenvironment{verbatim}{\\VerbatimEnvironment\\begin{Verbatim}[breaklines,breakanywhere,fontsize=\\small]}{\\end{Verbatim}}
+\\makeatletter
+\\def\\maxheight{\\ifdim\\Gin@nat@height>${MAX_FIGURE_HEIGHT}\\textheight ${MAX_FIGURE_HEIGHT}\\textheight\\else\\Gin@nat@height\\fi}
+% pandoc >= 3.2 wraps every image in \\pandocbounded, which scales to the full \\textheight and
+% ignores \\maxheight; redefine it (after the template has) with the capped height.
+\\AtBeginDocument{%
+  \\providecommand*\\pandocbounded[1]{#1}%
+  \\newsavebox\\specpdf@box
+  \\renewcommand*\\pandocbounded[1]{%
+    \\sbox\\specpdf@box{#1}%
+    \\Gscale@div\\@tempa{${MAX_FIGURE_HEIGHT}\\textheight}{\\dimexpr\\ht\\specpdf@box+\\dp\\specpdf@box\\relax}%
+    \\Gscale@div\\@tempb{\\linewidth}{\\wd\\specpdf@box}%
+    \\ifdim\\@tempb\\p@<\\@tempa\\p@\\let\\@tempa\\@tempb\\fi
+    \\ifdim\\@tempa\\p@<\\p@\\scalebox{\\@tempa}{\\usebox\\specpdf@box}\\else\\usebox{\\specpdf@box}\\fi}}
+\\makeatother
+EOF
 GEOMETRY_FLAG=(--include-in-header="$MARGIN_HEADER_FILE")
 
 if [ ! -f "$INPUT_FILE" ]; then
