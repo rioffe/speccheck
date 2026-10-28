@@ -1958,6 +1958,52 @@ id. "Self-app" is the status from the T-48 run.
 | T-101 | — | `test_07_cli::test_judge_available_false_when_budget_skips_everything` (C-07/E-32/E-35/R-28) | PASSING |
 | T-102 | — | `test_12_explain::test_t102_explain_requires_spec_flag` (C-19/E-64/R-41) | PASSING |
 | T-103 | — | `test_07_cli::test_t103_usage_fault_precedes_input_contract_violation` (K-18/§5.4) | PASSING |
+| R-101 | `extract.py` | `test_09_self_application::test_t112_recorded_foreign_recognition_runs_are_recorded`; `test_16_namespaces::test_t107_foreign_reference_is_no_citation`; `test_16_namespaces::test_t107_long_namespace_is_foreign_and_id_shaped_label_is_not`; +2 more | PASSING |
+| R-102 | `cli.py` | `test_10_edges::test_range_names_the_declared_ids_between_its_endpoints`; `test_16_namespaces::test_t107_foreign_reference_is_no_citation`; `test_16_namespaces::test_t107_namespace_flag_validation`; +1 more | PASSING |
+| R-103 | `attribute.py`, `cli.py` | `test_17_citation_map::test_t110_map_reproduces_literal_statuses_and_labels`; `test_17_citation_map::test_t110_map_dangling_stale_judge_explain_impact_ratio` | PASSING |
+| R-104 | `attribute.py`, `jsts.py`, `judge_mock.py`, `results.py` | `test_05_judge::test_mock_judge_recognises_javascript_assertion_tokens`; `test_15_jsts::test_delimits_describe_chains_modifiers_and_regex_literals`; `test_15_jsts::test_regex_versus_division_rule`; +4 more | PASSING |
+| C-22 | `cli.py`, `extract.py`, `report.py` | `test_16_namespaces::test_t107_foreign_reference_is_no_citation`; `test_16_namespaces::test_t107_note_names_three_then_counts_the_rest`; `test_16_namespaces::test_t107_long_namespace_is_foreign_and_id_shaped_label_is_not` | PASSING |
+| C-23 | `attribute.py`, `cli.py`, `explain.py`, `graph.py`, `report.py` | `test_17_citation_map::test_t110_map_reproduces_literal_statuses_and_labels`; `test_17_citation_map::test_t110_map_dangling_stale_judge_explain_impact_ratio`; `test_17_citation_map::test_t110_map_and_manifest_under_tests_are_never_scanned`; +1 more | PASSING |
+| I-019 | `report.py` | `test_16_namespaces::test_t109_runs_without_the_flags_are_byte_identical`; `test_17_citation_map::test_t109_no_map_flag_means_no_map_keys` | PASSING |
+| K-19 | `cli.py` | `test_17_citation_map::test_t111_map_faults` | PASSING |
+| E-42 | `attribute.py`, `swift.py` | `test_02_attribution::test_swift_brace_fallback_and_braces_in_strings_and_comments` | PASSING |
+| E-43 | `attribute.py`, `swift.py` | `test_02_attribution::test_swift_testing_cases_are_delimited_with_doc_comment_spans`; `test_02_attribution::test_xctest_methods_are_delimited_and_others_undelimited`; `test_08_golden::test_swift_golden_fixture_matches_byte_for_byte` | PASSING |
+| E-44 | `extract.py` | `test_01_extraction::test_row_and_heading_grammar_edge_cases`; `test_01_extraction::test_first_cell_decoration_after_bold_id` | PASSING |
+| E-45 | — | `test_03_results::test_swift_signature_names_join_by_identifier_and_overloads_tie` | PASSING |
+| E-46 | `cli.py`, `extract.py` | `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
+| E-47 | `extract.py` | `test_01_extraction::test_row_and_heading_grammar_edge_cases`; `test_01_extraction::test_heading_section_bodies_title_cap_and_line_model` | PASSING |
+| E-48 | `judge.py` | `test_05_judge::test_clause_grounding_validation`; `test_11_impact::test_diff_changed_set_reasons_in_fixed_order`; `test_11_impact::test_walk_reverse_depends_on_and_affects_with_shortest_via`; +1 more | PASSING |
+| E-49 | `judge.py`, `report.py` | `test_05_judge::test_clause_grounding_validation` | PASSING |
+| E-50 | `extract.py` | `test_01_extraction::test_recorded_marker_declarations` | PASSING |
+| E-51 | `graph.py` | `test_04_status::test_recorded_ids_skip_the_judge_and_judge_strength` | PASSING |
+| E-52 | `cli.py`, `extract.py` | `test_07_cli::test_t103_usage_fault_precedes_input_contract_violation`; `test_07_cli::test_paths_element_neither_file_nor_directory_is_e52` | PASSING |
+| E-66 | `extract.py` | `test_10_edges::test_odd_math_delimiters_note_and_symlink_hint` | PASSING |
+| E-67 | `cli.py`, `extract.py` | `test_16_namespaces::test_t107_foreign_reference_is_no_citation`; `test_16_namespaces::test_t107_note_names_three_then_counts_the_rest` | PASSING |
+| E-68 | `cli.py` | `test_16_namespaces::test_t107_foreign_reference_is_no_citation`; `test_16_namespaces::test_t107_namespace_flag_validation` | PASSING |
+| E-69 | `extract.py` | `test_16_namespaces::test_t108_foreign_reference_in_spec_is_no_edge` | PASSING |
+| E-70 | `cli.py` | `test_17_citation_map::test_t111_map_faults` | PASSING |
+| E-71 | `cli.py` | `test_17_citation_map::test_t110_map_reproduces_literal_statuses_and_labels`; `test_17_citation_map::test_t111_map_faults` | PASSING |
+| E-72 | — | `test_17_citation_map::test_t110_map_reproduces_literal_statuses_and_labels`; `test_17_citation_map::test_t110_map_dangling_stale_judge_explain_impact_ratio` | PASSING |
+| E-73 | `cli.py`, `explain.py`, `graph.py` | `test_17_citation_map::test_t110_map_reproduces_literal_statuses_and_labels` | PASSING |
+| E-74 | `attribute.py`, `jsts.py` | `test_15_jsts::test_regex_versus_division_rule`; `test_15_jsts::test_dynamic_titles_member_calls_and_unbalanced_files` | PASSING |
+| E-75 | `attribute.py`, `jsts.py` | `test_15_jsts::test_dynamic_titles_member_calls_and_unbalanced_files` | PASSING |
+| E-76 | `jsts.py`, `results.py` | `test_15_jsts::test_joins_vitest_junit_end_to_end` | PASSING |
+| T-104 | — | `test_10_edges::test_range_names_the_declared_ids_between_its_endpoints` | PASSING |
+| T-105 | — | `test_10_edges::test_non_statement_cells_feed_edges_but_not_the_statement` | PASSING |
+| T-106 | — | `test_10_edges::test_odd_math_delimiters_note_and_symlink_hint` | PASSING |
+| T-107 | — | `test_16_namespaces::test_t107_foreign_reference_is_no_citation`; `test_16_namespaces::test_t107_note_names_three_then_counts_the_rest`; `test_16_namespaces::test_t107_long_namespace_is_foreign_and_id_shaped_label_is_not`; +2 more | PASSING |
+| T-108 | — | `test_16_namespaces::test_t108_foreign_reference_in_spec_is_no_edge` | PASSING |
+| T-109 | — | `test_16_namespaces::test_t109_runs_without_the_flags_are_byte_identical`; `test_17_citation_map::test_t109_no_map_flag_means_no_map_keys` | PASSING |
+| T-110 | — | `test_17_citation_map::test_t110_map_reproduces_literal_statuses_and_labels`; `test_17_citation_map::test_t110_map_dangling_stale_judge_explain_impact_ratio`; `test_17_citation_map::test_t110_map_and_manifest_under_tests_are_never_scanned` | PASSING |
+| T-111 | — | `test_17_citation_map::test_t111_map_faults` | PASSING |
+| T-112 | — | `test_09_self_application::test_t112_recorded_foreign_recognition_runs_are_recorded` | PASSING |
+| T-113 | — | `test_15_jsts::test_delimits_describe_chains_modifiers_and_regex_literals`; `test_15_jsts::test_regex_versus_division_rule` | PASSING |
+| T-114 | — | `test_15_jsts::test_dynamic_titles_member_calls_and_unbalanced_files` | PASSING |
+| T-115 | — | `test_15_jsts::test_attribution_declared_and_classname`; `test_15_jsts::test_multiline_block_comment_line_is_declared` | PASSING |
+| T-116 | — | `test_15_jsts::test_joins_vitest_junit_end_to_end` | PASSING |
+| T-117 | — | `test_15_jsts::test_t117_measured_jest_junit_joins` | PASSING |
+
+The rows after K-18 were added at v1.23.1 for every id the matrix lacked — E-42..E-52 (v1.6..v1.12), E-66 and T-104..T-106 (v1.21), R-104, E-74..E-76 and T-113..T-116 (v1.22), and the v1.23/v1.23.1 ids — generated from the final Phase A `build/speccheck/speccheck.json` (§0n): "Realized in" is the modules whose source cites the id, "Verified by" the citing test functions, "Self-app" the status.
 
 ## 6. Verdict
 

@@ -92,15 +92,26 @@ cites its spec ID" from a convention into a gate. Install it from its repository
 (`uv tool install <path-or-url of the speccheck checkout>`, or `uv run --project <checkout>
 speccheck …`).
 
-**Scope: Python and Swift projects.** speccheck attributes citations to test cases for `pytest`
-(it splits test files with `ast`) and, since v1.6, for Swift — Swift Testing `@Test` functions and
-XCTest `test*` methods, delimited by lines with the doc comment and attributes inside the span,
-joined to SwiftPM's xUnit output by function identifier. For a Swift package run
+**Scope: Python, Swift and JavaScript/TypeScript projects.** speccheck attributes citations to
+test cases for `pytest` (it splits test files with `ast`); since v1.6 for Swift — Swift Testing
+`@Test` functions and XCTest `test*` methods, delimited by lines with the doc comment and
+attributes inside the span, joined to SwiftPM's xUnit output by function identifier; and since
+v1.22 for JavaScript/TypeScript — vitest and jest `it`/`test` calls, named by their `describe`
+chain and joined to JUnit XML by file path. For a Swift package run
 `swift test --xunit-output junit.xml` (SwiftPM writes the Swift Testing results to
 `junit-swift-testing.xml` beside it — pass that file), point `--src` at `Sources` and `--tests`
 at the `Tests` directory (the target name under it becomes the module in classnames), and cite
-ids in each test's `///` doc comment. On any other stack it cannot attribute citations to test
-cases: use the `grep` walk at the end of this section and say so in `SPEC_BUILD_REPORT.md`.
+ids in each test's `///` doc comment. For vitest run `vitest run --reporter=junit
+--outputFile=junit.xml`; for jest use `jest-junit` with `classNameTemplate: "{filepath}"`,
+`titleTemplate: "{classname} > {title}"` and `ancestorSeparator: " > "`; cite ids in a comment
+directly above the `it(...)`/`test(...)` call. On any other stack it cannot attribute citations to
+test cases: use the `grep` walk at the end of this section and say so in `SPEC_BUILD_REPORT.md`.
+
+If the spec's ids are cited by someone else's tests, or a project cites another project's spec,
+two v1.23 flags apply: a token written `<ns>:R-07` is another spec's id and cites nothing (pass
+`--namespace <yours>` so your own prefixed ids count), and `--citation-map FILE` states which
+existing test proves which id when you cannot edit the tests. Mapped citations are labelled
+`mapped` in every report, so record that you used one in `SPEC_BUILD_REPORT.md`.
 
 **The gate has two phases, in order.** Phase A uses the deterministic mock judge; Phase B uses
 the LLM judge and is run only once Phase A is clean. Both must exit `0`.
