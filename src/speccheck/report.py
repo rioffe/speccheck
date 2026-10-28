@@ -103,11 +103,20 @@ def exit_code_for(report: dict) -> int:
     return 0
 
 
+def _exit0_word(report: dict) -> str:
+    """R-105 (v1.24): on exit 0, `CONFORMING` only when R-15's conditions hold — every in-scope
+    id PASSING, no dangling or stale citation — else `UNPROVEN` (possible only without
+    --strict, which would have exited 1). Read from the JSON, so R-14 still holds."""
+    m = report["metrics"]
+    proven = m["by_status"]["PASSING"] == m["in_scope"]
+    return "CONFORMING" if proven and not report["dangling"] and not report["stale"] else "UNPROVEN"
+
+
 def summary_line(report: dict) -> str:
     """§5.1, ASCII only, no trailing newline (the caller appends exactly one)."""
     m = report["metrics"]
     s = m["by_status"]
-    status = "CONFORMING" if report["exit_code"] == 0 else "NOT CONFORMING"
+    status = "NOT CONFORMING" if report["exit_code"] != 0 else _exit0_word(report)
     conformance = Decimal(m["conformance"].text)
     pct = (conformance * 100).quantize(Decimal("0.1"))
     suffix = ""

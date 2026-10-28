@@ -23,7 +23,7 @@ from speccheck import cli, jev, judge_llm, report
 from .conftest import FIXTURE, SIMPLE_PROJECT, junit, other_notes, run_cli, spec_table
 
 SUMMARY_RE = re.compile(
-    r"^speccheck: (CONFORMING|NOT CONFORMING) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, "
+    r"^speccheck: (CONFORMING|NOT CONFORMING|UNPROVEN) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, "
     r"\d+ weak, \d+ unverified, \d+ untested, \d+ uncited; \d+ dangling, \d+ stale; "
     r"judge=(none|mock|llm)( \(unavailable\)| \(unknown_rate \d\.\d{4} > max_unknown \d\.\d{4}\))?"
     r"(; citations: \d+ mapped)?$"  # §5.1 (v1.23): the citation-map suffix
@@ -416,7 +416,8 @@ def test_summary_line_format_encoding_and_numbers(project, tmp_path: Path, monke
     m = run.json["metrics"]
     s = m["by_status"]
     expected = (
-        f"speccheck: CONFORMING - {s['PASSING']}/{m['in_scope']} passing (66.7%), {s['FAILING']} failing, {s['SKIPPED']} skipped, "
+        # a skipped id without --strict reads UNPROVEN, not CONFORMING (R-105, v1.24)
+        f"speccheck: UNPROVEN - {s['PASSING']}/{m['in_scope']} passing (66.7%), {s['FAILING']} failing, {s['SKIPPED']} skipped, "
         f"{s['WEAKLY_PASSING']} weak, {s['UNVERIFIED']} unverified, {s['UNTESTED']} untested, {s['UNCITED']} uncited; 0 dangling, 0 stale; judge=mock\n"
     )
     assert line == expected and s["SKIPPED"] == 1
@@ -1304,3 +1305,38 @@ def test_paths_first_seen_covering_element_fixes_scan_root(tmp_path: Path):
     assert len(roots([case_res, xy_res, x_res])) == 1
     # the recorded scan_root drives MODULE, joining a SwiftPM xUnit module like a descended file
     assert swift_module(direct[0].path, direct[0].scan_root) == "y"
+
+
+def test_t118_unproven_replaces_conforming_on_a_non_strict_gap(project, tmp_path: Path):
+    """T-118 (v1.24): a non-strict run that exits 0 while --strict would reject it prints
+    UNPROVEN, not CONFORMING; --strict still prints NOT CONFORMING and exits 1; an all-PASSING
+    project with no dangling or stale citation prints CONFORMING in both modes, and UNPROVEN
+    without --strict once a dangling citation appears. The Markdown §1 line equals stdout, the
+    line matches the §5.1 regex, and `exit_code` equals the process status. (R-105, §5.1,
+    §5.4, C-08, R-14, I-009)"""
+
+    def line_of(run, out: Path) -> str:
+        text = run.stdout.rstrip("\n")
+        assert SUMMARY_RE.match(text), text
+        md = (out / "SPEC_CONFORMANCE_REPORT.md").read_text(encoding="utf-8")
+        assert md.split("## 1. Verdict\n\n", 1)[1].split("\n", 1)[0] == text
+        assert json.loads((out / "speccheck.json").read_text())["exit_code"] == run.code
+        return text
+
+    target = tmp_path / "target"
+    shutil.copytree(FIXTURE, target)
+    base = ["check", "--spec", "SPEC.md", "--src", "src", "--tests", "tests"]
+    loose = run_cli([*base, "--out", "loose"], target)
+    assert loose.code == 0
+    assert line_of(loose, target / "loose").startswith("speccheck: UNPROVEN - 0/20 passing (0.0%),")
+    strict = run_cli([*base, "--strict", "--out", "strict"], target)
+    assert strict.code == 1
+    assert line_of(strict, target / "strict").startswith("speccheck: NOT CONFORMING - 0/20")
+    green = project(SIMPLE_PROJECT)
+    for flags in ([], ["--strict"]):
+        run = green.check(*flags, "--out", "o")
+        assert run.code == 0 and line_of(run, green.path / "o").startswith("speccheck: CONFORMING - 3/3")
+    dangling = "R-" + "98"  # undeclared here and in this repository's SPEC.md
+    gap = project({**SIMPLE_PROJECT, "src/extra.py": f"# {dangling}\n"})
+    run = gap.check("--out", "o")
+    assert run.code == 0 and line_of(run, gap.path / "o").startswith("speccheck: UNPROVEN - 3/3")
