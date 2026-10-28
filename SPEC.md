@@ -1,7 +1,13 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.22 — the shipped version: the code, `__version__` and the README's claim all
->   say v1.22 (`test_prose_artifacts_claim_the_shipped_version` binds them). A JavaScript/TypeScript
+> - **Status:** v1.23.1 — the shipped version: the code, `__version__` and the README's claim all
+>   say v1.23.1 (`test_prose_artifacts_claim_the_shipped_version` binds them). Built 2026-10-27 in
+>   four waves (`docs/plans/IMPLEMENTATION_PLAN.md`; `SPEC_BUILD_REPORT.md` §0n): v1.23's
+>   namespaced ids and citation map, with the seventeen review findings below folded in, plus two
+>   defects the build itself found and fixed in this document (C-19's metavar list lacked `NS`;
+>   jest-junit writes a top-level test as `" > title"`, now joined by C-04, measured by T-117).
+>
+> - **Previous status:** v1.22 — a JavaScript/TypeScript
 >   test adapter (R-104, D-56, E-74..E-76, T-113..T-116): `it`/`test` calls under `--tests` are
 >   delimited by tokens and named by their `describe` chain, and C-04 joins them to vitest's and
 >   jest-junit's JUnit output (path classnames, `[`/`(` in titles, `it.each` placeholders). Built
@@ -9,7 +15,7 @@
 >   edges, E-66, E-09's resolved-path hint; D-50). Full text of both: the revision history at the
 >   end of this document.
 >
-> - **Specified, not yet built:** v1.23.1 — v1.23 with the seventeen findings of the first full
+> - **v1.23.1 (built):** v1.23 with the seventeen findings of the first full
 >   review since v1.10 folded in (`docs/reviews/SPEC_REVIEW_REPORT.md`, F-701..F-717, 2026-10-27).
 >   The ones that change behaviour: C-06's pinned request body is restored (F-701); the
 >   `--citation-map` and `--proof-results` files are excluded from every scan (F-702); a mapped
@@ -20,7 +26,7 @@
 >   (F-709); C-18's reasons name the right C-05 steps (F-711); the FOREIGN grammar has no length
 >   cap (F-712). The rest are corrections to lists, tables and wording. Full text: the revision history.
 >
-> - **v1.23 (folded into v1.23.1, not built on its own):** namespaced ids and a citation map (`docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md`,
+> - **v1.23 (folded into v1.23.1, built with it):** namespaced ids and a citation map (`docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md`,
 >   2026-10-27; D-51..D-55 confirmed on the recommended branches, D-57 from the fold's review
 >   `docs/reviews/SPEC_REVIEW_v1.23_fold.md`). **(a)** A token written `<ns>:ID` is someone else's
 >   id, not a citation or an edge (R-101, C-22, E-67, E-69): a test docstring naming

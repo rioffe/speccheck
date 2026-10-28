@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.22, code
-1.22.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.23.1, code
+1.23.1) in full, and so is the worked example of the method it serves — together with the seven agent skills that
 propose, write, review, plan, model, prove, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -195,7 +195,7 @@ same check on this repository itself:
 ```bash
 uv run python -m pytest tests -q --junitxml=junit.xml
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out build/selfapp
-# speccheck: CONFORMING - 233/233 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
+# speccheck: CONFORMING - 300/300 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
 ```
 
 For a Swift package, run `swift test --xunit-output junit.xml` (SwiftPM writes the Swift Testing
@@ -211,14 +211,15 @@ uv run --project "$OLDPWD" speccheck check --spec SPEC.md --src Sources --tests 
 
 ```text
 speccheck check --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
-                [--proof PATHS]... [--proof-results FILE]
+                [--proof PATHS]... [--proof-results FILE] [--namespace NS] [--citation-map FILE]
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--max-unknown FRACTION] [--judge-concurrency N] [--judge-budget SECONDS|N%]
                 [--jev-pre-triage] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src PATHS]... [--tests PATHS]...
-                 [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
+                 [--namespace NS] [--citation-map FILE] [--root DIR] [--out DIR] [--depth N]
+                 [--verbose [INFO|DEBUG]]
 speccheck explain ID --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
-                 [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
+                 [--namespace NS] [--citation-map FILE] [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
                  [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
                  [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
@@ -234,6 +235,8 @@ speccheck --help
 | `--results FILE` | JUnit XML. Without it no ID can be better than `UNVERIFIED`. |
 | `--proof PATHS` | v1.19, `check`-only. Repeatable, comma-separated Lean source files/directories, scanned by the lean adapter: each declaration's doc comment (`/-- **R-09** ... -/`, ending ≤1 line above the head) attributes a proof citation per (declaration, id) pair. Absent: no Lean file scanned, no `proof` key written. |
 | `--proof-results FILE` | v1.19, `check`-only. A JSON proof manifest (`build`, `theorems[]`, optional `deferred_to_pytest`) — read and joined to the `--proof` citations by declaration name and file, never executed. A `checked`/`failed` state comes from the manifest; a citation the manifest doesn't mention is `unknown`; a manifest entry naming a different file/line than the scan found is `stale`. Under `--strict`, a `failed` state fails the gate only when this flag was given and the file was readable. |
+| `--namespace NS` | v1.23, `check`/`impact`/`explain`, at most once. This project's own namespace: `NS:R-07` is then a citation of local `R-07`. Without it every `<ns>:ID` token is someone else's id and cites nothing (see *Another project's ids, and a citation map*). `NS`: a letter then up to 31 letters, digits, `_` or `-`, not shaped like an id. |
+| `--citation-map FILE` | v1.23, `check`/`impact`/`explain`. A JSON map from ids to existing test cases, for when the tests cannot carry the citation. Each resolving entry is a *mapped* citation, labelled as such in every report. Unreadable or outside `--root` exits `2`; malformed, the wrong `schema_version` or over 2 MiB exits `3`. |
 | `--root DIR` | Base for every path in the reports (default `.`). Every other path must resolve inside it. Command-line paths themselves are resolved against the current directory. |
 | `--out DIR` | Where `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json` go (default `.`; created if missing; must be inside `--root`). |
 | `--judge MODE` | `none` (default), `mock` (deterministic: assertion tokens in the test span), `llm`. |
@@ -269,14 +272,14 @@ lines are the progress record there), or when stderr is not a terminal unless `-
 
 **Exit codes:** `0` conforming, `1` not conforming, `2` usage error (bad flag or value, missing
 `--spec`, a path outside `--root`, missing judge environment), `3` input-contract violation
-(no in-scope IDs, an ID declared twice or both retired and kept, malformed JUnit XML, unwritable
-`--out`) — and an interrupt: Ctrl-C at any stage exits `3` with the message `interrupted`, after
+(no in-scope IDs, an ID declared twice or both retired and kept, malformed JUnit XML, a malformed
+proof manifest or citation map, unwritable `--out`) — and an interrupt: Ctrl-C at any stage exits `3` with the message `interrupted`, after
 erasing the progress indicator and removing every temporary and any report file this run had
-already renamed, so a previous run's reports are left intact; judge requests still in flight are abandoned, not awaited, so one Ctrl-C ends an LLM run within a second even when a local model is mid-answer. On exit `2`/`3` no report is written. When one invocation carries both a usage fault and an input-contract violation, the usage fault wins (v1.20, K-18): flag, value and `--root`-containment validation completes before the spec, the results file, `--proof-results`, the output directory or `--against` is read, so a run never reaches the contract check and exits `2`. On exit `0`/`1` exactly one summary line goes to
+already renamed, so a previous run's reports are left intact; judge requests still in flight are abandoned, not awaited, so one Ctrl-C ends an LLM run within a second even when a local model is mid-answer. On exit `2`/`3` no report is written. When one invocation carries both a usage fault and an input-contract violation, the usage fault wins (v1.20, K-18): flag, value and `--root`-containment validation — including that every file a flag names can be read — completes before the spec, the results file, `--proof-results`, the citation map, the output directory or `--against` is parsed, so a run never reaches the contract check and exits `2`. On exit `0`/`1` exactly one summary line goes to
 stdout:
 
 ```text
-speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped> skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited; <dangling> dangling, <stale> stale; judge=<mode>[ (unavailable)| (unknown_rate 0.xxxx > max_unknown 0.xxxx)]
+speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped> skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited; <dangling> dangling, <stale> stale; judge=<mode>[ (unavailable)| (unknown_rate 0.xxxx > max_unknown 0.xxxx)][; citations: <M> mapped]
 ```
 
 **Citations are literal.** Any `R-07`-shaped token in any text file under a scan root is a
@@ -284,8 +287,9 @@ citation, in code, comments, and strings alike. Two opt-outs exist: a line conta
 `speccheck:ignore` yields no citations, and a file whose first three lines contain
 `speccheck:ignore-file` is not scanned at all. Files over 2 MiB, files with a NUL byte in their
 first 8 KiB, symlinks, and the directories `.git .hg .svn node_modules __pycache__ .venv venv`
-(and any dot-directory) are skipped. The spec, the results file, and the checker's own reports
-and temporaries are never scanned.
+(and any dot-directory) are skipped. The spec, the results file, the proof manifest, the citation
+map, and the checker's own reports and temporaries are never scanned. A token written `<ns>:R-07`
+is someone else's id and is not a citation (v1.23; below).
 
 ### `impact` — change-impact analysis from the edges the spec already carries (v1.13)
 
@@ -434,11 +438,55 @@ uv run speccheck check --spec SPEC.md --tests web/src --results junit.xml --root
 ```
 
 The runner's root may be a sub-directory of `--root` (`web/`): the path is matched as a suffix.
-With jest, use `jest-junit` configured `classNameTemplate: "{filepath}"` and
-`titleTemplate: "{classname} > {title}"`; its defaults carry no file path and cannot be joined.
+With jest, use `jest-junit` configured `classNameTemplate: "{filepath}"`,
+`titleTemplate: "{classname} > {title}"` and `ancestorSeparator: " > "` (measured with jest 30.5.2
+and jest-junit 17.0.0, T-117). Its defaults carry no file path and cannot be joined, and without
+`ancestorSeparator` a nested `describe` chain is joined with spaces and does not match. A test
+outside every `describe` comes out as `" > title"`; the checker drops that leading separator.
 `it.each` titles are matched by their placeholders (`%s`, `%i`, `$name`), and the rows join one case
 as pytest parameters do. A test whose title is not a literal (`it(name, ...)`) is not delimited: its
 citations are file-level and a Note names the lines.
+
+### Another project's ids, and a citation map (v1.23)
+
+**Someone else's ids.** A project that cites another spec's requirements in its tests used to have
+them read as its own: a docstring naming `platform:R-03` made the local `R-03` `PASSING`. Since
+v1.23 a token written `<ns>:ID` (`ns` a letter, then letters, digits, `_` or `-`, and not itself
+shaped like an id, so `R-01:R-02` is still two local ids) is a *foreign reference*: no citation, no
+dangling entry, and in `SPEC.md` no edge. Each one found in a scanned file is listed in
+`speccheck.json`'s top-level `foreign` array and counted in one Note naming the first three:
+
+```text
+2 foreign reference(s) ignored: platform:R-03 tests/test_api.py:12, platform:R-09 tests/test_api.py:40
+```
+
+The project that owns the `platform` spec passes `--namespace platform`, and `platform:R-03` is then
+an ordinary citation of its own `R-03`. A bare `R-03` is local with or without the flag.
+
+**A citation map.** When the people who own the spec do not own the tests, `--citation-map FILE`
+states which existing test proves which id, without editing the tests:
+
+```json
+{"schema_version": "1.0",
+ "citations": [
+   {"id": "R-07", "file": "tests/test_review.py", "test": "test_shows_segmentation_first"},
+   {"id": "R-08", "file": "web/src/review.test.ts", "test": "review > approves after review"},
+   {"id": "E-02", "file": "tests/test_review.py", "test": ""}
+ ]}
+```
+
+`file` is the path relative to `--root` as it appears in `tests[].file`; `test` is the case name
+(`""` is the file-level case; a JS/TS case is its `describe > test` chain). Each entry that matches a
+scanned case is one *mapped* test citation. It counts toward the status like a literal one, is
+judged like one (the judge is told it is declared), and is labelled everywhere it is read:
+`"mapped": true` and `"lines": []` in `speccheck.json`, `<file> (map)` in the Markdown, `(mapped)` in
+`explain`, and `; citations: <M> mapped` at the end of the summary line. A literal citation of the
+same id in the same test wins. An entry that matches nothing is a Note
+(`citation-map entry unresolved: …`), not an error, so a renamed test shows up as a lower status
+rather than a broken gate. `speccheck.json` carries `citation_map: {file, entries, resolved,
+unresolved}`; mapped citations are left out of `declared_ratio`, which measures the in-code
+convention. `impact` and `explain` take both flags. A run with neither flag and no `<ns>:` token is
+byte-identical to v1.22.
 
 ### LLM judge via Ollama
 
@@ -704,16 +752,19 @@ src/speccheck/
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
                                 the shared `_run_stages` pipeline, the `impact` subparser and its
-                                execute_impact pipeline (v1.13), the `explain` subparser (v1.17)
+                                execute_impact pipeline (v1.13), the `explain` subparser (v1.17),
+                                `--namespace` and the `--citation-map` read/validate/resolve stage (v1.23)
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations,
-                                the decision-table grammar and C-12 edge extraction (v1.13)
+                                the decision-table grammar and C-12 edge extraction (v1.13), the
+                                C-22 foreign-reference pass shared by citations and edges (v1.23)
   impact.py                     the C-13 changed set, breadth-first walk, and reverify (v1.13)
   attribute.py                  test-case delimitation (Python `ast`, Swift via swift.py, fallback), citation
                                 attribution, and the C-14 DECLARED/INCIDENTAL classification (v1.14)
   swift.py                      the Swift adapter: line-based @Test / XCTest delimiting, brace spans, MODULE (R-31)
   jsts.py                       the JavaScript/TypeScript adapter: token-based it/test delimiting, describe chains,
                                 `it.each` patterns (R-104, v1.22)
-  results.py                    JUnit XML parsing and the classname/join_name join
+  results.py                    JUnit XML parsing and the classname/join_name join (jest-junit's
+                                leading " > " dropped, v1.23.1)
   graph.py                      status algorithm (C-05), edge selection for the judge, metrics (C-07) incl.
                                 `declared_ratio` (C-16, v1.14)
   judge.py                      JudgeRequest/Verdict types, validation, concurrency + budget runner, progress indicator
@@ -750,7 +801,13 @@ tests/
   test_12_explain.py            §9.13 T-92, T-93, T-102 — the explain trace, byte-stability, E-60, E-64
   test_13_help.py               §9.14 T-95..T-98 — the help contract: tokens vs the validator,
                                 every definition's help, the pinned screens, the environment block
+  test_14_proof.py              §9.15 T-99, T-100 — the lean adapter and the proof manifest
+  test_15_jsts.py               §9.16 T-113..T-117 — the JS/TS adapter, vitest and jest-junit joins
+  test_16_namespaces.py         §9.17 T-107..T-109 — foreign references and --namespace
+  test_17_citation_map.py       §9.17 T-109..T-111 — the citation map
   data/help/                    the four `--help` screens at COLUMNS=80 (T-97's goldens)
+  data/namespaces/              the only files that contain `<ns>:ID` forms, behind a line-1
+                                ignore-file marker the tests drop (F-713)
   data/markers/                 the only files that contain the literal ignore markers
 tools/
   bench.py                      K-08 benchmark (T-51; recorded, not CI-gated)
@@ -797,11 +854,11 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (153 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (185 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*: Ollama or a hosted endpoint)
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --judge-concurrency 16 --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*; this build: openai/gpt-6-luna-pro via OpenRouter)
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --jev-pre-triage --judge-budget 0% --out build/speccheck-triage   # v1.15: triage only, no judge call (needs SPECCHECK_JEV_*)
 uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests --out build/impact              # v1.13, not gated
 uv run speccheck explain R-01 --spec fixtures/target/SPEC.md --src fixtures/target/src --tests fixtures/target/tests --results fixtures/target/junit.xml --judge mock   # v1.17, not gated
@@ -821,9 +878,10 @@ The full specification is implemented; nothing was scoped out. The optional LLM 
 built behind the `--judge llm` flag and the `[llm]` extra, and so is the optional Jev triage
 provider (C-17, v1.15) behind `--jev-pre-triage` — both fully specified, both gated, neither able
 to upgrade a status. Test-case adapters exist for Python
-(`ast`) and, since v1.6, Swift (Swift Testing and XCTest, delimited by lines — R-31, D-17); the
-remaining language adapters (O-2) and non-CLI surfaces (O-3) are, as the spec states, not part
-of v1.8: other test files get file-level attribution. Since v1.13, `speccheck check` also records
+(`ast`), since v1.6 Swift (Swift Testing and XCTest, delimited by lines — R-31, D-17), and since
+v1.22 JavaScript/TypeScript (vitest and jest via jest-junit, delimited by tokens — R-104, D-56);
+the remaining language adapters (O-2) and non-CLI surfaces (O-3) are, as the spec states, not
+built: other test files get file-level attribution. Since v1.13, `speccheck check` also records
 the spec's own cross-references as typed edges (`decisions`/`edges` in `speccheck.json`), and a
 second subcommand, `impact`, walks them for change-impact analysis — a decision aid, gated behind
 no flag because it has no gate: it never marks anything failed, stale, or non-conformant.
@@ -837,6 +895,10 @@ contract unchanged (C-18, I-016). Since v1.18 the CLI documents its own paramete
 environment it reads (R-41, C-19): every flag's `--help` entry names its values, default and
 preconditions, the value tokens are the validator's own, and the environment block is bound to the
 code's literals by T-98.
+Since v1.23 a `<ns>:ID` token is someone else's id, not a citation (R-101), `--namespace` names
+the project's own namespace (R-102), and `--citation-map` states citations outside the code
+(R-103), labelled `mapped` wherever they are read; a run using neither flag and containing no
+`<ns>:` token is byte-identical to v1.22 (I-019).
 Interpretations the build had to make where the spec was silent or inconsistent are listed in
 `SPEC_BUILD_REPORT.md` §3.
 

@@ -41,7 +41,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # E-66 and T-104..T-106 for range edges, row-cell edges, the cut-row Note and the symlink hint (D-50)
 # SPEC.md v1.22 declares 279 ids (43 R, 21 C, 18 I, 18 K, 69 E, 110 T; none retired); v1.22 added
 # R-104, E-74..E-76 and T-113..T-116 for the JavaScript/TypeScript adapter (D-56)
-DECLARED_IDS = 279
+# SPEC.md v1.23.1 declares 300 ids (46 R, 23 C, 19 I, 19 K, 76 E, 117 T; none retired); v1.23 added
+# R-101..R-103, C-22, C-23, I-019, K-19, E-67..E-73 and T-107..T-112, v1.23.1 added T-117
+DECLARED_IDS = 300
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):
@@ -277,6 +279,21 @@ def test_t94_recorded_explain_trace_is_measured_and_recorded():
     assert (ROOT / "tests" / "test_12_explain.py").is_file()
 
 
+def test_t112_recorded_foreign_recognition_runs_are_recorded():
+    """T-112 *(recorded)*: `check --strict` over this repository and at least two further real
+    projects, before and after v1.23, with ids, statuses and exit code compared and the foreign
+    references found counted; the runs are the recorded evidence (non-gating) — this check proves
+    only that the record exists with the shape the row pins. (R-101, D-51)"""
+    report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
+    marker = "T-112 *(recorded)*"
+    assert marker in report, "SPEC_BUILD_REPORT.md does not record T-112"
+    body = report.split(marker, 1)[1].split("\n**T-", 1)[0]
+    rows = [ln for ln in body.splitlines() if ln.startswith("| ") and "identical" in ln]
+    assert len(rows) >= 3, rows  # this repository plus at least two further projects
+    assert "this repository" in body and "foreign references" in body
+    assert "1.22.0" in body  # the "before" build is named
+
+
 def test_prose_artifacts_claim_the_shipped_version():
     """F-3 (2026-09-21): the version claims in the prose artifacts track the shipped version — the
     README's introduction and SPEC_BUILD_REPORT.md's title name the spec version `SPEC.md`'s status
@@ -288,7 +305,7 @@ def test_prose_artifacts_claim_the_shipped_version():
     from speccheck import __version__
 
     spec_version = re.search(
-        r"\*\*Status:\*\* v(\d+\.\d+)", (ROOT / "SPEC.md").read_text(encoding="utf-8")
+        r"\*\*Status:\*\* v(\d+\.\d+(?:\.\d+)?)", (ROOT / "SPEC.md").read_text(encoding="utf-8")
     )
     assert spec_version, "SPEC.md has no status version"
     expected = f"v{spec_version.group(1)}"

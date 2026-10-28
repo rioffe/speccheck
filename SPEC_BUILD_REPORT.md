@@ -1,8 +1,201 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.22.0 against `SPEC.md` (v1.22)
+# SPEC_BUILD_REPORT — `speccheck` v1.23.1 against `SPEC.md` (v1.23.1)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0n. v1.23 / v1.23.1 increment (2026-10-27) — namespaced ids, the citation map, and the full review's fold
+
+**Why.** `docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md` (a test docstring naming
+another project's id made the local id PASSING; a ~1,100-id retrofit needed a map the engineers did
+not have to write into their tests), folded into `SPEC.md` as v1.23, then the first full
+`spec-review` since v1.10 (`docs/reviews/SPEC_REVIEW_REPORT.md`, F-701..F-717), folded as v1.23.1
+before any code. Built on branch `spec/v1.23.1` from `docs/plans/IMPLEMENTATION_PLAN.md`, one
+commit per wave.
+
+**Wave ledger.**
+
+| Wave | Gate (commands as in the wave brief §6) | Real result | Commit |
+| --- | --- | --- | --- |
+| W1 — corrections to existing behaviour (F-701, F-703, F-705, F-706, F-708, F-709, F-711) | pytest; ruff; `--self-check`; `test_08_golden` | 166 passed / 4 failed, the 4 the amended brief expected (2 `DECLARED_IDS`, T-84, T-94 voided by the prompt change); ruff 0; `self-check: ok`; 16 passed | `a424d1d` |
+| W2 — foreign references and `--namespace` (R-101, R-102, C-22, E-67..E-69, F-712, F-716) | as W1, plus `test_16_namespaces.py` | 174 passed / same 4; goldens byte-identical; self-application 0 foreign, 0 dangling | `813640f` |
+| W3 — the citation map (R-103, C-23, K-19, E-70..E-73, F-702..F-704) | as W2, plus `test_17_citation_map.py` | 179 passed / same 4; self-application uncited only T-112, T-117 | `53e4094` |
+| W4 — proof (T-117 join, counts, records, README, both gates) | the full exit gate, Phase A, Phase B | §0n "Gates" below | this commit and `d42b44c` |
+
+**Defects the build found, and where each was fixed.**
+
+- `fix(spec)` `50b723d`: the v1.23.1 fold had written C-07's new `declared_ratio` formula with
+  file-level citations inside its population; R-39 and the shipped `graph.py` exclude them. Found
+  reading `graph.py` while planning; the population is R-39's again.
+- `fix(spec)` `42642ff`: C-19's enumerated metavar vocabulary (which T-96 checks) lacked `NS`,
+  which §5.1's synopsis had used since v1.23. Found by T-96 in W2.
+- `fix(spec)` `b6949a1`: T-117's real jest run showed jest-junit writes a test outside every
+  `describe` as `" > top level"`, which C-03 claimed would join and did not. C-04 gains a
+  leading-separator rule; `results.py` implements it (`d42b44c`).
+- In code, W1: `jsts.py` checked parenthesis balance only inside each call, while C-03 has always
+  said a file whose parentheses do not balance is a parse fallback. The new T-113 regex cases
+  exposed it; the whole-file check is in.
+- Process: W2's commit carries a reformat of `explain.py`, `impact.py` and `proof.py` (line joins
+  only, no behaviour) from an over-broad `ruff format src`.
+
+**T-117 *(recorded)* — jest + jest-junit, measured.** Run 2026-10-27 in a scratch directory with
+`npm install jest jest-junit` (jest 30.5.2, jest-junit 17.0.0, node v26.9.0), over a file with a
+nested `describe`, a skipped test and a test outside every `describe`, configured
+`classNameTemplate: "{filepath}"`, `titleTemplate: "{classname} > {title}"`,
+`ancestorSeparator: " > "`. The `<testcase>` names: `calc > adds`, `calc > inner (x) > subtracts
+[neg]`, `calc > skipped one` (`<skipped/>`), and ` > top level`. Without `ancestorSeparator` the
+nested one is `calc inner (x) > subtracts [neg]` (F-707 confirmed). The XML is checked in verbatim
+(timestamps aside) as `JEST_JUNIT` in `tests/test_15_jsts.py`, where `test_t117_measured_jest_junit_joins`
+joins all four with none unattributed.
+
+**T-112 *(recorded)* — default-on foreign recognition over real projects.** `check --judge mock
+--strict` with v1.22 (`git archive main`, 1.22.0) and with this build, over copies of each
+project's spec, sources, tests and results (nothing was written into the projects themselves):
+
+| Project | `--src` / `--tests` / `--results` | ids | statuses before = after | exit before / after | foreign references |
+| --- | --- | --- | --- | --- | --- |
+| this repository (W3 tree) | `src` / `tests` / `junit.xml` | 300 | identical | 1 / 1 | 0 |
+| `~/projects/gpu-quicksort-revisited` | `Sources` / `Tests` / `junit-swift-testing.xml` | 128 | identical (128/128 PASSING) | 0 / 0 | 0 |
+| `~/projects/mdv_claude_opus` | `App` / `Tests` / `junit-swift-testing.xml` | 210 | identical (210 UNVERIFIED) | 1 / 1 | 0 |
+
+D-51's claim holds on all three: default-on recognition moved no id. The one visible difference is
+this repository's own edges, 1,272 → 1,268: C-12's example `platform:R-01..R-05` used to expand to
+`depends_on` edges to R-01..R-04 and now names R-05 alone (E-69, F-716), as specified.
+mdv_claude_opus's 210 `UNVERIFIED` is the same under both versions (its Swift Testing results do not
+join its cases); that is that project's state, not this change's.
+
+**T-84 *(recorded)* — the adjacent subset, re-run under the v1.23.1 C-10 text.** The C-10 change
+(F-703) voids the §0h record's shipped arm, so it was re-run 2026-10-27 with
+`google/gemini-3.8-flash` (OpenRouter, `--concurrency 8`), the model of the original measurement,
+three runs per prompt text, over the eight adjacent edges, no `--judge-budget`:
+
+| Arm (`judge_prompt_sha256`) | Run | Adjacent edges downgraded | `unknown_rate` |
+| --- | --- | --- | --- |
+| v1.16 shipped, v1.23.1 text (`e6d64ca054b0d03e229df4bf243c329b3a5c54ce21c3d9c37b1b8df348c24096`) | 1 | 8/8 | 0.0000 |
+| v1.16 shipped, v1.23.1 text (`e6d64ca0…`) | 2 | 7/8 | 0.0250 |
+| v1.16 shipped, v1.23.1 text (`e6d64ca0…`) | 3 | 6/8 | 0.0500 |
+| pre-v1.16 (`f6b124bdd6ea5948d052f6cb45de85eb5409e0165ba2371cd784a313472bcfd1`) | 1 | 8/8 | 0.0000 |
+| pre-v1.16 (`f6b124bd…`) | 2 | 8/8 | 0.0000 |
+| pre-v1.16 (`f6b124bd…`) | 3 | 8/8 | 0.0000 |
+
+Every edge that was not downgraded came back `UNKNOWN`, never `ASSERTS`: run 2
+`C-04 tests/test_summary.py::test_summary_mean_rounding_fact`, run 3 that edge and
+`C-04 tests/test_summary.py::test_summary_total_rounding_fact`. The other six,
+`R-01 tests/test_core.py::test_add_rounding_fact`, `R-01 tests/test_core.py::test_add_rounding_of_a_half_cent`,
+`R-02 tests/test_core.py::test_subtract_rounding_fact`, `E-02 tests/test_core.py::test_scale_empty_input_is_not_mutated`,
+`I-001 tests/test_core.py::test_add_commutes_on_plain_sum` and `I-001 tests/test_core.py::test_add_commutes_rounding_fact`,
+were `EXECUTES_ONLY` in all six runs. The outcome is again "on none" for `related`'s effect on this
+model, and no adjacent edge was over-credited under either text. Reproducing:
+`uv run python tools/adjacent_eval.py --runs 3 --concurrency 8 --verbose` with the three
+`SPECCHECK_JUDGE_*` variables set as in §0h.
+
+**T-94 *(recorded)* — the live-LLM trace, re-run under the v1.23.1 C-10 text.** 2026-10-27,
+`google/gemini-3.8-flash` (OpenRouter, `--judge-concurrency 8`), `judge_prompt_sha256` `e6d64ca054b0d03e229df4bf243c329b3a5c54ce21c3d9c37b1b8df348c24096`,
+against `fixtures/target/`, exit `0`:
+
+```bash
+cd fixtures/target
+uv run --project ../.. speccheck explain R-01 --spec SPEC.md --src src --tests tests \
+    --results junit.xml --judge llm --judge-concurrency 8
+```
+
+```text
+ID R-01
+status: PASSING (step 4: every citing test case with a result passed or was skipped)
+statement:
+  `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+sources:
+  src/calc/core.py:10
+tests:
+  tests/test_core.py::test_add (passed) [ASSERTS]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`
+    rationale: Line 16 asserts that add(a, b) returns the expected arithmetic sum.
+  tests/test_core.py::test_add_result (passed) [ASSERTS]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The assertion checks that add(2, 3) returns 5, verifying that add returns the arithmetic sum of its inputs.
+  tests/test_core.py::test_add_rounding_fact (passed) [EXECUTES_ONLY]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test executes add(1.005, 0.0) but does not assert on its result, asserting instead on an independent round() calculation.
+  tests/test_core.py::test_add_rounding_of_a_half_cent (passed) [EXECUTES_ONLY]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test calls add(2.675, 0.0) but does not assert on its return value, asserting only Python's built-in round function.
+  tests/test_summary.py::test_summary_module_does_not_change_add (passed) [ASSERTS]
+    clause: `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+    rationale: The test asserts that add(1, 2) returns 3 and add(0.1, 0.2) returns 0.3, checking the arithmetic sum and rounding.
+impact (1):
+  I-001 (depth 1, via I-001 -depends_on-> R-01)
+  T-01 verifies R-01
+```
+
+The same id under `--judge none` (exit `0`) renders every edge `[not judged]`:
+
+```text
+ID R-01
+status: PASSING (step 4: every citing test case with a result passed or was skipped)
+statement:
+  `add(a, b)` MUST return the arithmetic sum of `a` and `b`, rounded per K-02.
+sources:
+  src/calc/core.py:10
+tests:
+  tests/test_core.py::test_add (passed) [not judged]
+  tests/test_core.py::test_add_result (passed) [not judged]
+  tests/test_core.py::test_add_rounding_fact (passed) [not judged]
+  tests/test_core.py::test_add_rounding_of_a_half_cent (passed) [not judged]
+  tests/test_summary.py::test_summary_module_does_not_change_add (passed) [not judged]
+impact (1):
+  I-001 (depth 1, via I-001 -depends_on-> R-01)
+  T-01 verifies R-01
+```
+
+`check --judge none` over the same inputs records R-01 as `PASSING`, the status both traces show.
+
+**T-49 *(recorded)* — three fresh runs under the new prompt digest.** 2026-10-27,
+`google/gemini-3.8-flash` (OpenRouter), `tools/eval_judge.py --runs 3`, against the 40-label file:
+
+| Run | Accuracy | `unknown_rate` | `judge_prompt_sha256` | Verdict |
+| --- | --- | --- | --- | --- |
+| 1 | 1.0000 | 0.0250 | `e6d64ca054b0d03e229df4bf243c329b3a5c54ce21c3d9c37b1b8df348c24096` | PASS |
+| 2 | 1.0000 | 0.0000 | `e6d64ca0…` | PASS |
+| 3 | 1.0000 | 0.0750 | `e6d64ca0…` | PASS |
+
+Bar met in each run with no pooling (≥ 0.90 accuracy, ≤ 0.10 `unknown_rate`).
+
+**Gates (W4, the Phase 1 exit gate, then both speccheck phases on one `junit.xml`, nothing
+changed between them).**
+
+```text
+uv run python -m pytest tests -q --junitxml=junit.xml      185 passed
+uv run ruff check src tests tools                           All checks passed
+uv run speccheck --self-check                               self-check: ok
+uv run python tools/sync_selfcheck.py --check               exit 0
+
+# Phase A
+speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+
+# Phase B: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict
+speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
+judge_available=true  unknown_rate=0.0131  judge_strength=290/290  strict_judge_failure=null
+judged edges=993  judge_prompt_sha256=e6d64ca054b0d03e229df4bf243c329b3a5c54ce21c3d9c37b1b8df348c24096
+```
+
+Phase B passed on its first run: no test was found to execute an id without asserting it. The
+first Phase A run of W4 was `299/300` with T-112 `UNVERIFIED` (cited only by a module comment);
+T-112 gained the presence check every other recorded id has, and the gate was re-run from a fresh
+`junit.xml`. The T-46/T-71 goldens are byte-identical to v1.22 (T-109), so a run using neither new
+flag and carrying no `<ns>:` token is unchanged.
+
+**Observed.** No rendered surface. The artefacts read were the two fixture golden reports
+(byte-diffed), the four regenerated `--help` screens (each diff read in W2 and W3), the T-94
+traces above, and the T-112 reports over two real projects.
+
+```text
+Spec coverage: 300/300 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm (openai/gpt-6-luna-pro, unknown_rate 0.0131)
+Observed: no rendered surface; goldens, help screens and live traces read as listed above
+Readiness: BUILT
+Conformance: PASS
+```
 
 ## 0m. v1.21 / v1.22 increments (2026-10-27) — four extractor gaps, then a JavaScript/TypeScript adapter
 
@@ -1767,6 +1960,8 @@ id. "Self-app" is the status from the T-48 run.
 | T-103 | — | `test_07_cli::test_t103_usage_fault_precedes_input_contract_violation` (K-18/§5.4) | PASSING |
 
 ## 6. Verdict
+
+The current verdict is v1.23.1's, in §0n. The block below is v1.20's, kept as recorded.
 
 ```text
 Spec coverage: 267/267 IDs realized (0 deferred)
