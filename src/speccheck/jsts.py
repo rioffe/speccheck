@@ -1,8 +1,8 @@
 """JavaScript / TypeScript adapter: delimit `it` / `test` calls of vitest, jest and the
-`node:test` family by tokens (C-03 JS/TS adapter; R-104, D-56). No parser: the kernel stays
+`node:test` family by tokens (the C-24 JS/TS adapter; R-104, D-56). No parser: the kernel stays
 standard-library.
 
-Spec IDs realized here (§11): R-104, C-03, E-74, E-75.
+Spec IDs realized here (§11): R-104, C-24, E-74, E-75.
 """
 
 from __future__ import annotations

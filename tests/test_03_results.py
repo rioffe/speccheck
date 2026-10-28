@@ -7,7 +7,7 @@ import pytest
 from speccheck.attribute import TestCase as SpecTestCase
 from speccheck.results import RawResult, ResultsError, join_results, parse_junit
 
-from .conftest import junit, spec_table
+from .conftest import junit, other_notes, spec_table
 
 TEST_FILE = "def test_x():\n    '''R-01'''\n    assert True\n\n\ndef test_y():\n    '''C-01'''\n    assert True\n"
 
@@ -80,7 +80,9 @@ def test_longest_suffix_wins_and_ties_are_unattributed(project):
     assert run.json["unattributed_results"] == [
         {"classname": "test_core", "name": "test_x", "outcome": "passed"}
     ]
-    assert run.json["notes"][0].startswith("ambiguous result test_core::test_x: candidates ")
+    assert other_notes(run.json["notes"])[0].startswith(
+        "ambiguous result test_core::test_x: candidates "
+    )
 
 
 def test_parametrized_names_join_and_empty_classname(project):

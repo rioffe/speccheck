@@ -10,7 +10,7 @@ from pathlib import Path
 from speccheck.attribute import attribute_file, module_classname
 from speccheck.extract import ScannedFile
 
-from .conftest import DATA, SIMPLE_PROJECT, junit, spec_table
+from .conftest import DATA, SIMPLE_PROJECT, junit, other_notes, spec_table
 
 
 def _scanned(path: str, text: str) -> ScannedFile:
@@ -95,7 +95,7 @@ def test_unparseable_python_falls_back_to_file_level_with_note(project):
     assert attributed.cases == ()
     assert attributed.citations[0].testcase.name == ""
     run = project({"SPEC.md": spec_table([("R-01", "a")]), "tests/test_bad.py": text}).check()
-    assert run.json["notes"] == ["parse fallback: tests/test_bad.py"]
+    assert other_notes(run.json["notes"]) == ["parse fallback: tests/test_bad.py"]
     assert run.ids()["R-01"]["tests"][0]["name"] == ""
 
 
@@ -173,7 +173,7 @@ def test_excluded_dirs_oversized_nonutf8_binary_and_symlinks(project):
     # whose only NUL is past byte 8192, is text and its citation above was kept.
     raw = json.dumps(run.json)
     assert "blob.bin" not in raw
-    assert run.json["notes"] == [
+    assert other_notes(run.json["notes"]) == [
         "invalid UTF-8 decoded with replacement: src/latin1.py",
         "skipped 1 file over 2 MiB: src/big.txt",
         "skipped 3 symlink(s)",
@@ -253,7 +253,9 @@ def test_ignore_markers(project, tmp_path: Path):
         t["file"].endswith("test_ignore_file_line2.py") for i in ids.values() for t in i["tests"]
     )
     # the marker text is assembled so that it never appears literally in this module (F-109)
-    assert run.json["notes"] == ["ignored 1 file(s) by " + "speccheck:" + "ignore-file"]
+    assert other_notes(run.json["notes"]) == [
+        "ignored 1 file(s) by " + "speccheck:" + "ignore-file"
+    ]
     # the ignored line still counts toward the span: the mock judge sees lines 4..7 of the case
     run2 = proj.check("--judge", "mock")
     assert run2.code in (0, 1)
@@ -516,13 +518,12 @@ def test_declared_vs_incidental_classification():
     assert swift_notes == []
 
 
-
-
-
 def test_declared_is_present_and_constant_across_judge_modes(project):
     """T-85 (continued): `declared` is present under `--judge none` and does not change with
     `--judge`; `tests[].declared` is true iff any citation line of the edge is DECLARED (I-014)."""
-    spec = spec_table([(f"R-{i:02d}", f"s{i}") for i in range(1, 6)] + [("R-09", "file-level only")])
+    spec = spec_table(
+        [(f"R-{i:02d}", f"s{i}") for i in range(1, 6)] + [("R-09", "file-level only")]
+    )
     files = {
         "SPEC.md": spec,
         "tests/test_d.py": PY_DECLARED,

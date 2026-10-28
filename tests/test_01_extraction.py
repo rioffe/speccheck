@@ -371,3 +371,39 @@ def test_recorded_marker_declarations():
     assert ids["T-06"].retired is True
     assert ids["T-07"].title == "Title *(recorded)*"
     assert index.notes == ("recorded marker ignored on R-01: not a T id",)
+
+
+def test_t119_backtick_spans_are_commonmark_code_spans():
+    """T-119 (v1.24, D-59): a backtick span is a run of N backticks closed by the next run of
+    exactly N, so `` ` ``` ` `` holds a run of three and a later `|` inside `` `|` `` stays in the
+    cell; a span of four around three does not leave the row's closing `|` in the last cell; an
+    unmatched backtick protects nothing; an escaped `\\|` inside a span stays one cell.
+    (C-01, E-04, D-59)"""
+    cut = "| **R-01** | a fence (` ``` `), a table (first line contains `|`) and more text |"
+    assert split_row(cut) == [
+        " **R-01** ",
+        " a fence (` ``` `), a table (first line contains `|`) and more text ",
+    ]
+    stray = "| **R-02** | a ```` ``` ```` fence, then `x` |"
+    assert split_row(stray) == [" **R-02** ", " a ```` ``` ```` fence, then `x` "]
+    unmatched = "| **R-03** | a ` b | c |"
+    assert split_row(unmatched) == [" **R-03** ", " a ` b ", " c "]
+    escaped = "| **R-04** | `a\\|b` |"
+    assert split_row(escaped) == [" **R-04** ", " `a\\|b` "]
+
+
+def test_t120_row_with_more_cells_than_its_header_is_noted():
+    """T-120 (v1.24): in a two-column TABLE a declared row with three cells gets the E-66 Note and
+    keeps the cell as split; the same cut inside `$..$` yields exactly one Note; a three-column
+    TABLE's three-cell row yields none; a declared row outside any TABLE yields none.
+    (E-66, C-01)"""
+    note = "statement may be cut at an unescaped '|': R-01"
+    two = "# S\n\n| ID | Statement |\n| -- | -- |\n| **R-01** | a | b |\n"
+    index = parse_spec(two, "SPEC.md")
+    assert note in index.notes and index.ids[0].text == "a"
+    math = "# S\n\n| ID | Statement |\n| -- | -- |\n| **R-01** | value $a | b$ holds |\n"
+    assert list(parse_spec(math, "SPEC.md").notes).count(note) == 1
+    three = "# S\n\n| ID | Case | Semantics |\n| -- | -- | -- |\n| **R-01** | c | s |\n"
+    assert note not in parse_spec(three, "SPEC.md").notes
+    loose = "# S\n\n| **R-01** | a | b |\n"
+    assert note not in parse_spec(loose, "SPEC.md").notes

@@ -14,7 +14,7 @@ from speccheck import judge_llm, report
 from speccheck.graph import ratio
 from speccheck.report import dumps
 
-from .conftest import FIXTURE, SIMPLE_PROJECT, run_cli, spec_table, write_tree
+from .conftest import FIXTURE, SIMPLE_PROJECT, other_notes, run_cli, spec_table, write_tree
 
 LLM_ENV = {
     "SPECCHECK_JUDGE_URL": "http://localhost:11434/v1/chat/completions",
@@ -252,7 +252,7 @@ def test_json_shape_orders_rounding_and_verdict_keys(tmp_path: Path, monkeypatch
         ["check", "--spec", "SPEC.md", "--src", "src", "--tests", "tests"], tmp_path / "five"
     )
     notes = run_five.json["notes"]
-    assert len(notes) == 6 and notes == sorted(notes)
+    assert len(other_notes(notes)) == 6 and notes == sorted(notes)
     md_notes = [
         ln[2:]
         for ln in run_five.md.split("## 9. Notes\n\n", 1)[1].splitlines()

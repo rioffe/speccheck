@@ -35,7 +35,7 @@ from speccheck.judge import (
 from speccheck.judge_llm import LlmConfig, LlmJudge, parse_answer, strip_fence
 from speccheck.judge_mock import MockJudge
 
-from .conftest import FIXTURE, junit, run_cli, spec_table, write_tree
+from .conftest import FIXTURE, junit, other_notes, run_cli, spec_table, write_tree
 
 C10_PATH = Path(__file__).resolve().parent.parent / "src" / "speccheck" / "judge_prompt.md"
 LLM_ENV = {
@@ -931,7 +931,7 @@ def test_triage_orders_and_truncates_the_judge_queue(tmp_path: Path, monkeypatch
         verdict = row["tests"][0]["verdict"]
         assert verdict["verdict"] == "UNKNOWN" and verdict["coerced"] is True
         assert verdict["rationale"] == "judge: budget" and verdict["evidence"] == []
-    assert doc["notes"] == [
+    assert other_notes(doc["notes"]) == [
         "jev triage failed: 1 edge(s) ordered first",
         "judge budget exhausted: 7 edge(s) unjudged",
     ]
@@ -942,7 +942,7 @@ def test_triage_orders_and_truncates_the_judge_queue(tmp_path: Path, monkeypatch
     assert judge.order == ["R-05", "R-01", "R-02", "R-03", "R-04", "R-06", "R-07", "R-08",
                            "R-09", "R-10"]
     assert run.json["metrics"]["unknown_rate"] == 0.0
-    assert run.json["notes"] == ["jev triage failed: 1 edge(s) ordered first"]
+    assert other_notes(run.json["notes"]) == ["jev triage failed: 1 edge(s) ordered first"]
 
     judge.order.clear()
     run = run_cli([*base, "--judge-budget", "0%"], tmp_path, env=JEV_ENV)
@@ -955,7 +955,7 @@ def test_triage_orders_and_truncates_the_judge_queue(tmp_path: Path, monkeypatch
     run = run_cli([*base, "--judge-budget", "100%"], tmp_path, env=JEV_ENV)
     assert len(judge.order) == 10 and run.json["judge_available"] is True
     assert run.json["metrics"]["unknown_rate"] == 0.0
-    assert run.json["notes"] == ["jev triage failed: 10 edge(s) ordered first"]
+    assert other_notes(run.json["notes"]) == ["jev triage failed: 10 edge(s) ordered first"]
 
 
 def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path: Path, monkeypatch):
@@ -977,7 +977,7 @@ def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path:
         tmp_path,
     )
     assert run.code == 0 and transport.calls == []
-    assert run.json["notes"] == []
+    assert other_notes(run.json["notes"]) == []
     clean = run.json
 
     # under --judge llm with an unlimited SECONDS budget the pass reorders the queue but changes
@@ -991,8 +991,8 @@ def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path:
     assert judge.order == [f"R-{n:02d}" for n in range(1, 11)]  # ascending p(e)
     judge.order.clear()
     plain = run_cli(base, tmp_path, env=JEV_ENV)
-    assert triaged_doc["notes"] == ["jev-pre-triage had no effect: --judge-budget is unlimited"]
-    assert plain.json["notes"] == []
+    assert other_notes(triaged_doc["notes"]) == ["jev-pre-triage had no effect: --judge-budget is unlimited"]
+    assert other_notes(plain.json["notes"]) == []
     assert {k: v for k, v in triaged_doc.items() if k != "notes"} == {
         k: v for k, v in plain.json.items() if k != "notes"
     }
@@ -1004,7 +1004,7 @@ def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path:
         tmp_path,
         env=JEV_ENV,
     )
-    assert run.json["notes"] == ["judge budget exhausted: 10 edge(s) unjudged"]
+    assert other_notes(run.json["notes"]) == ["judge budget exhausted: 10 edge(s) unjudged"]
 
     # E-36: with zero eligible edges no request is sent to either provider
     empty_dir = tmp_path / "empty"
@@ -1019,7 +1019,7 @@ def test_triage_is_ignored_under_mock_and_inert_on_an_unlimited_budget(tmp_path:
         empty_dir,
         env=JEV_ENV,
     )
-    assert run.code == 0 and transport.calls == [] and run.json["notes"] == []
+    assert run.code == 0 and transport.calls == [] and other_notes(run.json["notes"]) == []
     assert run.json["judge_available"] is True and run.json["metrics"]["unknown_rate"] is None
 
     # the golden fixture is byte-identical when the flag is added to a --judge mock run

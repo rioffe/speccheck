@@ -20,7 +20,7 @@ import pytest
 
 from speccheck import cli, jev, judge_llm, report
 
-from .conftest import FIXTURE, SIMPLE_PROJECT, junit, run_cli, spec_table
+from .conftest import FIXTURE, SIMPLE_PROJECT, junit, other_notes, run_cli, spec_table
 
 SUMMARY_RE = re.compile(
     r"^speccheck: (CONFORMING|NOT CONFORMING) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, "
@@ -272,13 +272,13 @@ def test_verbosity_levels(project, monkeypatch):
 
 def test_notes_quiet_by_default_and_once_at_info(project):
     """T-42: with no --verbose, stderr is empty on exit 0/1 even when the run produced Notes;
-    with --verbose, each Note appears once at INFO. (§5.3)"""
+    with --verbose, each Note appears once at INFO. (R-17, §5.3)"""
     files = dict(SIMPLE_PROJECT, **{"tests/test_bad.py": "def broken(:\n"})
     quiet = project(files).check()
     assert (
         quiet.code in (0, 1)
         and quiet.stderr == ""
-        and quiet.json["notes"] == ["parse fallback: tests/test_bad.py"]
+        and other_notes(quiet.json["notes"]) == ["parse fallback: tests/test_bad.py"]
     )
     loud = project(files).check("--verbose")
     assert loud.stderr.count("INFO note: parse fallback: tests/test_bad.py") == 1
@@ -613,7 +613,7 @@ def test_judge_budget(project, monkeypatch):
     assert all(
         v["verdict"] == "UNKNOWN" and v["coerced"] is True and v["evidence"] == [] for v in budget
     )
-    assert run.json["notes"] == ["judge budget exhausted: 4 edge(s) unjudged"]
+    assert other_notes(run.json["notes"]) == ["judge budget exhausted: 4 edge(s) unjudged"]
     assert run.json["metrics"]["unknown_rate"] == 0.6667 and run.json["judge_available"] is True
     assert run.status("R-01") == "PASSING"
     issued.clear()
@@ -621,7 +621,7 @@ def test_judge_budget(project, monkeypatch):
         "--judge", "llm", "--judge-budget", "0", "--judge-concurrency", "6", env=LLM_ENV
     )
     assert (
-        len(issued) == 6 and run.json["notes"] == [] and run.json["metrics"]["unknown_rate"] == 0.0
+        len(issued) == 6 and other_notes(run.json["notes"]) == [] and run.json["metrics"]["unknown_rate"] == 0.0
     )
 
 
@@ -696,9 +696,7 @@ def test_judge_available_false_when_budget_skips_everything(project, monkeypatch
     assert SUMMARY_RE.match(strict.stdout.rstrip("\n"))
     # N above the eligible count (1): every edge is issued, judge_available stays true
     real_calls.clear()
-    above = proj.check(
-        "--judge", "llm", "--jev-pre-triage", "--judge-budget", "100%", env=JEV_ENV
-    )
+    above = proj.check("--judge", "llm", "--jev-pre-triage", "--judge-budget", "100%", env=JEV_ENV)
     assert above.code == 0 and above.json["judge_available"] is True and real_calls
 
 

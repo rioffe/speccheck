@@ -1,4 +1,4 @@
-"""§9.16 JavaScript / TypeScript adapter (R-104, C-03, C-04; v1.22)."""
+"""§9.16 JavaScript / TypeScript adapter (R-104, C-24, C-04; v1.22)."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ VITEST_JUNIT = """<?xml version="1.0" encoding="UTF-8" ?>
 def test_delimits_describe_chains_modifiers_and_regex_literals():
     """T-113: `describe` titles and the test title join with " > "; `.each`, `.skip` and nested
     suites delimit; a regex literal holding `)` does not unbalance the span; the comment block
-    above a call is inside its span, and only whole-line comments are flagged. (R-104, C-03)"""
+    above a call is inside its span, and only whole-line comments are flagged. (R-104, C-24)"""
     cases, undelimited, comment_only = delimit_js(tuple(SOURCE.split("\n")))
     assert [(c.name, c.start, c.end) for c in cases] == [
         ("calc > adds", 3, 4),
@@ -61,7 +61,7 @@ def test_regex_versus_division_rule():
     """T-113 (v1.23.1, F-708): a `/` begins a regex literal iff the previous significant token is
     absent, one-character punctuation other than `)`, `]`, `}`, or a listed keyword; otherwise it is
     division. Regexes holding `(` do not count toward balance; division leaves `(`/`)` counted; a
-    regex unterminated at the line end is a parse fallback (E-74). (R-104, C-03)"""
+    regex unterminated at the line end is a parse fallback (E-74). (R-104, C-24)"""
     regexes = [
         "/e(/.test(s)",  # absent previous token (file start)
         "f(/a(b/)",
@@ -97,7 +97,7 @@ def test_dynamic_titles_member_calls_and_unbalanced_files():
 def test_attribution_declared_and_classname():
     """T-115: a citation inside a case's span is attributed to it, the classname is the file path
     with `/` -> `.` and the extension kept, a comment-only line is DECLARED and a code line is
-    not, and a citation outside any case is file-level. (R-104, C-03, C-14)"""
+    not, and a citation outside any case is file-level. (R-104, C-24, C-14)"""
     scanned = ScannedFile("web/src/calc.test.ts", SOURCE, tuple(SOURCE.split("\n")), "web")
     attributed, notes = attribute_file(scanned)
     assert notes == []
@@ -112,7 +112,7 @@ def test_attribution_declared_and_classname():
 def test_joins_vitest_junit_end_to_end(project):
     """T-116: the measured vitest JUnit joins by path classname (vitest's root differs from
     --root), titles containing `[` and `(`, and a templated `it.each` title that expands to two
-    results; the skipped case is SKIPPED. (R-104, C-04, E-76)"""
+    results; the skipped case is SKIPPED. (R-104, C-24, C-04, E-76)"""
     spec = spec_table(
         [
             ("R-01", "adds"),
@@ -144,7 +144,7 @@ def test_joins_vitest_junit_end_to_end(project):
 def test_multiline_block_comment_line_is_declared():
     """T-115 (v1.23.1, F-705): a citation on the second line of a multi-line `/* … */` comment
     inside a case's span is DECLARED — C-14's JS/TS bullet: a comment-only line, every line of
-    a block comment token included. (R-104, C-14)"""
+    a block comment token included. (R-104, C-24, C-14)"""
     src = "test('t', () => {\n  /* checks the sum,\n     per R-06 */\n  expect(1).toBe(1)\n})\n"
     scanned = ScannedFile("web/t.test.ts", src, tuple(src.split("\n")), "web")
     attributed, _ = attribute_file(scanned)
@@ -183,9 +183,9 @@ JEST_JUNIT = """<?xml version="1.0" encoding="UTF-8"?>
 
 def test_t117_measured_jest_junit_joins(project):
     """T-117 *(recorded)*: one real jest + jest-junit run (nested describe, a test outside every
-    describe) under C-03's three options joins every `<testcase>` to its case — the top-level
+    describe) under C-24's three options joins every `<testcase>` to its case — the top-level
     one through C-04's leading-separator rule (" > top level" -> "top level"); none is
-    unattributed. The run itself is recorded in SPEC_BUILD_REPORT.md. (R-104, C-04, C-03, D-56)"""
+    unattributed. The run itself is recorded in SPEC_BUILD_REPORT.md. (R-104, C-04, C-24, D-56)"""
     spec = spec_table(
         [("R-01", "adds"), ("R-02", "subtracts"), ("R-03", "skipped"), ("R-04", "top")]
     )

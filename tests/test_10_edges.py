@@ -112,9 +112,7 @@ def test_second_affects_table_is_not_the_decision_table():
 def test_duplicate_decision_declaration_exits_3_naming_both_lines():
     """T-79: a second D-01 row in the decision table exits 3 naming both lines. (E-02)"""
     base = spec_table([("R-01", "x")])
-    table = (
-        "\n\n| ID | Affects |\n| -- | ------- |\n| D-01 | R-01 |\n| D-01 | R-01 |\n"
-    )
+    table = "\n\n| ID | Affects |\n| -- | ------- |\n| D-01 | R-01 |\n| D-01 | R-01 |\n"
     with pytest.raises(SpecError, match="D-01"):
         parse_spec(base + table, "SPEC.md")
 
@@ -198,3 +196,42 @@ def test_odd_math_delimiters_note_and_symlink_hint(tmp_path):
     assert run.stderr.rstrip().endswith(f"(resolves to {outside.resolve()})")
     plain = run_cli(["check", "--spec", "SPEC.md", "--out", ".."], proj)
     assert plain.stderr == "ERROR path outside --root: ..\n"
+
+
+def test_t121_isolated_ids_are_named_in_one_note(project):
+    """T-121 (v1.24): the declared, non-retired ids that no C-12 edge touches are named in one
+    Note, in C-07 order; a retired one is uncounted; naming an id removes it; five list three and
+    end ` and 2 more`; the golden fixture carries its three; `impact` emits no such Note.
+    (E-77, C-12, R-36, D-60)"""
+    import json
+
+    from speccheck.extract import isolated_note
+
+    from .conftest import FIXTURE, run_cli
+
+    rows = [
+        ("R-01", "alone"),
+        ("R-02", "names E-01"),
+        ("C-01", "old"),
+        ("E-01", "x"),
+        ("E-02", "alone"),
+    ]
+    spec = spec_table(rows, retired={"C-01"})
+    index = parse_spec(spec, "SPEC.md")
+    assert index.isolated == ("R-01", "E-02")
+    assert isolated_note(index) == "2 declared id(s) touch no edge: R-01, E-02"
+    named = parse_spec(spec_table(rows + [("K-01", "bounds R-01")], retired={"C-01"}), "SPEC.md")
+    assert named.isolated == ("E-02",)
+    five = parse_spec(spec_table([("R-" + f"0{n}", "alone") for n in range(1, 6)]), "SPEC.md")
+    assert isolated_note(five) == "5 declared id(s) touch no edge: R-01, R-02, R-03 and 2 more"
+    assert (
+        isolated_note(parse_spec(spec_table([("R-01", "names R-02"), ("R-02", "x")]), "S")) is None
+    )
+    golden = json.loads((FIXTURE / "golden" / "speccheck.json").read_text(encoding="utf-8"))
+    assert "3 declared id(s) touch no edge: R-03, K-01, E-01" in golden["notes"]
+    proj = project({"SPEC.md": spec, "src/x.py": "", "tests/t.py": ""})
+    assert "2 declared id(s) touch no edge: R-01, E-02" in proj.check().json["notes"]
+    imp = run_cli(["impact", "--spec", "SPEC.md", "--changed", "R-02", "--out", "imp"], proj.path)
+    assert imp.code == 0
+    notes = json.loads((proj.path / "imp" / "impact.json").read_text())["notes"]
+    assert not any("touch no edge" in n for n in notes)

@@ -76,6 +76,15 @@ def run_cli(
     return Run(code, out_buf.getvalue().decode("utf-8"), err_buf.getvalue().decode("utf-8"), cwd)
 
 
+ISOLATED_NOTE = " declared id(s) touch no edge: "
+
+
+def other_notes(notes: list[str]) -> list[str]:
+    """`notes` without E-77's isolated-id Note (v1.24), for a test about some other Note whose tiny
+    spec leaves every id disconnected."""
+    return [n for n in notes if ISOLATED_NOTE not in n]
+
+
 def spec_table(
     rows: list[tuple[str, str]], *, retired: set[str] = frozenset(), extra: str = ""
 ) -> str:

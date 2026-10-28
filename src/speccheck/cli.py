@@ -41,6 +41,7 @@ from .extract import (
     foreign_in_file,
     foreign_note,
     id_sort_key,
+    isolated_note,
     normalize_id,
     parse_spec,
     scan_roots,
@@ -939,6 +940,8 @@ def _run_stages(config: Config) -> _Stages:
         notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
     index = parse_spec(spec_text, rel_spec, config.namespace)
     notes.extend(index.notes)  # K-14 / E-46: one Note per truncated statement
+    if (isolated := isolated_note(index)) is not None:  # E-77: check and explain only, not impact
+        notes.append(isolated)
     stage.done(ids=len(index.ids), retired=sum(1 for s in index.ids if s.retired))
 
     excluded = _excluded_paths(config)

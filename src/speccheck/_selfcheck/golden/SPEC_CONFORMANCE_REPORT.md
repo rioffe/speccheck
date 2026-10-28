@@ -132,6 +132,7 @@ speccheck: NOT CONFORMING - 14/20 passing (70.0%), 1 failing, 1 skipped, 1 weak,
 
 ## 9. Notes
 
+- 3 declared id(s) touch no edge: R-03, K-01, E-01
 - edge to undeclared id: C-04 -> T-49
 - edge to undeclared id: C-04 -> T-76
 - edge to undeclared id: D-03 -> E-45

@@ -156,9 +156,21 @@ class SpecIndex:
     notes: tuple[str, ...] = ()  # K-14 / E-46: one Note per truncated statement
     decisions: tuple[Decision, ...] = ()  # C-01 (c) / v1.13, sorted by number
     edges: tuple[Edge, ...] = ()  # C-12 / v1.13, sorted per the C-12 order
+    # E-77 (v1.24): declared, non-retired ids no edge touches, in C-07 order. Kept out of `notes`
+    # because `impact` copies those and E-77's Note is `check`/`explain`'s only.
+    isolated: tuple[str, ...] = ()
 
     def by_id(self) -> dict[str, SpecId]:
         return {s.id: s for s in self.ids}
+
+
+def isolated_note(index: SpecIndex) -> str | None:
+    """E-77: one Note naming the first three isolated ids, or None when there are none."""
+    if not index.isolated:
+        return None
+    shown = ", ".join(index.isolated[:3])
+    more = f" and {len(index.isolated) - 3} more" if len(index.isolated) > 3 else ""
+    return f"{len(index.isolated)} declared id(s) touch no edge: {shown}{more}"
 
 
 # --------------------------------------------------------------------------------------------
@@ -189,23 +201,56 @@ def collapse_ws(text: str) -> str:
     return _WS_RE.sub(" ", text).strip()
 
 
+def code_spans(line: str) -> list[tuple[int, int]]:
+    """C-01 (a) BACKTICK SPAN (v1.24, D-59): the CommonMark code spans of a line, as (start,
+    end) offsets — a run of N backticks through the next run of exactly N; an unmatched run is
+    literal."""
+    spans: list[tuple[int, int]] = []
+    n = len(line)
+    i = 0
+    while i < n:
+        if line[i] != "`":
+            i += 1
+            continue
+        j = i
+        while j < n and line[j] == "`":
+            j += 1
+        run = j - i
+        k = j
+        close = -1
+        while k < n:
+            if line[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and line[m] == "`":
+                m += 1
+            if m - k == run:
+                close = m
+                break
+            k = m
+        if close < 0:  # no closing run of the same length: literal backticks
+            i = j
+            continue
+        spans.append((i, close))
+        i = close
+    return spans
+
+
 def split_row(line: str) -> list[str]:
-    """Split a table row on every '|' not preceded by '\\' and not inside a backtick span;
-    drop the leading and trailing empty cells (C-01 (a))."""
+    """Split a table row on every '|' not preceded by '\\' and not inside a backtick span (a
+    CommonMark code span, v1.24); drop the leading and trailing empty cells (C-01 (a))."""
+    inside = bytearray(len(line))
+    for start, end in code_spans(line):
+        inside[start:end] = b"\x01" * (end - start)
     cells: list[str] = []
     buf: list[str] = []
-    in_span = False
-    prev = ""
-    for ch in line:
-        if ch == "`":
-            in_span = not in_span
-            buf.append(ch)
-        elif ch == "|" and not in_span and prev != "\\":
+    for k, ch in enumerate(line):
+        if ch == "|" and not inside[k] and (k == 0 or line[k - 1] != "\\"):
             cells.append("".join(buf))
             buf = []
         else:
             buf.append(ch)
-        prev = ch
     cells.append("".join(buf))
     if cells and cells[0].strip() == "":
         cells = cells[1:]
@@ -377,34 +422,21 @@ def _all_separator(cells: list[str]) -> bool:
     return bool(cells) and all(_SEPARATOR_CELL_RE.match(c) for c in cells)
 
 
-def _decision_rows(lines: list[str]) -> list[tuple[int, str, str]]:
-    """C-01 (c): (lineno, "D-nn" token, raw AFFECTS CELL text) for every decision row of the
-    DECISION TABLE -- the first TABLE (a maximal run of consecutive row lines outside fenced
-    code blocks, with no BLANK line between them, whose second row is a separator row) whose
-    HEADER ROW has a cell equal to "affects" once trimmed and case-folded. A D-nn row outside
-    that table, or in a second such table, declares nothing (Q-008-style: only the first
-    match counts). Duplicate D ids are the caller's concern."""
+def _tables(lines: list[str]) -> list[list[tuple[int, str]]]:
+    """C-01 (c)'s TABLEs: maximal runs of consecutive row lines outside fenced code blocks, with
+    no BLANK line between them, whose second row is a separator row — as (lineno, line) lists,
+    the HEADER ROW first."""
     fence: str | None = None
     block: list[tuple[int, str]] = []
-    decision_table: list[tuple[int, str]] | None = None
-    affects_col: int | None = None
+    tables: list[list[tuple[int, str]]] = []
 
     def flush() -> None:
-        nonlocal block, decision_table, affects_col
-        if decision_table is None and len(block) >= 2:
-            header_cells = split_row(block[0][1])
-            sep_cells = split_row(block[1][1])
-            if _all_separator(sep_cells):
-                for i, cell in enumerate(header_cells):
-                    if cell.strip().casefold() == "affects":
-                        affects_col = i
-                        decision_table = block[2:]
-                        break
+        nonlocal block
+        if len(block) >= 2 and _all_separator(split_row(block[1][1])):
+            tables.append(block)
         block = []
 
     for lineno, line in enumerate(lines, start=1):
-        if decision_table is not None:
-            break
         marker = _fence_marker(line)
         if fence is not None:
             if marker == fence and line.strip() == fence:
@@ -423,6 +455,34 @@ def _decision_rows(lines: list[str]) -> list[tuple[int, str, str]]:
         else:
             flush()
     flush()
+    return tables
+
+
+def _header_widths(lines: list[str]) -> dict[int, int]:
+    """E-66 (v1.24): lineno of every row below a TABLE's separator -> its HEADER ROW's width."""
+    widths: dict[int, int] = {}
+    for table in _tables(lines):
+        width = len(split_row(table[0][1]))
+        for lineno, _line in table[2:]:
+            widths[lineno] = width
+    return widths
+
+
+def _decision_rows(lines: list[str]) -> list[tuple[int, str, str]]:
+    """C-01 (c): (lineno, "D-nn" token, raw AFFECTS CELL text) for every decision row of the
+    DECISION TABLE -- the first TABLE whose HEADER ROW has a cell equal to "affects" once trimmed
+    and case-folded. A D-nn row outside that table, or in a second such table, declares nothing
+    (Q-008-style: only the first match counts). Duplicate D ids are the caller's concern."""
+    decision_table: list[tuple[int, str]] | None = None
+    affects_col: int | None = None
+    for table in _tables(lines):
+        for i, cell in enumerate(split_row(table[0][1])):
+            if cell.strip().casefold() == "affects":
+                affects_col = i
+                decision_table = table[2:]
+                break
+        if decision_table is not None:
+            break
 
     out: list[tuple[int, str, str]] = []
     if decision_table is not None and affects_col is not None:
@@ -513,14 +573,23 @@ def _build_decisions_and_edges(
     return decisions_sorted, edges, sorted(notes)
 
 
-_BACKTICK_SPAN_RE = re.compile(r"`[^`]*`")
+def strip_code_spans(text: str) -> str:
+    """`text` without its C-01 (a) backtick spans, line by line."""
+    out = []
+    for line in text.split("\n"):
+        for start, end in reversed(code_spans(line)):
+            line = line[:start] + line[end:]
+        out.append(line)
+    return "\n".join(out)
+
+
 _ESCAPED_DOLLAR_RE = re.compile(r"\\\$")
 
 
 def _odd_math_delimiters(statement: str) -> bool:
     """E-66: an odd number of unescaped `$` outside backtick spans, i.e. an inline-math span
     that the row splitter cut at an unescaped `|`."""
-    bare = _ESCAPED_DOLLAR_RE.sub("", _BACKTICK_SPAN_RE.sub("", statement))
+    bare = _ESCAPED_DOLLAR_RE.sub("", strip_code_spans(statement))
     return bare.count("$") % 2 == 1
 
 
@@ -528,9 +597,9 @@ def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIn
     """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
     seen: dict[tuple[str, int], SpecId] = {}
     notes: list[str] = []
-    for fam, num, title, statement, retired, lineno, recorded, extra in iter_declarations(
-        split_spec_lines(text)
-    ):
+    lines = split_spec_lines(text)
+    header_widths = _header_widths(lines)  # E-66 (v1.24): a row wider than its TABLE's header
+    for fam, num, title, statement, retired, lineno, recorded, extra in iter_declarations(lines):
         key = (fam, num)
         if key in seen:
             prior = seen[key]
@@ -551,14 +620,17 @@ def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIn
         if recorded and fam != "T":  # E-50: the marker is meaningful for family T only
             notes.append(f"recorded marker ignored on {normalize_id(fam, num)}: not a T id")
             recorded = False
-        if extra and _odd_math_delimiters(statement):  # a "|" inside $..$ split the cell (E-66)
+        wider = (
+            lineno in header_widths and len(split_row(lines[lineno - 1])) > header_widths[lineno]
+        )
+        if (extra and _odd_math_delimiters(statement)) or wider:  # an unescaped "|" cut it (E-66)
             notes.append(f"statement may be cut at an unescaped '|': {normalize_id(fam, num)}")
         seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded, extra)
     ids = tuple(sorted(seen.values(), key=lambda s: (family_rank(s.family), s.number)))
     if not any(not s.retired for s in ids):
         raise SpecError("spec declares no in-scope IDs")
 
-    decision_rows = _decision_rows(split_spec_lines(text))
+    decision_rows = _decision_rows(lines)
     seen_decisions: dict[int, int] = {}  # number -> lineno, for E-02-style duplicate detection
     for lineno, token, _affects_raw in decision_rows:
         num = int(token.split("-")[1])
@@ -570,6 +642,8 @@ def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIn
         seen_decisions[num] = lineno
     decisions, edges, edge_notes = _build_decisions_and_edges(ids, decision_rows, namespace)
     notes.extend(edge_notes)
+    touched = {e.src for e in edges} | {e.dst for e in edges}
+    isolated = tuple(s.id for s in ids if not s.retired and s.id not in touched)  # E-77
 
     return SpecIndex(
         path=rel_path,
@@ -577,6 +651,7 @@ def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIn
         notes=tuple(sorted(notes)),
         decisions=decisions,
         edges=edges,
+        isolated=isolated,
     )
 
 

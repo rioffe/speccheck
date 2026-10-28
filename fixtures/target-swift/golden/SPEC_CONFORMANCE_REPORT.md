@@ -88,5 +88,6 @@ None.
 
 ## 9. Notes
 
+- 7 declared id(s) touch no edge: R-03, C-02, I-001 and 4 more
 - edge to undeclared id: K-01 -> E-44
 - undelimited tests in Tests/CalcTests/CalcTests.swift: CalcTests.testScaleNegative
