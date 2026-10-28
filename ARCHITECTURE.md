@@ -1,11 +1,11 @@
-# ARCHITECTURE — `speccheck` 1.23.1
+# ARCHITECTURE — `speccheck` 1.24.0
 
 This document describes the system as built, module by module and data flow by data flow. It is a
 companion to `README.md` (how to use it), `SPEC.md` (what it must do), and
 `SPEC_BUILD_REPORT.md` (the evidence that it does). Spec IDs are cited inline so that every design
 element can be traced back to the clause that demanded it.
 
-It describes the build of `SPEC.md` **v1.23.1**, and the increments that got there:
+It describes the build of `SPEC.md` **v1.24**, and the increments that got there:
 
 | Version | What it added | Modules it touched |
 | --- | --- | --- |
@@ -24,6 +24,7 @@ It describes the build of `SPEC.md` **v1.23.1**, and the increments that got the
 | v1.21 | range edges and row-cell edges (C-12), the cut-row Note (E-66), the symlink hint (E-09) | `extract.py`, `cli.py` |
 | v1.22 | the JavaScript/TypeScript adapter and the vitest/jest-junit join (R-104, D-56) | `jsts.py` (new), `attribute.py`, `results.py` |
 | v1.23/v1.23.1 | foreign references and `--namespace` (R-101, R-102, C-22); the citation map (R-103, C-23); the first full review's fixes (F-701..F-717) | `extract.py`, `cli.py`, `attribute.py`, `graph.py`, `report.py`, `explain.py`, `jsts.py`, `judge_mock.py`, `results.py` |
+| v1.24 | `UNPROVEN` on a non-strict run `--strict` would reject (R-105); CommonMark backtick spans in the row splitter; the cut-row and isolated-id Notes (E-66, E-77); the JS/TS adapter's text moved to C-24 | `report.py`, `extract.py`, `cli.py` |
 
 ## 1. The one idea
 
@@ -66,14 +67,15 @@ a proof state, reported beside its status and never folded into it (E-63).
 
 ```text
 src/speccheck/
-  __init__.py         __version__ = "1.23.1"      (K-10: pyproject reads it back)          3 lines
+  __init__.py         __version__ = "1.24.0"      (K-10: pyproject reads it back)          3 lines
   __main__.py         python -m speccheck                                                    7
   cli.py              §5 surface: parsing, help (C-19), K-18 validation order, wiring, exit
                       codes, logging, --progress, E-41, --self-check, the three subcommands,
-                      --namespace, the --citation-map read/validate/resolve stage (C-23)  1524
+                      --namespace, the --citation-map read/validate/resolve stage (C-23)  1527
   extract.py          C-01 grammar, declarations, retirement, the recorded marker, K-14 cap,
-                      C-01 (c) decisions, C-12 edges (ranges, row cells), the C-22 foreign
-                      pass, the tree walk, citations                                         767
+                      C-01 (c) decisions and TABLEs, CommonMark code spans, C-12 edges
+                      (ranges, row cells), isolated ids, the C-22 foreign pass, the tree
+                      walk, citations                                                         842
   attribute.py        C-03 test-case delimitation (ast) and attribution, C-14 declared,
                       dispatch to the Swift and JS/TS adapters                               231
   swift.py            R-31 the Swift adapter: @Test / XCTest spans, brace fallback, MODULE  230
@@ -92,7 +94,7 @@ src/speccheck/
   impact.py           C-13 changed set, walk, reverify                                       238
   explain.py          C-18 the one-id trace renderer, pure                                   119
   report.py           C-07 JSON, C-08 Markdown, C-13 impact reports, §5.1 line, §5.4 rule,
-                      §3.1 writer                                                            713
+                      §3.1 writer, the CONFORMING/UNPROVEN word                              722
   judge_prompt.md     C-10 instruction text (package data, hashed into reports)
   _selfcheck/         byte-identical copy of fixtures/target/ (package data)
 ```
@@ -511,8 +513,14 @@ Three further things are read from the same pass:
   id strictly between its endpoints, and a table row's other cells feed edges (so an edge case's
   outcome column reaches `impact`) without changing `text` or `title` (D-50). Since v1.23 a foreign
   reference is masked before both passes, so `platform:R-01..R-05` names only `R-05` (E-69, F-716).
-  A row whose statement cell holds an odd number of unescaped `$` gets the E-66 Note (a `|` inside
-  inline math split the cell).
+  A row whose statement cell holds an odd number of unescaped `$`, or (v1.24) that has more cells
+  than its TABLE's header, gets the E-66 Note: an unescaped `|` split it. Since v1.24 the splitter
+  reads backtick spans as CommonMark code spans (`code_spans`: a run of N backticks closes at the
+  next run of exactly N), so `` ` ``` ` `` no longer flips it "outside" for the rest of the row,
+  the failure that cut a real spec's statement in half and left a stray closing `|` on 32 others.
+  And after the edges are built, the declared, non-retired ids no edge touches are kept on
+  `SpecIndex.isolated`, *not* in `notes`. `check` and `explain` add one Note naming them (E-77);
+  `impact`, which copies `notes`, does not.
 
 `SPEC.md` itself is decoded with `errors="replace"` and a Note when any byte was replaced (E-11), and
 its K-14 truncation marker rides into the statement text as ordinary content (E-46).
@@ -840,7 +848,10 @@ itself. The Markdown is rendered *from the JSON object*, so the two can never di
 verdict line in the Markdown is the same `summary_line()` the CLI prints. The JSON carries
 `ids` (with `title`, `recorded`, `statement`, `status`, `src`, `tests`, `unrun`), `decisions` and
 `edges` (v1.13, C-12), `dangling`, `stale`, `unattributed_results`, `notes`, `metrics` and
-`exit_code`. The per-edge `declared` flag and the `declared_ratio` metric arrived in v1.14 (C-16);
+`exit_code`. The summary line's first word is `NOT CONFORMING` on exit `1`, and on exit `0`
+`CONFORMING` only when R-15's conditions hold (every in-scope id `PASSING`, nothing dangling or
+stale), else `UNPROVEN` (v1.24, R-105). It is read from the JSON like the rest of the line, so a
+non-strict run keeps its exit `0` while no longer calling an unproven tree conforming. The per-edge `declared` flag and the `declared_ratio` metric arrived in v1.14 (C-16);
 `title` in v1.7, `clause` in v1.9 and `recorded` in v1.10. `schema_version` is `"1.5"` and has not
 moved since v1.14: everything later is either request-side or a *conditional* key, present only when
 its input is — `proof` (top level and per id, with `--proof`/`--proof-results`, v1.19), `foreign`
@@ -1010,21 +1021,21 @@ check caught during the build).
 
 ## 15. Test architecture
 
-The suite (`tests/`, 171 test functions, 185 collected cases — `T-47`'s repair table and a few
+The suite (`tests/`, 175 test functions, 189 collected cases — `T-47`'s repair table and a few
 other parametrized tests expand) mirrors the spec's §9 groups one file per group:
 
 | File | §9 group | Functions |
 | --- | --- | --- |
-| `test_01_extraction.py` | 9.1 spec-side extraction (T-01..T-07, T-55, T-70, T-72) | 11 |
+| `test_01_extraction.py` | 9.1 spec-side extraction (T-01..T-07, T-55, T-70, T-72, T-119, T-120) | 13 |
 | `test_02_attribution.py` | 9.2 attribution, Swift, declared (T-08..T-14, T-56, T-57, T-65..T-67, T-85) | 14 |
 | `test_03_results.py` | 9.3 the JUnit join (T-15..T-19, T-52, T-58, T-68) | 8 |
 | `test_04_status.py` | 9.4 the status algorithm and metrics (T-20..T-25, T-53, T-77) | 8 |
 | `test_05_judge.py` | 9.5 the judge contract (T-26..T-33, T-54, T-69, T-74, T-75, T-83, T-89) | 19 |
 | `test_06_reports.py` | 9.6 the reports and the writer (T-34..T-38) | 7 |
-| `test_07_cli.py` | 9.7 CLI, exit codes, diagnostics, boundary (T-39..T-45, T-50, T-59..T-64, T-78, T-90, T-101, T-103) | 24 |
+| `test_07_cli.py` | 9.7 CLI, exit codes, diagnostics, boundary (T-39..T-45, T-50, T-59..T-64, T-78, T-90, T-101, T-103, T-118) | 25 |
 | `test_08_golden.py` | 9.8 the golden fixture end to end (T-46, T-47, T-71, T-73, T-76, T-86, T-88) | 7 |
 | `test_09_self_application.py` | 9.9/9.10/9.11 the recorded rows and the prose guards (T-48, T-49, T-51, T-84, T-87, T-91, T-94, T-112) | 11 |
-| `test_10_edges.py` | 9.12 the decision-table grammar and C-12 edges, ranges, row cells, E-66 (T-79, T-104..T-106) | 12 |
+| `test_10_edges.py` | 9.12 the decision-table grammar and C-12 edges, ranges, row cells, E-66, isolated ids (T-79, T-104..T-106, T-121) | 13 |
 | `test_11_impact.py` | 9.12 the `impact` CLI, changed set, walk, reverify (T-80, T-81, and T-82's presence check) | 9 |
 | `test_12_explain.py` | 9.13 the `explain` trace (T-92, T-93, T-102, E-61) | 5 |
 | `test_13_help.py` | 9.14 the help contract (T-95..T-98) | 4 |
@@ -1034,7 +1045,7 @@ other parametrized tests expand) mirrors the spec's §9 groups one file per grou
 | `test_17_citation_map.py` | 9.17 the citation map (T-109..T-111) | 5 |
 
 Each test function's docstring starts with the `T-nn` it realizes and ends with the R/C/I/K/E ids it
-proves — that is what makes self-application (T-48) report every one of the 300 ids as `PASSING`,
+proves — that is what makes self-application (T-48) report every one of the 307 ids as `PASSING`,
 and it is why the literal ignore-marker strings are confined to `tests/data/markers/` (F-109: a
 marker in a test module would make the checker ignore the test's own citation, which happened once
 during the build and was caught by self-application). The same rule covers `<ns>:ID` forms since

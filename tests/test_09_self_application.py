@@ -43,7 +43,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # R-104, E-74..E-76 and T-113..T-116 for the JavaScript/TypeScript adapter (D-56)
 # SPEC.md v1.23.1 declares 300 ids (46 R, 23 C, 19 I, 19 K, 76 E, 117 T; none retired); v1.23 added
 # R-101..R-103, C-22, C-23, I-019, K-19, E-67..E-73 and T-107..T-112, v1.23.1 added T-117
-DECLARED_IDS = 300
+# SPEC.md v1.24 declares 307 ids (47 R, 24 C, 19 I, 19 K, 77 E, 121 T; none retired); v1.24 added
+# R-105, C-24 (the JS/TS adapter, moved out of C-03), E-77 and T-118..T-121
+DECLARED_IDS = 307
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

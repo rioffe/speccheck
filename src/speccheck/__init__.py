@@ -1,3 +1,3 @@
-"""speccheck: specification conformance checker (SPEC.md v1.23.1)."""
+"""speccheck: specification conformance checker (SPEC.md v1.24)."""
 
-__version__ = "1.23.1"
+__version__ = "1.24.0"

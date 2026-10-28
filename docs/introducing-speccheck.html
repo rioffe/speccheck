@@ -565,7 +565,7 @@ ID that was retired);</li>
 <li>writes a Markdown report and a JSON report, byte-identical across
 runs, and prints one line:</li>
 </ul>
-<pre class="text"><code>speccheck: CONFORMING - 300/300 passing (100.0%), 0 failing, 0 skipped, \
+<pre class="text"><code>speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, \
            0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock</code></pre>
 <p>With <code>--strict</code>, that line is a CI gate: exit
 <code>0</code> only when every ID is <code>PASSING</code> and nothing is
@@ -618,7 +618,7 @@ model for free, or against OpenRouter, Anthropic’s compatibility
 endpoint, or anything similar for cents.</p>
 <p>speccheck is written to its own <code>SPEC.md</code>, and it is the
 worked example of the method. The numbers in the summary line above are
-its self-application: 300 IDs, 185 tests, every one
+its self-application: 307 IDs, 189 tests, every one
 <code>PASSING</code>, and (this is the part I find most convincing) when
 the LLM judge was first pointed at the tool’s own suite, it found five
 tests that proved their IDs only by implication. The tests were

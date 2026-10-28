@@ -1,8 +1,69 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.23.1 against `SPEC.md` (v1.23.1)
+# SPEC_BUILD_REPORT — `speccheck` v1.24.0 against `SPEC.md` (v1.24)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n), and to v1.24 (§0o); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0o. v1.24 increment (2026-10-27) — UNPROVEN, CommonMark backtick spans, cut rows, isolated ids
+
+**Why.** `docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md`: three suggestions from
+a regulated-domain debrief (rows 1, 3 and 6), D-58..D-60 confirmed on the recommended branches.
+Built on branch `spec/v1.24` from `docs/plans/IMPLEMENTATION_PLAN.md`, one commit per wave.
+
+**Wave ledger.**
+
+| Wave | Gate | Real result | Commit |
+| --- | --- | --- | --- |
+| W1 — CommonMark spans, cut-row Note, isolated-id Note (C-01, E-66, E-77; T-119..T-121) | pytest; ruff; `--self-check`; goldens | 186 passed / 2 failed (the two id-count pins, 300 → 307); ruff 0; `self-check: ok`; each fixture golden gained exactly one Note line | `39c5a99` |
+| W2 — `UNPROVEN` (R-105; T-118) | as W1 | 187 passed / the same 2 | `4f7b832` |
+| W3 — counts, version 1.24.0, docs, both gates | the full exit gate, Phase A, Phase B | below | this commit |
+
+**What the build found.**
+
+- **The proposal under-counted the test churn.** Its cost section named the two fixture goldens.
+  Nine existing tests also asserted an exact Notes list over tiny specs whose ids are all isolated,
+  so each saw the new E-77 Note. Each is about a different Note, so they now compare
+  `conftest.other_notes()` (the list minus E-77's Note) rather than hard-coding a Note they are not
+  about. T-44's own fixture (one skipped id, no `--strict`) now reads `UNPROVEN`, as R-105 says.
+- **Two citations of my own.** T-121's first draft built ids as `f"R-0{n}"`, whose source text
+  `R-0{` is a citation of `R-00` (a dangling citation in self-application); and the JS adapter's
+  code and tests still named C-03 after the fold moved it to C-24 (C-24 uncited). Both fixed in W1.
+- **Process:** a `ruff format tests` run rewrote six files W1 did not touch; they were reverted
+  before the commit.
+
+**Gates.**
+
+```text
+uv run python -m pytest tests -q --junitxml=junit.xml      189 passed
+uv run ruff check src tests tools                           All checks passed
+uv run speccheck --self-check                               self-check: ok
+uv run python tools/sync_selfcheck.py --check               exit 0
+
+# Phase A
+speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+notes: the eight `edge to undeclared id: … -> R-99` example Notes and `ignored 6 file(s) by
+speccheck:ignore-file` — no truncation, no cut row, no isolated id (every Note read)
+
+# Phase B: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict — NOT PASSED, NOT VALID
+speccheck: NOT CONFORMING - 298/307 passing (97.1%), 0 failing, 0 skipped, 9 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm (unknown_rate 0.3815 > max_unknown 0.2000)
+```
+
+**Phase B is not evidence either way.** 385 of its 1,025 judge calls returned **HTTP 402 Payment
+Required**: the OpenRouter account ran out of credit mid-run. Those edges are `UNKNOWN` (`judge: http
+402`), which is all of the `unknown_rate` above apart from 6 ordinary `judge: unlocated clause`
+answers. The 9 `WEAKLY_PASSING` ids (K-02, K-15, E-01, E-03, E-10, E-37, E-68, T-01, T-03) each lost
+most of their edges to the 402s, so step 5 judged each on the one to seven edges that came back
+(K-02: 8 unjudged, 1 `UNRELATED`). No test was changed against this run. Phase B must be re-run in
+full once the account has credit; until then the verdict is pending.
+
+```text
+Spec coverage: 307/307 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  not passed and not valid: HTTP 402 (credit exhausted) on 385 of 1,025 calls; re-run pending
+Observed: no rendered surface; goldens (one added Note line each) and every Note of the runs read
+Readiness: BUILT
+Conformance: VERIFICATION PENDING (Phase B)
+```
 
 ## 0n. v1.23 / v1.23.1 increment (2026-10-27) — namespaced ids, the citation map, and the full review's fold
 
@@ -2002,12 +2063,19 @@ id. "Self-app" is the status from the T-48 run.
 | T-115 | — | `test_15_jsts::test_attribution_declared_and_classname`; `test_15_jsts::test_multiline_block_comment_line_is_declared` | PASSING |
 | T-116 | — | `test_15_jsts::test_joins_vitest_junit_end_to_end` | PASSING |
 | T-117 | — | `test_15_jsts::test_t117_measured_jest_junit_joins` | PASSING |
+| R-105 | `report.py` | `test_07_cli::test_summary_line_format_encoding_and_numbers`; `test_07_cli::test_t118_unproven_replaces_conforming_on_a_non_strict_gap` | PASSING |
+| C-24 | `jsts.py` | `test_15_jsts::test_delimits_describe_chains_modifiers_and_regex_literals`; `test_15_jsts::test_regex_versus_division_rule`; `test_15_jsts::test_attribution_declared_and_classname`; +3 more | PASSING |
+| E-77 | `cli.py`, `extract.py` | `test_10_edges::test_t121_isolated_ids_are_named_in_one_note` | PASSING |
+| T-118 | — | `test_07_cli::test_t118_unproven_replaces_conforming_on_a_non_strict_gap` | PASSING |
+| T-119 | — | `test_01_extraction::test_t119_backtick_spans_are_commonmark_code_spans` | PASSING |
+| T-120 | — | `test_01_extraction::test_t120_row_with_more_cells_than_its_header_is_noted` | PASSING |
+| T-121 | — | `test_10_edges::test_t121_isolated_ids_are_named_in_one_note` | PASSING |
 
-The rows after K-18 were added at v1.23.1 for every id the matrix lacked — E-42..E-52 (v1.6..v1.12), E-66 and T-104..T-106 (v1.21), R-104, E-74..E-76 and T-113..T-116 (v1.22), and the v1.23/v1.23.1 ids — generated from the final Phase A `build/speccheck/speccheck.json` (§0n): "Realized in" is the modules whose source cites the id, "Verified by" the citing test functions, "Self-app" the status.
+The rows after K-18 were added at v1.23.1 for every id the matrix lacked — E-42..E-52 (v1.6..v1.12), E-66 and T-104..T-106 (v1.21), R-104, E-74..E-76 and T-113..T-116 (v1.22), and the v1.23/v1.23.1 ids — and, at v1.24, R-105, C-24, E-77 and T-118..T-121 — generated from the final Phase A `build/speccheck/speccheck.json` (§0n): "Realized in" is the modules whose source cites the id, "Verified by" the citing test functions, "Self-app" the status.
 
 ## 6. Verdict
 
-The current verdict is v1.23.1's, in §0n. The block below is v1.20's, kept as recorded.
+The current verdict is v1.24's, in §0o. The block below is v1.20's, kept as recorded.
 
 ```text
 Spec coverage: 267/267 IDs realized (0 deferred)

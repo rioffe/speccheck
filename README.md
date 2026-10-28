@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.23.1, code
-1.23.1) in full, and so is the worked example of the method it serves — together with the seven agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.24, code
+1.24.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
 propose, write, review, plan, model, prove, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -282,6 +282,11 @@ stdout:
 speccheck: <STATUS> - <passing>/<in_scope> passing (<pct>%), <failing> failing, <skipped> skipped, <weak> weak, <unverified> unverified, <untested> untested, <uncited> uncited; <dangling> dangling, <stale> stale; judge=<mode>[ (unavailable)| (unknown_rate 0.xxxx > max_unknown 0.xxxx)][; citations: <M> mapped]
 ```
 
+`<STATUS>` is `NOT CONFORMING` on exit `1`. On exit `0` it is `CONFORMING` only when every in-scope
+ID is `PASSING` and nothing is dangling or stale, the conditions `--strict` enforces. Otherwise it
+is `UNPROVEN` (v1.24): a non-strict run exits `0` whenever nothing is `FAILING`, which is right for
+watching a trend, but a tree whose ids are merely unverified or uncited is not called conforming.
+
 **Citations are literal.** Any `R-07`-shaped token in any text file under a scan root is a
 citation, in code, comments, and strings alike. Two opt-outs exist: a line containing
 `speccheck:ignore` yields no citations, and a file whose first three lines contain
@@ -290,6 +295,13 @@ first 8 KiB, symlinks, and the directories `.git .hg .svn node_modules __pycache
 (and any dot-directory) are skipped. The spec, the results file, the proof manifest, the citation
 map, and the checker's own reports and temporaries are never scanned. A token written `<ns>:R-07`
 is someone else's id and is not a citation (v1.23; below).
+
+**Two Notes about the spec itself** (v1.24). A declared table row with more cells than its table's
+header was cut by an unescaped `|`; it gets `statement may be cut at an unescaped '|': <ID>`, and
+the fix is `\|` or a backtick span. (Backtick spans follow CommonMark: `` ` ``` ` `` is one span
+holding three backticks, so a `|` inside it never splits the row.) And the declared ids that no
+statement names and that name none appear in one Note, `<N> declared id(s) touch no edge: …`:
+`impact` can never reach them, and usually no test row verifies them either.
 
 ### `impact` — change-impact analysis from the edges the spec already carries (v1.13)
 

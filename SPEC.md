@@ -1,13 +1,16 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.23.1 — the shipped version: the code, `__version__` and the README's claim all
->   say v1.23.1 (`test_prose_artifacts_claim_the_shipped_version` binds them). Built 2026-10-27 in
+> - **Status:** v1.24 — the shipped version: the code (1.24.0), `__version__` and the README's
+>   claim all say v1.24 (`test_prose_artifacts_claim_the_shipped_version` binds them). Built
+>   2026-10-27 in three waves (`docs/plans/IMPLEMENTATION_PLAN.md`; `SPEC_BUILD_REPORT.md` §0o).
+>
+> - **v1.23.1 (built before v1.24):** Built 2026-10-27 in
 >   four waves (`docs/plans/IMPLEMENTATION_PLAN.md`; `SPEC_BUILD_REPORT.md` §0n): v1.23's
 >   namespaced ids and citation map, with the seventeen review findings below folded in, plus two
 >   defects the build itself found and fixed in this document (C-19's metavar list lacked `NS`;
 >   jest-junit writes a top-level test as `" > title"`, now joined by C-04, measured by T-117).
 >
-> - **Specified, not yet built:** v1.24 — three suggestions from a regulated-domain debrief
+> - **v1.24 (built):** three suggestions from a regulated-domain debrief
 >   (`docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md`, 2026-10-27; D-58..D-60 confirmed on the recommended branches, same day). **(a)** A
 >   non-strict run that exits `0` while `--strict` would reject it prints `UNPROVEN`, not
 >   `CONFORMING` (R-105, §5.1, §5.4); the exit code is unchanged. **(b)** C-01 (a)'s backtick span
