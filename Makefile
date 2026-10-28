@@ -44,7 +44,7 @@ pdf:
 	./spec2pdf.sh SPEC.md
 	./spec2pdf.sh ARCHITECTURE.md
 	./spec2pdf.sh README.md
-	./spec2pdf.sh --no-click $(ARTICLE_MD)
+	SPEC2PDF_MAX_FIGURE_HEIGHT=0.6 ./spec2pdf.sh --no-click $(ARTICLE_MD)
 
 clean:
 	rm -f $(ARTICLE_HTML) docs/introducing-speccheck.pdf mermaid-filter.err

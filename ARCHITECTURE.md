@@ -1,11 +1,11 @@
-# ARCHITECTURE — `speccheck` 1.18.0
+# ARCHITECTURE — `speccheck` 1.23.1
 
 This document describes the system as built, module by module and data flow by data flow. It is a
 companion to `README.md` (how to use it), `SPEC.md` (what it must do), and
 `SPEC_BUILD_REPORT.md` (the evidence that it does). Spec IDs are cited inline so that every design
 element can be traced back to the clause that demanded it.
 
-It describes the build of `SPEC.md` **v1.18**, and the increments that got there:
+It describes the build of `SPEC.md` **v1.23.1**, and the increments that got there:
 
 | Version | What it added | Modules it touched |
 | --- | --- | --- |
@@ -19,6 +19,11 @@ It describes the build of `SPEC.md` **v1.18**, and the increments that got there
 | v1.16 | the judge request's `related` neighbourhood (R-38, D-28/D-28b) | `judge_llm.py`, `judge.py`, `jev.py` |
 | v1.17 | the `explain` subcommand and the C-18 trace (R-40, I-016) | `explain.py` (new), `cli.py` |
 | v1.18 | the CLI documents its own parameters and environment (R-41, C-19, I-017) | `cli.py` |
+| v1.19/v1.19.1 | Lean proof evidence: `--proof`/`--proof-results`, a per-id `proof` field that is never a status input (R-100, C-20, C-21, K-17, E-63) | `lean.py` (new), `proof.py` (new), `graph.py`, `report.py`, `cli.py` |
+| v1.20 | determinacy: `judge_available` total over the never-issued case, `explain --spec` required, usage-before-contract exit precedence (K-18, E-64) | `cli.py`, `judge.py`, `report.py` |
+| v1.21 | range edges and row-cell edges (C-12), the cut-row Note (E-66), the symlink hint (E-09) | `extract.py`, `cli.py` |
+| v1.22 | the JavaScript/TypeScript adapter and the vitest/jest-junit join (R-104, D-56) | `jsts.py` (new), `attribute.py`, `results.py` |
+| v1.23/v1.23.1 | foreign references and `--namespace` (R-101, R-102, C-22); the citation map (R-103, C-23); the first full review's fixes (F-701..F-717) | `extract.py`, `cli.py`, `attribute.py`, `graph.py`, `report.py`, `explain.py`, `jsts.py`, `judge_mock.py`, `results.py` |
 
 ## 1. The one idea
 
@@ -42,6 +47,7 @@ flowchart TB
     G --> RP["renderers<br/>report · impact · explain"]
     G -. "PASSING edges only" .-> J["model-backed, optional, downgrade-only (I-004)<br/>judge_mock · judge_llm → any OpenAI-compatible endpoint<br/>jev → the C-17 decisions API (reorders the queue, I-015)"]
     J -. "validated verdicts — step 5" .-> G
+    PF["proof evidence, optional (v1.19)<br/>lean · proof → a per-id proof state"] -. "parallel field, never a status input (E-63)" .-> RP
     RP --> OUT[("speccheck.json · SPEC_CONFORMANCE_REPORT.md<br/>impact.json · IMPACT_REPORT.md<br/>one explain trace on stdout")]
     OUT --> X["exit code = f(JSON, --strict) (I-009)"]
 ```
@@ -52,31 +58,41 @@ The kernel produces every status, count, and metric. The judge, when enabled, se
 edge *before* the judge does and its answers are used for exactly one thing — the order in which
 the judge is asked (K-16) — and are then discarded (I-015). And since v1.17 the kernel's own facts
 are rendered a third way: `explain` composes the `IdRecord`/edge/verdict facts and `impact`'s walk
-into one id's trace, adding no fact of its own (R-40, I-016).
+into one id's trace, adding no fact of its own (R-40, I-016). Since v1.19 a fourth input can
+ride alongside: Lean proof citations and a build manifest (`--proof`, `--proof-results`) give each id
+a proof state, reported beside its status and never folded into it (E-63).
 
 ## 2. Package layout and dependency direction
 
 ```text
 src/speccheck/
-  __init__.py         __version__ = "1.18.0"      (K-10: pyproject reads it back)          3 lines
+  __init__.py         __version__ = "1.23.1"      (K-10: pyproject reads it back)          3 lines
   __main__.py         python -m speccheck                                                    7
-  cli.py              §5 surface: parsing, help (C-19), wiring, exit codes, logging,
-                      --progress, E-41, --self-check, the three subcommands                1229
-  extract.py          C-01 grammar, declarations, retirement, the recorded marker,
-                      K-14 cap, C-01 (c) decisions, C-12 edges, the tree walk, citations    672
-  attribute.py        C-03 test-case delimitation (ast) and attribution, C-14 declared      212
+  cli.py              §5 surface: parsing, help (C-19), K-18 validation order, wiring, exit
+                      codes, logging, --progress, E-41, --self-check, the three subcommands,
+                      --namespace, the --citation-map read/validate/resolve stage (C-23)  1524
+  extract.py          C-01 grammar, declarations, retirement, the recorded marker, K-14 cap,
+                      C-01 (c) decisions, C-12 edges (ranges, row cells), the C-22 foreign
+                      pass, the tree walk, citations                                         767
+  attribute.py        C-03 test-case delimitation (ast) and attribution, C-14 declared,
+                      dispatch to the Swift and JS/TS adapters                               231
   swift.py            R-31 the Swift adapter: @Test / XCTest spans, brace fallback, MODULE  230
-  results.py          C-04 JUnit parsing and the classname/join_name join                    157
-  graph.py            C-05 status algorithm, edge selection, C-07 metrics                    272
+  jsts.py             R-104 the JS/TS adapter: tokenizer, it/test calls, describe chains,
+                      `each` patterns, the regex-vs-division rule                            309
+  results.py          C-04 JUnit parsing and the join: join_name, path classnames,
+                      templated titles, jest-junit's leading " > "                           184
+  graph.py            C-05 status algorithm, edge selection, C-07 metrics                    280
   judge.py            C-06 types, validation (K-15 clause grounding), the run runner,
-                      C-11 ProgressLine, K-12 budget                                           445
-  judge_mock.py       R-22 deterministic provider                                             59
+                      C-11 ProgressLine, K-12 budget                                         450
+  judge_mock.py       R-22 deterministic provider (Python, Swift, JS/TS tokens)               63
   judge_llm.py        C-06/C-09 provider and the R-38 `related` neighbourhood builder        270
   jev.py              C-17 triage provider and the K-16 ordering pass                        290
-  impact.py           C-13 changed set, walk, reverify                                       239
-  explain.py          C-18 the one-id trace renderer, pure                                   118
+  lean.py             C-20 the lean adapter: declaration heads, doc-comment id tags          139
+  proof.py            C-21 the proof manifest and the K-17 join to proof citations           152
+  impact.py           C-13 changed set, walk, reverify                                       238
+  explain.py          C-18 the one-id trace renderer, pure                                   119
   report.py           C-07 JSON, C-08 Markdown, C-13 impact reports, §5.1 line, §5.4 rule,
-                      §3.1 writer                                                            639
+                      §3.1 writer                                                            713
   judge_prompt.md     C-10 instruction text (package data, hashed into reports)
   _selfcheck/         byte-identical copy of fixtures/target/ (package data)
 ```
@@ -86,12 +102,14 @@ provider or an HTTP client:
 
 ```mermaid
 flowchart TD
-    cli --> extract & attribute & results & graphm & judge & report & impact & explain & jev
+    cli --> extract & attribute & results & graphm & judge & report & impact & explain & jev & lean & proof
     cli -. "lazy, only when --judge llm/mock" .-> judge_llm & judge_mock
-    attribute --> extract & swift
-    results --> attribute
+    attribute --> extract & swift & jsts
+    results --> attribute & jsts
     judge --> attribute
-    graphm[graph] --> extract & attribute & results & judge
+    lean --> extract
+    proof --> lean
+    graphm[graph] --> extract & attribute & results & judge & proof
     impact --> extract
     explain --> graphm & impact & judge
     jev --> judge
@@ -114,6 +132,9 @@ Three consequences of that graph are load-bearing:
 - **`graph → judge`** is an import of *types only* (`JudgedVerdict`). The kernel knows the shape of
   a verdict so it can apply step 5; it has no idea how one is produced. `explain → judge` is the
   same kind of import, for rendering a verdict (C-18).
+- **The proof modules feed the graph a parallel field and nothing else.** `graph` imports
+  `ProofEdge` to carry it on `IdRecord.proof`, but neither `deterministic_status` nor
+  `apply_verdicts` reads it (E-63); `jsts` imports nothing from the package.
 - **`explain` and `impact` are consumers, not stages.** Neither writes a report the other can read
   (`explain` writes nothing at all, D-33), and neither can change a status: they are pure functions
   of what the kernel already computed (I-016, I-013).
@@ -128,10 +149,14 @@ pass (v1.15) and the two composition surfaces (v1.13, v1.17) in place:
 flowchart TB
     SPEC[/"SPEC.md"/] --> EX1["Extractor · extract.py<br/>ID grammar, fences, retired,<br/>recorded marker, bodies, decisions, C-12 edges"]
     EX1 --> IDX[("SpecIndex<br/>declared IDs, statements,<br/>decisions, typed edges")]
-    SRC[/"--src …"/] --> EX2["Extractor · extract.py<br/>token scan"]
+    SRC[/"--src …"/] --> EX2["Extractor · extract.py<br/>token scan, foreign refs masked (C-22)"]
     EX2 --> SC[("src citations")]
-    TST[/"--tests …"/] --> AT["Attributor · attribute.py + swift.py<br/>test spans, fallback, declared"]
+    TST[/"--tests …"/] --> AT["Attributor · attribute.py + swift.py + jsts.py<br/>test spans, fallback, declared"]
     AT --> TC[("test cases +<br/>test citations")]
+    MAP[/"--citation-map"/] --> AM["apply-map · cli.py<br/>C-23: entries → scanned cases"]
+    AM -->|"mapped citations (v1.23)"| TC
+    LEAN[/"--proof / --proof-results"/] --> PRF["lean.py + proof.py<br/>proof citations ⋈ manifest (K-17)"]
+    PRF -->|"proof state per id, no status weight"| GR
     JX[/"junit.xml"/] --> RM["Results Mapper · results.py<br/>C-04 join"]
     RM --> OC[("outcome per case")]
     IDX & SC & TC & OC --> GR["Grapher · graph.py<br/>edges, status algorithm C-05, metrics"]
@@ -151,26 +176,33 @@ flowchart TB
     classDef input fill:#eef6ff,stroke:#5b8def
     classDef artifact fill:#fbfbfb,stroke:#888
     classDef judge fill:#fff3cd,stroke:#b58900
-    class SPEC,SRC,TST,JX input
+    class SPEC,SRC,TST,JX,MAP,LEAN input
     class IDX,SC,TC,OC,DET,MD,JS,IMPF,STDOUT artifact
     class JU,TRI judge
 ```
 
 Reading it left to right:
 
-1. **Four inputs, three of them optional.** Only `SPEC.md` is required. Without `--src`/`--tests`
-   every ID is `UNCITED`; without `junit.xml` no ID can be better than `UNVERIFIED`. Each input is
-   read once, by exactly one actor, and never written (I-001).
+1. **Four core inputs, three of them optional, and three more opt-in ones.** Only `SPEC.md` is
+   required. Without `--src`/`--tests` every ID is `UNCITED`; without `junit.xml` no ID can be better
+   than `UNVERIFIED`. The citation map (v1.23) and the Lean proof and manifest (v1.19) are read only
+   when their flags are given. Each input is read once, by exactly one actor, never written (I-001),
+   and never scanned for citations (C-03, F-702).
 2. **Two extractions that never meet.** The spec is parsed for *declarations* (what IDs exist, with
    statement text, retired and recorded flags) and for the *edges* its own statements name (C-12);
    the code trees are scanned for *citations* (where each ID token occurs). The same regex
    recognizes the token in both, but the spec is never scanned for citations and the code is never
-   parsed for declarations — a `~~R-07~~` in a comment is a plain citation of `R-07` (E-20).
+   parsed for declarations — a `~~R-07~~` in a comment is a plain citation of `R-07` (E-20). One
+   exception applies to both sides alike (v1.23, C-22): a token written `<ns>:ID` is someone else's
+   id, so it is neither a citation nor an edge unless `<ns>` is the `--namespace` value.
 3. **Attribution gives test citations an owner and a classification.** A source citation is a
    `(file, line)`; a test citation additionally names the enclosing test case (or the file-level
    case) and carries `declared` — whether its line is inside the case's own docstring or is a
    whole-line comment (C-14, E-56). That owner is what the JUnit join and the judge both key on,
-   which is why `TestCase` is a hashable value object (§4).
+   which is why `TestCase` is a hashable value object (§4). A citation map adds citations here too,
+   after the scan and before the graph: each resolving entry becomes an ordinary `Citation` on an
+   existing case, flagged `mapped` (C-23), so nothing downstream treats it differently except the
+   labels and `declared_ratio`.
 4. **The Grapher is where everything converges** — and the last point at which anything is
    *decided* without a model. It joins declarations to citations to outcomes, computes every status
    with C-05 steps 1–4, classifies undeclared and retired citations as dangling and stale, and
@@ -206,18 +238,22 @@ cache, no persistent state, and no partial output mode.
 
 ```mermaid
 flowchart TB
-    argv[/argv + env/] --> parse["parse_config → Action<br/>Config | ImpactConfig | ExplainConfig<br/>(paths resolved once, all inside --root; E-09;<br/>--progress auto|always|never validated)"]
+    argv[/argv + env/] --> parse["parse_config → Action<br/>Config | ImpactConfig | ExplainConfig<br/>(paths resolved once, all inside --root; E-09;<br/>every named file readable; --namespace grammar;<br/>all before any file is parsed, K-18)"]
     parse -->|exit 2 on any usage error| X2([exit 2])
     parse -->|impact| imp["parse SPEC.md → SpecIndex<br/>changed set (--changed | --against) → walk → reports"]
     parse --> spec["extract-spec<br/>parse_spec(SPEC.md) → SpecIndex<br/>(ids, decisions, C-12 edges, notes)"]
     spec -->|E-01 / E-02 / E-03| X3a([exit 3])
-    spec --> excl["exclusion set: spec, results,<br/>out/*.json, out/*.md, out/.*.tmp (C-03)"]
+    spec --> excl["exclusion set: spec, results, citation map, proof manifest,<br/>out/*.json, out/*.md, out/.*.tmp (C-03)"]
     excl --> src["scan-src<br/>scan_roots(--src) → citations kind=src"]
     excl --> tst["scan-tests + attribute<br/>scan_roots(--tests) → attribute_file() → TestCase[], citations kind=test"]
-    src & tst --> res["map-results (if --results)<br/>parse_junit → join_results → outcome per TestCase"]
+    tst --> amap["apply-map (if --citation-map)<br/>load_citation_map → apply_citation_map (C-23)"]
+    amap -->|E-70| X3m([exit 3])
+    src & amap --> res["map-results (if --results)<br/>parse_junit → join_results → outcome per TestCase"]
     res -->|E-05| X3b([exit 3])
     res --> gr["graph + status<br/>build_graph → IdRecord[] with C-05 steps 1–4,<br/>dangling, stale"]
-    gr --> q{--judge?}
+    gr --> pf["proof (if --proof / --proof-results)<br/>scan_lean_paths → parse_proof_results → join_proof (K-17)"]
+    pf -->|E-65| X3p([exit 3])
+    pf --> q{--judge?}
     q -->|none| rep
     q -->|mock / llm| tri{--jev-pre-triage?}
     tri -->|yes| jev["triage (K-16)<br/>one C-17 request / eligible edge → order the queue"]
@@ -229,7 +265,7 @@ flowchart TB
     rep --> line["summary line → stdout (R-21, R-29)"]
     line --> X01([exit 0 / 1 from the JSON])
     gr -->|explain| ex["C-18 trace → stdout (no file, D-33)"]
-    ex --> X0e([exit 0, or 2 for E-60])
+    ex --> X0e([exit 0; 2 for E-60 / E-64; 3 for E-05 / E-70])
 ```
 
 Stage timings and counts are logged at `INFO` (`stage=<name> … ms=<n>`), never file contents,
@@ -289,12 +325,14 @@ classDiagram
         kind: "src" | "test"
         testcase: TestCase | None
         declared: bool  C-14
+        mapped: bool  C-23, a citation-map entry
     }
     class RawResult {
         classname: str
         name: str
         outcome: passed failed error skipped
-        join_name  →  name up to first "["
+        join_name  →  leading " > " dropped, then up to first "[" / "("
+        dotted_classname  →  "src/a.test.ts" read as "src.a.test.ts"
         param  →  inside the brackets | None
     }
     class CaseOutcome {
@@ -307,6 +345,7 @@ classDiagram
         outcome: str | None  None = unrun
         results: list~RawResult~
         declared: bool  C-16
+        mapped: bool  C-23, lines = []
         verdict: JudgedVerdict | None
     }
     class IdRecord {
@@ -314,6 +353,25 @@ classDiagram
         status: IdStatus
         src: list~(file, lines)~
         tests: list~TestEdge~
+        proof: list~ProofEdge~  v1.19, never a status input
+    }
+    class ProofEdge {
+        name: str  the Lean declaration
+        file: str
+        line: int
+        state: checked failed unknown stale
+        error: str | None
+    }
+    class ForeignRef {
+        namespace: str
+        id: str
+        file: str
+        line: int
+    }
+    class MapEntry {
+        id: str  normalized
+        file: str
+        test: str  "" = file-level
     }
     class Graph {
         records: list~IdRecord~
@@ -366,6 +424,8 @@ classDiagram
     Citation --> TestCase
     IdRecord --> SpecId
     IdRecord *-- TestEdge
+    IdRecord *-- ProofEdge
+    MapEntry ..> Citation : apply_citation_map()
     TestEdge --> TestCase
     TestEdge --> CaseOutcome : outcome, results copied from
     TestEdge --> JudgedVerdict
@@ -377,7 +437,7 @@ classDiagram
     ImpactEntry --> Edge : via
 ```
 
-Five representational choices matter downstream:
+Seven representational choices matter downstream:
 
 - **IDs are normalized once, at the token boundary** (`extract.normalize_id`): `R-7`, `R-07`,
   `R-007` become `R-07`; `I-5` becomes `I-005`. Every later structure keys on the normalized string,
@@ -403,6 +463,16 @@ Five representational choices matter downstream:
   neighbour tagged `(retired)` (E-57) — and `JudgeRequest.related` carries it to both consumers
   (the LLM user message and the C-17 triage `state`, D-28b). It is request-side only: it appears in
   no report, no metric and no `schema_version` (T-83).
+- **A foreign reference is masked, not filtered** (C-22, v1.23). `extract.mask_foreign` blanks the
+  id of every `<ns>:ID` whose `ns` is not the `--namespace` value, and both `citations_in_file` and
+  C-12's `targets_of` run the ordinary token and range regexes over the masked text. One matcher
+  serves citations, edges and ranges, so a token cannot be foreign for one and local for another.
+  `foreign_in_file` lists what was masked, as `ForeignRef`s for the JSON and one Note (E-67).
+- **A mapped citation is an ordinary `Citation`** (C-23). `apply_citation_map` turns each
+  resolving `MapEntry` into `Citation(kind="test", line=case.start, declared=True, mapped=True)`
+  before `build_graph`, unless that (id, case) is already cited (E-73). C-05 therefore cannot tell
+  it apart; only the renderers (`mapped`, `(map)`, the summary suffix) and `declared_ratio`, which
+  leaves it out, read the flag.
 
 ## 5. Extraction: the spec side (`extract.py`)
 
@@ -437,6 +507,12 @@ Three further things are read from the same pass:
   the direction of the T id), `depends_on` between two T ids. An edge to an undeclared id is a Note,
   not an error; an edge to a retired id is recorded with `retired: true` (E-55). The whole array is
   sorted in C-12 order, which is what makes `impact` deterministic (I-002) and `related` stable.
+  Since v1.21 a range (`R-07..R-10`, `to`, `through`, an en or em dash) also names every declared
+  id strictly between its endpoints, and a table row's other cells feed edges (so an edge case's
+  outcome column reaches `impact`) without changing `text` or `title` (D-50). Since v1.23 a foreign
+  reference is masked before both passes, so `platform:R-01..R-05` names only `R-05` (E-69, F-716).
+  A row whose statement cell holds an odd number of unescaped `$` gets the E-66 Note (a `|` inside
+  inline math split the cell).
 
 `SPEC.md` itself is decoded with `errors="replace"` and a Note when any byte was replaced (E-11), and
 its K-14 truncation marker rides into the statement text as ordinary content (E-46).
@@ -448,7 +524,7 @@ flowchart TD
     root["--src / --tests PATHS list (D-23): each occurrence split on ',',<br/>segments trimmed, empties dropped, resolved inside --root,<br/>deduplicated by resolved path (I-012)"] --> elem{"element kind"}
     elem -->|directory| walk["_walk: os.scandir, sorted by name<br/>skip .git .hg .svn node_modules __pycache__ .venv venv and any dot-dir (K-03)<br/>never follow symlinks; count them (E-30)"]
     elem -->|"regular file"| one["scanned as one file, no descent<br/>(E-52 if it exists as neither)"]
-    walk --> ex{"excluded?<br/>spec, results, reports, .tmp (C-03)"}
+    walk --> ex{"excluded?<br/>spec, results, citation map, proof manifest,<br/>reports, .tmp (C-03)"}
     one --> ex
     ex -->|yes| drop1[skip silently]
     ex -->|no| size{"> 2 MiB?"}
@@ -459,7 +535,8 @@ flowchart TD
     dec --> ig{"ignore-file marker<br/>in lines 1–3?"}
     ig -->|yes| note2["counted; one Note per run (E-33)"]
     ig -->|no| file[ScannedFile path, text, lines]
-    file --> cit["citations_in_file: every ID token on every line<br/>except lines carrying the line-ignore marker (R-27)"]
+    file --> cit["citations_in_file: every ID token on every line<br/>except lines carrying the line-ignore marker (R-27)<br/>and foreign references (C-22, masked)"]
+    file --> fr["foreign_in_file: the masked ns:ID tokens<br/>→ JSON foreign + one Note (E-67)"]
 ```
 
 Citation is literal and total: comments, strings, and code count alike (D-03), and fences are *not*
@@ -469,7 +546,7 @@ silent, which is what lets `--src .` with `--out` inside the tree stay byte-dete
 deduplicated by resolved path, so citation order — and therefore every downstream list — is
 independent of filesystem order and of how the paths were named (I-002, I-012, T-78).
 
-## 7. Attribution (`attribute.py`, `swift.py`)
+## 7. Attribution (`attribute.py`, `swift.py`, `jsts.py`)
 
 For `.py` files under a `--tests` root, `ast.parse` yields the test cases of C-03:
 
@@ -490,16 +567,29 @@ path component of the file under its `--tests` root — or, for a file named dir
 element, its parent directory's last component (D-18, D-23). A `///` or `/** … */` doc-comment line
 is DECLARED exactly as a Python docstring is.
 
+**JavaScript/TypeScript files** (R-104, v1.22; `.ts .tsx .mts .cts .js .jsx .mjs .cjs`) are delimited
+by `jsts.py`, again without a toolchain (D-56). It tokenizes rather than parses: comments, strings,
+template literals and regex literals are opaque tokens, and every rule reads tokens, never raw text.
+Whether a `/` opens a regex or divides is decided by the previous significant token (absent,
+punctuation other than `)`, `]`, `}`, or a listed keyword means regex; C-03, F-708). A case is an
+`it`/`test` call (with `skip`, `only`, `each`, … modifiers) whose first argument is a literal title.
+It is named by the titles of the `describe`/`suite` calls enclosing it, joined with `" > "`, and spans
+from the comment block above the call to its closing parenthesis. The classname is the file path with
+`/`→`.` and the extension kept. A dynamic title makes the call undelimited (E-75), and a file whose
+parentheses do not balance overall, or that has an unterminated comment, string, template or regex,
+falls back to file level (E-74). A comment-only line is DECLARED, a comment trailing code is not
+(C-14).
+
 **Every citation gets a `declared` flag** (C-14, v1.14): true when the citation's own line lies
 inside the citing case's docstring or is a whole-line comment (`#` in Python; the Swift adapter's
-existing doc-comment recognition), false otherwise — including a trailing comment on a code line, a
+existing doc-comment recognition; a comment-only line for JS/TS), false otherwise — including a trailing comment on a code line, a
 string literal, every `"src"`-kind citation and every file-level one (E-56). The fact is computed
 under every judge mode, needs no results file and no network (I-014), and has three consumers:
 `tests[].declared` and `declared_ratio` in the JSON (C-16), the judge's request (C-15), and the
 `explain` trace.
 
 Any other file type is one file-level case whose `classname` is derived exactly as for Python — path
-with `/`→`.` and the final extension dropped (F-108) — so that a JUnit result for a Go or TypeScript
+with `/`→`.` and the final extension dropped (F-108) — so that a JUnit result for a Go or Ruby
 file can still join it by suffix.
 
 The attributor never sees the spec: it does not know which IDs are declared. Dangling and stale
@@ -515,8 +605,8 @@ The join (C-04, F-006, F-101, F-105) is two-keyed:
 
 ```mermaid
 flowchart LR
-    R["RawResult<br/>classname='tests.test_core'<br/>name='test_x[3-True]'"] --> jn["join_name = 'test_x'<br/>param = '3-True'<br/>(a Swift signature 'twoArgs(a:b:)' strips to 'twoArgs', D-19)"]
-    jn --> c1["candidates: TestCase.name == join_name<br/>and TestCase.classname ends with result classname<br/>on a component boundary ('' matches all)"]
+    R["RawResult<br/>classname='tests.test_core'<br/>name='test_x[3-True]'"] --> jn["join_name = 'test_x'<br/>param = '3-True'<br/>(a Swift signature 'twoArgs(a:b:)' strips to 'twoArgs', D-19;<br/>jest-junit's leading ' > ' is dropped first)"]
+    jn --> c1["candidates: join_name of TestCase.name == join_name<br/>(or a JS each-title pattern matches, E-76)<br/>and TestCase.classname ends with the dotted result classname<br/>on a component boundary ('' matches all)"]
     c1 --> c2{"how many with the<br/>longest common dotted suffix?"}
     c2 -->|1| join["case.results += result<br/>case.outcome = worst(results)"]
     c2 -->|">= 2"| amb["UNATTRIBUTED + Note naming every candidate (E-27);<br/>Swift overloads by label tie here (E-45)"]
@@ -526,6 +616,15 @@ flowchart LR
 Everything from the first `[` is stripped for the join, so parametrized variants and duplicates land
 on one case whose single `outcome` is the worst of them (E-06, E-24). Unattributed results are
 reported, sorted, and change no status.
+
+Three rules arrived with the JS/TS adapter (v1.22, R-104) and one with v1.23.1. A path classname
+(`src/calc.test.ts`, as vitest and jest-junit write it) is read as dotted before the suffix rule,
+so it joins even when the runner's root is a sub-directory of `--root`. Case names go through the
+same `join_name` as result names, so a title holding `[` or `(` reduces identically on both sides.
+An `it.each` title's placeholders (`%s`, `%i`, `$name`) make a pattern that every filled result
+joins as a variant (E-76). And a result name beginning with `" > "` — jest-junit's
+`"{classname} > {title}"` for a test outside every `describe`, measured by T-117 — has that prefix
+dropped first (C-04).
 
 ## 9. The status algorithm (`graph.py`)
 
@@ -565,7 +664,14 @@ Q-009). The seven in-scope statuses and the six families are always present as k
 (F-016). `conformance` is `passing / in_scope`; `judge_strength` is the share of judged edges the
 judge did not downgrade; `unknown_rate` is the share of judged edges that came back `UNKNOWN`;
 `declared_ratio` is the share of in-scope R/C/I/K/E citations inside attributed non-file-level cases
-that are DECLARED (C-16) — each recomputable from the report's own evidence (T-37).
+that are DECLARED (C-16), mapped citations excluded (F-703) — each recomputable from the report's
+own evidence (T-37). A mapped edge carries `lines: []`, since its evidence is in the map, not in the
+test.
+
+`IdRecord.proof` (v1.19) is filled after the graph, by `proof.join_proof`, and is read by no step of
+C-05. A `checked` proof never promotes an `UNVERIFIED` id, and a `failed` one never demotes a
+`PASSING` id. The one place a proof state reaches the exit code is `--strict` with a readable
+`--proof-results` (D-45).
 
 ## 10. The judge (`judge.py`, `judge_mock.py`, `judge_llm.py`) and the triage pass (`jev.py`)
 
@@ -601,9 +707,10 @@ sequenceDiagram
     R-->>G: {(TestCase, id) → JudgedVerdict}, available, budget_unjudged
 ```
 
-`available` (C-07 `judge_available`) is `true` unless every call that was actually made failed at the
-transport level; a malformed 200 counts as a call that succeeded (B-07); zero calls is vacuously
-available (E-36). The budget deadline is set by the first worker to issue a request and checked by
+`available` (C-07 `judge_available`) is total under `mock`/`llm` (v1.20): `false` when at least one
+edge was judge-eligible and no call succeeded — every call failed at the transport level (E-14), or
+none was issued because the budget allowed none (E-35) — and `true` otherwise. A malformed 200
+counts as a call that succeeded (B-07); no eligible edge at all is vacuously available (E-36). The budget deadline is set by the first worker to issue a request and checked by
 every worker *before* it issues, so in-flight requests always complete and their verdicts count
 (Q-010; T-61). K-12's `N%` form is the same bookkeeping with a count instead of a clock: exactly
 $\lceil N/100 \times E \rceil$ of the $E$ eligible edges are issued, in K-16's order, and the rest
@@ -633,7 +740,8 @@ the bar's total is the eligible set (K-13).
 
 `MockJudge` reads the line-numbered `source` in the request, flags every line matching
 `^\s*assert\b`, containing `.assert`, or containing `pytest.raises(` — plus, since v1.6, Swift's
-`#expect(`, `#require(`, `XCTAssert`, `XCTFail(` and `Issue.record(` (R-31) — and returns `ASSERTS`
+`#expect(`, `#require(`, `XCTAssert`, `XCTFail(` and `Issue.record(` (R-31), and since v1.23.1
+vitest/jest's `expect(` and `expect.` (F-706) — and returns `ASSERTS`
 with those lines as evidence or `EXECUTES_ONLY` with none (R-22). It has no configuration and no
 I/O, which is what makes `--judge mock` byte-deterministic and usable in `--self-check`. It reads no
 statement semantics, so it ignores `declared` and `related` entirely.
@@ -677,11 +785,13 @@ Design points:
 - **The instruction text is data, not code.** `judge_prompt.md` is package data, read through
   `importlib.resources`, sent verbatim as the system message, and its SHA-256 lands in the report as
   `judge_prompt_sha256` (R-26). T-54 asserts the file equals the C-10 block in `SPEC.md`; the current
-  text (v1.18) carries the any-clause rule (v1.7), the clause-first question (v1.9), the `declared`
-  skepticism rule (v1.14) and the `related` rule (v1.16).
+  text (v1.23.1) carries the any-clause rule (v1.7), the clause-first question (v1.9), the `declared`
+  skepticism rule (v1.14), the `related` rule (v1.16), and a `declared` definition that covers a
+  citation-map entry (F-703).
 - **The endpoint is a URL, nothing more.** The provider has no vendor branches: the same code talked
   to local Ollama for the recorded T-49 runs, to OpenRouter for every Phase B gate in this
-  repository's history (`openai/gpt-4o-mini` through v1.15, `google/gemini-3.8-flash` from v1.16),
+  repository's history (`openai/gpt-4o-mini` through v1.15, `google/gemini-3.8-flash` from v1.16,
+  `openai/gpt-6-luna-pro` from v1.20),
   and would talk to Anthropic's OpenAI-compatible endpoint the same way. Only the three
   `SPECCHECK_JUDGE_*` variables change.
 - **Thinking models** (Ollama returns their reasoning in `message.reasoning`) exhausted the v1.1 pin
@@ -732,7 +842,13 @@ verdict line in the Markdown is the same `summary_line()` the CLI prints. The JS
 `edges` (v1.13, C-12), `dangling`, `stale`, `unattributed_results`, `notes`, `metrics` and
 `exit_code`. The per-edge `declared` flag and the `declared_ratio` metric arrived in v1.14 (C-16);
 `title` in v1.7, `clause` in v1.9 and `recorded` in v1.10. `schema_version` is `"1.5"` and has not
-moved since v1.14 — v1.15 through v1.18 are all request-side or documentation changes.
+moved since v1.14: everything later is either request-side or a *conditional* key, present only when
+its input is — `proof` (top level and per id, with `--proof`/`--proof-results`, v1.19), `foreign`
+(when a foreign reference was found, v1.23), and `citation_map` with `mapped` on every `tests[]`,
+`dangling` and `stale` entry (with `--citation-map`, v1.23). A run that needs none of them is byte
+identical to the previous version's (I-018, I-019; T-100, T-109). The Markdown gains a `Proof
+(state)` column under `--proof`, and renders a mapped citation as `<file> (map)`; the summary line
+gains `; citations: <M> mapped` when M > 0.
 
 Ratios are Decimals but `json.dumps` cannot emit them with a fixed number of places, so a tiny
 sentinel type (`_Num`) is serialized through `default=` as `"\x00NUM:0.9000\x00"` and rewritten to
@@ -745,9 +861,10 @@ obligation and forward `affects` from a decision, each id at its shortest depth 
 first reached it (I-013) — `reverify_set`, and the optional citation/test-case lists from `--src`/
 `--tests`. `render_impact_markdown` and the C-13 summary line come from the same report object.
 
-`explain.py` renders the C-18 trace for one id: six sections in a fixed order, the C-05 reason that
-set the status, the statement, the source citations, one line per citing case with its outcome and
-verdict (and the verdict's `clause`/`rationale` when a judge recorded one), and the `impact
+`explain.py` renders the C-18 trace for one id: six sections in a fixed order, the C-05 step that
+set the status (numbered as C-05 numbers it since v1.23.1, F-711), the statement, the source citations, one line per citing case with its outcome and
+verdict (and the verdict's `clause`/`rationale` when a judge recorded one; `(mapped)` for a
+citation-map edge), and the `impact
 (<depth>):` section built from the same `walk`/`reverify_set`. It is a pure function of those facts —
 no clock, no filesystem, no environment — and the run writes nothing at all (D-33, I-016).
 
@@ -782,11 +899,18 @@ v1.13, `explain` v1.17) plus `--self-check`.
   covers what argparse cannot express with the spec's exact messages: `--judge` values, `--verbose`
   levels, `--progress` modes, `--max-unknown` as a Decimal in `[0, 1]`, integer ranges, the
   `path outside --root:` rule (E-09) after a single `resolve()` per path, `--changed`/`--against`
-  exclusivity (E-54), the `N%`-requires-`--jev-pre-triage` rule (E-58), and the PATHS element that is
-  neither file nor directory (E-52).
+  exclusivity (E-54), the `N%`-requires-`--jev-pre-triage` rule (E-58), the PATHS element that is
+  neither file nor directory (E-52), and the `--namespace` grammar with its at-most-once rule (a
+  custom `_Once` action, since argparse keeps the last value; R-102, E-68).
+- **Validation order is a contract** (v1.20, K-18): every usage check — values, `--root`
+  containment, and that every file a flag names (`--spec`, `--results`, `--proof-results`,
+  `--against`, `--citation-map`) can be read — completes in the config builders before any file
+  is *parsed*. So an invocation with both a usage fault and an input-contract fault exits `2`. The
+  citation map's split follows: unreadable is `2` there, a malformed map is `3` in the apply-map
+  stage (E-70).
 - **Help is a contract** (v1.18, R-41, C-19): every argument definition of the four parsers carries
   an entry naming purpose, accepted values as literal tokens, the default and the preconditions, with
-  metavars from §5.1's vocabulary; each screen ends with the `environment:` block (the eight
+  metavars from §5.1's vocabulary (`NS` since v1.23); each screen ends with the `environment:` block (the eight
   `SPECCHECK_*` names, their read conditions and requiredness, plus `COLUMNS`) and the exit-code
   epilog. The enumerated clauses are built from the same constants the validators check
   (`JUDGE_MODES`, `VERBOSE_LEVELS`, `PROGRESS_MODES`), so help and usage error cannot disagree
@@ -827,8 +951,8 @@ v1.13, `explain` v1.17) plus `--self-check`.
   is identical under a C locale or a `cp1252` stdout (R-29; T-44 runs both). `explain` writes its
   trace through the same byte path, for the same reason.
 - **Exit codes** — `check` and `impact` as §5.4 says; `explain` returns `0` once the trace is written
-  (nothing it renders is pass/fail), `2` for E-60's undeclared id, `3` for an input-contract
-  violation.
+  (nothing it renders is pass/fail), `2` for E-60's undeclared id or E-64's missing `--spec`, `3`
+  for an input-contract violation (E-01..E-03, E-05, E-70).
 - **`--self-check`** — copies `_selfcheck/` to a fresh temp dir, installs the socket guard,
   `chdir`s there, runs `run_check([...pinned argv...])` **in the same process** with stdout captured,
   compares the two outputs with the packaged goldens byte-for-byte, removes the directory, prints
@@ -849,6 +973,8 @@ letting anything volatile into the data:
 | floating point | `decimal` with fixed quantization; JSON numbers via the `_Num` sentinel |
 | judge completion order | the runner preserves request order; results are keyed, not appended |
 | triage completion order | `run_triage` sorts the whole set after the pass, by (p(e), id) (K-16) |
+| citation-map entry order | entries resolve to a set of (id, case) pairs; duplicates collapse (E-73), and unresolved-entry Notes sort with every other Note |
+| foreign references | `foreign` is sorted by (file, line, namespace, id) before the Note names the first three (E-67) |
 | the temp-file nonce | never written into either report |
 | the progress indicator | stderr only, drawn on a TTY (or `--progress always`) and erased; nothing about it reaches stdout or either report (T-62 compares against a `--progress never` run) |
 | terminal width | affects `--help` wrapping only (I-017), which is why T-97's goldens pin `COLUMNS=80` |
@@ -884,30 +1010,38 @@ check caught during the build).
 
 ## 15. Test architecture
 
-The suite (`tests/`, 127 test functions, 136 collected cases — `T-47`'s repair table expands into
-nine) mirrors the spec's §9 groups one file per group:
+The suite (`tests/`, 171 test functions, 185 collected cases — `T-47`'s repair table and a few
+other parametrized tests expand) mirrors the spec's §9 groups one file per group:
 
 | File | §9 group | Functions |
 | --- | --- | --- |
-| `test_01_extraction.py` | 9.1 spec-side extraction (T-01..T-07, T-55, T-70) | 11 |
+| `test_01_extraction.py` | 9.1 spec-side extraction (T-01..T-07, T-55, T-70, T-72) | 11 |
 | `test_02_attribution.py` | 9.2 attribution, Swift, declared (T-08..T-14, T-56, T-57, T-65..T-67, T-85) | 14 |
 | `test_03_results.py` | 9.3 the JUnit join (T-15..T-19, T-52, T-58, T-68) | 8 |
-| `test_04_status.py` | 9.4 the status algorithm and metrics (T-20..T-25, T-53) | 8 |
-| `test_05_judge.py` | 9.5 the judge contract (T-26..T-33, T-54, T-69, T-83, T-89) | 17 |
-| `test_06_reports.py` | 9.6 the reports and the writer (T-34..T-38) | 6 |
-| `test_07_cli.py` | 9.7 CLI, exit codes, diagnostics, boundary (T-39..T-45, T-50, T-59..T-61, T-78, T-90) | 21 |
-| `test_08_golden.py` | 9.8 the golden fixture end to end (T-46, T-47, T-71, T-76, T-86, T-88) | 7 |
-| `test_09_self_application.py` | 9.9/9.10/9.11 the recorded rows and the prose guards (T-48, T-49, T-51, T-84, T-87, T-91, T-94) | 10 |
-| `test_10_edges.py` | 9.12 the decision-table grammar and C-12 edges (T-79) | 9 |
-| `test_11_impact.py` | 9.12 the `impact` CLI, changed set, walk, reverify (T-80, T-81) | 9 |
-| `test_12_explain.py` | 9.13 the `explain` trace (T-92, T-93, E-61) | 3 |
+| `test_04_status.py` | 9.4 the status algorithm and metrics (T-20..T-25, T-53, T-77) | 8 |
+| `test_05_judge.py` | 9.5 the judge contract (T-26..T-33, T-54, T-69, T-74, T-75, T-83, T-89) | 19 |
+| `test_06_reports.py` | 9.6 the reports and the writer (T-34..T-38) | 7 |
+| `test_07_cli.py` | 9.7 CLI, exit codes, diagnostics, boundary (T-39..T-45, T-50, T-59..T-64, T-78, T-90, T-101, T-103) | 24 |
+| `test_08_golden.py` | 9.8 the golden fixture end to end (T-46, T-47, T-71, T-73, T-76, T-86, T-88) | 7 |
+| `test_09_self_application.py` | 9.9/9.10/9.11 the recorded rows and the prose guards (T-48, T-49, T-51, T-84, T-87, T-91, T-94, T-112) | 11 |
+| `test_10_edges.py` | 9.12 the decision-table grammar and C-12 edges, ranges, row cells, E-66 (T-79, T-104..T-106) | 12 |
+| `test_11_impact.py` | 9.12 the `impact` CLI, changed set, walk, reverify (T-80, T-81, and T-82's presence check) | 9 |
+| `test_12_explain.py` | 9.13 the `explain` trace (T-92, T-93, T-102, E-61) | 5 |
 | `test_13_help.py` | 9.14 the help contract (T-95..T-98) | 4 |
+| `test_14_proof.py` | 9.15 Lean proof evidence (T-99, T-100) | 13 |
+| `test_15_jsts.py` | 9.16 the JS/TS adapter, the vitest and jest-junit joins (T-113..T-117) | 7 |
+| `test_16_namespaces.py` | 9.17 foreign references and `--namespace` (T-107..T-109) | 7 |
+| `test_17_citation_map.py` | 9.17 the citation map (T-109..T-111) | 5 |
 
 Each test function's docstring starts with the `T-nn` it realizes and ends with the R/C/I/K/E ids it
-proves — that is what makes self-application (T-48) report every one of the 252 ids as `PASSING`,
+proves — that is what makes self-application (T-48) report every one of the 300 ids as `PASSING`,
 and it is why the literal ignore-marker strings are confined to `tests/data/markers/` (F-109: a
 marker in a test module would make the checker ignore the test's own citation, which happened once
-during the build and was caught by self-application).
+during the build and was caught by self-application). The same rule covers `<ns>:ID` forms since
+v1.23 (F-713): they live in `tests/data/namespaces/` behind a line-1 `speccheck:ignore-file` marker
+that the tests drop when they copy a file into a project, and the test modules build every such
+token, and every undeclared id they need, at runtime, so self-application finds no foreign
+reference and no dangling citation in the suite itself.
 
 Two helpers in `conftest.py` carry most of the weight: `run_cli(argv, cwd, env, tty=False)` runs
 `cli.main` in-process with `stdout`/`stderr` replaced by byte buffers, so exit codes, the summary
@@ -933,7 +1067,10 @@ The LLM judge itself has touched the suite in two ways, both intended: the v1.4 
 (`gpt-4o-mini` via OpenRouter) judged five tests as proving their IDs only by implication (R-20,
 K-02, K-03, K-08, E-29), and each was strengthened to assert the behavior outright; and the v1.16
 build's first Phase B run flagged one id `WEAKLY_PASSING` whose only judged edge was a presence check
-(F-2), which was fixed in the test rather than by relaxing the gate.
+(F-2), which was fixed in the test rather than by relaxing the gate. Under v1.20 four Phase B passes
+(`openai/gpt-6-luna-pro`) found two more tests weaker than they claimed (E-34's leftover-file test,
+R-16's determinism test), both strengthened; v1.23.1's Phase B on the same model passed first time,
+0 weak over 993 judged edges.
 
 ### 15.1 Tools (`tools/`)
 
@@ -951,6 +1088,9 @@ they exercise the real pipeline without a subprocess or a shell.
 | `census.py`, `census_jev_tasks.py`, `census_prompt.md`, `census_labels.json` | the obligation census (`docs/proposals/PROPOSAL_obligation_census.md`) | Classify every live R/C/I/K/E id of a spec by the shape of its obligation (`expr`, `struct`, `behavior`, `prose`) and the checker that could verify it; `--ratify` folds a hand-edited census back in; the labels file is the ten-subject seed set the classifier is scored against. |
 | `judge_crosscheck_tasks.py`, `jev_client.py`, `judge_crosscheck_report.py` | `JUDGE_CROSSCHECK_REPORT.md` | Build one C-17 `state` per judged edge from a `speccheck.json`, send them to Jev, and join the answers back to the recorded verdicts — the tooling behind the cross-model conflict numbers the v1.14–v1.16 proposals cite. |
 | `format_task.py`, `test_format_task.py` | the census/cross-check workflow | Render one census task record as Markdown. |
+| `jev_report.py` | the obligation census | Folds a Jev batch into the census's recommendation and accuracy bar, as a fourth model. |
+| `proof_evidence.py` | C-21 / T-99 | A standalone sidecar for a project laid out the way `spec-proof` scaffolds one: reads its `proof/` lake project and test results and writes the C-21 manifest `--proof-results` reads. Not part of the kernel; `check` never runs a prover. |
+| `lean_doc.py` | the `proof/` documentation | Extracts the Markdown module header a Lean file opens with. |
 
 One thing is still deliberately absent: nothing regenerates the report goldens automatically. They
 are produced by running the checker on the fixture and copying the reports into `golden/` by hand, so
@@ -961,10 +1101,12 @@ four times that way, and the diffs were read each time).
 
 Per the spec's non-goals and O-2/O-3: no semantic analysis of code, no test execution, no
 spec-quality review, no remediation, no multi-spec runs, no daemon/watch/IDE/web surface. Language
-adapters exist for Python (`ast`) and Swift (v1.6, R-31); Go and JS/TS remain O-2, and other files
-get file-level attribution, which the join still supports by suffix.
+adapters exist for Python (`ast`), Swift (v1.6, R-31) and JavaScript/TypeScript (v1.22, R-104); Go
+remains O-2, and other files get file-level attribution, which the join still supports by suffix.
+`--namespace` does not make speccheck multi-spec: another project's ids are recognized only to be
+*ignored* (C-22), and a run still checks exactly one spec.
 
-The decisions the spec's §12 records (D-01..D-42) are the design's own forks; the ones later
+The decisions the spec's §12 records (D-01..D-57) are the design's own forks; the ones later
 increments confirmed are cited throughout this document, and the ones still marked `confirm` are
 listed in `SPEC.md` §12 with the branch the build took. Three absences are worth naming because they
 were considered and rejected rather than forgotten:
@@ -977,7 +1119,11 @@ were considered and rejected rather than forgotten:
   the variable (E-21).
 - **No report-as-input.** `explain` recomputes from the same inputs `check` uses rather than reading a
   previous `speccheck.json` (D-35); the checker never reads its own outputs, and the spec, the results
-  file and its own reports are excluded from every scan (C-03, F-002).
+  file, the citation map, the proof manifest and its own reports are excluded from every scan (C-03,
+  F-002, F-702).
+- **No inferred citations.** A citation map states citations outside the code, but it is written by
+  a person and labelled `mapped` everywhere it is read (D-54); nothing in the tool guesses which test
+  proves which id.
 - **No `--exclude` for scan roots** — self-application therefore cites the packaged fixture copy under
   `src/speccheck/_selfcheck/` as source evidence, which inflates R-01's evidence list but never a
   status.

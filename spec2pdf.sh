@@ -29,13 +29,17 @@ Defaults (all on; each can be switched off):
 
   -h, --help       Show this help and exit.
 
-Environment variables (all optional; mermaid only):
-  PUPPETEER_EXECUTABLE_PATH   Chrome/Chromium binary to use
+Environment variables (all optional):
+  PUPPETEER_EXECUTABLE_PATH   Chrome/Chromium binary to use for mermaid
                               (auto-detected when unset).
   MERMAID_FILTER_FORMAT       Mermaid output format (default: pdf = vector,
                               crisp at any zoom).
   MERMAID_FILTER_SCALE        Raster scale for the mermaid PNG fallback
                               (default: 3).
+  SPEC2PDF_MAX_FIGURE_HEIGHT  Largest figure height as a fraction of the
+                              text height; taller figures are scaled down
+                              (default: 1, no cap; e.g. 0.6 keeps a tall
+                              diagram on the page with its text).
 
 Examples:
   spec2pdf.sh SPEC.md                   # toc + mermaid + click, 1in margins
@@ -120,9 +124,11 @@ echo "\usepackage[margin=${MARGIN_VAL}]{geometry}" >"$MARGIN_HEADER_FILE"
 # Long code lines wrap at the margin instead of running off the page: highlighted blocks
 # (pandoc's Highlighting) and plain ones (verbatim) both become fvextra Verbatim with breaklines,
 # set \small so a typical ~100-column block still fits on one line.
-# A figure taller than SPEC2PDF_MAX_FIGURE_HEIGHT of the text height (default 0.6) is scaled
-# down, so a tall diagram stays beside its text instead of leaving a mostly blank page behind it.
-MAX_FIGURE_HEIGHT="${SPEC2PDF_MAX_FIGURE_HEIGHT:-0.6}"
+# A figure taller than SPEC2PDF_MAX_FIGURE_HEIGHT of the text height (default 1, no cap) is scaled
+# down. Set it below 1 for a short document whose tall diagram would otherwise jump to a page of its
+# own and leave a mostly blank one behind (the Makefile passes 0.6 for the article); leave it at 1
+# where tall diagrams must stay legible (ARCHITECTURE.md's pipeline).
+MAX_FIGURE_HEIGHT="${SPEC2PDF_MAX_FIGURE_HEIGHT:-1}"
 cat >>"$MARGIN_HEADER_FILE" <<EOF
 \\usepackage{fvextra}
 \\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,fontsize=\\small,commandchars=\\\\\\{\\}}
