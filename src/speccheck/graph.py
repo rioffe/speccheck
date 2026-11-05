@@ -289,9 +289,9 @@ class HazardRecord:
 def compute_hazards(
     records: list[IdRecord], risk: dict[str, str | None] | None
 ) -> tuple[HazardRecord, ...] | None:
-    """C-27: H = every marker hazard (retired ids included) plus every risk-file hazard; None when
-    H is empty and no risk file was given (no `hazards` key, I-021). Runs on the final statuses,
-    after C-05 step 5; nothing flows back into a status."""
+    """C-27 / R-108: H = every marker hazard (retired ids included) plus every risk-file hazard;
+    None when H is empty and no risk file was given (no `hazards` key, I-021). Runs on the final
+    statuses, after C-05 step 5; nothing flows back into a status."""
     named: dict[str, list[IdRecord]] = {}
     for rec in records:  # graph.records are already in C-07 order
         for h in rec.spec.controls:

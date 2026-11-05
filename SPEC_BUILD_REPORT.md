@@ -1,8 +1,89 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.24.0 against `SPEC.md` (v1.24)
+# SPEC_BUILD_REPORT — `speccheck` v1.25.0 against `SPEC.md` (v1.25)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n), and to v1.24 (§0o); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n), and to v1.24 (§0o), and 2026-11-05 to v1.25 (§0p); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0p. v1.25 increment (2026-11-05) — the provenance manifest, `verify`, and hazard traceability
+
+**Why.** `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md`, from
+`docs/plans/ISO13485_READINESS_PLAN.md` §3.2–§3.3: a code edit made after the test run left both
+v1.24 reports byte-identical, so a report filed as a quality record could not say what it verified;
+and a medical-device team had built hazard → control row → verifying test by hand. D-61..D-65
+confirmed on the recommended branches. Built on branch `spec/v1.25` from
+`docs/plans/IMPLEMENTATION_PLAN.md`, one commit per wave.
+
+**Wave ledger.**
+
+| Wave | Gate | Real result | Commit |
+| --- | --- | --- | --- |
+| W1 — hazards (R-108, R-109, C-27, C-28, R-15; T-126, T-127) | pytest; ruff; `--self-check`; goldens unchanged | 200 passed / 2 failed (the two id-count pins, 307 → 334); ruff 0; `self-check: ok`; `git status` on fixtures and `_selfcheck/` clean | `dfdb07c` |
+| W2 — manifest and `verify` (R-106, R-107, C-25, C-26, I-020; T-122..T-125, T-129) | as W1, plus `check --manifest` then `verify` on this repository | 210 passed / the same 2; goldens unchanged; `verify: ok - 74 files match`, exit 0 | `54a2228` |
+| W3 — T-128, counts, version 1.25.0, docs, both gates | the full exit gate, Phase A, Phase B | Phase A clean; Phase B blocked (below) | this commit |
+
+**What the build found.**
+
+- **F-801, a spec defect, fixed in `be26cb2`.** C-27's closing line said each of E-78..E-81 is
+  emitted at most once per run; E-78 and E-80 say one Note per marked id. Found in W1 when
+  T-126's `impact` comparison failed: `impact` copies every parse Note, so the marker Notes reached
+  `impact.json` although C-27 says `impact` ignores the marker. Code: the two Notes live on
+  `SpecIndex.controls_notes`, outside `notes`, as E-77's did in v1.24. Spec: C-27 now matches the
+  E rows and says `impact` emits none of the four.
+- **R-108 was realized but uncited from source.** The first §5 fill (from `speccheck.json`) showed
+  an empty "realized in" cell. The marker parser and the roll-up now cite it.
+- **The read log shadowed the logger.** In W2 a local named `log` in `_run_stages` shadowed the
+  module logger, and the first `--manifest` run exited `3` (`'ReadLog' object has no attribute
+  'info'`). Renamed `read_log`; T-122 caught it before any commit.
+- **Help screens.** `--root`'s help lists every path flag it contains and `--strict`'s lists every
+  exit-1 condition; both gained `--risk-file` / `UNCONTROLLED`, so the `impact` and `explain`
+  goldens changed by those lines too.
+- **Installed metadata.** T-50 compares `--version` with `importlib.metadata`; after the bump to
+  1.25.0 it failed until `uv sync --reinstall-package speccheck` refreshed the editable install.
+- **The plan's budget.** Production code grew from 4671 to 5157 lines (`cloc src/speccheck
+  --exclude-dir=_selfcheck,__pycache__`), +486 against a 330–480 estimate; `manifest.py` is 141 of
+  them.
+
+**Gates.**
+
+```text
+uv run python -m pytest tests -q --junitxml=junit.xml      213 passed   (junit.xml sha256 299c3997…)
+uv run ruff check src tests tools                           All checks passed
+uv run speccheck --self-check                               self-check: ok
+uv run python tools/sync_selfcheck.py --check               exit 0
+git diff 9c27508 -- fixtures src/speccheck/_selfcheck       empty: the goldens are v1.24's bytes (T-128)
+
+# Phase A
+speccheck: CONFORMING - 334/334 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+notes: the eight `edge to undeclared id: … -> R-99` example Notes and `ignored 6 file(s) by
+speccheck:ignore-file`, the same nine as v1.24 — no truncation, no cut row, no isolated id, no
+hazard Note (this spec carries no CONTROLS marker) (every Note read)
+
+# The manifest on this repository (the README's example)
+uv run speccheck check … --judge mock --manifest --out build/rec    exit 0
+uv run speccheck verify --manifest build/rec/speccheck.manifest.json
+verify: ok - 74 files match, tree 3be076240f44                     exit 0
+# after appending one line to src/speccheck/report.py (then restored):
+verify: mismatch src/speccheck/report.py
+verify: FAILED - 1 of 74 files differ                              exit 1
+
+# Phase B: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict — NOT RUN
+probe (`explain R-106 --judge llm`, 3 judge calls): every call returned HTTP 401 Unauthorized
+```
+
+**Phase B was not run.** The plan's rule from v1.24 (probe the endpoint before the full run) did its
+job: the three probe calls all returned `judge: http 401`, so OpenRouter does not accept the API key
+in this shell, and a full run would have produced about 1,100 `UNKNOWN` edges and no evidence. The
+full run is pending a valid `SPECCHECK_JUDGE_API_KEY`; the command is the README's Phase B line
+(`--judge llm --strict --judge-concurrency 16`, `openai/gpt-6-luna-pro`).
+
+```text
+Spec coverage: 334/334 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 334/334 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
+speccheck (llm):  not run: the endpoint rejected the key (HTTP 401 on the probe); pending a valid SPECCHECK_JUDGE_API_KEY
+Observed: no rendered surface; goldens unchanged, help screens diffed, every Note of the run read
+Readiness: BUILT
+Conformance: PASS WITH NOTES (Phase B pending)
+```
 
 ## 0o. v1.24 increment (2026-10-27) — UNPROVEN, CommonMark backtick spans, cut rows, isolated ids
 
@@ -2077,12 +2158,39 @@ id. "Self-app" is the status from the T-48 run.
 | T-119 | — | `test_01_extraction::test_t119_backtick_spans_are_commonmark_code_spans` | PASSING |
 | T-120 | — | `test_01_extraction::test_t120_row_with_more_cells_than_its_header_is_noted` | PASSING |
 | T-121 | — | `test_10_edges::test_t121_isolated_ids_are_named_in_one_note` | PASSING |
+| R-106 | `cli.py`, `manifest.py` | `test_19_manifest::test_t122_manifest_shape_and_hashes`; `test_19_manifest::test_t125_the_v1_25_evidence`; `test_19_manifest::test_manifest_flag_is_check_only` | PASSING |
+| R-107 | `cli.py`, `manifest.py` | `test_19_manifest::test_t124_verify_ok_mismatch_missing`; `test_19_manifest::test_t124_verify_faults`; `test_19_manifest::test_t125_the_v1_25_evidence` | PASSING |
+| R-108 | `extract.py`, `graph.py` | `test_18_hazards::test_t126_marker_grammar_and_positions`; `test_18_hazards::test_t126_roll_up_reports_and_inertness` | PASSING |
+| R-109 | `cli.py` | `test_18_hazards::test_t127_risk_file_uncontrolled_hazard_fails_strict`; `test_18_hazards::test_t127_risk_file_usage_faults` | PASSING |
+| C-25 | `cli.py`, `extract.py`, `lean.py`, `manifest.py` | `test_19_manifest::test_t122_manifest_shape_and_hashes`; `test_19_manifest::test_t123_determinism_epoch_and_crlf` | PASSING |
+| C-26 | `cli.py`, `manifest.py` | `test_19_manifest::test_t124_verify_ok_mismatch_missing` | PASSING |
+| C-27 | `cli.py`, `explain.py`, `extract.py`, `graph.py`, `report.py` | `test_18_hazards::test_t126_marker_grammar_and_positions`; `test_18_hazards::test_t126_roll_up_reports_and_inertness`; `test_18_hazards::test_t126_weak_control_is_not_verified`; `test_18_hazards::test_t127_empty_risk_file_and_marker_free_spec` | PASSING |
+| C-28 | `cli.py`, `graph.py` | `test_18_hazards::test_t127_risk_file_uncontrolled_hazard_fails_strict`; `test_18_hazards::test_t127_empty_risk_file_and_marker_free_spec`; `test_18_hazards::test_t127_malformed_risk_file_exits_3` | PASSING |
+| I-020 | `manifest.py` | `test_19_manifest::test_t123_determinism_epoch_and_crlf` | PASSING |
+| I-021 | `graph.py` | `test_19_manifest::test_t122_manifest_shape_and_hashes`; `test_19_manifest::test_t128_runs_without_v1_25_inputs_are_byte_identical` | PASSING |
+| K-20 | `cli.py`, `extract.py`, `manifest.py` | `test_18_hazards::test_t126_marker_grammar_and_positions`; `test_18_hazards::test_t127_malformed_risk_file_exits_3` | PASSING |
+| E-78 | `cli.py`, `extract.py` | `test_18_hazards::test_t126_marker_grammar_and_positions` | PASSING |
+| E-79 | `graph.py` | `test_18_hazards::test_t127_risk_file_uncontrolled_hazard_fails_strict` | PASSING |
+| E-80 | `cli.py`, `extract.py` | `test_18_hazards::test_t126_marker_grammar_and_positions`; `test_18_hazards::test_t126_roll_up_reports_and_inertness` | PASSING |
+| E-81 | `graph.py` | `test_18_hazards::test_t126_roll_up_reports_and_inertness`; `test_18_hazards::test_t127_risk_file_uncontrolled_hazard_fails_strict` | PASSING |
+| E-82 | `cli.py` | `test_19_manifest::test_t124_verify_faults` | PASSING |
+| E-83 | `manifest.py` | `test_19_manifest::test_t124_verify_faults` | PASSING |
+| E-84 | `cli.py` | `test_18_hazards::test_t127_malformed_risk_file_exits_3` | PASSING |
+| E-85 | `cli.py` | `test_19_manifest::test_t123_determinism_epoch_and_crlf` | PASSING |
+| T-122 | — | `test_19_manifest::test_t122_manifest_shape_and_hashes`; `test_19_manifest::test_t122_manifest_is_never_scanned` | PASSING |
+| T-123 | — | `test_19_manifest::test_t123_determinism_epoch_and_crlf`; `test_19_manifest::test_t123_failure_before_the_manifest_rename_leaves_nothing` | PASSING |
+| T-124 | — | `test_19_manifest::test_t124_verify_ok_mismatch_missing`; `test_19_manifest::test_t124_verify_faults` | PASSING |
+| T-125 | — | `test_19_manifest::test_t125_the_v1_25_evidence` | PASSING |
+| T-126 | — | `test_18_hazards::test_t126_marker_grammar_and_positions`; `test_18_hazards::test_t126_roll_up_reports_and_inertness`; `test_18_hazards::test_t126_weak_control_is_not_verified` | PASSING |
+| T-127 | — | `test_18_hazards::test_t127_risk_file_uncontrolled_hazard_fails_strict`; `test_18_hazards::test_t127_empty_risk_file_and_marker_free_spec`; `test_18_hazards::test_t127_malformed_risk_file_exits_3`; `test_18_hazards::test_t127_risk_file_usage_faults` | PASSING |
+| T-128 | — | `test_19_manifest::test_t128_runs_without_v1_25_inputs_are_byte_identical` | PASSING |
+| T-129 | — | `test_19_manifest::test_t129_help_screens_name_the_v1_25_surface` | PASSING |
 
 The rows after K-18 were added at v1.23.1 for every id the matrix lacked — E-42..E-52 (v1.6..v1.12), E-66 and T-104..T-106 (v1.21), R-104, E-74..E-76 and T-113..T-116 (v1.22), and the v1.23/v1.23.1 ids — and, at v1.24, R-105, C-24, E-77 and T-118..T-121 — generated from the final Phase A `build/speccheck/speccheck.json` (§0n): "Realized in" is the modules whose source cites the id, "Verified by" the citing test functions, "Self-app" the status.
 
 ## 6. Verdict
 
-The current verdict is v1.24's, in §0o. The block below is v1.20's, kept as recorded.
+The current verdict is v1.25's, in §0p (Phase B pending). The block below is v1.20's, kept as recorded.
 
 ```text
 Spec coverage: 267/267 IDs realized (0 deferred)

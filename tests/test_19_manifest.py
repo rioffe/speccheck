@@ -283,3 +283,33 @@ def test_t129_help_screens_name_the_v1_25_surface(tmp_path):
     for phrase in ("0 every file matches", "1 a file is missing or differs", "2 usage error",
                    "3 malformed manifest"):
         assert phrase in ver.stdout
+
+
+def test_t128_runs_without_v1_25_inputs_are_byte_identical(tmp_path):
+    """T-128: on the §9.8 golden fixture and the Swift fixture, a v1.25 `check` with neither
+    --manifest nor --risk-file, over a spec with no CONTROLS marker, reproduces the committed
+    v1.24 goldens byte for byte, with the same summary line and exit code, and creates no third
+    file; `--self-check` passes unchanged. The goldens are the v1.24 bytes: no v1.25 commit
+    regenerates them. (I-021)"""
+    from .test_08_golden import SWIFT_ARGS, SWIFT_FIXTURE
+
+    cases = [
+        (FIXTURE, ARGV + ["--strict"]),
+        (SWIFT_FIXTURE, SWIFT_ARGS),
+    ]
+    for fixture, argv in cases:
+        target = tmp_path / fixture.name
+        shutil.copytree(fixture, target, ignore=shutil.ignore_patterns("__pycache__"))
+        assert "*(controls:" not in (target / "SPEC.md").read_text(encoding="utf-8")
+        run = run_cli(argv + ["--out", "fresh"], target)
+        assert run.code == 1
+        written = sorted(p.name for p in (target / "fresh").iterdir())
+        assert written == ["SPEC_CONFORMANCE_REPORT.md", "speccheck.json"]
+        for name in written:
+            assert (target / "fresh" / name).read_bytes() == (
+                fixture / "golden" / name
+            ).read_bytes(), (fixture.name, name)
+        golden_md = (fixture / "golden" / "SPEC_CONFORMANCE_REPORT.md").read_text(encoding="utf-8")
+        assert run.stdout.strip() in golden_md and "hazards" not in run.stdout
+    selfcheck = run_cli(["--self-check"], tmp_path)
+    assert selfcheck.code == 0 and selfcheck.stdout == "self-check: ok\n"

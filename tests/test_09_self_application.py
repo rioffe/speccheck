@@ -45,7 +45,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # R-101..R-103, C-22, C-23, I-019, K-19, E-67..E-73 and T-107..T-112, v1.23.1 added T-117
 # SPEC.md v1.24 declares 307 ids (47 R, 24 C, 19 I, 19 K, 77 E, 121 T; none retired); v1.24 added
 # R-105, C-24 (the JS/TS adapter, moved out of C-03), E-77 and T-118..T-121
-DECLARED_IDS = 307
+# SPEC.md v1.25 declares 334 ids (51 R, 28 C, 21 I, 20 K, 85 E, 129 T; none retired); v1.25 added
+# R-106..R-109, C-25..C-28, I-020, I-021, K-20, E-78..E-85 and T-122..T-129
+DECLARED_IDS = 334
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):

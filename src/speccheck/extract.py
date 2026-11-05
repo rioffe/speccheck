@@ -360,8 +360,8 @@ def heading_title(rest: str) -> str:
 
 
 def split_controls(text: str) -> tuple[tuple[str, ...] | None, bool, str]:
-    """C-01 / C-27: (hazard ids or None when no marker begins `text`, malformed?, the rest of
-    `text` after a valid marker — `text` itself when there is none or it is malformed)."""
+    """C-01 / C-27 / R-108: (hazard ids or None when no marker begins `text`, malformed?, the
+    rest of `text` after a valid marker — `text` itself when there is none or it is malformed)."""
     text = text.lstrip()
     if not text.startswith(CONTROLS_PREFIX):
         return None, False, text

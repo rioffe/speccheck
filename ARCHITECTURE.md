@@ -1,11 +1,11 @@
-# ARCHITECTURE — `speccheck` 1.24.0
+# ARCHITECTURE — `speccheck` 1.25.0
 
 This document describes the system as built, module by module and data flow by data flow. It is a
 companion to `README.md` (how to use it), `SPEC.md` (what it must do), and
 `SPEC_BUILD_REPORT.md` (the evidence that it does). Spec IDs are cited inline so that every design
 element can be traced back to the clause that demanded it.
 
-It describes the build of `SPEC.md` **v1.24**, and the increments that got there:
+It describes the build of `SPEC.md` **v1.25**, and the increments that got there:
 
 | Version | What it added | Modules it touched |
 | --- | --- | --- |
@@ -25,6 +25,7 @@ It describes the build of `SPEC.md` **v1.24**, and the increments that got there
 | v1.22 | the JavaScript/TypeScript adapter and the vitest/jest-junit join (R-104, D-56) | `jsts.py` (new), `attribute.py`, `results.py` |
 | v1.23/v1.23.1 | foreign references and `--namespace` (R-101, R-102, C-22); the citation map (R-103, C-23); the first full review's fixes (F-701..F-717) | `extract.py`, `cli.py`, `attribute.py`, `graph.py`, `report.py`, `explain.py`, `jsts.py`, `judge_mock.py`, `results.py` |
 | v1.24 | `UNPROVEN` on a non-strict run `--strict` would reject (R-105); CommonMark backtick spans in the row splitter; the cut-row and isolated-id Notes (E-66, E-77); the JS/TS adapter's text moved to C-24 | `report.py`, `extract.py`, `cli.py` |
+| v1.25 | the provenance manifest and `verify` (R-106, R-107, C-25, C-26, I-020); the CONTROLS marker, the hazard roll-up and `--risk-file` (R-108, R-109, C-27, C-28) | `manifest.py` (new), `extract.py`, `lean.py`, `graph.py`, `report.py`, `explain.py`, `cli.py` |
 
 ## 1. The one idea
 
@@ -681,6 +682,15 @@ C-05. A `checked` proof never promotes an `UNVERIFIED` id, and a `failed` one ne
 `PASSING` id. The one place a proof state reaches the exit code is `--strict` with a readable
 `--proof-results` (D-45).
 
+**Hazards (v1.25).** `compute_hazards` runs after the judge stage, on the final statuses, and
+nothing flows back from it. The hazard set is every id a CONTROLS marker names (`SpecId.controls`,
+parsed in `extract.py` beside RECORDED) plus every id in `--risk-file`. CTRL(h) is the non-retired
+ids whose marker names h; h is `UNCONTROLLED` when CTRL(h) is empty, `VERIFIED` when every control
+is `PASSING`, else `NOT_VERIFIED`. It returns `None` when there is no marker and no risk file, so
+no `hazards` key exists and the reports are v1.24's bytes (I-021). The marker's own Notes (E-78,
+E-80) sit on `SpecIndex.controls_notes`, outside `notes`, because `impact` copies `notes` and C-27
+says `impact` ignores the marker.
+
 ## 10. The judge (`judge.py`, `judge_mock.py`, `judge_llm.py`) and the triage pass (`jev.py`)
 
 ### 10.1 Contract and validation
@@ -859,7 +869,10 @@ its input is — `proof` (top level and per id, with `--proof`/`--proof-results`
 `dangling` and `stale` entry (with `--citation-map`, v1.23). A run that needs none of them is byte
 identical to the previous version's (I-018, I-019; T-100, T-109). The Markdown gains a `Proof
 (state)` column under `--proof`, and renders a mapped citation as `<file> (map)`; the summary line
-gains `; citations: <M> mapped` when M > 0.
+gains `; citations: <M> mapped` when M > 0. Since v1.25, `controls` (per marked id) and `hazards`
+(after `edges`) are two more conditional keys; the Markdown gains `## 10. Hazards` with them; the
+summary line ends `; hazards: <V>/<H> verified`; and an `UNCONTROLLED` hazard is one more
+condition in `exit_code_for` under `--strict` and in the `UNPROVEN` word without it.
 
 Ratios are Decimals but `json.dumps` cannot emit them with a fixed number of places, so a tiny
 sentinel type (`_Num`) is serialized through `default=` as `"\x00NUM:0.9000\x00"` and rewritten to
@@ -899,6 +912,19 @@ sequenceDiagram
 two subcommands never touch each other's files (I-001). `explain` has no writer to follow it: it
 prints to stdout (C-18, D-33). `_replace` and `_make_nonce` are module-level so T-45 can inject a
 failure between the two renames and observe the nonce.
+
+**The manifest (v1.25, `manifest.py`).** With `--manifest`, `_run_stages` keeps a `ReadLog`, and
+every read of an input appends `(path, role) -> (sha256, bytes)` from the raw bytes as read:
+the spec, `scan_roots` for each selected `--src`/`--tests` file (an over-2-MiB file it skips on
+`stat()` is read once more just to hash it), `scan_lean_paths` for `--proof`, and the results file,
+citation map, proof manifest and risk file. `execute` renders the two reports, then
+`render_manifest` hashes their bytes, and `write_named_files` writes all three in one
+temp-and-rename sequence, so a failure at the manifest's rename removes both reports too. The
+manifest uses `report.dumps`, so `max_unknown` is the same four-place number as in
+`speccheck.json`. `verify` validates the whole manifest before reading any input (E-83: version,
+keys, 64-hex hashes, non-negative lengths, no absolute path, nothing resolving outside `--root`),
+then re-hashes each distinct input path and each report and prints C-26's lines. It shares no code
+path with `check` beyond `dumps` and the CLI's error mapping.
 
 ## 12. The CLI (`cli.py`)
 
