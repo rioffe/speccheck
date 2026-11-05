@@ -120,14 +120,17 @@ def collect_lean_files(paths: tuple[Path, ...]) -> list[Path]:
     return out
 
 
-def scan_lean_paths(paths: tuple[Path, ...], root: Path) -> LeanScanResult:
+def scan_lean_paths(paths: tuple[Path, ...], root: Path, log=None) -> LeanScanResult:
     """Scan every `--proof` path (C-20) and return the proof citations plus E-62 notes for any
     file that could not be read or yielded no parseable declaration head."""
     result = LeanScanResult()
     for f in collect_lean_files(paths):
         rel = f.resolve().relative_to(root).as_posix()
         try:
-            text = f.read_bytes().decode("utf-8")
+            data = f.read_bytes()
+            if log is not None:  # v1.25, C-25: the `proof` role, raw bytes as read
+                log.add(rel, "proof", data)
+            text = data.decode("utf-8")
         except (OSError, UnicodeDecodeError):
             result.notes.append(f"unreadable or non-Lean file, skipped: {rel}")
             continue

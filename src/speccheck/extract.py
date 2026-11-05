@@ -14,6 +14,10 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # v1.25: manifest imports report, which imports this module
+    from .manifest import ReadLog
 
 # C-01 TOKEN regex; K-04 (1-3 digits, alphanumeric-bounded).
 ID_RE = re.compile(r"(?<![A-Za-z0-9])([RCIKET])-([0-9]{1,3})(?![A-Za-z0-9])")
@@ -788,7 +792,9 @@ def is_excluded(path: Path, excluded: frozenset[Path], out_dir: Path | None) -> 
     if out_dir is not None and resolved.parent == out_dir:
         name = resolved.name
         if name.endswith(".tmp") and (
-            name.startswith(".speccheck.json.") or name.startswith(".SPEC_CONFORMANCE_REPORT.md.")
+            name.startswith(".speccheck.json.")
+            or name.startswith(".SPEC_CONFORMANCE_REPORT.md.")
+            or name.startswith(".speccheck.manifest.json.")  # v1.25, C-03
         ):
             return True
     return False
@@ -800,6 +806,8 @@ def scan_roots(
     excluded: frozenset[Path],
     out_dir: Path | None,
     counters: ScanCounters,
+    log: ReadLog | None = None,
+    role: str = "",
 ) -> list[ScannedFile]:
     """C-03 PATHS (D-23): every admitted file, ascending by resolved path.
     A directory element is descended; a file element is scanned under its parent
@@ -829,11 +837,15 @@ def scan_roots(
             rel_root = to_posix_relative(scan_root, root)
             if size > MAX_FILE_BYTES:
                 counters.oversized.append(rel)
+                if log is not None:  # C-25: listed with the hash of its full bytes (E-10)
+                    log.add_file(rel, role, path)
                 continue
             try:
                 data = path.read_bytes()
             except OSError:
                 continue
+            if log is not None:  # C-25: every file read, binary and ignore-file ones included
+                log.add(rel, role, data)
             if b"\x00" in data[:BINARY_PROBE_BYTES]:
                 continue  # E-29: silent
             text, replaced = decode_text(data)

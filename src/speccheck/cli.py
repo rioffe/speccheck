@@ -71,6 +71,8 @@ from .jev import JevConfig, JevConfigError, JevTriage, run_triage
 from .judge import JudgeRequest, ProgressLine, build_request, run_judge
 from .judge_llm import LlmConfig, LlmConfigError, related_titles
 from .lean import scan_lean_paths
+from .manifest import MANIFEST_NAME, ManifestError, ReadLog, generated_at, render_manifest
+from .manifest import verify as verify_manifest
 from .proof import ProofError, join_proof, parse_proof_results
 from .report import (
     IMPACT_JSON_NAME,
@@ -88,6 +90,7 @@ from .report import (
     render_markdown,
     summary_line,
     write_impact_reports,
+    write_named_files,
     write_reports,
 )
 from .results import RawResult, ResultsError, join_results, parse_junit
@@ -144,6 +147,16 @@ class Config:
     citation_map: Path | None = None  # v1.23 (R-103, C-23): --citation-map FILE
     citation_map_arg: str | None = None  # the path as given, echoed in `citation_map.file`
     risk_file: Path | None = None  # v1.25 (R-109, C-28): --risk-file FILE, check-only
+    manifest: bool = False  # v1.25 (R-106, C-25, D-61): --manifest, check-only
+    source_date_epoch: int | None = None  # v1.25 (C-25, E-85): read only with --manifest
+
+
+@dataclass(frozen=True)
+class VerifyConfig:
+    """v1.25 (R-107, C-26): `verify --manifest FILE [--root DIR]`."""
+
+    manifest: Path
+    root: Path
 
 
 @dataclass(frozen=True)
@@ -183,11 +196,12 @@ class Action:
     """What argv asked for: a check run, an impact run, an explain run, a self-check, or nothing
     more (help/version handled)."""
 
-    kind: str  # "check" | "impact" | "explain" | "self-check"
+    kind: str  # "check" | "impact" | "explain" | "verify" | "self-check"
     verbose: str | None
     config: Config | None = None
     impact_config: ImpactConfig | None = None
     explain_config: ExplainConfig | None = None
+    verify_config: VerifyConfig | None = None
 
 
 def _expected(values: Sequence[str]) -> str:
@@ -219,6 +233,9 @@ ENVIRONMENT_EPILOG = """environment:
                         optional; default https://openrouter.ai/api/alpha/decisions and
                         ~typesafe/jev-latest
   SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
+  SOURCE_DATE_EPOCH     optional; read only by check --manifest: a non-negative integer of
+                        seconds since the Unix epoch, recorded as the manifest's generated_at
+                        (no default: without it the manifest carries no time)
   COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
                         it)
 """
@@ -232,6 +249,19 @@ summary line (check, stdout, exactly one line):
 """
 
 _EPILOG = ENVIRONMENT_EPILOG + "\n" + EXIT_CODE_EPILOG
+VERIFY_EPILOG = """exit codes:
+  0 every file matches   1 a file is missing or differs   2 usage error   3 malformed manifest
+output (stdout):
+  verify: ok - <N> files match, tree <first 12 hex digits of tree_sha256>
+  or one line per failing file, inputs first, then reports:
+  verify: missing <path>   |   verify: mismatch <path>
+  then: verify: FAILED - <k> of <N> files differ
+"""
+_HELP_MANIFEST = (
+    "check-only (v1.25). also write speccheck.manifest.json under --out: the tool version, the "
+    "options, and the SHA-256 and length of every file the run read and of both reports (C-25), "
+    "for `speccheck verify` to re-check later. reads SOURCE_DATE_EPOCH when set. default: off"
+)
 _FORMATTER = argparse.RawDescriptionHelpFormatter
 
 _HELP_SPEC = (
@@ -408,9 +438,11 @@ def load_risk_file(data: bytes) -> dict[str, str | None]:
     return out
 
 
-def load_citation_map(path: Path) -> list[MapEntry]:
-    """C-23 / E-70 / K-19: read and validate the map (raises CitationMapError, exit 3)."""
-    data = path.read_bytes()
+def load_citation_map(path: Path, data: bytes | None = None) -> list[MapEntry]:
+    """C-23 / E-70 / K-19: read and validate the map (raises CitationMapError, exit 3). `data`,
+    when given, is the map's bytes already read (v1.25: logged for the manifest)."""
+    if data is None:
+        data = path.read_bytes()
     if len(data) > CITATION_MAP_MAX:
         raise CitationMapError("citation-map: over 2 MiB (K-19)")
     try:
@@ -549,6 +581,7 @@ def build_parser() -> _Parser:
         "--citation-map", default=None, metavar="FILE", help=_HELP_CITATION_MAP
     )
     check.add_argument("--risk-file", default=None, metavar="FILE", help=_HELP_RISK_FILE)
+    check.add_argument("--manifest", action="store_true", help=_HELP_MANIFEST)
     check.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     check.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
     check.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
@@ -638,7 +671,64 @@ def build_parser() -> _Parser:
     explain.add_argument(
         "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
     )
+    verify = sub.add_parser(
+        "verify",
+        help="re-hash the files a check --manifest run recorded (C-26)",
+        description="Re-read every file a speccheck.manifest.json names, relative to --root, and "
+        "report any that is missing or differs. Writes nothing; never re-runs check.",
+        epilog=VERIFY_EPILOG,
+        formatter_class=_FORMATTER,
+    )
+    verify.add_argument(
+        "--manifest",
+        default=None,
+        metavar="FILE",
+        help="required. the speccheck.manifest.json to check (C-25); must resolve inside --root",
+    )
+    verify.add_argument(
+        "--root",
+        default=".",
+        metavar="DIR",
+        help="the directory every path in the manifest is relative to. default: .",
+    )
+    verify.add_argument(
+        "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
+    )
     return parser
+
+
+def _build_verify_config(args: argparse.Namespace) -> VerifyConfig:
+    """E-82 (v1.25): `verify`'s usage faults, all before the manifest is read."""
+    root = Path(args.root).resolve()
+    if not root.is_dir():
+        raise UsageError(f"--root: not a directory: {args.root}")
+    if args.manifest is None:
+        raise UsageError("verify: --manifest is required")
+    path = Path(args.manifest).resolve()
+    if not _inside(path, root):
+        raise UsageError(f"verify: --manifest outside --root: {args.manifest}")
+    if not path.is_file():
+        raise UsageError(f"verify: --manifest not a readable file: {args.manifest}")
+    try:
+        with open(path, "rb"):
+            pass
+    except OSError:
+        raise UsageError(f"verify: --manifest not a readable file: {args.manifest}") from None
+    return VerifyConfig(path, root)
+
+
+def _source_date_epoch(environ: Mapping[str, str]) -> int | None:
+    """E-85 (v1.25): SOURCE_DATE_EPOCH, read only with --manifest; a non-negative integer."""
+    value = environ.get("SOURCE_DATE_EPOCH")
+    if value is None:
+        return None
+    if not value.isascii() or not value.isdigit():
+        raise UsageError(f"SOURCE_DATE_EPOCH: not a non-negative integer: {value}")
+    try:
+        generated_at(int(value))
+    except (OverflowError, OSError, ValueError):
+        raise UsageError(f"SOURCE_DATE_EPOCH: not a non-negative integer: {value}") from None
+    return int(value)
 
 
 def _validate_verbose(value: str | None) -> str | None:
@@ -806,6 +896,8 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
             verbose,
             explain_config=_build_explain_config(args, environ, verbose),
         )
+    if args.command == "verify":
+        return Action("verify", verbose, verify_config=_build_verify_config(args))
     return Action("check", verbose, config=_build_check_config(args, environ, verbose))
 
 
@@ -824,6 +916,8 @@ def _build_check_config(
     what would be an input-contract violation (E-01/E-02/E-03/E-05/E-18, exit `3`) exits `2`:
     the contract check is never reached. `_build_impact_config` orders `--against` the same way."""
     namespace = _validate_namespace(args.namespace)  # E-68, before any file is read (K-18)
+    manifest = bool(getattr(args, "manifest", False))  # check-only (v1.25)
+    epoch = _source_date_epoch(environ) if manifest else None  # E-85, before any read (K-18)
     out_arg = getattr(args, "out", ".")
     strict = bool(getattr(args, "strict", False))
     if args.judge not in JUDGE_MODES:
@@ -927,6 +1021,8 @@ def _build_check_config(
         citation_map=citation_map,
         citation_map_arg=args.citation_map,
         risk_file=risk_file,
+        manifest=manifest,
+        source_date_epoch=epoch,
         root=root,
         out=out,
         judge=args.judge,
@@ -963,6 +1059,7 @@ class _Stage:
 
 def _excluded_paths(config: Config) -> frozenset[Path]:
     paths = {config.spec, config.out / JSON_NAME, config.out / MD_NAME}
+    paths.add(config.out / MANIFEST_NAME)  # C-03 (v1.25): with or without --manifest
     if config.results is not None:
         paths.add(config.results)
     for extra in (config.citation_map, config.proof_results, config.risk_file):  # C-03
@@ -994,6 +1091,7 @@ class _Stages:
     foreign: tuple[ForeignRef, ...] = ()  # v1.23 (C-22): sorted (file, line, namespace, id)
     citation_map: dict | None = None  # v1.23 (C-23): {file, entries, resolved, unresolved}
     hazards: tuple[HazardRecord, ...] | None = None  # v1.25 (C-27): None -> no `hazards` key
+    read_log: ReadLog | None = None  # v1.25 (C-25): every input read, only with --manifest
 
 
 def _run_stages(config: Config) -> _Stages:
@@ -1003,9 +1101,13 @@ def _run_stages(config: Config) -> _Stages:
     root = config.root
     rel_spec = to_posix_relative(config.spec, root)
     notes: list[str] = []
+    read_log = ReadLog() if config.manifest else None  # C-25 (v1.25)
 
     stage = _Stage("extract-spec")
-    spec_text, replaced = decode_text(config.spec.read_bytes())
+    spec_bytes = config.spec.read_bytes()
+    if read_log is not None:
+        read_log.add(rel_spec, "spec", spec_bytes)
+    spec_text, replaced = decode_text(spec_bytes)
     if replaced:
         notes.append(f"invalid UTF-8 decoded with replacement: {rel_spec}")
     index = parse_spec(spec_text, rel_spec, config.namespace)
@@ -1019,7 +1121,7 @@ def _run_stages(config: Config) -> _Stages:
     counters = ScanCounters()
 
     stage = _Stage("scan-src")
-    src_files = scan_roots(config.src, root, excluded, config.out, counters)
+    src_files = scan_roots(config.src, root, excluded, config.out, counters, read_log, "src")
     src_citations: list[Citation] = []
     foreign: list[ForeignRef] = []  # C-22 / E-67
     for f in src_files:
@@ -1032,7 +1134,7 @@ def _run_stages(config: Config) -> _Stages:
     stage.done(files=len(src_files), citations=len(src_citations))
 
     stage = _Stage("scan-tests")
-    test_files = scan_roots(config.tests, root, excluded, config.out, counters)
+    test_files = scan_roots(config.tests, root, excluded, config.out, counters, read_log, "tests")
     test_citations: list[Citation] = []
     cases: list[TestCase] = []
     file_lines: dict[str, tuple[str, ...]] = {}
@@ -1053,8 +1155,11 @@ def _run_stages(config: Config) -> _Stages:
     citation_map: dict | None = None
     if config.citation_map is not None:  # §3.1 apply-map (v1.23; C-23, E-70..E-73)
         stage = _Stage("apply-map")
+        map_bytes = config.citation_map.read_bytes()
+        if read_log is not None:
+            read_log.add(to_posix_relative(config.citation_map, root), "citation_map", map_bytes)
         mapped, counts, map_notes = apply_citation_map(
-            load_citation_map(config.citation_map), cases, test_citations
+            load_citation_map(config.citation_map, map_bytes), cases, test_citations
         )
         test_citations.extend(mapped)
         notes.extend(map_notes)
@@ -1065,7 +1170,10 @@ def _run_stages(config: Config) -> _Stages:
     outcomes = {}
     unattributed = []
     if config.results is not None:
-        raw_results = parse_junit(config.results.read_bytes())
+        results_bytes = config.results.read_bytes()
+        if read_log is not None:
+            read_log.add(to_posix_relative(config.results, root), "results", results_bytes)
+        raw_results = parse_junit(results_bytes)
         mapping = join_results(raw_results, cases)
         outcomes = mapping.outcomes
         unattributed = mapping.unattributed
@@ -1077,7 +1185,10 @@ def _run_stages(config: Config) -> _Stages:
     risk: dict[str, str | None] | None = None
     if config.risk_file is not None:  # §3.1 read-risk-file (v1.25; C-28, E-84), before C-05
         stage = _Stage("read-risk-file")
-        risk = load_risk_file(config.risk_file.read_bytes())
+        risk_bytes = config.risk_file.read_bytes()
+        if read_log is not None:
+            read_log.add(to_posix_relative(config.risk_file, root), "risk_file", risk_bytes)
+        risk = load_risk_file(risk_bytes)
         stage.done(hazards=len(risk))
 
     stage = _Stage("graph")
@@ -1092,12 +1203,16 @@ def _run_stages(config: Config) -> _Stages:
     proof_build: dict | None = None
     if config.proof or config.proof_results is not None:
         stage = _Stage("proof")
-        scan = scan_lean_paths(config.proof, root) if config.proof else None
+        scan = scan_lean_paths(config.proof, root, read_log) if config.proof else None
         if scan is not None:
             notes.extend(scan.notes)
         manifest = None
         if config.proof_results is not None:
-            manifest_text, manifest_replaced = decode_text(config.proof_results.read_bytes())
+            proof_bytes = config.proof_results.read_bytes()
+            if read_log is not None:
+                rel_proof = to_posix_relative(config.proof_results, root)
+                read_log.add(rel_proof, "proof_results", proof_bytes)
+            manifest_text, manifest_replaced = decode_text(proof_bytes)
             if manifest_replaced:
                 notes.append(
                     f"invalid UTF-8 decoded with replacement: "
@@ -1203,6 +1318,7 @@ def _run_stages(config: Config) -> _Stages:
         tuple(foreign),
         citation_map,
         hazards,
+        read_log,
     )
 
 
@@ -1242,7 +1358,31 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
         log.info("note: %s", note)
     json_text = dumps(report)
     md_text = render_markdown(report)
-    write_reports(config.out, json_text, md_text)
+    if stages.read_log is None:
+        write_reports(config.out, json_text, md_text)
+    else:  # C-25 / §3.1 (v1.25): the manifest is the third file of one temp-and-rename sequence
+        md_bytes, json_bytes = md_text.encode("utf-8"), json_text.encode("utf-8")
+        manifest_text = render_manifest(
+            version=__version__,
+            options={
+                "judge": config.judge,
+                "strict": config.strict,
+                "max_unknown": config.max_unknown,
+                "namespace": config.namespace,
+                "judge_model": config.llm.model if config.llm is not None else None,
+                "judge_prompt_sha256": prompt_sha if config.judge == "llm" else None,
+            },
+            log=stages.read_log,
+            reports=[
+                (to_posix_relative(config.out / MD_NAME, root), md_bytes),
+                (to_posix_relative(config.out / JSON_NAME, root), json_bytes),
+            ],
+            epoch=config.source_date_epoch,
+        )
+        write_named_files(
+            config.out,
+            [(JSON_NAME, json_text), (MD_NAME, md_text), (MANIFEST_NAME, manifest_text)],
+        )
     stage.done(out=to_posix_relative(config.out, root) if _inside(config.out, root) else ".")
 
     _emit_line(summary_line(report), stdout)
@@ -1290,6 +1430,14 @@ def execute_explain(config: ExplainConfig, stdout: io.TextIOBase | None = None) 
         stdout,
     )
     return 0
+
+
+def execute_verify(config: VerifyConfig, stdout: io.TextIOBase | None = None) -> int:
+    """v1.25 / R-107, C-26: re-hash what a manifest names. Writes nothing; no socket."""
+    result = verify_manifest(config.manifest.read_bytes(), config.root)
+    for line in result.lines:
+        _emit_line(line, stdout)
+    return result.exit_code
 
 
 def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) -> int:
@@ -1591,13 +1739,22 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
         if action.kind == "explain":
             assert action.explain_config is not None
             return execute_explain(action.explain_config)
+        if action.kind == "verify":
+            assert action.verify_config is not None
+            return execute_verify(action.verify_config)
         assert action.config is not None
         return execute(action.config)
     except UsageError as exc:
         log.error("%s", exc)
         return 2
     except (
-        SpecError, ResultsError, OutError, ProofError, CitationMapError, RiskFileError
+        SpecError,
+        ResultsError,
+        OutError,
+        ProofError,
+        CitationMapError,
+        RiskFileError,
+        ManifestError,
     ) as exc:
         log.error("%s", exc)
         return 3

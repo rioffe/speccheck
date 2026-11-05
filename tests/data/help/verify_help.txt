@@ -1,0 +1,23 @@
+usage: speccheck verify [-h] [--manifest FILE] [--root DIR]
+                        [--verbose [LEVEL]]
+
+Re-read every file a speccheck.manifest.json names, relative to --root, and report any that is missing or differs. Writes nothing; never re-runs check.
+
+options:
+  -h, --help         show this help message and exit
+  --manifest FILE    required. the speccheck.manifest.json to check (C-25);
+                     must resolve inside --root
+  --root DIR         the directory every path in the manifest is relative to.
+                     default: .
+  --verbose [LEVEL]  diagnostics on stderr: INFO or DEBUG (DEBUG adds the
+                     judge request and response lines, with the API key
+                     redacted); bare --verbose means INFO. default: ERROR
+                     (nothing below ERROR reaches stderr)
+
+exit codes:
+  0 every file matches   1 a file is missing or differs   2 usage error   3 malformed manifest
+output (stdout):
+  verify: ok - <N> files match, tree <first 12 hex digits of tree_sha256>
+  or one line per failing file, inputs first, then reports:
+  verify: missing <path>   |   verify: mismatch <path>
+  then: verify: FAILED - <k> of <N> files differ

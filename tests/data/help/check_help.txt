@@ -1,11 +1,11 @@
 usage: speccheck check [-h] --spec FILE [--src PATHS] [--tests PATHS]
                        [--results FILE] [--proof PATHS] [--proof-results FILE]
                        [--namespace NS] [--citation-map FILE]
-                       [--risk-file FILE] [--root DIR] [--out DIR]
-                       [--judge MODE] [--strict] [--max-unknown FRACTION]
-                       [--judge-concurrency N] [--judge-budget SECONDS|N%]
-                       [--jev-pre-triage] [--progress MODE]
-                       [--verbose [LEVEL]]
+                       [--risk-file FILE] [--manifest] [--root DIR]
+                       [--out DIR] [--judge MODE] [--strict]
+                       [--max-unknown FRACTION] [--judge-concurrency N]
+                       [--judge-budget SECONDS|N%] [--jev-pre-triage]
+                       [--progress MODE] [--verbose [LEVEL]]
 
 Run the conformance pipeline and write speccheck.json and SPEC_CONFORMANCE_REPORT.md under --out.
 
@@ -57,6 +57,12 @@ options:
                         UNCONTROLLED and fails --strict. must resolve inside
                         --root; unreadable is a usage error, malformed is an
                         input-contract error. default: none
+  --manifest            check-only (v1.25). also write speccheck.manifest.json
+                        under --out: the tool version, the options, and the
+                        SHA-256 and length of every file the run read and of
+                        both reports (C-25), for `speccheck verify` to re-
+                        check later. reads SOURCE_DATE_EPOCH when set.
+                        default: off
   --root DIR            base directory for the reports' relative paths and for
                         the containment rule: every path flag (--spec, --src,
                         --tests, --results, --out, --proof, --proof-results,
@@ -113,6 +119,9 @@ environment:
                         optional; default https://openrouter.ai/api/alpha/decisions and
                         ~typesafe/jev-latest
   SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
+  SOURCE_DATE_EPOCH     optional; read only by check --manifest: a non-negative integer of
+                        seconds since the Unix epoch, recorded as the manifest's generated_at
+                        (no default: without it the manifest carries no time)
   COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
                         it)
 
