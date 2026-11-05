@@ -4,6 +4,21 @@
 >   claim all say v1.24 (`test_prose_artifacts_claim_the_shipped_version` binds them). Built
 >   2026-10-27 in three waves (`docs/plans/IMPLEMENTATION_PLAN.md`; `SPEC_BUILD_REPORT.md` §0o).
 >
+> - **Specified, not yet built:** v1.25 — a provenance manifest a quality system can file as a
+>   record, and hazard-to-control traceability
+>   (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md`, 2026-11-05;
+>   D-61..D-65 confirmed on the recommended branches, same day; `docs/plans/ISO13485_READINESS_PLAN.md`
+>   §3.2, §3.3). **(a)** `check --manifest` writes a third file, `speccheck.manifest.json`, binding
+>   both reports to the SHA-256 of every file the run read and to the tool version, because a
+>   code edit made after the test run left both v1.24 reports byte-identical (R-106, C-25, I-020).
+>   **(b)** `speccheck verify` re-hashes what a manifest names and exits `1` naming each changed or
+>   missing file (R-107, C-26). **(c)** A `*(controls: HAZ-003)*` marker on an R/C/I/K/E row names
+>   the hazards from the user's risk file that the id is a risk control for, and the reports roll
+>   them up as `VERIFIED`, `NOT_VERIFIED` or `UNCONTROLLED` (R-108, C-27). **(d)** `--risk-file`
+>   lists the hazards allocated to the software, and an `UNCONTROLLED` one fails `--strict` (R-109,
+>   C-28, R-15 amended). Every addition is conditional on its flag or marker: a run using none is
+>   byte-identical to v1.24 (I-021). No id status, verdict or metric moves.
+>
 > - **v1.23.1 (built before v1.24):** Built 2026-10-27 in
 >   four waves (`docs/plans/IMPLEMENTATION_PLAN.md`; `SPEC_BUILD_REPORT.md` §0n): v1.23's
 >   namespaced ids and citation map, with the seventeen review findings below folded in, plus two
@@ -134,7 +149,9 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 - No change semantics. An edge (C-12) records that one statement names another id — not why, and not whether the dependency is real. `impact` (R-37) lists what a change *might* touch, at the depth the operator asked for; it never marks an id stale, failed, or non-conformant. The next `check` reports what actually happened.
 - No IDE integration, daemon mode, watch mode, or web UI.
 - Language adapters exist for Python (v0.1), Swift (v1.6, R-31) and JavaScript/TypeScript (v1.22, R-104); every other language gets file-level attribution (O-2). No adapter parses its language with a real parser except Python (`ast`); the Swift adapter is line-based (D-17) and the JavaScript/TypeScript adapter is token-based (D-56).
-- The checker never reads its own outputs as inputs: the spec, the results file, the two report files of `check` and the two of `impact` are excluded from every scan (C-03, F-002).
+- The checker never reads its own outputs as inputs: the spec, the results file, the two report files of `check` and the two of `impact`, and (v1.25) the manifest are excluded from every scan (C-03, F-002).
+- No risk management (v1.25). A hazard id in a CONTROLS marker or a risk file (C-27, C-28) is a label owned by the user's ISO 14971 risk management file; the checker reports whether the requirements labelled as its software controls are `PASSING`, never whether a risk is acceptable, and never estimates or evaluates one.
+- No signatures or attribution (v1.25). The manifest (C-25) is a deterministic, hashable record of what a run read and wrote; who ran it, who approved it, and its electronic signature belong to the user's quality system (D-62).
 
 **A known limitation, stated rather than hidden (F-013):** citation is literal. A test that mentions `R-03` as *data* — asserting on a report that contains it, or on an error message — cites R-03 exactly as a test that proves it does. The `speccheck:ignore` markers in C-01 are the opt-out; they are the author's responsibility, and `speccheck` never infers intent from context. Since v1.23 two lexical, author-declared exceptions exist: a token written `ns:ID` is read as someone else's id (C-22), and `--citation-map` lets an owner of the specs but not of the tests state a citation outside the code (C-23) — labelled `mapped` everywhere it is read, never inferred.
 
@@ -177,7 +194,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-12** | The checker MUST write a Markdown report (`SPEC_CONFORMANCE_REPORT.md`) laid out per C-08 in which every declared ID appears exactly once. | prompt ("traceable conformance report") |
 | **R-13** | The checker MUST write a JSON report (`speccheck.json`) conforming to C-07 that contains everything the Markdown report shows. | CI consumption |
 | **R-14** | The checker MUST exit with the codes in §5.4, and the exit code MUST be a pure function of the JSON report content plus the `--strict` flag. | CI gating |
-| **R-15** | With `--strict`, any in-scope ID whose status is not `PASSING`, any dangling citation, and any stale citation MUST cause exit `1`. Status (C-05) is the only input to this rule; individual judge verdicts are not consulted again (F-003). | spec-build "done when" |
+| **R-15** | With `--strict`, any in-scope ID whose status is not `PASSING`, any dangling citation, any stale citation, and (v1.25) any hazard whose status is `UNCONTROLLED` (C-27) MUST cause exit `1`. Status (C-05) and hazard status (C-27) are the only inputs to this rule; individual judge verdicts are not consulted again (F-003). | spec-build "done when"; the hazard clause: `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 B, D-64 |
 | **R-16** | With `--judge none` or `--judge mock`, two runs over byte-identical inputs MUST produce byte-identical `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json`. | spec-writing §precision rules (determinism) |
 | **R-17** | The checker MUST implement the diagnostics contract in §5.3: silent by default; `--verbose`/`--verbose INFO` emit metadata only; `--verbose DEBUG` additionally emits judge prompts and responses; all diagnostics go to stderr and never alter stdout or the report files. | spec-writing §5 cross-cutting contracts |
 | **R-18** | With `--judge none` or `--judge mock`, the process MUST perform no network I/O, and `speccheck --self-check` MUST verify this boundary. | §0 boundary |
@@ -210,6 +227,10 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-103** | `check`, `impact` and `explain` MUST accept `--citation-map FILE`; each resolving entry MUST yield one *mapped* test citation of its id on the named test case, marked in `speccheck.json`, the Markdown report, the `explain` trace and the summary line, and MUST NOT change C-05, the judge's eligibility or any exit code on its own (C-23, E-70..E-73, I-019). | proposal §1 B: a ~1,100-id retrofit needed an out-of-tool injector and a throwaway copy because the engineers own the repositories |
 | **R-104** | For every `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` file in the `--tests` list the checker MUST delimit test cases per the JavaScript/TypeScript adapter (C-24) — `it` and `test` calls (with the `only`, `skip`, `todo`, `concurrent`, `each`, `runIf`, `skipIf` forms) named by the `describe` titles enclosing them — with a span that begins at the first line of the comment block above the call and ends at the line holding the call's closing parenthesis, and MUST join their citations to a JUnit `<testcase>` by C-04's path-classname and `describe > test` name rules, so that a citation written above or inside a vitest or jest test counts exactly as a Python citation does under R-04 and R-05. | a regulated-domain user's report (2026-10-14: "TypeScript tests can never join a result"; their review interface could reach `UNVERIFIED` and no further); `vitest run --reporter=junit` measured 2026-10-27 (C-04) |
 | **R-105** | On exit `0` without `--strict`, the summary line's `<STATUS>` (§5.1) MUST be `UNPROVEN` instead of `CONFORMING` whenever R-15's conditions do not hold — some in-scope id is not `PASSING`, or `dangling` or `stale` is non-empty. `CONFORMING` MUST be printed only when they all hold, and `NOT CONFORMING` on exit `1` as before. The exit code, every status and `speccheck.json` are unchanged (R-14, §5.4); C-08's §1 verdict line, being the summary line verbatim, follows. | `docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md` §1 A: on the golden fixture without `--results`, a non-strict run printed `CONFORMING - 0/20 passing` and exited `0` |
+| **R-106** | `check` MUST accept a boolean `--manifest` flag (v1.25). With it, after both reports are written, `check` MUST write `speccheck.manifest.json` under `--out` per C-25, recording the tool version, the effective options, the SHA-256 and byte length of every file the run read, and the SHA-256 and byte length of both reports, and MUST NOT change a byte of either report. Without it, no manifest is written and `SOURCE_DATE_EPOCH` is not read (I-021). | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 A: a line appended to `src/speccheck/report.py` after the test run left both v1.24 reports byte-identical (`d51c504c…`, `5a9f30c3…`); D-61, D-62 |
+| **R-107** | The checker MUST accept a fourth subcommand, `speccheck verify --manifest FILE [--root DIR] [--verbose [LEVEL]]` (v1.25), which MUST re-read, relative to `--root`, every file a C-25 manifest names in `inputs` and `reports`, recompute each SHA-256 and byte length, and report per C-26: exit `0` when every file is present with its recorded hash and length, `1` when any is missing or differs, `2`/`3` on a usage or manifest fault (E-82, E-83). It MUST NOT write any file, MUST NOT open a network connection, and MUST NOT re-run `check` (D-65). | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 A; D-65 |
+| **R-108** | A declaring row or heading of an R, C, I, K or E id MAY carry the CONTROLS marker (C-01, C-27; v1.25). The checker MUST record the hazard ids it names on that id (C-07 `controls`) and MUST compute, for every hazard named by a marker or listed in a risk file, one status — `VERIFIED`, `NOT_VERIFIED` or `UNCONTROLLED` — from the C-05 statuses of its non-retired controls (C-27). The marker MUST NOT change any id's status, any C-12 edge, the judge's eligibility, or any value in `metrics`. | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 B: a medical-device team built "a control row and a verifying test for every hazard family in our risk file" by hand (`letter_from_johnathan.md`, "What we had to adapt"); D-63 |
+| **R-109** | `check` MUST accept `--risk-file FILE` (C-28; v1.25). Every hazard the file lists that no non-retired declared id controls MUST have status `UNCONTROLLED` (E-81), and with `--strict` an `UNCONTROLLED` hazard MUST cause exit `1` (R-15). A CONTROLS marker naming a hazard the file does not list MUST yield a Note (E-79) and MUST NOT affect the exit code. | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 B; D-64 |
 
 ---
 
@@ -217,7 +238,7 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 
 ### 3.1 Lifecycle
 
-A run is a single, stateless pipeline. There is no persistent state between runs, no cache, and no partial-output mode: either both report files are written or neither is. The Reporter guarantees this by rendering both documents in memory, then, in this order (F-106): (1) delete any leftover `<out>/.speccheck.json.*.tmp` and `<out>/.SPEC_CONFORMANCE_REPORT.md.*.tmp` from earlier runs; (2) write `.speccheck.json.<nonce>.tmp` and `.SPEC_CONFORMANCE_REPORT.md.<nonce>.tmp`, where `<nonce>` is 8 random hex digits chosen per run (F-103); (3) rename the JSON temporary to `speccheck.json`; (4) rename the Markdown temporary to `SPEC_CONFORMANCE_REPORT.md`. If any step fails — an interrupt (E-41) included — every temporary and any file this run already renamed is removed before exit `3` (F-015). The nonce never appears in either report, so I-002 is unaffected.
+A run is a single, stateless pipeline. There is no persistent state between runs, no cache, and no partial-output mode: either both report files are written or neither is. The Reporter guarantees this by rendering both documents in memory, then, in this order (F-106): (1) delete any leftover `<out>/.speccheck.json.*.tmp` and `<out>/.SPEC_CONFORMANCE_REPORT.md.*.tmp` from earlier runs; (2) write `.speccheck.json.<nonce>.tmp` and `.SPEC_CONFORMANCE_REPORT.md.<nonce>.tmp`, where `<nonce>` is 8 random hex digits chosen per run (F-103); (3) rename the JSON temporary to `speccheck.json`; (4) rename the Markdown temporary to `SPEC_CONFORMANCE_REPORT.md`. If any step fails — an interrupt (E-41) included — every temporary and any file this run already renamed is removed before exit `3` (F-015). The nonce never appears in either report, so I-002 is unaffected. With `--manifest` (v1.25, C-25) the manifest is a third document in the same sequence: rendered in memory after both reports (its `reports` hashes are of their rendered bytes), its leftover `<out>/.speccheck.manifest.json.*.tmp` deleted at step (1), its temporary written at step (2), and renamed to `speccheck.manifest.json` as step (5), after the Markdown rename; a failure at any step removes it too.
 
 | Stage | Owner | Input | Output | Fails with |
 | ----- | ----- | ----- | ------ | ---------- |
@@ -227,10 +248,13 @@ A run is a single, stateless pipeline. There is no persistent state between runs
 | scan-tests + attribute | Extractor, Attributor | `--tests` roots | `TestCase[]`, `Citation[]` | never (E-12 is a note) |
 | apply-map (optional) | Extractor | `--citation-map` (C-23), the scanned `TestCase[]` | mapped `Citation[]` added to the scan's; `citation_map` counts; unresolved-entry Notes (E-71) | exit `3` (E-70) |
 | map-results | Results Mapper | `--results` | `Outcome[]` (C-04) | exit `3` (E-05) |
+| read-risk-file (optional) | CLI | `--risk-file` (C-28; v1.25) | `Hazard[]` (id, title) | exit `3` (E-84) |
 | graph + status | Grapher | all of the above | `IdRecord[]` with deterministic status; dangling/stale lists; metrics | never |
 | triage (optional) | Triage provider | judge-eligible edges (I-010) | one confidence per edge, used to order the judge's queue and then discarded (K-16, C-17, I-015) | never (E-59 is a Note) |
 | judge (optional) | Judge | eligible edges, in K-16's ascending-confidence order when triage ran, else declaration order | `Verdict[]` (C-06); progress indicator on stderr while running (R-30, C-11) | never (E-14..E-17 yield `UNKNOWN`) |
+| hazards (optional) | Grapher | `SpecId.controls` (C-27), `Hazard[]`, the final statuses | `HazardRecord[]` (C-27; v1.25), present only when a marker or `--risk-file` exists | never (E-78..E-81 are Notes) |
 | report | Reporter | everything | `SPEC_CONFORMANCE_REPORT.md`, `speccheck.json` | exit `3` if `--out` unwritable |
+| manifest (optional) | Reporter | the paths and bytes every earlier stage read, the two reports' bytes | `speccheck.manifest.json` (C-25; v1.25), only with `--manifest`, renamed into place with the two reports (§3.3) | exit `3` if `--out` unwritable |
 | exit | CLI | JSON report, `--strict` | exit code (§5.4), summary line | — |
 
 **The `impact` pipeline (v1.13).** `speccheck impact` is a second, shorter pipeline over the same Extractor and Reporter; it shares parse-args, extract-spec, and — only when `--src`/`--tests` are given — the two scan stages, and it has no results, graph, or judge stage. It writes `impact.json` and `IMPACT_REPORT.md` with the same in-memory render, nonce-named temporaries (`.impact.json.<nonce>.tmp`, `.IMPACT_REPORT.md.<nonce>.tmp`), leftover deletion, and rename order (JSON first) as above, and the same cleanup on failure (E-18, E-41). The two subcommands never write each other's files.
@@ -306,10 +330,13 @@ stage, reads no report file as input (§0's boundary), and writes nothing at all
 | `speccheck.json` | `--out` | `schema_version: "1.5"` (`"1.0"` through v1.6; `"1.1"` added `title` in v1.7; `"1.2"` `clause` per verdict in v1.9; `"1.3"` `recorded` per id in v1.10; `"1.4"` `decisions` and `edges` in v1.13; `"1.5"` `declared` per test edge and `declared_ratio` in v1.14) | C-07 |
 | `IMPACT_REPORT.md` | `--out`, by `impact` only | mirrors `impact.json` `schema_version` | C-13 |
 | `impact.json` | `--out`, by `impact` only | `schema_version: "1.0"` (v1.13) | C-13 |
+| `speccheck.manifest.json` | `--out`, by `check --manifest` only (v1.25) | `manifest_version: "1.0"` | C-25 |
 
 A subcommand's two files are overwritten on every successful run of that subcommand, via the temp-and-rename sequence in §3.1; `check` never touches the `impact` files and vice versa. No other file is ever written, and no temporary survives a run (I-001).
 
 `explain` (v1.17) writes **no** durable artifact: its trace goes to stdout only (C-18, D-33), so this table and every golden in it are unchanged by it.
+
+`check --manifest` (v1.25) writes its manifest in the same temp-and-rename sequence as the two reports: the manifest's `reports` hashes are of the report bytes about to be renamed into place, and either all three files are written or none is. A run without the flag never creates, modifies or deletes a manifest, including a stale one left in `--out` by an earlier run (D-61). `verify` (v1.25) writes **no** durable artifact (C-26).
 
 ---
 
@@ -366,7 +393,8 @@ Lines (F-301): SPEC.md is split into lines on "\n"; a trailing "\r" on any line 
         the declaring line MUST be a HEADING LINE and the ID token (optionally wrapped ~~ ~~) MUST
         be the first token after the "#" run; "### 9.1 Extraction (C-01, C-02)" declares nothing.
         title     := the rest of the heading text after the ID token — and after the RECORDED marker
-                     when the token that follows the ID token is exactly `*(recorded)*` (rule below) —
+                     when the token that follows the ID token is exactly `*(recorded)*` (rule below),
+                     and after a CONTROLS marker that follows either (v1.25, rule below) —
                      trimmed, whitespace-collapsed, with a trailing run of "#" that is preceded by
                      whitespace removed ("### C-03 Title ###" -> "Title"; "### T-48 *(recorded)* Run"
                      -> "Run")
@@ -394,6 +422,16 @@ Lines (F-301): SPEC.md is split into lines on "\n"; a trailing "\r" on any line 
   part of the title. The marker is meaningful for family T only; on any other family it is ignored
   and noted (E-50). `*(Recorded)*`, `(recorded)`, and a marker that is not that first token are
   decoration like any other and mark nothing. A retired declaration may also be recorded.
+  CONTROLS marker (R-108, v1.25; C-27 pins its grammar and the roll-up): a declaration CONTROLS the
+  hazards a `*(controls: HAZ-003, HAZ-007)*` marker names when that marker begins at the token
+  immediately after the ID form — or immediately after the RECORDED marker when one is present.
+  In a row it is part of the DECORATION and so never part of the statement; in a heading it is not
+  part of the title, exactly as RECORDED is not. The marker may contain spaces (after each comma),
+  so it is matched as the longest prefix of the remaining text that C-27's CONTROLS grammar
+  accepts, not as one whitespace-separated token. It is meaningful for families R, C, I, K and E;
+  on a T id it is ignored and noted (E-78). Text that begins `*(controls:` in that position but does
+  not match C-27 controls nothing and stays decoration (or title text), with a Note (E-80). A hazard
+  id is not a TOKEN: it yields no citation, no C-12 edge and no Note of its own, whatever its shape.
   A SECOND declaration of the same ID is E-02 (exit 3); the message names the ID and both lines.
   Nothing "wins": the run produces no report (Q-006).
   (c) decision row (v1.13; R-36; family D, DECLARATION-ONLY): a TABLE is a maximal run of
@@ -464,6 +502,8 @@ class SpecId:
     line: int            # 1-based line of the declaration in SPEC.md
     retired: bool
     recorded: bool       # C-01 RECORDED marker (R-35); only ever True for family T
+    controls: tuple[str, ...]  # v1.25, C-01 CONTROLS marker (R-108, C-27): the hazard ids it names,
+                         # unique, code-point sorted; () when absent, malformed (E-80), or on a T id (E-78)
 
 @dataclass(frozen=True)
 class Decision:                      # v1.13, C-01 (c); never a SpecId, never in `ids`
@@ -633,10 +673,11 @@ Excluded from every scan (F-002), whether or not they lie under a --src/--tests 
   whether or not they exist yet: the file named by --spec, the file named by --results,
   <out>/SPEC_CONFORMANCE_REPORT.md, <out>/speccheck.json, <out>/IMPACT_REPORT.md, <out>/impact.json
   (v1.13), the file named by --against (impact only), the file named by --citation-map and the
-  file named by --proof-results (v1.23.1, F-702: an input is never read as citations), and every
+  file named by --proof-results (v1.23.1, F-702: an input is never read as citations), the file
+  named by --risk-file and <out>/speccheck.manifest.json (v1.25), and every
   file directly under <out> whose
-  name starts with ".speccheck.json.", ".SPEC_CONFORMANCE_REPORT.md.", ".impact.json." or
-  ".IMPACT_REPORT.md." and ends with ".tmp" (the §3.1 temporaries, including leftovers from a
+  name starts with ".speccheck.json.", ".SPEC_CONFORMANCE_REPORT.md.", ".impact.json.",
+  ".IMPACT_REPORT.md." or ".speccheck.manifest.json." and ends with ".tmp" (the §3.1 temporaries, including leftovers from a
   killed run; F-103). Exclusion is by
   resolved path (symlinks resolved), is silent (no Note), and applies before K-02/K-03 filtering.
 ```
@@ -835,6 +876,7 @@ Mock provider (judge_mock.py):
       "id": "R-07",
       "family": "R",
       "recorded": false,
+      "controls": ["HAZ-003", "HAZ-007"],   // v1.25, C-27; key omitted entirely on an id with no CONTROLS marker
       "title": "…",
       "statement": "…",
       "line": 88,
@@ -860,6 +902,7 @@ Mock provider (judge_mock.py):
   "edges": [ {"src": "R-01", "kind": "depends_on", "dst": "C-01", "retired": false},              // v1.13, C-12 order; [] when no statement names another id
              {"src": "T-01", "kind": "verifies",   "dst": "R-01", "retired": false},
              {"src": "D-08", "kind": "affects",    "dst": "C-10", "retired": false} ],
+  "hazards": [ {"id": "HAZ-003", "title": "Wrong measurement shown", "controls": ["R-07"], "status": "VERIFIED"} ],   // v1.25, C-27; key omitted entirely unless a CONTROLS marker or --risk-file exists
   "dangling": [ {"id": "R-99", "file": "src/pkg/x.py", "line": 3} ],
   "stale":    [ {"id": "R-02", "file": "tests/test_old.py", "line": 9} ],
   "unattributed_results": [ {"classname": "tests.test_gone", "name": "test_x", "outcome": "passed"} ],
@@ -911,6 +954,12 @@ Citation-map and foreign keys (v1.23; R-101, R-103, C-22, C-23): `foreign` (top 
   `--citation-map` was given, as is `mapped` on every `dangling` and `stale` entry (after `line`;
   true for an entry a map produced, F-704). `schema_version` stays `"1.5"` (I-019): like `proof`, these are
   conditional keys, and a run that needs none of them is byte-identical to v1.22.
+Hazard keys (v1.25; R-108, R-109, C-27, C-28): `controls` (in an id record, after `recorded`) is
+  present only on an id whose declaration carries a valid CONTROLS marker; `hazards` (top level,
+  after `edges`) only when at least one id carries one or `--risk-file` was given, and then it lists
+  every hazard either source names (C-27). `schema_version` stays `"1.5"` (I-021): like `proof` and
+  `citation_map`, these are conditional keys, and a run that needs neither is byte-identical to v1.24.
+  The manifest (C-25) is a separate file and adds no key here.
 Proof field (v1.19, amended v1.19.1 per F-504; R-100, C-20, C-21, D-49): `proof` is an array of
   `{name, file, line, state, error}`, one entry per declaration that cites the id (shaped like
   `tests`); `state` is `checked`, `failed`, `unknown`, or `stale` (K-17); `error` is the build's
@@ -1003,6 +1052,9 @@ Shape rules (F-016): `by_family` ALWAYS has exactly the six keys R, C, I, K, E, 
 ## 8. Judge details           # present only when judge enabled: one row per judged edge (verdict non-null): ID, case, Verdict,
                                # Clause (the JSON `clause`, tail-truncated to 80 characters, em dash when ""), Rationale (v1.9, R-34)
 ## 9. Notes                   # bullet list or "None."
+## 10. Hazards                # v1.25, C-27: present only when the JSON `hazards` key is; one row per hazard in its order:
+                               # | Hazard | Title | Controls | Status |, Title an em dash when null, each control rendered
+                               # `R-12 (PASSING)` (its C-05 status), semicolon-joined, an em dash when there is none
 ```
 
 ### C-09 LLM provider configuration
@@ -1404,6 +1456,7 @@ indentation below are pinned, so two runs over identical inputs are byte-identic
 ```text
 ID <id>[ (RETIRED)][ (recorded)]
 status: <STATUS> (<the C-05 step that set it>)
+controls: <HAZ> (<hazard status>)[, <HAZ> (<hazard status>)...]
 statement:
   <the id's statement, C-10/K-14, every line indented by two spaces>
 sources:
@@ -1426,6 +1479,10 @@ impact (<depth>):
   with a result passed or was skipped`; `WEAKLY_PASSING` → `step 5: no judged edge asserts the
   statement`. The `RETIRED` marker in the `ID` line
   is appended for a retired id and the `(recorded)` marker for an R-35 RECORDED id; both may appear.
+- **Controls (v1.25).** Printed only when the id carries a CONTROLS marker (C-27): its hazards in
+  `SpecId.controls` order, each with its C-27 status computed over the whole specification, comma
+  joined. `explain` takes no `--risk-file`, so a hazard's title is never shown here; an id with no
+  marker has no `controls:` line, and its trace is byte-identical to v1.24's (I-021).
 - **Statement.** `SpecId.text` verbatim (C-10: title, newline, body), each line prefixed by two
   spaces; a K-14 truncation marker is echoed as it stands.
 - **Sources.** One line per source citation, ascending by (file, line), each two-space indented as
@@ -1452,7 +1509,7 @@ impact (<depth>):
 
 ### C-19 Help contract (v1.18; R-41)
 
-Every argument definition of the three parsers except `-h` carries a non-empty help string. One
+Every argument definition of the four parsers (`verify` added in v1.25) except `-h` carries a non-empty help string. One
 flag's entry is one paragraph, in this order:
 
 1. **Purpose** — one sentence saying what the flag does.
@@ -1466,18 +1523,22 @@ flag's entry is one paragraph, in this order:
    `--root` containment, E-58).
 
 The flag's metavar MUST be the value vocabulary of §5.1's synopsis — `PATHS`, `FILE`, `DIR`,
-`IDS`, `MODE`, `FRACTION`, `N`, `SECONDS|N%`, `LEVEL`, and `NS` (v1.23) — never the argparse destination name.
+`IDS`, `MODE`, `FRACTION`, `N`, `SECONDS|N%`, `LEVEL`, and `NS` (v1.23) — never the argparse destination name. `--manifest` on `check` is a boolean and has no metavar; on `verify` it takes `FILE` (v1.25).
 
 Each `--help` screen additionally carries:
 
 - an **`environment:` block** in its epilog, one entry per variable the kernel reads: its name(s),
   the condition under which it is read, whether it is required, and its default; the names are
   exactly the `SPECCHECK_*` literals `src/speccheck/*.py` reads (T-98), plus one clause for
-  `COLUMNS`, the only variable that changes a `--help` run's output (its line wrapping; D-41). No
+  `COLUMNS`, the only variable that changes a `--help` run's output (its line wrapping; D-41), and
+  one for `SOURCE_DATE_EPOCH` on `check`'s screen: read only with `--manifest`, optional, a
+  non-negative integer, no default (v1.25, C-25). No
   entry ever carries a value (R-23, I-007).
 - an **exit-code epilog**: the §5.4 set (`0` conforming, `1` not conforming, `2` usage, `3` input
   contract) and the §5.1 summary line, so an operator or agent can construct and interpret a run
   from the help alone (D-40).
+  `verify`'s screen (v1.25) states its own meanings instead: `0` every file matches, `1` a file is
+  missing or differs, `2` usage, `3` malformed manifest, and the C-26 output lines.
 
 The help's value tokens are the *validator's* tokens: for every flag with a finite accepted set,
 the tokens its help names equal the tokens its own usage error names (T-95), and the tokens are
@@ -1643,6 +1704,123 @@ JavaScript/TypeScript adapter (files ending .ts .tsx .mts .cts .js .jsx .mjs .cj
     `" > top level"`, which C-04's leading-separator rule joins.
 ```
 
+### C-25 The provenance manifest (v1.25; R-106)
+
+```text
+File: <out>/speccheck.manifest.json, written by `check --manifest` only (D-61), in the §3.1
+  temp-and-rename sequence with the two reports. Serialized as speccheck.json is (C-07): UTF-8,
+  two-space indent, "\n" line endings, a trailing newline, keys in exactly this order:
+{
+  "manifest_version": "1.0",
+  "tool": {"name": "speccheck", "version": "<__version__>"},
+  "options": {"judge": "none|mock|llm", "strict": false, "max_unknown": 0.2000,
+              "namespace": null, "judge_model": null, "judge_prompt_sha256": null},
+  "inputs": [ {"path": "SPEC.md", "role": "spec", "sha256": "<64 hex>", "bytes": 123456}, ... ],
+  "tree_sha256": "<64 hex>",
+  "reports": [ {"path": "out/SPEC_CONFORMANCE_REPORT.md", "sha256": "<64 hex>", "bytes": 2048},
+               {"path": "out/speccheck.json",             "sha256": "<64 hex>", "bytes": 9000} ],
+  "generated_at": "2026-11-05T00:00:00Z"            // only when SOURCE_DATE_EPOCH is set (D-62)
+}
+options   `namespace` is the --namespace value or null; `judge_model` is SPECCHECK_JUDGE_MODEL
+          verbatim and `judge_prompt_sha256` is C-07's value, both null unless --judge llm;
+          `max_unknown` is emitted as C-07 emits it (four places). No path flag appears here:
+          every path is in `inputs`.
+inputs    one entry per (file, role) the run read: role "spec" (--spec), "src" / "tests" /
+          "proof" (each file a --src / --tests / --proof scan selected, after the C-03 exclusions,
+          including one K-02/E-10 or E-29 skipped, hashed over its full bytes, because its Note
+          is part of the report), "results", "citation_map", "proof_results", "risk_file".
+          A file selected under two roles is listed once per role. A file excluded by C-03, or
+          skipped as a symlink (E-11), was not read and is not listed. Sorted by (path, role),
+          both by code point.
+path      --root-relative, "/" separators (R-20), never absolute.
+sha256    lower-case hex SHA-256 of the raw bytes read, before C-01's CRLF normalization: a CRLF
+          twin of SPEC.md yields the same reports (I-002) and a different manifest.
+bytes     the length of those bytes.
+tree_sha256  SHA-256 of the UTF-8 text made of one line "<sha256>  <path>\n" (two spaces: the
+          `shasum -a 256` line format) per DISTINCT path in `inputs`, in code-point order of path,
+          so that `shasum -a 256 <files> | LC_ALL=C sort -k2 | shasum -a 256` reproduces it.
+reports   the two report files of this run, Markdown first, paths --root-relative; hashes are of
+          the bytes this run renamed into place.
+generated_at  present only when SOURCE_DATE_EPOCH is set: its value, a non-negative decimal
+          integer of seconds since the Unix epoch, as RFC 3339 UTC with a "Z" suffix and no
+          fractional part. Any other value is E-85. No wall-clock time, host name, user name,
+          duration or absolute path appears anywhere in the manifest (D-62).
+Under --judge none and --judge mock the manifest is byte-identical for identical inputs (I-020).
+Under --judge llm it records which reports were produced, not that a re-run reproduces them.
+```
+
+### C-26 `verify` (v1.25; R-107)
+
+```text
+speccheck verify --manifest FILE [--root DIR] [--verbose [INFO|DEBUG]]
+  --manifest FILE  required; a C-25 manifest, resolved inside --root (E-09's rule; E-82 otherwise).
+  --root DIR       default "."; every `path` in the manifest is resolved against it.
+Reads the manifest, then every `inputs[].path` (each distinct path once) and every `reports[].path`,
+  in that order, and compares SHA-256 and byte length with the recorded values. Re-hashes only:
+  it does not parse SPEC.md, does not re-run `check`, and does not read `tool`, `options` or
+  `generated_at` except to validate their presence (D-65). Writes no file; opens no socket.
+stdout, one line each, ASCII except for the paths, which are UTF-8 (R-29):
+  verify: missing <path>          the file does not exist or cannot be read
+  verify: mismatch <path>         hash or length differs
+    one such line per failing file, inputs first then reports, each in manifest order; then
+  verify: FAILED - <k> of <N> files differ                                         -> exit 1
+  or, when nothing failed, the single line
+  verify: ok - <N> files match, tree <the first 12 hex digits of tree_sha256>      -> exit 0
+  <N> = the number of distinct paths in `inputs` + the number of `reports` entries; <k> <= <N>.
+  A path present in `inputs` under two roles is checked and counted once.
+Faults: --manifest missing, unreadable or outside --root -> E-82 (exit 2); malformed -> E-83 (exit 3).
+  `tree_sha256` is not recomputed: it is a digest of the per-file hashes that are checked.
+```
+
+### C-27 The CONTROLS marker and the hazard roll-up (v1.25; R-108)
+
+```text
+CONTROLS := "*(controls:" WS? HAZID ( WS? "," WS? HAZID )* WS? ")*"
+HAZID    := [A-Za-z0-9][A-Za-z0-9_.-]{0,63}             # at most 64 characters; case-sensitive
+WS       := one or more spaces or tabs
+Position (C-01): beginning at the token after the ID form, or after the RECORDED marker. One
+  CONTROLS marker counts per declaration; a second one later in the decoration is decoration.
+SpecId.controls := the HAZIDs, de-duplicated, sorted by code point. () on a T id (E-78) and
+  when the text in that position begins "*(controls:" but fails the grammar (E-80).
+HAZARD SET H := every HAZID in any SpecId.controls (retired ids included) ∪ every id in the
+  --risk-file (C-28).
+For each h in H:  CTRL(h) := the NON-RETIRED declared ids whose controls contain h, in C-07 id order.
+  UNCONTROLLED  if CTRL(h) is empty  (no marker names h, or every id naming it is retired)
+  VERIFIED      else if every id in CTRL(h) has C-05 status PASSING   (WEAKLY_PASSING is not PASSING)
+  NOT_VERIFIED  otherwise
+  The statuses are computed after C-05 step 5, from the final statuses; nothing flows back.
+HazardRecord := {"id": h, "title": the risk file's title, or null, "controls": CTRL(h), "status"}
+JSON: per-id `controls` and top-level `hazards` (sorted by `id`, code point), per C-07's hazard keys.
+Markdown: `## 10. Hazards` per C-08. Both present only when H is non-empty or --risk-file was given.
+Summary line (§5.1): when `hazards` is present, the line ends "; hazards: <V>/<H> verified" — <V> the
+  VERIFIED count, <H> = |H| — after the C-23 mapped suffix when both apply ("0/0" when --risk-file
+  lists nothing and no marker exists).
+--strict (R-15): an UNCONTROLLED hazard causes exit 1 (D-64); VERIFIED and NOT_VERIFIED add
+  nothing, since a NOT_VERIFIED hazard has a non-PASSING in-scope control that R-15 already counts.
+Notes: E-78, E-79, E-80, E-81, each at most once per run.
+`impact` parses the marker (it is C-01 grammar) and ignores it: no hazard appears in `impact.json`
+  or `IMPACT_REPORT.md`, and a changed marker is not a C-13 change.
+```
+
+### C-28 The risk file (v1.25; R-109)
+
+```text
+--risk-file FILE  check only. UTF-8 JSON, resolved inside --root (E-09), excluded from every scan
+  (C-03), at most 2 MiB (K-20). Read after extract-spec and before graph + status (§3.1).
+  {"hazards": [ {"id": "HAZ-003", "title": "Wrong measurement shown"}, ... ]}
+  id     a HAZID (C-27); required.
+  title  a string; optional (null in the report when absent).
+  Unknown keys, top-level or per entry, are ignored. Order in the file is free; the report sorts.
+Meaning: the file lists exactly the hazards whose risk control is allocated to the software this
+  SPEC.md specifies (an export of the user's ISO 14971 risk management file, filtered). Hazards
+  controlled elsewhere (hardware, labelling, another software item) are left out of it; listing
+  one makes it UNCONTROLLED here and fails --strict (E-81, D-64).
+Faults: unreadable -> exit 2 (`--risk-file: cannot read <path>`); not JSON, `hazards` absent or not
+  a list, an entry not an object, `id` missing or failing HAZID, `title` present and not a string,
+  a duplicate `id`, or over K-20 -> E-84 (exit 3), before C-05 runs and before any report is written.
+An empty list is valid: H is then the marker hazards alone, and `hazards` is present.
+```
+
 ---
 
 ## 5. Interface specification
@@ -1655,12 +1833,14 @@ speccheck check --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results ju
                 [--root DIR] [--out DIR] [--judge none|mock|llm] [--strict]
                 [--judge-concurrency N] [--judge-budget SECONDS|N%] [--jev-pre-triage]
                 [--max-unknown FRACTION] [--progress auto|always|never] [--verbose [INFO|DEBUG]]
+                [--manifest] [--risk-file FILE]
 speccheck impact --spec SPEC.md (--changed IDS | --against OLD_SPEC.md) [--src PATHS]... [--tests PATHS]...
                  [--namespace NS] [--citation-map FILE] [--root DIR] [--out DIR] [--depth N] [--verbose [INFO|DEBUG]]
 speccheck explain ID --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--results junit.xml]
                  [--namespace NS] [--citation-map FILE] [--root DIR] [--judge none|mock|llm] [--depth N] [--judge-concurrency N]
                  [--judge-budget SECONDS|N%] [--jev-pre-triage] [--max-unknown FRACTION]
                  [--progress auto|always|never] [--verbose [INFO|DEBUG]]
+speccheck verify --manifest FILE [--root DIR] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
 speccheck --version
 speccheck --help
@@ -1677,7 +1857,7 @@ speccheck --help
 | `--proof-results FILE` | `check`-only (v1.19, C-21). A JSON proof manifest, read and joined to the C-20 citations (K-17); the checker never runs a prover. Absent → every citation's state is `unknown` (no manifest to confirm it). Unreadable, malformed, or missing `build`/`theorems` → E-65. | `2` / `3` |
 | `--namespace NS` | `check`, `impact`, `explain` (v1.23, R-102). At most once (a second occurrence → exit `2`, `--namespace: given more than once`). One value matching `[A-Za-z][A-Za-z0-9_-]{0,31}` and not shaped like an ID, else exit `2`, message `--namespace: invalid namespace: <value>`. Tokens written `NS:ID` are then local citations (C-22, E-68). Absent → every `<ns>:`-prefixed token is foreign (R-101); a run with none is unchanged (I-019). | `2` |
 | `--citation-map FILE` | `check`, `impact`, `explain` (v1.23, R-103, C-23). A JSON citation map, resolved inside `--root` (E-09), read after the `--tests` scan; each resolving entry is a mapped citation. Absent → no map is read and no `citation_map` key is written (I-019). Unreadable → E-70 (`2`); malformed, wrong `schema_version`, bad entry or over K-19 → E-70 (`3`). | `2` / `3` |
-| `--root DIR` | Base for relative paths in reports; default `.`. Every path flag — `--spec`, `--src`, `--tests`, `--results`, `--out`, `--proof`, `--proof-results`, `--against`, `--citation-map` — MUST resolve inside it (E-09). | `2` |
+| `--root DIR` | Base for relative paths in reports; default `.`. Every path flag — `--spec`, `--src`, `--tests`, `--results`, `--out`, `--proof`, `--proof-results`, `--against`, `--citation-map`, `--risk-file`, and `verify`'s `--manifest` (v1.25) — MUST resolve inside it (E-09). | `2` |
 | `--out DIR` | Where the two reports go; default `.`. MUST resolve inside `--root` (E-09; F-002). Created if missing; not writable → E-18. | `2` / `3` |
 | `--judge MODE` | `none` (default), `mock`, `llm`. Any other value → usage error. | `2` |
 | `--strict` | Apply R-15 and, with `--judge llm`, R-28. | — |
@@ -1694,6 +1874,9 @@ speccheck --help
 | `--against FILE` | `impact` only. A prior version of the spec, inside `--root` (E-09), parsed by C-01; the changed set is the C-13 diff. Unreadable → usage error; its E-01/E-02/E-03 → `3` with `--against: ` prefixed. Mutually exclusive with `--changed` (E-54). | `2` / `3` |
 | `--depth N` | `impact` (v1.13) and `explain` (v1.17). Integer `0..999`, default `1`; `0` = unbounded (C-13; for `explain`, the reach of C-18's `impact (<depth>):` section). Other values → usage error. | `2` |
 | `explain ID` | v1.17 (R-40, C-18). Run the §3.1 pipeline over the same inputs as `check` and render the C-18 trace for the one id `ID` to stdout; write no report file. Accepts `--spec`, `--src`, `--tests`, `--results`, `--namespace`, `--citation-map` (v1.23), `--root`, `--judge`, `--judge-concurrency`, `--judge-budget`, `--jev-pre-triage`, `--max-unknown`, `--progress`, `--verbose` and `--depth` with the meanings above, and `ID` as a positional argument (one id per invocation, D-36). No `--out`, no `--strict`, no `--proof`, no `--proof-results` (v1.19): they are not defined on this subparser, so argparse rejects them as unrecognized arguments (E-54's pattern). An undeclared `ID` → E-60. | `0` rendered, `2` usage, `3` input contract |
+| `--manifest` | `check`-only, boolean, default off (v1.25, R-106, C-25, D-61). Also write `speccheck.manifest.json` under `--out`: the tool version, options, and the SHA-256 and length of every file read and of both reports. Reads `SOURCE_DATE_EPOCH` when set (E-85). Given to `impact` or `explain` → usage error. | `2` |
+| `--risk-file FILE` | `check`-only (v1.25, R-109, C-28). A JSON list of the hazards whose control is allocated to this software; every listed hazard no non-retired id controls is `UNCONTROLLED` and fails `--strict`. Absent → only CONTROLS markers (C-27) define hazards, and no `hazards` key exists without one (I-021). Unreadable → `2`; malformed, duplicate id, or over K-20 → E-84 (`3`). Given to `impact` or `explain` → usage error. | `2` / `3` |
+| `verify` | v1.25 (R-107, C-26). Re-hash every file a C-25 manifest names and print `verify: ok - …` or one `missing`/`mismatch` line per failing file and `verify: FAILED - …`. Accepts `--manifest FILE` (required), `--root`, `--verbose`; any other flag → usage error. Writes nothing, reads no network. | `0` all match, `1` a file missing or differs, `2` usage (E-82), `3` malformed manifest (E-83) |
 
 Every row of this table is also stated, in the form C-19 pins, in the `--help` output of the subcommand that defines the flag (v1.18, R-41); the table stays normative and T-95 checks the values against the validator's own usage-error text, so the two cannot disagree about an accepted token.
 
@@ -1712,13 +1895,14 @@ possible without `--strict`; R-105, v1.24) or `NOT CONFORMING` (exit 1); `<pct>`
 half-even to one decimal; `<judge-suffix>` is empty unless R-28 forced exit 1, in which case it is
 ` (unavailable)` or ` (unknown_rate <rate> > max_unknown <max>)` with both numbers as in the JSON;
 when both R-28 reasons hold the suffix is ` (unavailable)` (Q-004). After the judge-suffix, and
-only when at least one citation is mapped (C-23), the line ends `; citations: <M> mapped` (v1.23). The seven counts after the
+only when at least one citation is mapped (C-23), the line ends `; citations: <M> mapped` (v1.23). After that, and only when
+the JSON `hazards` key is present (C-27), the line ends `; hazards: <V>/<H> verified` (v1.25). The seven counts after the
 ratio are the seven in-scope statuses of C-07 `by_status`, each exactly once (Q-005).
 
 Regex the line MUST match (T-44):
 
 ```text
-^speccheck: (CONFORMING|NOT CONFORMING|UNPROVEN) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, \d+ weak, \d+ unverified, \d+ untested, \d+ uncited; \d+ dangling, \d+ stale; judge=(none|mock|llm)( \(unavailable\)| \(unknown_rate \d\.\d{4} > max_unknown \d\.\d{4}\))?(; citations: \d+ mapped)?$
+^speccheck: (CONFORMING|NOT CONFORMING|UNPROVEN) - \d+/\d+ passing \(\d+\.\d%\), \d+ failing, \d+ skipped, \d+ weak, \d+ unverified, \d+ untested, \d+ uncited; \d+ dangling, \d+ stale; judge=(none|mock|llm)( \(unavailable\)| \(unknown_rate \d\.\d{4} > max_unknown \d\.\d{4}\))?(; citations: \d+ mapped)?(; hazards: \d+/\d+ verified)?$
 ```
 
 ### 5.2 GUI
@@ -1737,10 +1921,10 @@ None. This system has no graphical surface, and O-3 explicitly leaves one out of
 
 | Code | Meaning | Reports written? |
 | --- | ---------- | --- |
-| `0` | `CONFORMING`, or `UNPROVEN` when R-15's conditions do not hold and `--strict` is off (R-105; the code is `0` either way): no in-scope ID is `FAILING`; and if `--strict`, every in-scope ID has status `PASSING`, `dangling` and `stale` are empty, and — with `--judge llm` only — `judge_available` is `true` and `unknown_rate` $\leq$ `max_unknown` (R-28). Beyond R-28, status is the only judge-related input (F-003). | yes |
+| `0` | `CONFORMING`, or `UNPROVEN` when R-15's conditions do not hold and `--strict` is off (R-105; the code is `0` either way): no in-scope ID is `FAILING`; and if `--strict`, every in-scope ID has status `PASSING`, `dangling` and `stale` are empty, no hazard is `UNCONTROLLED` (C-27; v1.25), and — with `--judge llm` only — `judge_available` is `true` and `unknown_rate` $\leq$ `max_unknown` (R-28). Beyond R-28, status is the only judge-related input (F-003). | yes |
 | `1` | `NOT CONFORMING`: anything else the report can express | yes |
 | `2` | Usage error (bad flag/value, missing required, path outside root, missing judge env) | no |
-| `3` | Input contract violation — every E row whose Semantics column exits `3`: E-01, E-02, E-03, E-05, E-18, E-65 (malformed manifest), E-70 (map shape faults) | no |
+| `3` | Input contract violation — every E row whose Semantics column exits `3`: E-01, E-02, E-03, E-05, E-18, E-65 (malformed manifest), E-70 (map shape faults), E-84 (malformed risk file; v1.25) | no |
 
 Any uncaught exception MUST also map to `3` with a one-line message; a traceback is printed only under `--verbose DEBUG`. `KeyboardInterrupt` is treated the same way, with the message `interrupted` (E-41).
 
@@ -1748,9 +1932,11 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 
 `explain` (v1.17) uses `0` (the C-18 trace written; there is no `1`: nothing it renders is pass/fail), `2` (usage, E-60, E-64) and `3` (E-01/E-02/E-03, E-05, E-70); it writes no file, so E-18 and the "reports written?" column do not apply to it.
 
+`verify` (v1.25) uses `0` (every file the manifest names is present with its recorded hash and length), `1` (one or more is missing or differs; C-26), `2` (usage, E-82, and an invalid `--root`) and `3` (E-83); it writes no file, so the "reports written?" column does not apply to it. `--manifest` on `check` adds one usage fault (E-85) and no new exit code.
+
 Since v1.18 this set is reachable from the CLI itself: every `--help` screen carries the exit-code epilog C-19 pins (D-40), naming the four codes and the summary line.
 
-**Precedence between `2` and `3` (v1.20, K-18).** Flag, value, `--root`-containment and file-readability validation (the usage-fault class, `2`) is completed in full before `SPEC.md`, the results file, the proof manifest, the citation map, the output directory, or (for `impact`) `--against` is parsed at all — so an invocation carrying both a usage fault and what would otherwise be an input-contract violation (`3`) exits `2`; a run never reaches the contract check that would have failed. No other precedence exists between the two classes, since no other invocation can trigger both.
+**Precedence between `2` and `3` (v1.20, K-18).** Flag, value, `--root`-containment and file-readability validation (the usage-fault class, `2`) is completed in full before `SPEC.md`, the results file, the proof manifest, the citation map, the risk file (v1.25), the output directory, or (for `impact`) `--against` is parsed at all — so an invocation carrying both a usage fault and what would otherwise be an input-contract violation (`3`) exits `2`; a run never reaches the contract check that would have failed. No other precedence exists between the two classes, since no other invocation can trigger both.
 
 ---
 
@@ -1758,7 +1944,7 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 
 | ID | Invariant |
 | -- | --------- |
-| **I-001** | **Read-only inputs.** No file under `--root` other than the two report files of the subcommand that ran, under `--out` (`check`: `speccheck.json`, `SPEC_CONFORMANCE_REPORT.md`; `impact`: `impact.json`, `IMPACT_REPORT.md`; v1.13) — and the `--out` directory itself, if it did not exist — is created, modified, or deleted by a run, and no temporary of §3.1 survives a run; no file outside `--root` is written at all. Sole exception: `--self-check` creates, uses, and removes one fresh temporary directory (F-011); it writes nowhere else. |
+| **I-001** | **Read-only inputs.** No file under `--root` other than the two report files of the subcommand that ran, under `--out` (`check`: `speccheck.json`, `SPEC_CONFORMANCE_REPORT.md`, and `speccheck.manifest.json` when `--manifest` was given, v1.25; `impact`: `impact.json`, `IMPACT_REPORT.md`; v1.13) — and the `--out` directory itself, if it did not exist — is created, modified, or deleted by a run, and no temporary of §3.1 survives a run; no file outside `--root` is written at all. Sole exception: `--self-check` creates, uses, and removes one fresh temporary directory (F-011); it writes nowhere else. `verify` (v1.25) creates, modifies and deletes nothing at all. |
 | **I-002** | **Determinism.** For `--judge none` and `--judge mock`, and for every `impact` run (v1.13), identical inputs (bytes of every file read, argv, env) produce byte-identical report files and summary line, on any OS. A `SPEC.md` that differs from another only in `\r\n` versus `\n` line endings counts as identical input (C-01 Lines rule; F-301). |
 | **I-003** | **Exactly-once reporting.** Every declared ID (retired included) appears exactly once in `ids` and exactly once in the Markdown per-ID table; no undeclared ID ever appears there. A decision (C-01 (c)) is not an ID: it appears exactly once in `decisions` and never in `ids` (D-25). |
 | **I-004** | **Downgrade-only judge.** For every ID, `status_with_judge` $\in$ `{status_without_judge}` $\cup$ (`{WEAKLY_PASSING}` iff `status_without_judge == PASSING`). Disabling the judge never changes any status except `WEAKLY_PASSING` → `PASSING`. |
@@ -1777,6 +1963,8 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **I-017** | **`--help` is inert (v1.18).** `speccheck --help`, `speccheck check --help`, `speccheck impact --help` and `speccheck explain --help` exit `0`, write only to stdout, and read no project file, no environment variable and no socket — naming the C-09/C-17 variables in the epilog is printing their names, not reading them. They therefore behave identically inside a project tree and in an empty directory, and the help text is a pure function of the installed version and the terminal width, which affects line wrapping only (C-19, T-96). |
 | **I-018** | **Proof-input inertness (v1.19).** A `check` run without `--proof`/`--proof-results` writes `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical to a v1.18 run on the same inputs: no `proof` key in the JSON (top-level or per-id), no proof column in the Markdown, no Lean file read, no exit-code difference (T-100). |
 | **I-019** | **Namespace and map inertness (v1.23).** A `check` run given neither `--namespace` nor `--citation-map`, over inputs in which no scanned file and no declared statement or *Affects* cell contains a `<ns>:`-prefixed token, writes `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical to a v1.22 run on the same inputs, prints the same summary line, and exits the same (T-109). The converse is deliberate: the same inputs *with* such a token change by exactly that token's citation or edge (E-67, E-69). |
+| **I-020** | **Manifest determinism (v1.25).** I-002 extends to `speccheck.manifest.json`: for `--judge none` and `--judge mock`, identical inputs — the bytes of every file read, argv, and env, `SOURCE_DATE_EPOCH` included — produce a byte-identical manifest on any OS, and its `reports` hashes equal the SHA-256 of the two report files the same run left in `--out`. The manifest's `tool.version` makes it differ across tool versions; the reports do not (C-07). |
+| **I-021** | **Provenance and hazard inertness (v1.25).** A `check` run given neither `--manifest` nor `--risk-file`, over a specification in which no declaration carries a CONTROLS marker (C-01, C-27), writes `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical to a v1.24 run on the same inputs, writes no other file, prints the same summary line and exits the same; an `explain` trace of an id with no marker is byte-identical to v1.24's; `SOURCE_DATE_EPOCH` is read only with `--manifest`. With `--manifest` alone the two reports are still byte-identical to v1.24's, and only the third file is added. |
 
 ---
 
@@ -1803,6 +1991,7 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **K-17** | **Proof staleness (v1.19; the file match refined v1.19.1).** A manifest theorem (C-21) whose name matches a scanned declaration (C-20) in a *different* file or line is `stale`, surfaced like a stale citation; a scanned declaration absent from the manifest is `unknown`, never `failed`; a `failed` state carries the build error line from `build.errors`. The file comparison is exact-match first, then a path-suffix match (either side a suffix of the other): a citation's `file` is posix-relative to `--root` (R-20), while a manifest a foreign producer wrote commonly records `file` relative to its own `--proof` scan root instead — `proof/HelloProof/Hello/Theorems.lean` (citation) and `HelloProof/Hello/Theorems.lean` (manifest) name the same file and MUST NOT join as `stale` on that account alone. Stale/unknown/failed proof states appear in `notes` and the `proof_failed`/`proof_unknown` metrics and, per D-45, affect `--strict`. |
 | **K-18** | **Exit-code precedence (v1.20).** When one invocation carries both a usage fault (§5.4 `2`: an undefined flag, an out-of-range or malformed value, a missing required flag, a path outside `--root`) and an input-contract violation (§5.4 `3`: E-01, E-02, E-03, E-05, E-18, and from v1.23 the shape faults of E-70), the usage fault is reported: flag, value and `--root`-containment validation — including that every file a flag names (`--spec`, `--results`, `--proof-results`, `--against`, `--citation-map`) exists and can be read as bytes, the "unreadable → `2`" halves of §5.1, E-65 and E-70 (v1.23.1, F-709: a readability check is a read, so v1.20's "before … is read at all" could not be met) — are completed before any of those files is *parsed* or the output directory is touched, so a run never reaches the contract check (E-01..E-03, E-05, E-65's and E-70's shape halves, E-18) that would have failed. No other precedence exists — the two are never both live. |
 | **K-19** | **Citation-map size (v1.23).** A citation map (C-23) is at most 2 MiB, the K-02 file cap. Over it, E-70 (exit `3`), before any entry is resolved. (No entry-count limit: the smallest well-formed entry is about 40 bytes, so 2 MiB already bounds the count near 52,000.) |
+| **K-20** | **Risk-file and hazard-id size (v1.25).** A risk file (C-28) is at most 2 MiB, the K-02 cap; over it, E-84 (exit `3`) before any entry is read. A HAZID (C-27) is at most 64 characters, so a longer one is malformed: in a marker, E-80; in a risk file, E-84. A manifest (C-25) read by `verify` has no size cap of its own beyond K-02's: over 2 MiB is E-83. |
 
 ---
 
@@ -1818,7 +2007,7 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **E-06** | Duplicate `(classname, name)` in results | Single outcome = worst of them (C-04); a Note records the count. |
 | **E-07** | Result `<testcase>` joins no attributed test case | Listed under `unattributed_results`; not counted for any ID; exit unaffected. |
 | **E-08** | Test case cites an ID but has no result (results absent, or case not run) | Case listed under that ID's `unrun`; ignored in C-05 step 4; if *no* citing case has a result → `UNVERIFIED`. |
-| **E-09** | Any of `--spec/--src/--tests/--results/--out/--proof/--proof-results` (v1.19), `--against` (v1.13) or `--citation-map` (v1.23) — including any element of a `--src`/`--tests`/`--proof` PATHS list — resolves outside `--root` (after symlink resolution) | Exit `2`, message `path outside --root: <path>`; when the path as given differs from its resolved form (a symlink in it) the message ends ` (resolves to <resolved path>)` so the cause is visible (v1.21). A PATHS element that is itself a symlink and resolves inside `--root` is used in resolved form and descended (a directory) or scanned (a file); it is not an E-30 skip (Q-007, D-23). |
+| **E-09** | Any of `--spec/--src/--tests/--results/--out/--proof/--proof-results` (v1.19), `--against` (v1.13), `--citation-map` (v1.23) or `--risk-file` (v1.25) — including any element of a `--src`/`--tests`/`--proof` PATHS list — resolves outside `--root` (after symlink resolution) | Exit `2`, message `path outside --root: <path>`; when the path as given differs from its resolved form (a symlink in it) the message ends ` (resolves to <resolved path>)` so the cause is visible (v1.21). A PATHS element that is itself a symlink and resolves inside `--root` is used in resolved form and descended (a directory) or scanned (a file); it is not an E-30 skip (Q-007, D-23). |
 | **E-10** | File > 2 MiB under a scan root | Skipped; Note `skipped 1 file over 2 MiB: <path>`. |
 | **E-11** | A scanned file — or `SPEC.md` itself — is not valid UTF-8 | Decoded with replacement; Note; citations on replaced bytes are impossible (token requires ASCII) so no false citations arise. |
 | **E-12** | `.py` test file fails to parse | Whole file is one file-level case; Note `parse fallback: <path>`. |
@@ -1887,6 +2076,14 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **E-75** | An `it`/`test` call whose first argument is not a literal title (a variable, an interpolated template), or a `describe` with such a title | Not a case; its citations are file-level; one Note per file `undelimited tests in <path>: line N, …` (E-43's rule). A result for such a test is unattributed (E-07). (R-104) |
 | **E-76** | A JavaScript/TypeScript case whose title carries `each` placeholders, and several results that fill them | All results join the one case as variants; its outcome is the worst of them (E-06). If the placeholders make two cases' patterns match the same result, the result ties and is unattributed (E-27). (R-104, C-04) |
 | **E-77** | A declared, non-retired id is the `src` or `dst` of no C-12 edge: no statement, row cell or *Affects* cell names it, and its own statement and row cells name no declared id (v1.24) | No edge, status, metric or exit-code change. One Note per run, when at least one id is isolated: `<N> declared id(s) touch no edge: <ID>, <ID>, <ID>` followed by ` and <N-3> more` when N > 3, the ids in C-07 order. A retired id is never counted. `impact` does not emit it. (R-36, C-12, D-60) |
+| **E-78** | A CONTROLS marker (C-27) on the declaration of a T id | The id is declared normally with `controls` empty, so no `controls` key and no hazard from this marker. One Note per such id: `controls marker ignored on <ID>: not an R/C/I/K/E id`. (R-108) |
+| **E-79** | With `--risk-file`, a CONTROLS marker names a hazard the file does not list | The hazard is still in `hazards` (`title` null) with its C-27 status. One Note per run: `<N> hazard(s) not in the risk file: <HAZ>, <HAZ>, <HAZ>` followed by ` and <N-3> more` when N > 3, hazards in code-point order. No exit-code effect, with or without `--strict`. Without `--risk-file` the Note is never emitted. (R-109) |
+| **E-80** | The text in the CONTROLS position (C-01) begins `*(controls:` but does not match C-27's grammar: an empty list, a HAZID over 64 characters or with a forbidden character, a missing `)*` | The id is declared normally with `controls` empty; the text stays decoration (a row) or title text (a heading). One Note per such id: `malformed controls marker on <ID>`. (R-108, K-20) |
+| **E-81** | A hazard in C-27's set H has no non-retired control: it is listed in `--risk-file` and no marker names it, or every id whose marker names it is retired | Status `UNCONTROLLED`. One Note per run: `<N> uncontrolled hazard(s): <HAZ>, …` shaped as E-79's. With `--strict`: exit `1` (R-15, D-64). Without `--strict`: the exit code is unchanged and, on exit `0`, the summary line's word is `UNPROVEN` (R-105). (R-109) |
+| **E-82** | `verify` without `--manifest`, or with a `--manifest` path that does not exist, cannot be read, or resolves outside `--root` | Exit `2`; message `verify: --manifest <reason>`; nothing on stdout. (R-107) |
+| **E-83** | `verify` on a manifest that is over 2 MiB, not JSON, carries a `manifest_version` other than `"1.0"`, lacks a C-25 key, has an entry whose `sha256` is not 64 lower-case hex digits or whose `bytes` is not a non-negative integer, or names a `path` that is absolute or resolves outside `--root` | Exit `3`; message `verify: malformed manifest: <reason>`; nothing on stdout; no input file is read (a manifest cannot direct a read outside the tree). (R-107, K-20) |
+| **E-84** | `--risk-file` is over 2 MiB, not JSON, lacks a `hazards` list, has an entry that is not an object, has an `id` missing or failing HAZID, a non-string `title`, or two entries with the same `id` | Exit `3`; message `--risk-file: <reason>` (a duplicate names the id); no report is written. (R-109, C-28, K-20) |
+| **E-85** | `check --manifest` with `SOURCE_DATE_EPOCH` set to anything but a non-negative decimal integer (empty included) | Exit `2`; message `SOURCE_DATE_EPOCH: not a non-negative integer: <value>`; raised in the usage-fault class, so before any input is read (K-18). Without `--manifest` the variable is not read, whatever its value (I-021). (R-106, C-25) |
 
 ---
 
@@ -2100,6 +2297,19 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-111** | Map faults: an unresolved entry (Note, `citation_map.unresolved`, exit code unchanged), malformed JSON, wrong `schema_version`, an entry with a missing or extra key, a `ns:`-prefixed id, a map over 2 MiB, a map path outside `--root` and an unreadable one each exit as E-70 specifies and write no report; an invalid `--namespace` exits `2` before any file is read. (E-70, E-71, E-68, K-19) |
 | **T-112** *(recorded)* | `check --strict` over this repository and over at least two further real projects (named in the run's record), before and after v1.23: ids, statuses and exit code identical, and the number and first three of the foreign references found recorded (expected `0` here). Recorded, not gating: it measures D-51's claim that default-on recognition moves nothing in a real project, and a non-zero count in another project is the evidence to reopen D-51. (R-101, D-51) |
 
+### 9.18 Provenance manifest and hazards (C-25..C-28, I-020, I-021, K-20, E-78..E-85; v1.25)
+
+| ID | Test |
+| -- | ---- |
+| **T-122** | On the §9.8 golden fixture, `check --judge mock --manifest` writes `speccheck.manifest.json` whose keys and order match C-25; every `inputs[].sha256` and `bytes` equals `hashlib.sha256` and `len` of that file's bytes on disk, and the list holds exactly the spec, every scanned file and the results file, each with its role, sorted by (path, role); `tree_sha256` equals the value recomputed from the `shasum` line format; `reports[]` hashes and lengths equal the two report files written; `tool.version` equals `__version__`; the two reports are byte-identical to the same run without `--manifest`; the manifest is not scanned on a second run with `--out` inside `--tests`. (R-106, C-25, C-03, I-021) |
+| **T-123** | Two `check --judge mock --manifest` runs over identical inputs give byte-identical manifests; with `SOURCE_DATE_EPOCH=1793836800` the manifest ends with `generated_at` `2026-11-05T00:00:00Z`, and without the variable the key is absent; `SOURCE_DATE_EPOCH=abc` and `SOURCE_DATE_EPOCH=` each exit `2` with E-85's message and write nothing, while `SOURCE_DATE_EPOCH=abc` without `--manifest` changes nothing; a CRLF twin of the spec gives byte-identical reports and a different `inputs` hash for the spec; a failure injected before the manifest rename leaves none of the three files (§3.1). (I-020, C-25, E-85, I-001) |
+| **T-124** | `verify` against the T-122 manifest on the untouched tree prints exactly `verify: ok - <N> files match, tree <12 hex>` and exits `0`; after one byte of a scanned test file changes it prints `verify: mismatch <that path>` then `verify: FAILED - 1 of <N> files differ` and exits `1`; after `SPEC_CONFORMANCE_REPORT.md` is deleted it prints `verify: missing <path>`; a missing `--manifest` and one outside `--root` exit `2` (E-82); a non-JSON manifest, a `manifest_version` of `"2.0"`, a missing `reports` key, and an entry with path `../x` each exit `3` (E-83) without reading any input; no file under `--root` changes (hash comparison) and no socket opens (socket guard). (R-107, C-26, E-82, E-83, I-001) |
+| **T-125** | The v1.25 evidence as a test: on a copy of the golden fixture, `check --judge mock --manifest` runs; one line is appended to a `--src` file; a second `check` without `--manifest` writes reports byte-identical to the first run's (the v1.24 behaviour, kept); `verify` against the first manifest exits `1` and its only `mismatch` line names that `--src` file. (R-106, R-107) |
+| **T-126** | A fixture whose `R-01 *(controls: HAZ-2, HAZ-1)*` is PASSING, `C-01 *(controls: HAZ-2)*` is FAILING, retired `~~R-02~~ *(controls: HAZ-5)*`, and heading `### C-02 *(controls: HAZ-3)* Title` is PASSING: `HAZ-1` and `HAZ-3` are `VERIFIED`, `HAZ-2` `NOT_VERIFIED`, `HAZ-5` `UNCONTROLLED` with E-81's Note; `R-01`'s `controls` is `["HAZ-1", "HAZ-2"]`, `C-02`'s title is `Title`, and only marked ids carry the key; `| **R-03** *(recorded)* *(controls: HAZ-4)* |` names `HAZ-4`; the marker on `T-01` gives E-78's Note and `*(controls: )*` and a 65-character HAZID give E-80's; under `--judge mock` a WEAKLY_PASSING control makes its hazard `NOT_VERIFIED`; every id status, metric, edge and the Markdown §3 table are byte-identical to the same fixture without markers; `hazards` and `## 10. Hazards` render per C-07/C-08; `explain R-01` prints `controls: HAZ-1 (VERIFIED), HAZ-2 (NOT_VERIFIED)` after its `status:` line; `impact` output is unchanged by the markers. (R-108, C-01, C-02, C-27, E-78, E-80, E-81, C-18) |
+| **T-127** | With `--risk-file` listing `HAZ-1` (titled), `HAZ-2` and `HAZ-9` over T-126's fixture minus the retired id: `HAZ-9` is `UNCONTROLLED` with E-81's Note; `--strict` exits `1` although every in-scope id is PASSING; without `--strict` the run exits `0` and prints `UNPROVEN`; `HAZ-1`'s title appears in both reports; a marker naming `HAZ-7` gives E-79's Note and no exit change; an empty `hazards` list over a marker-free spec yields `hazards: []` and `; hazards: 0/0 verified`; a duplicate id, a bad HAZID, a non-string title, a missing `hazards` key and a 2 MiB + 1 byte file each exit `3` with E-84's message and no report; an unreadable file and one outside `--root` exit `2`; `--risk-file` given to `impact` or `explain` exits `2`; the file is never scanned for citations. (R-109, R-15, R-105, C-28, E-79, E-81, E-84, K-20, E-09) |
+| **T-128** | I-021: on the §9.8 golden fixture, the Swift fixture and every fixture of T-109, a v1.25 `check` with neither new flag over a marker-free spec reproduces the committed v1.24 goldens byte for byte, with the same summary line and exit code, and creates no third file; `--self-check` passes unchanged. (I-021) |
+| **T-129** | With hazards present the summary line ends `; hazards: 1/2 verified`, matches the §5.1 regex (T-44), is ASCII, and follows `; citations: <M> mapped` when a citation map also resolves; the regex still matches every v1.24 line; C-08's §1 verdict line carries the same suffix; the `check --help` screen names `--manifest`, `--risk-file` and `SOURCE_DATE_EPOCH`, and `verify --help` names `--manifest FILE` and its four exit codes (C-19, T-97's goldens regenerated). (C-27, §5.1, C-19, R-41) |
+
 ---
 
 ## 10. Dependencies and environment
@@ -2110,9 +2320,9 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 - **Golden fixture layout:** `fixtures/target/{SPEC.md, src/, tests/, junit.xml, golden/speccheck.json, golden/SPEC_CONFORMANCE_REPORT.md, golden/impact.json, golden/IMPACT_REPORT.md, proof/, proof-results.json}` (`impact.json`/`IMPACT_REPORT.md` since v1.13, T-80; `proof/` — a three-declaration Lean fixture — and `proof-results.json` — its two-entry manifest — since v1.19, T-99); `golden/` is never a scan root and is never written to by a run (Q-003).
 - **`[llm]` extra:** `httpx` (HTTP client with per-request timeout). No provider SDK; the wire format is C-06. The C-17 triage pass uses the same client and the same extra.
 - **`[dev]` extra:** `pytest`, `pytest-cov`, `hypothesis` (T-28), `ruff`.
-- **Environment variables:** C-09 (only with `--judge llm`) and C-17 (only with `--jev-pre-triage` under `--judge llm`; v1.15). No configuration files are read.
+- **Environment variables:** C-09 (only with `--judge llm`), C-17 (only with `--jev-pre-triage` under `--judge llm`; v1.15), and `SOURCE_DATE_EPOCH` (only with `check --manifest`; v1.25, C-25, E-85). No configuration files are read.
 - **Host prerequisites:** none. No network access is required except with `--judge llm`, and — when `--jev-pre-triage` is given — the C-17 triage pass that flag enables. The kernel never invokes `git` or any subprocess (D-24).
-- **Help goldens (T-97, v1.18):** `tests/data/help/{speccheck,check,impact,explain}_help.txt` — the C-19 screens rendered at `COLUMNS=80`, checked in as test data (not a §9.8 report golden; D-39).
+- **Help goldens (T-97, v1.18):** `tests/data/help/{speccheck,check,impact,explain,verify}_help.txt` (`verify` from v1.25) — the C-19 screens rendered at `COLUMNS=80`, checked in as test data (not a §9.8 report golden; D-39).
 - **Tools (not collected by pytest, not part of the wheel):** `tools/bench.py` (T-51), `tools/eval_judge.py` (T-49), `tools/sync_selfcheck.py` (T-60), `tools/impact_backtest.py` (T-82; the only one that needs `git` and the repository history; D-24), `tools/proof_evidence.py` (v1.19; a standalone sidecar — reads a project's own `proof/` lake project and test suite, writes the C-21 manifest `--proof-results` reads; not part of the kernel and not required to run `check`, T-99's cross-repository integration case).
 - **Commands:**
 
@@ -2125,6 +2335,8 @@ uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xm
 uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests               # v1.13; or --against <prior SPEC.md>
 uv run speccheck explain R-01 --spec SPEC.md --src src --tests tests --results junit.xml --judge mock   # v1.17; stdout only
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --proof proof --proof-results build/proof/proof-results.json --judge mock   # v1.19
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --manifest --out build/rec   # v1.25; then:
+uv run speccheck verify --manifest build/rec/speccheck.manifest.json                          # v1.25; exit 0 = nothing changed
 ```
 
 - **Optional items:**
@@ -2154,7 +2366,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-12 | `report.py` (Markdown) | T-35, T-46 |
 | R-13 | `report.py` (JSON) | T-34, T-46 |
 | R-14 | `cli.py` (exit mapping) | T-39, T-46 |
-| R-15 | `cli.py` (`--strict`, status-only) | T-39, T-27, T-46 |
+| R-15 | `cli.py` (`--strict`, status-only) | T-39, T-27, T-46, T-127 |
 | R-16 | all kernel modules (sorted, no volatile fields) | T-36 |
 | R-17 | `cli.py` (logging setup, level `ERROR` default) | T-41, T-42 |
 | R-18 | `cli.py` (`--self-check`, pinned in-process invocation), `speccheck/_selfcheck/`, `judge_llm.py` import isolation | T-43, T-60 |
@@ -2180,21 +2392,25 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-38 | `judge_llm.py` (builds the `related` neighbourhood into the C-06 request: the statement's own references first, then those that name it, at most eight, each a 160-char whitespace-collapsed title, a retired neighbour tagged `(retired)` (E-57), the empty list when none), `jev.py` (the D-28b `Related obligations:` section in the C-17 `state` template), `speccheck/judge_prompt.md` (the `related` field and its rule, C-10) — a request-side field: not in `speccheck.json`, C-16, or C-08 | T-83, T-84 |
 | R-39 | `attribute.py` (docstring-span and whole-line-comment detection, Python, Swift and JS/TS; mapped citations DECLARED), `report.py` (`declared`, `declared_ratio`) | T-85, T-86, T-88 |
 | R-40 | `cli.py` (the `explain` subparser, `ExplainConfig`, the render wiring), `explain.py` (the C-18 trace renderer) | T-92, T-93, T-94 |
-| R-41 | `cli.py` (the help strings, metavars and epilogs of the four parsers) | T-95, T-96, T-97, T-98, T-102 |
+| R-41 | `cli.py` (the help strings, metavars and epilogs of the four parsers) | T-129, T-95, T-96, T-97, T-98, T-102 |
 | R-100 | `lean.py` (new adapter), `cli.py` (`--proof` parsing) | T-99 |
 | R-101 | `extract.py` (foreign pass before the TOKEN rule; `citations_in_file`, `targets_of`), `cli.py` | T-107, T-108, T-112 |
 | R-102 | `cli.py` (`--namespace` on `check`/`impact`/`explain`), `extract.py` | T-107, T-111 |
 | R-103 | `cli.py` (`--citation-map`), `attribute.py` (`Citation.mapped`), `report.py` (`mapped`, `citation_map`, summary suffix, `(map)`), `explain.py` (`(mapped)`) | T-110, T-111 |
 | R-104 | `jsts.py` (tokenizer, CALL/TITLE/span rules), `attribute.py` (dispatch, classname), `results.py` (path classname, case join_name, templated titles) | T-113, T-114, T-115, T-116, T-117 |
 | R-105 | `report.py` (`summary_line`: the `UNPROVEN` word from R-15's conditions) | T-118 |
-| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, decision rows (c), ignore markers) | T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77, T-79, T-119 |
+| R-106 | `report.py` / a new `manifest.py` (render after both reports, hashes of the bytes read, the third temp-and-rename), `cli.py` (`--manifest`) | T-122, T-123, T-125 |
+| R-107 | `cli.py` (the `verify` parser), `manifest.py` (re-hash, C-26 lines, exit codes) | T-124, T-125 |
+| R-108 | `extract.py` (CONTROLS marker → `SpecId.controls`), `graph.py` (hazard roll-up after C-05 step 5) | T-126 |
+| R-109 | `cli.py` (`--risk-file` read and validation), `graph.py` (`UNCONTROLLED`, R-15's hazard clause) | T-127 |
+| C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, decision rows (c), ignore markers) | T-126, T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77, T-79, T-119 |
 | C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `Decision`, `Edge`, `SpecIndex`) | T-01, T-06, T-72, T-77, T-79 |
 | C-03 | `attribute.py` (`TestCase`, `Citation` incl. `declared`, `test*` methods, Swift adapter, JavaScript/TypeScript adapter), `jsts.py`, `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78, T-85, T-110, T-113, T-114, T-115 |
 | C-04 | `results.py` (two-step `join_name` on results and cases, path classnames, templated titles) | T-15, T-16, T-17, T-18, T-19, T-52, T-58, T-68, T-116, T-117 |
 | C-05 | `graph.py` (`IdStatus`, `compute_status`, recorded skip in step 5) | T-20, T-21, T-27, T-53, T-77 |
 | C-06 | `judge.py` (`JudgeRequest` with numbered `source`, full statement, `declared`, and `related` (R-38), `Verdict` with `clause`, validation incl. K-15), providers; `judge_mock.py` tokens | T-26, T-29, T-30, T-32, T-33, T-54, T-69, T-74, T-75, T-83, T-87 |
-| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; `decisions`; `edges`; `declared`; `declared_ratio`; Decimal quantization; `verdict: null`; Note order; `judge_available` total over the eligible-but-unissued case, v1.20) | T-34, T-37, T-59, T-73, T-75, T-77, T-79, T-86, T-88, T-101, T-110 |
-| C-08 | `report.py` (`to_markdown`; Statement cell from `title`; `(recorded)` ID cell; §8 Clause column; em dash and `(file)` renderings) | T-35, T-73, T-75, T-77 |
+| C-07 | `report.py` (`to_json`; `title`; `recorded`; `clause`; `decisions`; `edges`; `declared`; `declared_ratio`; Decimal quantization; `verdict: null`; Note order; `judge_available` total over the eligible-but-unissued case, v1.20) | T-126, T-127, T-34, T-37, T-59, T-73, T-75, T-77, T-79, T-86, T-88, T-101, T-110 |
+| C-08 | `report.py` (`to_markdown`; Statement cell from `title`; `(recorded)` ID cell; §8 Clause column; em dash and `(file)` renderings) | T-126, T-127, T-35, T-73, T-75, T-77 |
 | C-09 | `judge_llm.py` (`from_env`) | T-33, T-40 |
 | C-10 | `speccheck/judge_prompt.md` (incl. `declared` and `related` fields, the skepticism rule, and the `related` rule (R-38)), `judge_llm.py` (system message) | T-33, T-54, T-74, T-75, T-83, T-84, T-87 |
 | C-11 | `judge.py` (progress line rendering, draw/erase sequences) | T-62 |
@@ -2204,14 +2420,18 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | C-15 | `judge.py` (`JudgeRequest.declared`), `judge_llm.py` (`declared` in the request body), `speccheck/judge_prompt.md` (field definition, skepticism rule) | T-87 |
 | C-16 | `report.py` (`tests[].declared`, `metrics.declared_ratio`) | T-86, T-88 |
 | C-17 | `jev.py` (the four C-17 variables, the request body and `state` template — now including the D-28b `Related obligations:` section, R-38 — the `answers.verdict` parse and `p(e)`), `cli.py` (variable validation and redaction) | T-89, T-90 |
-| C-18 | `explain.py` (the trace renderer: section order, headings, the C-05 reason, the verdict lines, the impact section) | T-92, T-93, T-94 |
-| C-19 | `cli.py` (every argument definition's help, the C-19 metavar vocabulary, the `environment:` and exit-code epilogs) | T-95, T-96, T-97, T-98, T-102 |
+| C-18 | `explain.py` (the trace renderer: section order, headings, the C-05 reason, the verdict lines, the impact section) | T-126, T-92, T-93, T-94 |
+| C-19 | `cli.py` (every argument definition's help, the C-19 metavar vocabulary, the `environment:` and exit-code epilogs) | T-129, T-95, T-96, T-97, T-98, T-102 |
 | C-20 | `lean.py` (declaration split, doc-comment tag extraction) | T-99 |
 | C-21 | `lean.py`/`cli.py` (manifest read and join) | T-99 |
 | C-22 | `extract.py` (`FOREIGN` pass, `foreign` list), `cli.py` | T-107, T-108, T-111 |
 | C-23 | `cli.py` (map read, validation, resolution), `attribute.py` (`Citation.mapped`), `report.py` | T-110, T-111 |
 | C-24 | `jsts.py` (tokenizer, REGEX vs DIVISION, CALL/TITLE/span rules, `each` patterns), `attribute.py` (dispatch, classname) | T-113, T-114, T-115, T-116, T-117 |
-| I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-07, T-38, T-43, T-45, T-60, T-64 |
+| C-25 | `manifest.py` (key order, `inputs` roles and sort, `tree_sha256`, `generated_at`) | T-122, T-123 |
+| C-26 | `manifest.py` (`verify`: read order, `missing`/`mismatch` lines, counts) | T-124 |
+| C-27 | `extract.py` (grammar), `graph.py` (H, CTRL, statuses), `report.py` (`controls`, `hazards`, `## 10. Hazards`, summary suffix), `explain.py` (`controls:` line) | T-126, T-127, T-129 |
+| C-28 | `cli.py` (risk-file shape, faults, scan exclusion) | T-127 |
+| I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-123, T-124, T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
 | I-003 | `report.py` | T-25, T-35 |
 | I-004 | `graph.py` | T-27, T-28 |
@@ -2230,6 +2450,8 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | I-017 | `cli.py` (no help path reads a file, an environment variable or a socket) | T-96 |
 | I-018 | `cli.py`, `report.py` (conditional `proof` key, absent-flag byte-identity) | T-100 |
 | I-019 | `extract.py`, `cli.py`, `report.py` (every addition conditional on its input) | T-109 |
+| I-020 | `manifest.py` (no time, host or absolute path; `SOURCE_DATE_EPOCH` only) | T-123 |
+| I-021 | `cli.py`, `report.py`, `explain.py` (every v1.25 addition conditional on its flag or marker) | T-128 |
 | K-01 | `cli.py` | T-39, T-40, T-19, T-64 |
 | K-02 | `extract.py` (file filters, binary rule) | T-13 |
 | K-03 | `extract.py` (walker, no symlinks) | T-13 |
@@ -2249,6 +2471,7 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | K-17 | `lean.py` (join on name/file/line; stale/unknown/failed states) | T-99 |
 | K-18 | `cli.py` (validation stage order: flags/values/containment before spec/results/out reads) | T-103 |
 | K-19 | `cli.py` (map size check) | T-111 |
+| K-20 | `cli.py` (risk-file size), `extract.py` (HAZID length), `manifest.py` (manifest size in `verify`) | T-124, T-126, T-127 |
 | E-01 | `extract.py`, `cli.py` | T-07 |
 | E-02 | `extract.py` | T-06 |
 | E-03 | `extract.py` | T-04 |
@@ -2326,6 +2549,14 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-75 | `jsts.py` (`undelimited`), `attribute.py` (Note) | T-114 |
 | E-76 | `jsts.py` (`each_pattern`), `results.py` (templated join) | T-116 |
 | E-77 | `extract.py` (isolated ids after the C-12 pass, one Note) | T-121 |
+| E-78 | `extract.py` (marker on a T id → Note) | T-126 |
+| E-79 | `graph.py` (hazard not in the risk file → Note) | T-127 |
+| E-80 | `extract.py` (malformed marker → Note) | T-126 |
+| E-81 | `graph.py` (`UNCONTROLLED`, Note), `cli.py` (strict exit) | T-126, T-127 |
+| E-82 | `cli.py` (`verify --manifest` usage faults) | T-124 |
+| E-83 | `manifest.py` (manifest validation before any read) | T-124 |
+| E-84 | `cli.py` (risk-file validation) | T-127 |
+| E-85 | `cli.py` (`SOURCE_DATE_EPOCH` validation, usage class) | T-123 |
 
 ---
 
@@ -2392,6 +2623,11 @@ Every row below is a decision the specification's author made on the requester's
 | D-58 | How a non-strict run that would fail `--strict` is worded (v1.24) | **a distinct first word, `UNPROVEN`**, on exit `0` without `--strict` when R-15's conditions do not hold; the exit code is unchanged, since non-strict runs are used as a trend, not a gate | keep `CONFORMING` with a suffix naming the unproven count (no parser change, but `CONFORMING` still prints over 0 % passing); a threshold on the passing share (arbitrary, moves the false green); exit `1` (breaks the trend use and K-01's meanings) | R-105, R-21, R-14, C-08, T-44, T-118 | requester / confirmed v1.24 (`docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md` §5, recommended branch, 2026-10-27) |
 | D-59 | What C-01 (a)'s "backtick span" is (v1.24) | **the CommonMark code span** (a run of N backticks closed by the next run of exactly N): it fixed the one silent truncation found in 14 real specs (`mdv*`'s R-24, ten copies) and 32 rows whose closing `\|` leaked into the statement, and changed no fixture row | keep the single-backtick toggle and rely on E-66's Note (R-24 would stay cut until edited); split the way GFM does, inside code spans too (contradicts C-01's stated rule) | C-01, E-66, T-119, T-120 | requester / confirmed v1.24 (`docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md` §5, recommended branch, 2026-10-27) |
 | D-60 | Whether ids that no edge touches are reported, and how (v1.24) | **one default-on Note, aggregated** (E-77): 0–2 per real spec measured, every hit a real gap (this document's T-42, `gpu-quicksort-revisited`'s E-17) | the same check behind an opt-in `--lint` flag (no golden churn, but the authors who need it would not run it); a Note per id that names no other id (51 of this document's 300, all correct leaf rows) | E-77, C-12, R-36, T-121 | requester / confirmed v1.24 (`docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md` §5, recommended branch, 2026-10-27) |
+| D-61 | Whether the provenance manifest is written always or on request (v1.25) | **opt-in, `--manifest`**: users who file no records see nothing new, and I-021 can be stated exactly | always written (one flag fewer to forget in a regulated pipeline, but a third file in every `--out` and T-38's "only the two report files" rewritten for everyone) | R-106, C-25, I-001, I-021, T-122, T-128 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
+| D-62 | Whether the manifest carries an operator and a wall-clock time (v1.25) | **neither**: `generated_at` only from `SOURCE_DATE_EPOCH`, so the manifest stays deterministic (I-020); attribution and signature belong to the user's quality system or a signed commit, where 21 CFR Part 11 can actually be met | an `--operator NAME` flag and a wall-clock timestamp (one self-contained file, but neither value is authenticated and the manifest stops reproducing) | R-106, C-25, I-020, E-85, T-123 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
+| D-63 | How a requirement is bound to the hazards it controls (v1.25) | **a `*(controls: …)*` DECORATION marker** on the controlling row or heading: no new id family, hazard ids keep the risk file's own shape, and C-01 already parses that position for RECORDED | a hazard family `H-nn` in C-01 (first-class rows, at the cost of `by_family`'s six keys, every golden, and renumbering the user's hazards); widening C-22's FOREIGN grammar (a foreign reference yields no edge by design, and a wider id grammar would match prose such as `ISO:13485`) | R-108, C-01, C-02, C-27, E-78, E-80, T-126 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
+| D-64 | Whether an `UNCONTROLLED` hazard fails `--strict` (v1.25) | **yes**: the risk file lists exactly the hazards allocated to this software, so one with no control row is the gap ISO 14971 asks to close, and a Note alone would let a `CONFORMING` gate hide it | a Note only (no new R-15 condition, but a green strict gate with a hazard nobody controls) | R-15, R-109, C-27, C-28, E-81, T-127 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
+| D-65 | Whether `verify` re-hashes or re-runs (v1.25) | **re-hashes only**: simple and exact, works for `--judge llm` runs too, and an auditor who wants a re-run already has `check` followed by `verify` | `verify --recompute` for `none`/`mock` manifests (proves the reports follow from the inputs, but needs re-runnable argv in C-25 and a temporary `--out`) | R-107, C-26, T-124 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
 | D-46 | Whether `judge_available` becomes boolean and total over the eligible-but-unissued case (v1.20) | **boolean, total**: `false` whenever at least one edge was judge-eligible and no call succeeded, whether every call failed (E-14) or none was issued (E-35) — the field is what R-28 gates on, and "no usable judge" is one operational fact however it arose; T-101 measures both budget forms | leave C-07's two clauses and patch only E-32's reason — smaller diff, but `speccheck.json` keeps a field the contract doesn't fully determine for this cell | C-07, E-32, E-35, R-28, T-101 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
 | D-47 | Whether `--spec` becomes genuinely required on `explain` (v1.20) | **required**, synopsis brackets dropped — states existing behaviour (the flag table already said `Required.`; there was already no defined way to run `explain` without a spec) rather than inventing a new one; T-102 pins it | make `--spec` optional with a stated default — smaller for a quick `explain R-01`, but invents a fallback file the spec has never had and adds a second place the input spec is chosen | R-40, C-18, C-19, E-64, T-102 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
 | D-48 | Whether exit-code precedence (usage fault vs. input-contract violation) is pinned as a normative `K` row (v1.20) | **pinned**, K-18, beside K-01's exit set — one sentence, checkable by T-103 | leave §5.4 silent — two faithful implementations could then exit `2` or `3` on the same invocation | K-01, K-18, §5.4, T-103 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
@@ -2436,3 +2672,4 @@ D-28 (and its sub-decision D-28b), E-57 and R-38 — the obligation-aware judge 
 | v1.23 | Namespaced ids and a citation map (`docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md`, 2026-10-27; D-51..D-55 confirmed on the recommended branches, same day). Evidence: a test docstring naming `platform:C-03` made the local `C-03` PASSING (1/1) and an undeclared foreign id failed `--strict` as dangling (reproduced); a regulated-domain trial retrofitted ~1,100 ids with an out-of-tool injector. R-101..R-103, C-22, C-23, I-019, K-19, E-67..E-73, T-107..T-112; `--namespace` and `--citation-map` on `check`, `impact` and `explain`; the summary line gains an optional `; citations: <M> mapped` suffix. **Folded with three changes to the proposal**, each found reviewing the fold (and, from the review's open items, D-57 and a Note that names the first three foreign tokens): (a) `impact` and `explain` take both flags (the proposal covered `check` only, which would leave a retrofitted project's `impact` re-cite list empty); (b) a label shaped like an ID (`R-01:R-02`) is never a namespace; (c) the summary suffix is pinned in the T-44 regex. No status, verdict or metric moves for a project using neither flag and containing no `ns:`-prefixed token (I-019). |
 | v1.23.1 | The first full review since v1.10 (`docs/reviews/SPEC_REVIEW_REPORT.md`, F-701..F-717, 2026-10-27), folded before the v1.23 build. **Behaviour (all still unbuilt):** C-06's pinned request body restored — v1.16 had left a prose paragraph inside it, dropped the user-message opener and added a sentence contradicting `"messages": [`; the code was right (F-701). The `--citation-map` and `--proof-results` files are excluded from every scan (C-03, F-702). A mapped citation is DECLARED by a third C-14 rule, C-10's `declared` definition says so (so `judge_prompt.md` and `judge_prompt_sha256` change at the build and the recorded T-49 runs are void, F-303), and mapped citations are outside `declared_ratio`, now written as a formula over R-39's unchanged population of non-file-level cases (C-07, C-16, D-57; F-703, F-714). Mapped dangling/stale entries carry `mapped: true` (F-704). C-14 covers JS/TS comment-only lines (F-705, D-27). The mock judge recognises `expect(`/`expect.` (F-706; no golden changes). jest-junit needs `ancestorSeparator: " > "` and is documented, not claimed, until the new recorded T-117 (F-707, D-56). The JS/TS tokenizer has a pinned regex-versus-division rule (F-708). K-18 counts every file flag's readability as a usage fault decided before parsing (F-709). C-18's reasons name C-05's own steps and `<outcome>` gains `error`; T-92/T-93 strings change (F-711). FOREIGN recognition has no length cap; the 32-character limit is the `--namespace` value's (R-101, R-102, C-22; F-712). Foreign-token test inputs live under `tests/data/` (§9 preamble, F-713). A foreign range endpoint names nothing; a map entry cannot address a Python method by class (C-12, C-23; F-716). **Lists and wording:** §5.4's exit-3 lists (F-710); §5.1's `impact`/`explain`/`--root`/`--namespace` rows and E-09, E-68 (F-715); the split §5.1 and §9 tables joined, §2/§8/§11 rows sorted by id, O-2, C-12, E-14 and the Sources bullet brought up to date, proposal-local "Part A/B/C" labels replaced (F-717); C-03's copy of the DECLARED rule replaced by a pointer to C-14, which keeps C-03 (16.2 kB) under K-14's cap, and K-14's stale 8.4 kB reference point corrected. New id: T-117. |
 | v1.24 | Three suggestions from a regulated-domain debrief (`docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md`, 2026-10-27; D-58..D-60 confirmed on the recommended branches, same day). R-105: a non-strict exit-0 run that `--strict` would reject prints `UNPROVEN`, not `CONFORMING` (§5.1 and its T-44 regex, §5.4); the exit code is unchanged. C-01 (a): a backtick span is the CommonMark code span (D-59), which repairs `mdv*`'s R-24 (a statement cut in half) and 32 rows whose closing `\|` leaked into the last cell, this document's T-05 among them. E-66 also Notes a declared row with more cells than its TABLE's header. E-77 and C-12: one Note names the declared ids no edge touches (D-60). T-42 now cites R-17, the id it verifies (it named only §5.3 and would have been the one isolated id here). Not in the proposal, found while folding it: C-03 had crossed K-14's 16,384-byte cap at `b6949a1` (v1.23.1's jest measurement), so the released v1.23.1 truncated C-03's statement with a K-14 Note that no gate reads; the JS/TS adapter moved verbatim into a new C-24 (C-03 is now 11.9 kB), R-104, C-14, T-113..T-117, D-56 and §11 point at it, and K-14's reference point says what happened. New ids: R-105, C-24, E-77, T-118..T-121, D-58..D-60. The fixture goldens gain the E-77 Note at the build. |
+| v1.25 | A provenance manifest and hazard-to-control traceability (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md`, 2026-11-05; D-61..D-65 confirmed on the recommended branches, same day; `docs/plans/ISO13485_READINESS_PLAN.md` §3.2, §3.3). Evidence: on a copy of this repository a line appended to `src/speccheck/report.py` after the test run left both v1.24 reports byte-identical, so a report could not identify the code it verified. R-106, C-25, I-020: `check --manifest` writes `speccheck.manifest.json` (tool version, options, SHA-256 and length of every file read and of both reports, `tree_sha256`, `generated_at` only from `SOURCE_DATE_EPOCH`), renamed into place with the two reports. R-107, C-26: `speccheck verify` re-hashes and exits `1` naming each changed or missing file. R-108, C-27: the CONTROLS marker (C-01, `SpecId.controls`) and the `VERIFIED`/`NOT_VERIFIED`/`UNCONTROLLED` hazard roll-up in `controls`, `hazards`, C-08's `## 10. Hazards`, `explain`'s `controls:` line and the summary suffix `; hazards: <V>/<H> verified`. R-109, C-28: `--risk-file`; R-15 gains one condition, an `UNCONTROLLED` hazard. I-001 admits the third file; I-021 keeps every run that uses none of it byte-identical to v1.24; K-20; E-78..E-85; T-122..T-129; §0 gains two non-goals (no risk management, no signatures). Settled while folding, beyond the proposal's draft rows: the manifest joins §3.1's temp-and-rename sequence instead of being written after it (so the reports and the manifest are written together or not at all); `--risk-file` is `check`-only, since `explain`'s `controls:` line needs no titles and a marked id's hazards cannot be `UNCONTROLLED` unless it is retired; a symlink skipped by E-11 is not listed in `inputs` (it was never read); `verify` caps a manifest at K-02's 2 MiB (E-83); `impact` parses and ignores the marker. Specified, not built: two id-count pins fail until the build — `DECLARED_IDS` in `tests/test_09_self_application.py` (307; v1.25 declares 334) and the self-application line `docs/introducing-speccheck.md` quotes (`307/307`), checked by `test_article_quotes_and_numbers_match_the_tree`. |
