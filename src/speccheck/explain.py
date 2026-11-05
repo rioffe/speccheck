@@ -104,14 +104,24 @@ def _impact_lines(walk: WalkResult, reverify: tuple[ReverifyEntry, ...], depth: 
     return out
 
 
+def _controls_lines(rec: IdRecord, hazard_status: dict[str, str]) -> list[str]:
+    """C-18 (v1.25): `controls:` with each hazard's C-27 status, only for a marked id."""
+    if not rec.spec.controls:
+        return []
+    shown = ", ".join(f"{h} ({hazard_status[h]})" for h in rec.spec.controls)
+    return [f"controls: {shown}"]
+
+
 def render_trace(
     rec: IdRecord,
     walk: WalkResult,
     reverify: tuple[ReverifyEntry, ...],
     depth: int,
+    hazard_status: dict[str, str] | None = None,
 ) -> str:
     """C-18: the whole trace for one id, ending in exactly one `\\n`."""
     lines = [_id_line(rec), _status_line(rec)]
+    lines += _controls_lines(rec, hazard_status or {})
     lines += _statement_lines(rec)
     lines += _source_lines(rec)
     lines += _test_lines(rec)

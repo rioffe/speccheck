@@ -38,8 +38,8 @@ options:
   --root DIR           base directory for the reports' relative paths and for
                        the containment rule: every path flag (--spec, --src,
                        --tests, --results, --out, --proof, --proof-results,
-                       --against, --citation-map) and every list element must
-                       resolve inside it. default: .
+                       --against, --citation-map, --risk-file) and every list
+                       element must resolve inside it. default: .
   --out DIR            where the reports are written. default: .; must resolve
                        inside --root
   --depth N            walk depth: an integer 0..999 (0 = unbounded). default:

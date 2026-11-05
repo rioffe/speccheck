@@ -276,5 +276,65 @@ def compute_metrics(graph: Graph) -> Metrics:
     )
 
 
+@dataclass(frozen=True)
+class HazardRecord:
+    """C-27 (v1.25): one hazard of the set H and its roll-up status."""
+
+    id: str
+    title: str | None  # from the risk file (C-28), else None
+    controls: tuple[str, ...]  # CTRL(h): the non-retired controlling ids, in C-07 order
+    status: str  # VERIFIED | NOT_VERIFIED | UNCONTROLLED
+
+
+def compute_hazards(
+    records: list[IdRecord], risk: dict[str, str | None] | None
+) -> tuple[HazardRecord, ...] | None:
+    """C-27: H = every marker hazard (retired ids included) plus every risk-file hazard; None when
+    H is empty and no risk file was given (no `hazards` key, I-021). Runs on the final statuses,
+    after C-05 step 5; nothing flows back into a status."""
+    named: dict[str, list[IdRecord]] = {}
+    for rec in records:  # graph.records are already in C-07 order
+        for h in rec.spec.controls:
+            named.setdefault(h, [])
+            if not rec.spec.retired:
+                named[h].append(rec)
+    if not named and risk is None:
+        return None
+    titles = risk or {}
+    out: list[HazardRecord] = []
+    for h in sorted(set(named) | set(titles)):
+        ctrl = named.get(h, [])
+        if not ctrl:
+            status = "UNCONTROLLED"
+        elif all(r.status == "PASSING" for r in ctrl):  # WEAKLY_PASSING is not PASSING
+            status = "VERIFIED"
+        else:
+            status = "NOT_VERIFIED"
+        out.append(HazardRecord(h, titles.get(h), tuple(r.id for r in ctrl), status))
+    return tuple(out)
+
+
+def _listing(ids: list[str]) -> str:
+    shown = ", ".join(ids[:3])
+    return shown + (f" and {len(ids) - 3} more" if len(ids) > 3 else "")
+
+
+def hazard_notes(
+    hazards: tuple[HazardRecord, ...] | None, risk: dict[str, str | None] | None
+) -> list[str]:
+    """E-79 (marker hazards the risk file does not list) and E-81 (UNCONTROLLED), one Note each."""
+    if not hazards:
+        return []
+    notes: list[str] = []
+    if risk is not None:
+        missing = [h.id for h in hazards if h.id not in risk]
+        if missing:
+            notes.append(f"{len(missing)} hazard(s) not in the risk file: {_listing(missing)}")
+    uncontrolled = [h.id for h in hazards if h.status == "UNCONTROLLED"]
+    if uncontrolled:
+        notes.append(f"{len(uncontrolled)} uncontrolled hazard(s): {_listing(uncontrolled)}")
+    return notes
+
+
 def sort_records(records: list[IdRecord]) -> list[IdRecord]:
     return sorted(records, key=lambda r: (family_rank(r.spec.family), r.spec.number))

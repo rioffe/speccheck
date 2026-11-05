@@ -17,7 +17,7 @@ from pathlib import Path
 
 from .attribute import Citation
 from .extract import FAMILY_ORDER, Decision, Edge
-from .graph import IN_SCOPE_STATUSES, Graph, Metrics, TestEdge, compute_metrics
+from .graph import IN_SCOPE_STATUSES, Graph, HazardRecord, Metrics, TestEdge, compute_metrics
 from .results import RawResult
 
 SCHEMA_VERSION = (
@@ -92,6 +92,8 @@ def exit_code_for(report: dict) -> int:
             return 1
         if report["dangling"] or report["stale"]:
             return 1
+        if _uncontrolled(report):  # R-15 (v1.25, D-64): an UNCONTROLLED hazard
+            return 1
         if report["strict_judge_failure"] is not None:
             return 1
         # D-45 (v1.19): a failed proof state is a strict gate failure only when a manifest was
@@ -103,12 +105,17 @@ def exit_code_for(report: dict) -> int:
     return 0
 
 
+def _uncontrolled(report: dict) -> bool:
+    """C-27: some hazard is UNCONTROLLED (R-15's hazard condition, v1.25)."""
+    return any(h["status"] == "UNCONTROLLED" for h in report.get("hazards", ()))
+
+
 def _exit0_word(report: dict) -> str:
     """R-105 (v1.24): on exit 0, `CONFORMING` only when R-15's conditions hold — every in-scope
     id PASSING, no dangling or stale citation — else `UNPROVEN` (possible only without
     --strict, which would have exited 1). Read from the JSON, so R-14 still holds."""
     m = report["metrics"]
-    proven = m["by_status"]["PASSING"] == m["in_scope"]
+    proven = m["by_status"]["PASSING"] == m["in_scope"] and not _uncontrolled(report)
     return "CONFORMING" if proven and not report["dangling"] and not report["stale"] else "UNPROVEN"
 
 
@@ -132,8 +139,16 @@ def summary_line(report: dict) -> str:
         f"{s['FAILING']} failing, {s['SKIPPED']} skipped, {s['WEAKLY_PASSING']} weak, "
         f"{s['UNVERIFIED']} unverified, {s['UNTESTED']} untested, {s['UNCITED']} uncited; "
         f"{len(report['dangling'])} dangling, {len(report['stale'])} stale; "
-        f"judge={report['judge']}{suffix}{_mapped_suffix(report)}"
+        f"judge={report['judge']}{suffix}{_mapped_suffix(report)}{_hazard_suffix(report)}"
     )
+
+
+def _hazard_suffix(report: dict) -> str:
+    """§5.1 / C-27 (v1.25): `; hazards: <V>/<H> verified` whenever the `hazards` key exists."""
+    if "hazards" not in report:
+        return ""
+    verified = sum(1 for h in report["hazards"] if h["status"] == "VERIFIED")
+    return f"; hazards: {verified}/{len(report['hazards'])} verified"
 
 
 def _mapped_suffix(report: dict) -> str:
@@ -166,6 +181,7 @@ class ReportInputs:
     proof_build: dict | None = None  # v1.19, C-21: the manifest's own `build` object, verbatim
     foreign: tuple = ()  # v1.23, C-22: ForeignRef entries, sorted (file, line, namespace, id)
     citation_map: dict | None = None  # v1.23, C-23: {file, entries, resolved, unresolved}
+    hazards: tuple[HazardRecord, ...] | None = None  # v1.25, C-27: None -> no `hazards` key
 
 
 def _edge_json(edge: TestEdge, map_given: bool = False) -> dict:
@@ -238,6 +254,7 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
             "id": rec.id,
             "family": rec.spec.family,
             "recorded": rec.spec.recorded,  # C-07 / R-35
+            **({"controls": list(rec.spec.controls)} if rec.spec.controls else {}),  # C-27
             "title": rec.spec.title,  # C-07 / R-33: heading text or table cell (C-08 renders it)
             "statement": rec.spec.text,  # the full statement: title + section body for a heading
             "line": rec.spec.line,
@@ -255,6 +272,11 @@ def build_report(inputs: ReportInputs) -> tuple[dict, Metrics]:
     report["edges"] = [
         {"src": e.src, "kind": e.kind, "dst": e.dst, "retired": e.retired} for e in inputs.edges
     ]
+    if inputs.hazards is not None:  # C-27 / C-07 (v1.25): after `edges`, only when H or a risk file
+        report["hazards"] = [
+            {"id": h.id, "title": h.title, "controls": list(h.controls), "status": h.status}
+            for h in inputs.hazards
+        ]
     report["dangling"] = [_citation_json(c, map_given) for c in inputs.graph.dangling]
     report["stale"] = [_citation_json(c, map_given) for c in inputs.graph.stale]
     report["unattributed_results"] = [
@@ -482,6 +504,19 @@ def render_markdown(report: dict) -> str:
         out.extend(f"- {_cell(n)}" for n in report["notes"])
     else:
         out.append("None.")
+    if "hazards" in report:  # C-08 / C-27 (v1.25): only with the JSON key
+        status_of = {r["id"]: r["status"] for r in report["ids"]}
+        rows = [
+            [
+                h["id"],
+                EM_DASH if h["title"] is None else h["title"],
+                "; ".join(f"{c} ({status_of[c]})" for c in h["controls"]) or EM_DASH,
+                h["status"],
+            ]
+            for h in report["hazards"]
+        ]
+        out.extend(["", "## 10. Hazards", ""])
+        out.extend(_table(["Hazard", "Title", "Controls", "Status"], rows))
     return "\n".join(out) + "\n"
 
 

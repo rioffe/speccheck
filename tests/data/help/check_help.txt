@@ -1,10 +1,11 @@
 usage: speccheck check [-h] --spec FILE [--src PATHS] [--tests PATHS]
                        [--results FILE] [--proof PATHS] [--proof-results FILE]
-                       [--namespace NS] [--citation-map FILE] [--root DIR]
-                       [--out DIR] [--judge MODE] [--strict]
-                       [--max-unknown FRACTION] [--judge-concurrency N]
-                       [--judge-budget SECONDS|N%] [--jev-pre-triage]
-                       [--progress MODE] [--verbose [LEVEL]]
+                       [--namespace NS] [--citation-map FILE]
+                       [--risk-file FILE] [--root DIR] [--out DIR]
+                       [--judge MODE] [--strict] [--max-unknown FRACTION]
+                       [--judge-concurrency N] [--judge-budget SECONDS|N%]
+                       [--jev-pre-triage] [--progress MODE]
+                       [--verbose [LEVEL]]
 
 Run the conformance pipeline and write speccheck.json and SPEC_CONFORMANCE_REPORT.md under --out.
 
@@ -49,19 +50,26 @@ options:
                         citation, labelled as such in every report. must
                         resolve inside --root; unreadable is a usage error,
                         malformed is an input-contract error. default: none
+  --risk-file FILE      check-only (v1.25). a JSON risk file, {"hazards":
+                        [{"id", "title"}...]}, listing the hazards whose risk
+                        control is allocated to this software (C-28); a listed
+                        hazard that no *(controls: ...)* row controls is
+                        UNCONTROLLED and fails --strict. must resolve inside
+                        --root; unreadable is a usage error, malformed is an
+                        input-contract error. default: none
   --root DIR            base directory for the reports' relative paths and for
                         the containment rule: every path flag (--spec, --src,
                         --tests, --results, --out, --proof, --proof-results,
-                        --against, --citation-map) and every list element must
-                        resolve inside it. default: .
+                        --against, --citation-map, --risk-file) and every list
+                        element must resolve inside it. default: .
   --out DIR             where the reports are written. default: .; must
                         resolve inside --root
   --judge MODE          judge to use: none, mock, or llm -- llm is model-
                         backed and requires SPECCHECK_JUDGE_*. default: none
   --strict              exit 1 unless every in-scope ID is PASSING with no
-                        dangling or stale citation and, with --judge llm, the
-                        judge was available and unknown_rate <= --max-unknown.
-                        default: off
+                        dangling or stale citation, no hazard is UNCONTROLLED,
+                        and, with --judge llm, the judge was available and
+                        unknown_rate <= --max-unknown. default: off
   --max-unknown FRACTION
                         unknown_rate ceiling for --strict: a decimal in [0,
                         1]. default: 0.2; consulted only with --strict --judge

@@ -30,6 +30,7 @@ from . import __version__
 from .attribute import Citation, TestCase, attribute_file
 from .explain import render_trace
 from .extract import (
+    HAZID_RE,
     ID_RE,
     ForeignRef,
     ScanCounters,
@@ -47,7 +48,15 @@ from .extract import (
     scan_roots,
     to_posix_relative,
 )
-from .graph import Graph, apply_verdicts, build_graph, eligible_edges
+from .graph import (
+    Graph,
+    HazardRecord,
+    apply_verdicts,
+    build_graph,
+    compute_hazards,
+    eligible_edges,
+    hazard_notes,
+)
 from .impact import (
     ChangedError,
     ReverifyEntry,
@@ -134,6 +143,7 @@ class Config:
     namespace: str | None = None  # v1.23 (R-102, C-22): --namespace NS
     citation_map: Path | None = None  # v1.23 (R-103, C-23): --citation-map FILE
     citation_map_arg: str | None = None  # the path as given, echoed in `citation_map.file`
+    risk_file: Path | None = None  # v1.25 (R-109, C-28): --risk-file FILE, check-only
 
 
 @dataclass(frozen=True)
@@ -245,7 +255,7 @@ _HELP_RESULTS = (
 _HELP_ROOT = (
     "base directory for the reports' relative paths and for the containment rule: every path "
     "flag (--spec, --src, --tests, --results, --out, --proof, --proof-results, --against, "
-    "--citation-map) and every list element must resolve inside it. default: ."
+    "--citation-map, --risk-file) and every list element must resolve inside it. default: ."
 )
 _HELP_OUT = "where the reports are written. default: .; must resolve inside --root"
 _HELP_JUDGE = (
@@ -313,6 +323,13 @@ _HELP_CITATION_MAP = (
     "malformed is an input-contract error. default: none"
 )
 CITATION_MAP_MAX = 2 * 1024 * 1024  # K-19: the K-02 file cap
+_HELP_RISK_FILE = (
+    "check-only (v1.25). a JSON risk file, {\"hazards\": [{\"id\", \"title\"}...]}, listing the "
+    "hazards whose risk control is allocated to this software (C-28); a listed hazard that no "
+    "*(controls: ...)* row controls is UNCONTROLLED and fails --strict. must resolve inside "
+    "--root; unreadable is a usage error, malformed is an input-contract error. default: none"
+)
+RISK_FILE_MAX = 2 * 1024 * 1024  # K-20: the K-02 file cap
 _MAP_KEYS = frozenset({"id", "file", "test"})
 _MAP_ID_RE = re.compile(r"([RCIKET])-([0-9]{1,3})")
 
@@ -342,6 +359,53 @@ def _readable_map(arg: str | None, root: Path) -> Path | None:
     except OSError:
         raise UsageError(f"--citation-map: not a readable file: {arg}") from None
     return path
+
+
+class RiskFileError(Exception):
+    """E-84: a readable risk file that is not UTF-8 JSON, has the wrong shape, a bad or duplicate
+    hazard id, or is over K-20's 2 MiB (exit 3, before C-05 runs)."""
+
+
+def _readable_file(flag: str, arg: str | None, root: Path) -> Path | None:
+    """A FILE flag's exit-2 half (K-18): inside --root (E-09), and a readable file."""
+    if arg is None:
+        return None
+    path = _resolve_inside(arg, root)
+    if not path.is_file():
+        raise UsageError(f"{flag}: not a readable file: {arg}")
+    try:
+        with open(path, "rb"):
+            pass
+    except OSError:
+        raise UsageError(f"{flag}: not a readable file: {arg}") from None
+    return path
+
+
+def load_risk_file(data: bytes) -> dict[str, str | None]:
+    """C-28 / E-84 / K-20: hazard id -> title (None when absent). Raises RiskFileError."""
+    if len(data) > RISK_FILE_MAX:
+        raise RiskFileError("--risk-file: over 2 MiB (K-20)")
+    try:
+        doc = json.loads(data.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RiskFileError(f"--risk-file: not UTF-8 JSON: {exc}") from None
+    hazards = doc.get("hazards") if isinstance(doc, dict) else None
+    if not isinstance(hazards, list):
+        raise RiskFileError("--risk-file: no hazards list")
+    out: dict[str, str | None] = {}
+    for k, entry in enumerate(hazards):
+        if not isinstance(entry, dict):
+            raise RiskFileError(f"--risk-file: entry {k} is not an object")
+        ident = entry.get("id")
+        if not isinstance(ident, str) or HAZID_RE.fullmatch(ident) is None:
+            raise RiskFileError(f"--risk-file: entry {k}: not a hazard id: {ident!r}")
+        title = entry.get("title")
+        if title is not None and not isinstance(title, str):
+            raise RiskFileError(f"--risk-file: entry {k}: title is not a string")
+        if ident in out:
+            raise RiskFileError(f"--risk-file: duplicate hazard id {ident}")
+        out[ident] = title
+    return out
 
 
 def load_citation_map(path: Path) -> list[MapEntry]:
@@ -484,14 +548,16 @@ def build_parser() -> _Parser:
     check.add_argument(
         "--citation-map", default=None, metavar="FILE", help=_HELP_CITATION_MAP
     )
+    check.add_argument("--risk-file", default=None, metavar="FILE", help=_HELP_RISK_FILE)
     check.add_argument("--root", default=".", metavar="DIR", help=_HELP_ROOT)
     check.add_argument("--out", default=".", metavar="DIR", help=_HELP_OUT)
     check.add_argument("--judge", default="none", metavar="MODE", help=_HELP_JUDGE)
     check.add_argument(
         "--strict",
         action="store_true",
-        help="exit 1 unless every in-scope ID is PASSING with no dangling or stale citation and, "
-        "with --judge llm, the judge was available and unknown_rate <= --max-unknown. default: off",
+        help="exit 1 unless every in-scope ID is PASSING with no dangling or stale citation, no "
+        "hazard is UNCONTROLLED, and, with --judge llm, the judge was available and "
+        "unknown_rate <= --max-unknown. default: off",
     )
     check.add_argument("--max-unknown", default="0.2", metavar="FRACTION", help=_HELP_MAX_UNKNOWN)
     check.add_argument("--judge-concurrency", default="4", metavar="N", help=_HELP_CONCURRENCY)
@@ -827,6 +893,8 @@ def _build_check_config(
         except OSError:
             raise UsageError(f"--proof-results: not a readable file: {proof_results_arg}") from None
     citation_map = _readable_map(args.citation_map, root)  # E-70's exit-2 half (K-18)
+    # v1.25 (R-109, C-28): check-only; `explain` defines no --risk-file, so it is absent there
+    risk_file = _readable_file("--risk-file", getattr(args, "risk_file", None), root)
     out = _resolve_inside(out_arg, root)
 
     llm: LlmConfig | None = None
@@ -858,6 +926,7 @@ def _build_check_config(
         namespace=namespace,
         citation_map=citation_map,
         citation_map_arg=args.citation_map,
+        risk_file=risk_file,
         root=root,
         out=out,
         judge=args.judge,
@@ -896,7 +965,7 @@ def _excluded_paths(config: Config) -> frozenset[Path]:
     paths = {config.spec, config.out / JSON_NAME, config.out / MD_NAME}
     if config.results is not None:
         paths.add(config.results)
-    for extra in (config.citation_map, config.proof_results):  # C-03 (v1.23.1, F-702)
+    for extra in (config.citation_map, config.proof_results, config.risk_file):  # C-03
         if extra is not None:
             paths.add(extra)
     return frozenset(paths)
@@ -924,6 +993,7 @@ class _Stages:
     proof_build: dict | None = None  # v1.19 (C-21): the manifest's build object, echoed verbatim
     foreign: tuple[ForeignRef, ...] = ()  # v1.23 (C-22): sorted (file, line, namespace, id)
     citation_map: dict | None = None  # v1.23 (C-23): {file, entries, resolved, unresolved}
+    hazards: tuple[HazardRecord, ...] | None = None  # v1.25 (C-27): None -> no `hazards` key
 
 
 def _run_stages(config: Config) -> _Stages:
@@ -942,6 +1012,7 @@ def _run_stages(config: Config) -> _Stages:
     notes.extend(index.notes)  # K-14 / E-46: one Note per truncated statement
     if (isolated := isolated_note(index)) is not None:  # E-77: check and explain only, not impact
         notes.append(isolated)
+    notes.extend(index.controls_notes)  # E-78 / E-80 (v1.25): likewise not `impact`'s
     stage.done(ids=len(index.ids), retired=sum(1 for s in index.ids if s.retired))
 
     excluded = _excluded_paths(config)
@@ -1002,6 +1073,12 @@ def _run_stages(config: Config) -> _Stages:
         stage.done(results=len(raw_results), joined=mapping.joined, unattributed=len(unattributed))
     else:
         stage.done(results=0, joined=0, unattributed=0)
+
+    risk: dict[str, str | None] | None = None
+    if config.risk_file is not None:  # §3.1 read-risk-file (v1.25; C-28, E-84), before C-05
+        stage = _Stage("read-risk-file")
+        risk = load_risk_file(config.risk_file.read_bytes())
+        stage.done(hazards=len(risk))
 
     stage = _Stage("graph")
     graph = build_graph(index, src_citations, test_citations, outcomes, config.results is not None)
@@ -1111,6 +1188,10 @@ def _run_stages(config: Config) -> _Stages:
             unknown=sum(1 for v in run.verdicts.values() if v.verdict == "UNKNOWN"),
         )
 
+    # C-27 (v1.25): the hazard roll-up, from the final statuses (after C-05 step 5)
+    hazards = compute_hazards(graph.records, risk)
+    notes.extend(hazard_notes(hazards, risk))
+
     return _Stages(
         index,
         graph,
@@ -1121,6 +1202,7 @@ def _run_stages(config: Config) -> _Stages:
         proof_build,
         tuple(foreign),
         citation_map,
+        hazards,
     )
 
 
@@ -1147,6 +1229,7 @@ def execute(config: Config, stdout: io.TextIOBase | None = None) -> int:
             unattributed=unattributed,
             foreign=stages.foreign,
             citation_map=stages.citation_map,
+            hazards=stages.hazards,
             notes=notes,
             decisions=index.decisions,
             edges=index.edges,
@@ -1197,7 +1280,13 @@ def execute_explain(config: ExplainConfig, stdout: io.TextIOBase | None = None) 
     for note in stages.notes:
         log.info("note: %s", note)
     _emit_text(
-        render_trace(rec, WalkResult(impact, result.beyond_depth), reverify, config.depth),
+        render_trace(
+            rec,
+            WalkResult(impact, result.beyond_depth),
+            reverify,
+            config.depth,
+            {h.id: h.status for h in stages.hazards or ()},
+        ),
         stdout,
     )
     return 0
@@ -1507,7 +1596,9 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
     except UsageError as exc:
         log.error("%s", exc)
         return 2
-    except (SpecError, ResultsError, OutError, ProofError, CitationMapError) as exc:
+    except (
+        SpecError, ResultsError, OutError, ProofError, CitationMapError, RiskFileError
+    ) as exc:
         log.error("%s", exc)
         return 3
     except SystemExit as exc:  # argparse --help / --version

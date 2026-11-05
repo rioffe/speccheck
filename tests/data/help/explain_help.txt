@@ -45,8 +45,8 @@ options:
   --root DIR            base directory for the reports' relative paths and for
                         the containment rule: every path flag (--spec, --src,
                         --tests, --results, --out, --proof, --proof-results,
-                        --against, --citation-map) and every list element must
-                        resolve inside it. default: .
+                        --against, --citation-map, --risk-file) and every list
+                        element must resolve inside it. default: .
   --judge MODE          judge to use: none, mock, or llm -- llm is model-
                         backed and requires SPECCHECK_JUDGE_*. default: none
   --max-unknown FRACTION

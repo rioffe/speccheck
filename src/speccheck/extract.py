@@ -41,6 +41,14 @@ TRUNCATION_MARKER = "\u2026 (statement truncated by speccheck at K-14)"  # K-14 
 RECORDED_MARKER = (
     "*(recorded)*"  # C-01 / R-35: the first token after the ID form marks a recorded T id
 )
+# C-27 (v1.25): the CONTROLS marker, matched as the longest prefix of the text after the ID form
+# (or after RECORDED); HAZID is at most 64 characters (K-20).
+CONTROLS_PREFIX = "*(controls:"
+HAZID = r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}"
+HAZID_RE = re.compile(HAZID)
+_CONTROLS_RE = re.compile(
+    r"\*\(controls:[ \t]*(?P<ids>" + HAZID + r"(?:[ \t]*,[ \t]*" + HAZID + r")*)[ \t]*\)\*"
+)
 
 
 class SpecError(Exception):
@@ -122,6 +130,7 @@ class SpecId:
     retired: bool
     recorded: bool = False  # C-01 RECORDED marker (R-35); only ever True for family T
     extra: str = ""  # C-12: the other non-ID cells of a table row; read for edges, never judged
+    controls: tuple[str, ...] = ()  # C-27 (v1.25): hazard ids, unique, code-point sorted
 
     @property
     def id(self) -> str:
@@ -159,6 +168,9 @@ class SpecIndex:
     # E-77 (v1.24): declared, non-retired ids no edge touches, in C-07 order. Kept out of `notes`
     # because `impact` copies those and E-77's Note is `check`/`explain`'s only.
     isolated: tuple[str, ...] = ()
+    # E-78 / E-80 (v1.25): the marker Notes, also kept out of `notes` — C-27: `impact` ignores the
+    # marker, so they are `check`/`explain`'s only.
+    controls_notes: tuple[str, ...] = ()
 
     def by_id(self) -> dict[str, SpecId]:
         return {s.id: s for s in self.ids}
@@ -343,11 +355,33 @@ def heading_title(rest: str) -> str:
     return collapse_ws(_CLOSING_HASHES_RE.sub("", rest))
 
 
+def split_controls(text: str) -> tuple[tuple[str, ...] | None, bool, str]:
+    """C-01 / C-27: (hazard ids or None when no marker begins `text`, malformed?, the rest of
+    `text` after a valid marker — `text` itself when there is none or it is malformed)."""
+    text = text.lstrip()
+    if not text.startswith(CONTROLS_PREFIX):
+        return None, False, text
+    m = _CONTROLS_RE.match(text)
+    if m is None:
+        return None, True, text  # E-80: stays decoration / title text
+    ids = tuple(sorted({h.strip() for h in m.group("ids").split(",")}))
+    return ids, False, text[m.end() :]
+
+
+def _after_recorded(text: str) -> tuple[bool, str]:
+    """C-01: RECORDED is the first whitespace token; returns (recorded?, the text after it)."""
+    stripped = text.lstrip()
+    if stripped.split()[:1] == [RECORDED_MARKER]:
+        return True, stripped[len(RECORDED_MARKER) :]
+    return False, stripped
+
+
 def iter_declarations(
     lines: list[str],
-) -> Iterable[tuple[str, int, str, str, bool, int, bool, str]]:
-    """Yield (family, number, title, statement, retired, lineno, recorded, extra) for every
-    declaration outside fences (C-01). The statement is capped per K-14 by the caller."""
+) -> Iterable[tuple[str, int, str, str, bool, int, bool, str, tuple[str, ...] | None, bool]]:
+    """Yield (family, number, title, statement, retired, lineno, recorded, extra, controls,
+    malformed_controls) for every declaration outside fences (C-01). The statement is capped per
+    K-14 by the caller."""
     headings = _heading_lines(lines)
     fence: str | None = None
     for lineno, line in enumerate(lines, start=1):
@@ -373,13 +407,15 @@ def iter_declarations(
                 continue
             tok = m.group("a") or m.group("b") or m.group("c")
             retired = m.group("a") is None
-            decoration = first[m.end() :].split()
-            recorded = bool(decoration) and decoration[0] == RECORDED_MARKER  # R-35
+            recorded, after = _after_recorded(first[m.end() :])  # R-35
+            controls, bad, _rest = split_controls(after)  # C-27: decoration, never the statement
             statement = collapse_ws(cells[1]) if len(cells) > 1 else ""
             extra = collapse_ws(" ".join(cells[2:]))  # C-12: remaining cells, edges only
             fam, num = tok.split("-")
             # C-01 (a): a table declaration's title is its statement
-            yield fam, int(num), statement, statement, retired, lineno, recorded, extra
+            yield (
+                fam, int(num), statement, statement, retired, lineno, recorded, extra, controls, bad
+            )
             continue
         if stripped.startswith("#"):
             m = _HEADING_RE.match(line)
@@ -390,9 +426,12 @@ def iter_declarations(
             tok = tok.strip("~")
             fam, num = tok.split("-")
             rest = m.group("rest")
-            recorded = rest.split()[:1] == [RECORDED_MARKER]  # R-35: first token after the ID
+            recorded, after = _after_recorded(rest)  # R-35: first token after the ID
             if recorded:
-                rest = rest.lstrip()[len(RECORDED_MARKER) :]  # the marker is not part of the title
+                rest = after  # the marker is not part of the title
+            controls, bad, after = split_controls(rest)  # C-27: not part of the title either
+            if controls is not None:
+                rest = after
             title = heading_title(rest)
             level = heading_level(line)
             assert level is not None  # _HEADING_RE is a subset of _HEADING_LINE_RE
@@ -404,7 +443,7 @@ def iter_declarations(
                 statement = body
             else:
                 statement = title + "\n" + body
-            yield fam, int(num), title, statement, retired, lineno, recorded, ""
+            yield fam, int(num), title, statement, retired, lineno, recorded, "", controls, bad
 
 
 # --------------------------------------------------------------------------------------------
@@ -597,9 +636,12 @@ def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIn
     """Build the SpecIndex from the spec text. Raises SpecError for E-01, E-02, E-03."""
     seen: dict[tuple[str, int], SpecId] = {}
     notes: list[str] = []
+    controls_notes: list[str] = []
     lines = split_spec_lines(text)
     header_widths = _header_widths(lines)  # E-66 (v1.24): a row wider than its TABLE's header
-    for fam, num, title, statement, retired, lineno, recorded, extra in iter_declarations(lines):
+    for (
+        fam, num, title, statement, retired, lineno, recorded, extra, controls, bad
+    ) in iter_declarations(lines):
         key = (fam, num)
         if key in seen:
             prior = seen[key]
@@ -625,7 +667,15 @@ def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIn
         )
         if (extra and _odd_math_delimiters(statement)) or wider:  # an unescaped "|" cut it (E-66)
             notes.append(f"statement may be cut at an unescaped '|': {normalize_id(fam, num)}")
-        seen[key] = SpecId(fam, num, title, statement, lineno, retired, recorded, extra)
+        ident = normalize_id(fam, num)
+        if bad:  # E-80
+            controls_notes.append(f"malformed controls marker on {ident}")
+        elif controls is not None and fam == "T":  # E-78
+            controls_notes.append(f"controls marker ignored on {ident}: not an R/C/I/K/E id")
+            controls = None
+        seen[key] = SpecId(
+            fam, num, title, statement, lineno, retired, recorded, extra, controls or ()
+        )
     ids = tuple(sorted(seen.values(), key=lambda s: (family_rank(s.family), s.number)))
     if not any(not s.retired for s in ids):
         raise SpecError("spec declares no in-scope IDs")
@@ -652,6 +702,7 @@ def parse_spec(text: str, rel_path: str, namespace: str | None = None) -> SpecIn
         decisions=decisions,
         edges=edges,
         isolated=isolated,
+        controls_notes=tuple(sorted(controls_notes)),
     )
 
 
