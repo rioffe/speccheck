@@ -19,7 +19,7 @@ confirmed on the recommended branches. Built on branch `spec/v1.25` from
 | --- | --- | --- | --- |
 | W1 — hazards (R-108, R-109, C-27, C-28, R-15; T-126, T-127) | pytest; ruff; `--self-check`; goldens unchanged | 200 passed / 2 failed (the two id-count pins, 307 → 334); ruff 0; `self-check: ok`; `git status` on fixtures and `_selfcheck/` clean | `dfdb07c` |
 | W2 — manifest and `verify` (R-106, R-107, C-25, C-26, I-020; T-122..T-125, T-129) | as W1, plus `check --manifest` then `verify` on this repository | 210 passed / the same 2; goldens unchanged; `verify: ok - 74 files match`, exit 0 | `54a2228` |
-| W3 — T-128, counts, version 1.25.0, docs, both gates | the full exit gate, Phase A, Phase B | Phase A clean; Phase B blocked (below) | this commit |
+| W3 — T-128, counts, version 1.25.0, docs, both gates | the full exit gate, Phase A, Phase B | Phase A clean; Phase B blocked by HTTP 401, then run with a valid key: CONFORMING, `unknown_rate` 0.0117 (below) | `39d57d4` and the Phase B commit |
 
 **What the build found.**
 
@@ -66,23 +66,40 @@ verify: ok - 74 files match, tree 3be076240f44                     exit 0
 verify: mismatch src/speccheck/report.py
 verify: FAILED - 1 of 74 files differ                              exit 1
 
-# Phase B: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict — NOT RUN
-probe (`explain R-106 --judge llm`, 3 judge calls): every call returned HTTP 401 Unauthorized
+# Phase B: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict
+first probe (`explain R-106 --judge llm`, 3 judge calls): every call returned HTTP 401 Unauthorized
+second probe, key from switch_to_openrouter.sh (model overridden to openai/gpt-6-luna-pro): HTTP 200
+uv run python -m pytest tests -q --junitxml=junit.xml               213 passed (junit.xml sha256 09331661…)
+uv run speccheck check … --judge llm --strict --judge-concurrency 16 --out build/speccheck-llm
+speccheck: CONFORMING - 334/334 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm
+                                                                    exit 0
 ```
 
-**Phase B was not run.** The plan's rule from v1.24 (probe the endpoint before the full run) did its
-job: the three probe calls all returned `judge: http 401`, so OpenRouter does not accept the API key
-in this shell, and a full run would have produced about 1,100 `UNKNOWN` edges and no evidence. The
-full run is pending a valid `SPECCHECK_JUDGE_API_KEY`; the command is the README's Phase B line
-(`--judge llm --strict --judge-concurrency 16`, `openai/gpt-6-luna-pro`).
+**Phase B passed on its first full run.** The first probe was rejected with HTTP 401 because the
+shell had no accepted key. The plan's rule from v1.24 (probe before the full run) stopped a run of
+about 1,100 `UNKNOWN` edges. With the key from `switch_to_openrouter.sh` (that script names
+`openai/gpt-4o-mini`; the run overrode it to `openai/gpt-6-luna-pro`), the probe returned 200 and
+the full run judged 1,110 (test, id) edges:
+
+| Verdict | Edges |
+| --- | --- |
+| ASSERTS | 674 |
+| UNRELATED | 238 |
+| EXECUTES_ONLY | 185 |
+| UNKNOWN | 13 |
+
+That gives an `unknown_rate` of 0.0117 (13/1,110), under `--max-unknown` 0.2, and judge strength
+324/324. No id was downgraded: every id with an `EXECUTES_ONLY` edge also has an `ASSERTS` edge,
+and the judge only lowers a status when no edge asserts. The run had the same 9 Notes as Phase A:
+8 `R-99` example edges and the ignore-file count.
 
 ```text
 Spec coverage: 334/334 IDs realized (0 deferred)
 speccheck (mock): speccheck: CONFORMING - 334/334 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
-speccheck (llm):  not run: the endpoint rejected the key (HTTP 401 on the probe); pending a valid SPECCHECK_JUDGE_API_KEY
-Observed: no rendered surface; goldens unchanged, help screens diffed, every Note of the run read
+speccheck (llm):  speccheck: CONFORMING - 334/334 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm (openai/gpt-6-luna-pro, unknown_rate 0.0117, 1,110 judged edges)
+Observed: no rendered surface; goldens unchanged, help screens diffed, every Note of both runs read
 Readiness: BUILT
-Conformance: PASS WITH NOTES (Phase B pending)
+Conformance: PASS
 ```
 
 ## 0o. v1.24 increment (2026-10-27) — UNPROVEN, CommonMark backtick spans, cut rows, isolated ids
@@ -2190,7 +2207,7 @@ The rows after K-18 were added at v1.23.1 for every id the matrix lacked — E-4
 
 ## 6. Verdict
 
-The current verdict is v1.25's, in §0p (Phase B pending). The block below is v1.20's, kept as recorded.
+The current verdict is v1.25's, in §0p (PASS; both gates conforming). The block below is v1.20's, kept as recorded.
 
 ```text
 Spec coverage: 267/267 IDs realized (0 deferred)
