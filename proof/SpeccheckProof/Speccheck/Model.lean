@@ -1,7 +1,7 @@
 /-
 # `SpeccheckProof.Speccheck.Model` — the transcription
 
-The deterministic core of `src/speccheck/*.py` (the built `speccheck` CLI, `SPEC.md` v1.18) as
+The deterministic core of `src/speccheck/*.py` (the built `speccheck` CLI, `SPEC.md` v1.26) as
 pure, total Lean functions. This file is leg 1 of the trust boundary (see the project README) and
 the correspondence table below is **manual**: Lean cannot read a `.py` file, so the claim "the
 model is a faithful transcription of the source" is checked here, function by function, by a human
@@ -34,24 +34,24 @@ now carry that branch. The spec-model project's `exitOfCheck` did not have it.
 | `ratioUnits`, `roundHalfEven` | `graph.py:28-38` (`ratio`) | `Decimal` division at 28-digit precision, quantized 4 places half-even; the Lean version is the same rounding at fixed-point scale `10000` |
 | `conformanceUnits`, `judgeStrengthUnits`, `declaredRatioUnits`, `unknownRateUnits` | `graph.py:218-268` (`compute_metrics`) | one `ratio(...)` call per metric, same numerator/denominator pairs |
 | `ratioUnits`'s `den = 0 → none` (I-008) | `graph.py:35-36` (`if denominator == 0: return None`) | |
-| `judgeAvailable` | not yet in `graph.py`/`report.py`: no `judge_available` computation was found in the read source (this repository's `judge.py`/`graph.py` compute `JudgeRun.available` at `judge.py:444` — `calls_made == 0 or calls_ok > 0` — a **different** but equivalent shape). See the note below the table. | |
-| `ReportFacts`, `exitOfCheck` (fixed) | `report.py:82-97` (`exit_code_for`) | now includes the E-19 all-`UNCITED` branch (`report.py:88-89`), absent from the spec-model project's version |
+| `judgeAvailable` | `judge.py:376-377, 449` (`run_judge`: early `True`; `available = calls_ok > 0`) | total and boolean under `mock`/`llm` since v1.20 (E-35) |
+| `ReportFacts`, `exitOfCheck` | `report.py:82-105` (`exit_code_for`) | the E-19 all-`UNCITED` branch (`:88-89`, finding F-904), the `UNCONTROLLED` hazard branch (`:95-96`, v1.25), and the D-45 failed-proof branch (`:101-104`, finding F-905) |
+| `stripJestPrefix`, `resultJoinName` | `results.py:25, 47-53` (`JEST_EMPTY_PREFIX`, `RawResult.join_name`) | jest-junit's `" > "` dropped before `join_name_of` (v1.23.1) |
+| `SummaryWord`, `exit0Proven`, `summaryWord` | `report.py:113-122` (`_exit0_word`), `summary_line` | R-105 (v1.24) |
+| `Control`, `liveControls`, `hazardStatus` | `graph.py:289-316` (`compute_hazards`) | C-27 (v1.25); the hazard's sort, titles and Notes are rendering, carried by `tests/test_18_hazards.py` |
+| `VerifyInput`, `verifyExit`, `verifyReadsInputs` | `manifest.py:133-189` (`load_manifest`, `verify`), `cli.py` (`_build_verify_config`, `main`'s error mapping) | C-26, E-82, E-83 (v1.25); hashing is carried by `tests/test_19_manifest.py` |
+| `IQFacts`, `QualFailure`, `firstFailure`, `qualifyExit` | `qualify.py:442-455` (`first_failure`), `:525-530` (`build_record`) | C-29, R-111 (v1.26); IQ hashing and the OQ runner are carried by `tests/test_20_qualify.py` |
+| `Version`, `verLt`, `Anomaly`, `openAnomalies` | `qualify.py:338-347` (`_version_key`, `open_anomalies`) | R-115 (v1.26) |
 | `strictJudgeFailure` | `report.py:70-79` (`strict_judge_failure`) | `unavailable` takes precedence (Q-004) |
 | `barCells`, `bar`, `remainingSeconds` | `judge.py:244-255` (`_mmss`, `progress_line`) | `k = ⌊20d/n⌋`; `left = t(n−d)/d` |
 | `Subcommand`, `Fault`, `Input`, `Result`, `outcome` | `cli.py` (argument parsing and exit dispatch — not individually line-mapped; the exit/usage split is `report.py:5.4`'s table, realized across `cli.py`'s per-flag validation) | one `Fault` constructor per usage/contract row |
 | `Input.interrupt` (E-41) | `judge.py:115-118` (`JudgeInterrupted`), `cli.py`'s top-level exception handling | exit 3, no report survives |
 
-**`judge_available` — a genuine model/source gap, recorded rather than papered over.** The read
-source computes `JudgeRun.available` in `run_judge` (`judge.py:433-444`) as `calls_made == 0 or
-calls_ok > 0` over *issued* calls, budget-skips excluded (`verdict.call_made` is `false` for a
-K-12-skipped edge, `judge.py:389,397`). `graph.eligible_edges` (`graph.py:165-175`) separately
-computes the *eligible* count. The two are joined by `report.build_report`'s caller, not by a
-single function this project read in full — `report.py:129-234` takes `judge_available` as an
-already-computed `ReportInputs` field rather than deriving it. `judgeAvailable`/`JudgeCalls` below
-transcribe the *spec's* E-14/E-36 statement (the same shape `proof_from_spec` used), not a
-specific source function; this is why the `judgeAvailable` theorems below are tagged as proving
-the spec's rule over the `JudgeCalls` abstraction, and the join to `JudgeRun.available` is left in
-the deferral table (T-59, T-89) rather than claimed as a transcription.
+**`judge_available` — the v1.18 gap, closed.** At v1.18 this project transcribed the spec's
+E-14/E-36 statement because `run_judge` computed `calls_made == 0 or calls_ok > 0`, a different
+shape, and the eligible-but-unissued case was open. The v1.26 source computes it in one place:
+`run_judge` returns `True` when there is no request (`judge.py:376-377`) and otherwise
+`available = calls_ok > 0` (`judge.py:449`). `judgeAvailable` now transcribes exactly that.
 
 Deliberately not modelled, with the reason — the parts of `src/speccheck/*.py` that are a text
 transformer, a filesystem walk, XML/network I/O, or a renderer; Lean operates on pure values:
@@ -135,8 +135,20 @@ on the result). -/
 def joinNameL (cs : List Char) : List Char :=
   stripFromFirst '(' ')' (stripFromFirst '[' ']' cs)
 
-/-- C-04 — `join_name` on the `String` a `<testcase name>` carries. -/
+/-- C-04 — `join_name_of` (`results.py:28-36`) on a `String`: applied to a result's name and,
+since v1.22, to a test case's name too (`results.py`'s `by_name` key). -/
 def joinName (s : String) : String := String.ofList (joinNameL s.toList)
+
+/-- C-04 (v1.23.1, T-117) — jest-junit's leading separator: a result name that starts with
+`" > "` (`JEST_EMPTY_PREFIX`, `results.py:25`) has it dropped before step 1
+(`RawResult.join_name`, `results.py:47-53`). -/
+def stripJestPrefix (cs : List Char) : List Char :=
+  match cs with
+  | ' ' :: '>' :: ' ' :: rest => rest
+  | _ => cs
+
+/-- C-04 — a `<testcase>` result's join name: the jest prefix dropped, then `join_name_of`. -/
+def resultJoinName (s : String) : String := String.ofList (joinNameL (stripJestPrefix s.toList))
 
 /-- C-04, E-06, E-24 — the four JUnit outcomes. -/
 inductive Outcome where
@@ -422,21 +434,15 @@ structure JudgeCalls where
   succeeded : Nat
   deriving DecidableEq, Repr
 
-/-- C-07, E-14, E-36 — `judge_available`: null when `--judge none`; otherwise "true when at
-least one judge call succeeded OR no edge was eligible (vacuously available), and false only when
-every call failed". The source computes an equivalent but differently-shaped fact directly —
-`run_judge`'s `available = calls_made == 0 or calls_ok > 0` (`judge.py:444`), where `calls_made`
-already excludes budget-skipped edges — rather than branching on `eligible`/`issued`/`succeeded`
-the way this spec-level statement does; see the correspondence table's note on this gap. Partial:
-the configuration `eligible > 0`, `issued = 0` — every eligible edge budget-skipped, so no call
-was made and none failed — is covered by neither of the spec's two clauses. -/
+/-- C-07, E-14, E-35, E-36 — `judge_available`: null when `--judge none`; otherwise vacuously
+`true` when no edge was judge-eligible (`run_judge`'s early return, `judge.py:376-377`), else
+`true` exactly when at least one C-06 call succeeded (`available = calls_ok > 0`, `judge.py:449`).
+`issued` is not read: a budget-skipped edge is neither a success nor a failure, so an
+eligible-but-unissued run is `false` (E-35, the C-07 amendment of v1.20). -/
 def judgeAvailable (c : JudgeCalls) : Option Bool :=
   match c.mode with
   | .none => none
-  | .mock | .llm =>
-    if decide (1 ≤ c.succeeded) ∨ c.eligible = 0 then some true
-    else if 0 < c.issued then some false
-    else none
+  | .mock | .llm => if c.eligible = 0 then some true else some (decide (1 ≤ c.succeeded))
 
 /-! ## §5.4, R-14, R-15, R-28, E-19 — the exit-code function -/
 
@@ -452,6 +458,11 @@ structure ReportFacts where
   judgeLlm : Bool
   judgeAvailable : Option Bool
   unknownRateExceeds : Bool
+  /-- C-27, R-15 (v1.25): some hazard is `UNCONTROLLED` (`_uncontrolled`, `report.py:108-110`). -/
+  anyUncontrolled : Bool := false
+  /-- D-45 (v1.19): `proof.build` is present (a readable `--proof-results`) and
+  `metrics.proof_failed > 0` (`report.py:101-104`). -/
+  proofFailedWithManifest : Bool := false
   deriving DecidableEq, Repr
 
 /-- R-15, R-28, §5.4 — the strict judge gate: with `--judge llm` the judge must be available and
@@ -461,16 +472,20 @@ the third `if report["strict_judge_failure"] is not None` branch's precondition
 def strictJudgeHolds (f : ReportFacts) : Bool :=
   !f.judgeLlm ∨ (f.judgeAvailable = some true ∧ !f.unknownRateExceeds)
 
-/-- §5.4, R-14, R-15, E-19 — the exit code of a `check` run. Transcribes `report.exit_code_for`
-(`report.py:82-97`) as its own `if`-chain, in order: a `FAILING` in-scope id exits `1`
-(`report.py:86-87`); every in-scope id `UNCITED` exits `1` even without `--strict` (E-19,
-`report.py:88-89` — the branch the spec-model project's version of this function omitted); under
-`--strict`, not every in-scope id `PASSING`, or a dangling/stale citation, or a failed R-28 gate
-each exit `1` (`report.py:90-96`); otherwise `0` (`report.py:97`). -/
+/-- §5.4, R-14, R-15, E-19, D-45 — the exit code of a `check` run. Transcribes
+`report.exit_code_for` (`report.py:82-105`) as its own `if`-chain, in order: a `FAILING` in-scope
+id exits `1` (`report.py:86-87`); every in-scope id `UNCITED` exits `1` even without `--strict`
+(E-19, `report.py:88-89` — finding F-904: §5.4 does not state it); under `--strict`, not every
+in-scope id `PASSING` (`:91-92`), a dangling/stale citation (`:93-94`), an `UNCONTROLLED` hazard
+(`:95-96`, v1.25), a failed R-28 gate (`:97-98`), or a `failed` proof under a readable manifest
+(`:101-104`, D-45 — finding F-905: R-15 does not state it) each exit `1`; otherwise `0`
+(`:105`). The strict conditions are one conjunction here because the source returns the same `1`
+from each and none has a side effect. -/
 def exitOfCheck (f : ReportFacts) (strict : Bool) : Nat :=
   if f.anyInScopeFailing then exitNotConforming
   else if f.allInScopeUncited then exitNotConforming
-  else if strict ∧ !(f.allInScopePassing ∧ !f.anyDangling ∧ !f.anyStale ∧ strictJudgeHolds f) then
+  else if strict ∧ !(f.allInScopePassing ∧ !f.anyDangling ∧ !f.anyStale ∧ !f.anyUncontrolled ∧
+      strictJudgeHolds f ∧ !f.proofFailedWithManifest) then
     exitNotConforming
   else exitConforming
 
@@ -508,7 +523,7 @@ def remainingSeconds (t done n : Nat) : Option Nat :=
 
 /-- §5.1, §5.4 — the six surfaces of the CLI, plus the two inert ones. -/
 inductive Subcommand where
-  | check | impact | explain | selfCheck | version | help
+  | check | impact | explain | verify | qualify | selfCheck | version | help
   deriving DecidableEq, Repr
 
 /-- §5.1, §5.4, §8 — one constructor per *usage-error* (exit 2) and *input-contract-violation*
@@ -532,16 +547,28 @@ inductive Fault where
   | impactBothOrNeither
   | impactRejectedFlag
   | explainUndeclaredId
+  | namespaceInvalid
+  | citationMapUnreadable
+  | riskFileUnreadable
+  | proofResultsUnreadable
+  | sourceDateEpochInvalid
+  | verifyManifestUsage
   | specZeroIds
   | specDuplicateId
   | specRetireConflict
   | resultsMalformed
   | outNotWritable
+  | proofResultsMalformed
+  | citationMapMalformed
+  | riskFileMalformed
+  | verifyManifestMalformed
   deriving DecidableEq, Repr
 
 /-- §5.4, K-01 — the usage-error (exit 2) faults. -/
 def Fault.isUsage : Fault → Bool
-  | .specZeroIds | .specDuplicateId | .specRetireConflict | .resultsMalformed | .outNotWritable => false
+  | .specZeroIds | .specDuplicateId | .specRetireConflict | .resultsMalformed | .outNotWritable
+  | .proofResultsMalformed | .citationMapMalformed | .riskFileMalformed
+  | .verifyManifestMalformed => false
   | _ => true
 
 /-- §5.4, K-01 — the input-contract-violation (exit 3) faults: "E-01, E-02, E-03, E-05, E-18". -/
@@ -568,19 +595,145 @@ inductive Input where
   | interrupt
   deriving DecidableEq, Repr
 
-/-- §5.4, §5.1, C-13, E-41, E-60 — the stated outcome of each enumerated input. `none` means
-the spec states no outcome for this input — the representation of a silent case, never a
-default (see `docs/reviews/SPEC_MODEL_FINDINGS.md` F-501, inherited unchanged from
-`proof_from_spec`: nothing in `cli.py`'s handling of `explain` resolves the `--spec`-optional vs.
-`--spec`-required disagreement between §5.1's synopsis and its flag table). -/
+/-- §5.4, §5.1, C-13, E-41, E-60, E-64 — the outcome of each enumerated input. `explain` without
+`--spec` is now a usage error (E-64, v1.20: `explain.add_argument("--spec", required=True)` with
+the subparser's own `_explain_error`, `cli.py:117-122, 674-676`), so every constructor maps to
+`some _` (F-501, resolved). -/
 def outcome : Input → Option Result
   | .check f strict => some { exit := exitOfCheck f strict, reports := true }
   | .impactEmptyChanged => some { exit := exitConforming, reports := true }
   | .explainDeclared => some { exit := exitConforming, reports := false }
   | .explainUndeclared => some { exit := exitUsage, reports := false }
   | .fault x => some { exit := if x.isUsage then exitUsage else exitContract, reports := false }
-  | .explainAbsentSpec => none
+  | .explainAbsentSpec => some { exit := exitUsage, reports := false }
   | .interrupt => some { exit := exitContract, reports := false }
+
+
+/-! ## R-105 (v1.24) — the summary line's status word -/
+
+/-- §5.1, R-105 — the three `<STATUS>` words. -/
+inductive SummaryWord where
+  | conforming | unproven | notConforming
+  deriving DecidableEq, Repr
+
+/-- R-105 — `_exit0_word` (`report.py:113-122`): `proven` is every in-scope id `PASSING`
+(`by_status["PASSING"] == in_scope`) and no `UNCONTROLLED` hazard; `CONFORMING` when also nothing
+is dangling or stale, else `UNPROVEN`. -/
+def exit0Proven (f : ReportFacts) : Bool :=
+  f.allInScopePassing && !f.anyUncontrolled && !f.anyDangling && !f.anyStale
+
+/-- §5.1, R-105 — `summary_line`'s status: `NOT CONFORMING` when `exit_code != 0`, else
+`_exit0_word` (`report.py`, `summary_line`). -/
+def summaryWord (f : ReportFacts) (strict : Bool) : SummaryWord :=
+  if exitOfCheck f strict ≠ exitConforming then .notConforming
+  else if exit0Proven f then .conforming else .unproven
+
+/-! ## C-27 (v1.25) — `graph.compute_hazards` -/
+
+/-- C-27 — the three hazard statuses. -/
+inductive HazardStatus where
+  | verified | notVerified | uncontrolled
+  deriving DecidableEq, Repr
+
+/-- C-27 — one record naming the hazard in its CONTROLS marker: `rec.spec.retired` and
+`rec.status` (the final status, after the judge stage). -/
+structure Control where
+  retired : Bool
+  status : Status
+  deriving DecidableEq, Repr
+
+/-- C-27 — `named[h]`: the non-retired records (`graph.py:299-303`, `if not rec.spec.retired`). -/
+def liveControls (cs : List Control) : List Control := cs.filter (fun c => !c.retired)
+
+/-- C-27 — `compute_hazards`' status (`graph.py:309-315`): `UNCONTROLLED` if `ctrl` is empty,
+`VERIFIED` if `all(r.status == "PASSING" for r in ctrl)`, else `NOT_VERIFIED`. -/
+def hazardStatus (cs : List Control) : HazardStatus :=
+  match liveControls cs with
+  | [] => .uncontrolled
+  | live => if live.all (fun c => c.status == .passing) then .verified else .notVerified
+
+/-! ## C-26 (v1.25) — `verify`'s exit -/
+
+/-- C-26 — what a `verify` run meets: `_build_verify_config`'s `UsageError` (E-82, `cli.py`),
+`load_manifest`'s `ManifestError` (E-83, `manifest.py`), or `verify`'s re-hash loop with
+`differing` entries in `failed` (`manifest.py:173-189`). -/
+inductive VerifyInput where
+  | usageFault
+  | malformedManifest
+  | checked (differing : Nat)
+  deriving DecidableEq, Repr
+
+/-- C-26 — `main` maps `UsageError` to `2` and `ManifestError` to `3`; `verify` returns `1` when
+`failed` is non-empty (`manifest.py:187-188`), else `0` (`:189`). -/
+def verifyExit : VerifyInput → Nat
+  | .usageFault => exitUsage
+  | .malformedManifest => exitContract
+  | .checked 0 => exitConforming
+  | .checked (_ + 1) => exitNotConforming
+
+/-- E-83 — `verify` reads an input file only inside the loop after `load_manifest` returned
+(`manifest.py:175-180`); a raised `ManifestError` or a usage fault reaches no read. -/
+def verifyReadsInputs : VerifyInput → Bool
+  | .checked _ => true
+  | _ => false
+
+/-! ## C-29, R-111 (v1.26) — `qualify.first_failure` and the verdict -/
+
+/-- C-29 — the facts `first_failure` reads (`qualify.py:442-455`): `iq.tree is None`, the sizes of
+`faults`, `iq.mismatches`, `iq.missing`, and each case's `failure is None` in catalog order. -/
+structure IQFacts where
+  treePresent : Bool
+  dataFaults : Nat
+  mismatches : Nat
+  missing : Nat
+  casesPass : List Bool
+  deriving DecidableEq, Repr
+
+/-- C-29 — the failure kinds, one per `return` of `first_failure`. -/
+inductive QualFailure where
+  | notWheel | dataFault | recordMismatch | recordMissing | caseFail
+  deriving DecidableEq, Repr
+
+/-- C-29 — `first_failure` (`qualify.py:442-455`), branch for branch. -/
+def firstFailure (q : IQFacts) : Option QualFailure :=
+  if !q.treePresent then some .notWheel
+  else if q.dataFaults ≠ 0 then some .dataFault
+  else if q.mismatches ≠ 0 then some .recordMismatch
+  else if q.missing ≠ 0 then some .recordMissing
+  else if q.casesPass.all id then none
+  else some .caseFail
+
+/-- R-111 — `build_record`'s `verdict = "QUALIFIED" if failure is None` (`qualify.py:530`) and
+`exit_code 0 if failure is None else 1`: the code derives the verdict from `first_failure`, not
+from C-29's verdict sentence (whose agreement is a theorem). -/
+def qualifyExit (q : IQFacts) : Nat :=
+  if firstFailure q = none then exitConforming else exitNotConforming
+
+/-! ## R-115, C-31 (v1.26) — `qualify.open_anomalies` -/
+
+/-- C-31 — `X.Y.Z` as `_version_key`'s tuple of three integers (`qualify.py:338-339`). -/
+structure Version where
+  major : Nat
+  minor : Nat
+  patch : Nat
+  deriving DecidableEq, Repr
+
+/-- R-115 — Python's tuple `>` on two three-integer keys, written as `b > a`. -/
+def verLt (a b : Version) : Bool :=
+  a.major < b.major || (a.major == b.major &&
+    (a.minor < b.minor || (a.minor == b.minor && a.patch < b.patch)))
+
+/-- C-31 — the field `open_anomalies` reads. -/
+structure Anomaly where
+  fixedIn : Option Version
+  deriving DecidableEq, Repr
+
+/-- R-115 — `open_anomalies` (`qualify.py:342-347`): `fixed_in is None or key(fixed_in) > running`,
+a list comprehension, so file order. -/
+def openAnomalies (running : Version) (as : List Anomaly) : List Anomaly :=
+  as.filter (fun a => match a.fixedIn with
+    | none => true
+    | some f => verLt running f)
 
 -- Cross-module normalization: every definition `Theorems.lean` reasons through is `grind unfold`
 -- (and `public`), so it unfolds in the proof module.
@@ -599,5 +752,8 @@ attribute [grind unfold]
   barCells bar remainingSeconds
   Fault.isUsage Fault.isContract
   outcome
+  stripJestPrefix
+  exit0Proven summaryWord liveControls hazardStatus verifyExit verifyReadsInputs
+  firstFailure qualifyExit verLt openAnomalies
 
 end SpeccheckProof.Speccheck.Model

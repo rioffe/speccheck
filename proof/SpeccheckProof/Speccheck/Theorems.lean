@@ -3,7 +3,7 @@
 
 ## What this proves
 
-For the deterministic, enumerable part of `src/speccheck/*.py` (SPEC.md v1.18), for **all inputs**,
+For the deterministic, enumerable part of `src/speccheck/*.py` (SPEC.md v1.26), for **all inputs**,
 kernel-checked:
 
 - **The status algorithm** (C-05, `graph.deterministic_status`/`graph.apply_verdicts`):
@@ -27,6 +27,16 @@ kernel-checked:
   `k = ⌊20d/n⌋`, and `left` is undefined exactly while `d = 0`.
 - **The K-15 matcher** (`judge.locate_clause`): the prefix/infix facts, and the mock provider's
   clause is always located (R-22, `judge_mock.py:40`).
+
+- **Since v1.18** (v1.19..v1.26 code): `judge_available` is total and boolean (`judgeAvailableNullIffNone`,
+  E-35); `explain` without `--spec` exits `2` and every input has an outcome (`noSilence`, E-64);
+  the strict exit rule's `UNCONTROLLED` and D-45 failed-proof branches, and that a failed proof
+  never moves the non-strict exit (E-63); `UNPROVEN` never under `--strict` (R-105); the code's
+  hazard roll-up is the spec's (`UNCONTROLLED` iff every naming record is retired, `VERIFIED`
+  implies every live control `PASSING`); `verify`'s closed exit set and no read on a fault; the
+  code's `qualify` verdict, derived from `first_failure`, matches C-29's verdict sentence on every
+  input (`codeVerdictMatchesC29`); not-a-wheel outranks all, a failing case or data fault is never
+  masked; the anomaly selection's order properties; the jest-junit prefix join.
 
 ## What this does not prove
 
@@ -341,6 +351,58 @@ theorem row_bar_half : barCells 5 10 = 10 := by decide
 /-- **C-11** (transcription): a determined edge count equal to the total fills all 20 cells. -/
 theorem row_bar_full : barCells 10 10 = 20 := by decide
 
+/-- **C-04** (transcription, v1.23.1, T-117): jest-junit's `" > title"` for a test outside every
+`describe` joins as `title`; a name without the prefix is unchanged. -/
+theorem row_join_jest_prefix :
+    resultJoinName " > adds two numbers" = "adds two numbers" ∧
+    resultJoinName "suite > adds" = "suite > adds" := by
+  decide
+
+/-- **R-15, D-64** (transcription, v1.25): `report.py:95-96` — under `--strict`, an `UNCONTROLLED`
+hazard exits `1` although every in-scope id is `PASSING`. -/
+theorem row_exit_uncontrolled_strict :
+    exitOfCheck { factConforming with anyUncontrolled := true } true = exitNotConforming := by
+  decide
+
+/-- **R-105** (transcription, v1.24): `_exit0_word` — a non-strict run exiting `0` with an id not
+`PASSING` prints `UNPROVEN`. -/
+theorem row_summary_unproven :
+    summaryWord { factConforming with allInScopePassing := false } false = .unproven := by decide
+
+/-- **R-109** (transcription, v1.25): a risk-file hazard no record names has an empty `ctrl` and is
+`UNCONTROLLED` (`graph.py:309-310`). -/
+theorem row_hazard_unmarked_uncontrolled : hazardStatus [] = .uncontrolled := rfl
+
+/-- **C-26, E-82, E-83** (transcription, v1.25): `verify`'s four exit codes. -/
+theorem row_verify_codes :
+    verifyExit .usageFault = exitUsage ∧ verifyExit .malformedManifest = exitContract ∧
+    verifyExit (.checked 0) = exitConforming ∧ verifyExit (.checked 1) = exitNotConforming := by
+  decide
+
+/-- **E-65, E-70, E-84, E-85, R-102** (transcription): the unreadable halves and the
+`--namespace`/`SOURCE_DATE_EPOCH` faults exit `2`; the malformed halves exit `3`; no report. -/
+theorem row_fault_v119_v125 :
+    outcome (.fault .proofResultsUnreadable) = some { exit := exitUsage, reports := false } ∧
+    outcome (.fault .proofResultsMalformed) = some { exit := exitContract, reports := false } ∧
+    outcome (.fault .citationMapUnreadable) = some { exit := exitUsage, reports := false } ∧
+    outcome (.fault .citationMapMalformed) = some { exit := exitContract, reports := false } ∧
+    outcome (.fault .riskFileMalformed) = some { exit := exitContract, reports := false } ∧
+    outcome (.fault .sourceDateEpochInvalid) = some { exit := exitUsage, reports := false } ∧
+    outcome (.fault .namespaceInvalid) = some { exit := exitUsage, reports := false } := by
+  decide
+
+/-- **E-64** (transcription, v1.20): `explain` without `--spec` exits `2` with no report. -/
+theorem row_explain_absent_spec :
+    outcome .explainAbsentSpec = some { exit := exitUsage, reports := false } := rfl
+
+/-- **E-86** (transcription, v1.26): no hashed `RECORD` fails first as not-a-wheel and exits `1`. -/
+theorem row_qualify_not_wheel :
+    firstFailure { treePresent := false, dataFaults := 0, mismatches := 0, missing := 0,
+                   casesPass := [true] } = some .notWheel ∧
+    qualifyExit { treePresent := false, dataFaults := 0, mismatches := 0, missing := 0,
+                  casesPass := [true] } = exitNotConforming := by
+  decide
+
 end Rows
 
 /-! ## Invariants — the "for all inputs" theorems -/
@@ -475,9 +537,11 @@ every `PASSING` id is RECORDED and nothing is `WEAKLY_PASSING`. -/
 theorem judgeStrengthNoneIff (p w : Nat) : judgeStrengthUnits p w = none ↔ p + w = 0 := by
   grind
 
-/-- **C-07, E-14** — when every C-06 call failed, `judge_available` is `false`. -/
+/-- **C-07, E-14, E-35** — when an edge was eligible and no C-06 call succeeded, `judge_available`
+is `false`, whether every call failed (E-14) or none was issued (E-35, v1.20). Stronger than the
+v1.18 statement, which needed `0 < issued`: the code no longer reads it. -/
 theorem judgeAvailableAllFailed (c : JudgeCalls) (hm : c.mode ≠ .none)
-    (hs : c.succeeded = 0) (hi : 0 < c.issued) (he : 0 < c.eligible) :
+    (hs : c.succeeded = 0) (he : 0 < c.eligible) :
     judgeAvailable c = some false := by
   grind
 
@@ -486,18 +550,18 @@ theorem judgeAvailableVacuous (c : JudgeCalls) (hm : c.mode ≠ .none) (he : c.e
     judgeAvailable c = some true := by
   grind
 
-/-- **C-07** — `judge_available` is `null` under `--judge none`, or in the eligible-but-unissued
-configuration this spec-level statement leaves under-determined (see `Model.lean`'s note: the
-actual `run_judge`/`available` computation resolves this same configuration to `true`, since a
-budget-skipped edge is never counted in `calls_made`). -/
-theorem judgeAvailableNullCases (c : JudgeCalls) :
-    judgeAvailable c = none →
-      c.mode = .none ∨ (c.succeeded = 0 ∧ c.issued = 0 ∧ 0 < c.eligible) := by
-  grind
+/-- **C-07** (amended v1.20) — `judge_available` is `null` exactly under `--judge none`: total and
+boolean under `mock`/`llm`. The v1.18 code left the eligible-but-unissued configuration open; the
+v1.26 code (`judge.py:376-377, 449`) closes it. -/
+theorem judgeAvailableNullIffNone (c : JudgeCalls) :
+    judgeAvailable c = none ↔ c.mode = .none := by
+  unfold judgeAvailable
+  cases c.mode <;> simp <;> split <;> simp
 
 /-- **R-15, R-28, E-19** — with `--strict`, exit `0` implies no in-scope id is `FAILING`, not every
 in-scope id is `UNCITED`, every in-scope id is `PASSING`, `dangling` and `stale` are empty, and the
-R-28 judge gate holds. -/
+R-28 judge gate holds (and, since v1.25/v1.19, no hazard is `UNCONTROLLED` and no proof failed
+under a readable manifest — `strictExitZeroNoHazardNoProof`). -/
 theorem strictExitZeroImpliesAll (f : ReportFacts) (h : exitOfCheck f true = exitConforming) :
     f.anyInScopeFailing = false ∧ f.allInScopeUncited = false ∧
     f.allInScopePassing = true ∧ f.anyDangling = false ∧ f.anyStale = false ∧
@@ -582,6 +646,151 @@ process-level and deferred (`tests/test_08_golden.py`, T-36). -/
 theorem outcomeEnvironmentFree (i : Input) (e₁ e₂ : Unit) :
     (fun (_ : Unit) => outcome i) e₁ = (fun (_ : Unit) => outcome i) e₂ := rfl
 
+/-- **R-15, D-64, D-45** (v1.25, v1.19) — with `--strict`, exit `0` also implies no `UNCONTROLLED`
+hazard and no `failed` proof under a readable manifest, for every report. -/
+theorem strictExitZeroNoHazardNoProof (f : ReportFacts) (h : exitOfCheck f true = exitConforming) :
+    f.anyUncontrolled = false ∧ f.proofFailedWithManifest = false := by
+  grind
+
+/-- **E-63** — the D-45 branch reads only the report's proof facts, never a status: for every
+report, setting `proofFailedWithManifest` leaves the non-strict exit code (and so every status
+fact it reads) unchanged — a failed proof is a strict-gate condition, not a status (E-63). -/
+theorem proofFailureNeverMovesNonStrictExit (f : ReportFacts) (b : Bool) :
+    exitOfCheck { f with proofFailedWithManifest := b } false = exitOfCheck f false := by
+  simp [exitOfCheck]
+
+/-- **R-105** (v1.24) — `UNPROVEN` never appears under `--strict`, for every report: the code's
+strict exit rule implies `_exit0_word`'s `proven` conditions. -/
+theorem unprovenNeverStrict (f : ReportFacts) : summaryWord f true ≠ .unproven := by
+  unfold summaryWord exit0Proven exitOfCheck
+  cases f with
+  | mk a u b c d e g h hz pf =>
+    cases a <;> cases u <;> cases b <;> cases c <;> cases d <;> cases hz <;> cases pf <;>
+      simp [strictJudgeHolds] <;> grind
+
+/-- **R-105, R-14** (v1.24) — the word follows the exit code, for every report and both modes. -/
+theorem summaryWordTracksExit (f : ReportFacts) (s : Bool) :
+    (summaryWord f s = .notConforming ↔ exitOfCheck f s ≠ exitConforming) := by
+  unfold summaryWord
+  split <;> simp_all <;> split <;> simp
+
+/-- **C-27** (v1.25) — support: `compute_hazards`' status read as three cases of `ctrl`. -/
+theorem hazardStatus_cases (cs : List Control) :
+    hazardStatus cs = if liveControls cs = [] then .uncontrolled
+      else if (liveControls cs).all (fun c => c.status == .passing) then .verified
+      else .notVerified := by
+  unfold hazardStatus
+  split <;> simp_all
+
+/-- **C-27** (v1.25) — support: `ctrl` is exactly the non-retired naming records. -/
+theorem mem_liveControls (cs : List Control) (c : Control) :
+    c ∈ liveControls cs ↔ c ∈ cs ∧ c.retired = false := by
+  simp [liveControls]
+
+/-- **C-27** (v1.25) — the code's `UNCONTROLLED` is the spec's: exactly when every naming record
+is retired (or none exists), for every list. -/
+theorem uncontrolledIffAllRetired (cs : List Control) :
+    hazardStatus cs = .uncontrolled ↔ ∀ c ∈ cs, c.retired = true := by
+  rw [hazardStatus_cases]
+  have hnil : liveControls cs = [] ↔ ∀ c ∈ cs, c.retired = true := by
+    simp [liveControls, List.filter_eq_nil_iff]
+  by_cases h : liveControls cs = []
+  · simp only [h, ite_true, true_iff]; exact hnil.mp h
+  · have : ¬ ∀ c ∈ cs, c.retired = true := fun hall => h (hnil.mpr hall)
+    simp only [h, ite_false, this, iff_false]
+    split <;> simp
+
+/-- **C-27** (v1.25) — `VERIFIED` means every live control is `PASSING` (so a `WEAKLY_PASSING`
+control never verifies), for every list. -/
+theorem verifiedImpliesLivePassing (cs : List Control) (h : hazardStatus cs = .verified) :
+    ∀ c ∈ cs, c.retired = false → c.status = .passing := by
+  intro c hc hr
+  rw [hazardStatus_cases] at h
+  have hm : c ∈ liveControls cs := (mem_liveControls cs c).mpr ⟨hc, hr⟩
+  by_cases hn : liveControls cs = []
+  · rw [hn] at hm; simp at hm
+  · simp only [hn, ite_false] at h
+    by_cases hall : (liveControls cs).all (fun c => c.status == .passing) = true
+    · have := List.all_eq_true.mp hall c hm
+      simpa using this
+    · simp [hall] at h
+
+/-- **C-26, K-01** (v1.25) — `verify` exits only within the closed set, for every input. -/
+theorem verifyExitClosed (v : VerifyInput) : verifyExit v ∈ k01ExitSet := by
+  cases v with
+  | usageFault => decide
+  | malformedManifest => decide
+  | checked n => cases n <;> simp [verifyExit, k01ExitSet, exitNotConforming, exitConforming]
+
+/-- **E-83, E-82** (v1.25) — a `verify` run that exits `2` or `3` read no file the manifest names,
+for every input. -/
+theorem verifyFaultReadsNothing (v : VerifyInput)
+    (h : verifyExit v = exitUsage ∨ verifyExit v = exitContract) :
+    verifyReadsInputs v = false := by
+  cases v with
+  | usageFault => rfl
+  | malformedManifest => rfl
+  | checked n =>
+    cases n <;> simp [verifyExit, exitConforming, exitNotConforming, exitUsage, exitContract] at h
+
+/-- **C-29, R-111** (v1.26) — the code derives the verdict from `first_failure`; C-29 states it
+as its own sentence ("`QUALIFIED` iff package_tree_sha256 is non-null, all three IQ lists are
+empty, and every `oq` result is `PASS`"). For every set of facts the code's exit is `0` exactly
+when C-29's sentence holds. -/
+theorem codeVerdictMatchesC29 (q : IQFacts) :
+    qualifyExit q = exitConforming ↔
+      (q.treePresent = true ∧ q.dataFaults = 0 ∧ q.mismatches = 0 ∧ q.missing = 0 ∧
+        q.casesPass.all id = true) := by
+  unfold qualifyExit firstFailure
+  cases q with
+  | mk t d m k c =>
+    cases t <;> simp [exitConforming, exitNotConforming] <;>
+      by_cases hd : d = 0 <;> by_cases hm : m = 0 <;> by_cases hk : k = 0 <;>
+      simp [hd, hm, hk] <;> split <;> simp_all
+
+/-- **E-86** (v1.26) — not-a-wheel outranks every other failure, for every set of facts. -/
+theorem notWheelOutranksAll (q : IQFacts) (h : q.treePresent = false) :
+    firstFailure q = some .notWheel := by
+  simp [firstFailure, h]
+
+/-- **E-88** (v1.26) — a failing OQ case can never be masked, for every set of facts. -/
+theorem caseFailureNeverQualifies (q : IQFacts) (h : q.casesPass.all id = false) :
+    qualifyExit q = exitNotConforming := by
+  have : firstFailure q ≠ none := by
+    unfold firstFailure
+    cases ht : q.treePresent <;> simp
+    by_cases hd : q.dataFaults = 0 <;> by_cases hm : q.mismatches = 0 <;>
+      by_cases hk : q.missing = 0 <;> simp [hd, hm, hk] <;> simpa using h
+  simp [qualifyExit, this]
+
+/-- **E-87** (v1.26) — a packaged-data fault can never be masked either. -/
+theorem dataFaultNeverQualifies (q : IQFacts) (h : q.dataFaults ≠ 0) :
+    qualifyExit q = exitNotConforming := by
+  unfold qualifyExit firstFailure
+  cases ht : q.treePresent <;> simp [h]
+
+/-- **R-115** (v1.26) — the tuple order is strict: no version is later than itself. -/
+theorem verLtIrrefl (v : Version) : verLt v v = false := by
+  simp [verLt]
+
+/-- **R-115, C-31** (v1.26) — an unfixed anomaly is always listed, for every file and version. -/
+theorem unfixedAlwaysListed (v : Version) (as : List Anomaly) (a : Anomaly) (ha : a ∈ as)
+    (hf : a.fixedIn = none) : a ∈ openAnomalies v as := by
+  simp [openAnomalies, ha, hf]
+
+/-- **R-115, C-31** (v1.26) — one fixed in the running version is never listed, for every file. -/
+theorem fixedInRunningNeverListed (v : Version) (as : List Anomaly) (a : Anomaly)
+    (hf : a.fixedIn = some v) : a ∉ openAnomalies v as := by
+  simp [openAnomalies, hf, verLtIrrefl]
+
+/-- **R-115** (v1.26) — file order: the listed anomalies are a sublist of the file. -/
+theorem openAnomaliesKeepFileOrder (v : Version) (as : List Anomaly) :
+    (openAnomalies v as).Sublist as := List.filter_sublist
+
+/-- **E-64** — coverage: since v1.20 every enumerated input has a stated outcome. -/
+theorem noSilence : ∀ i : Input, (outcome i).isSome := by
+  intro i; cases i <;> rfl
+
 end Invariants
 
 /-! ## Reachability — the spec claims each exit code is reachable -/
@@ -649,7 +858,6 @@ end Reachability
 -- | E-31 | A bold ID token outside the first-cell/first-token form | tests/test_01_extraction.py (T-55) |
 -- | E-33 | speccheck:ignore / speccheck:ignore-file | tests/test_01_extraction.py (T-57) |
 -- | E-34 | A leftover .tmp file under --out | tests/test_08_golden.py (T-36, T-45) |
--- | E-35 | The --judge-budget deadline passes with edges not yet started | tests/test_07_cli.py (T-61); tests/test_05_judge.py (T-89) |
 -- | E-37 | A tests[] entry whose case was not judged | tests/test_06_reports.py (T-34, T-35, T-77) |
 -- | E-38 | Two or more Notes in one run | tests/test_06_reports.py (T-34) |
 -- | E-39 | No progress bytes under a suppression condition | tests/test_07_cli.py (T-63) |
@@ -722,8 +930,53 @@ end Reachability
 -- | R-40 | explain subcommand | tests/test_12_explain.py (T-92, T-93, T-94) |
 -- | R-41 | --help documents the interface | tests/test_13_help.py (T-95, T-96, T-97, T-98) |
 -- | T-01 … T-98 | the §9 acceptance tests (98 rows, per tests/test_01..13_*.py) | themselves — `uv run python -m pytest tests -q` |
+-- | C-20 | The lean adapter (v1.19; R-100) | tests/test_09_self_application.py (T-99); tests/test_14_proof.py (T-99) |
+-- | C-21 | The proof manifest (v1.19; R-100) | tests/test_09_self_application.py (T-99); tests/test_14_proof.py (T-99) |
+-- | C-22 | Foreign reference and namespace (v1.23; R-101, R-102) | tests/test_09_self_application.py (T-107); tests/test_16_namespaces.py (T-107, T-108); tests/test_17_citation_map.py (T-111) |
+-- | C-23 | The citation map (v1.23; R-103) | tests/test_17_citation_map.py (T-110, T-111) |
+-- | C-24 | The JavaScript/TypeScript adapter (v1.22; R-104; moved from C-03 in v1.24) | tests/test_09_self_application.py (T-113, T-116, T-117); tests/test_15_jsts.py (T-113, T-114, T-115, T-116, T-117) |
+-- | C-25 | The provenance manifest (v1.25; R-106) | tests/test_19_manifest.py (T-122, T-123) |
+-- | C-28 | The risk file (v1.25; R-109) | tests/test_18_hazards.py (T-127) |
+-- | C-30 | The OQ case catalog and the tool hazards (v1.26; R-113, R-114) | tests/test_20_qualify.py (T-132, T-135) |
+-- | E-62 | An unreadable or non-Lean file in a --proof path (binary, or no declaration head parseable) | tests/test_09_self_application.py (T-99); tests/test_14_proof.py (T-99) |
+-- | E-66 | A table-declared row whose statement cell contains an odd number of unescaped $ outside backtick spa… | tests/test_09_self_application.py (T-106); tests/test_10_edges.py (T-106); tests/test_01_extraction.py (T-120) |
+-- | E-67 | A scanned --src/--tests file contains a foreign reference (C-22) — a TOKEN preceded by <ns>:, <ns> n… | tests/test_09_self_application.py (T-107); tests/test_16_namespaces.py (T-107) |
+-- | E-68 | --namespace NS is given and a scanned file or a declared statement contains NS:ID | tests/test_09_self_application.py (T-107); tests/test_16_namespaces.py (T-107); tests/test_17_citation_map.py (T-111) |
+-- | E-69 | A declared statement or an Affects cell contains a foreign reference | tests/test_16_namespaces.py (T-108) |
+-- | E-71 | A map entry's file and test match no scanned TestCase (the file was not scanned, or its test was ren… | tests/test_17_citation_map.py (T-110, T-111) |
+-- | E-72 | A map entry resolves (C-23) and no literal citation of the same (id, testcase) exists | tests/test_17_citation_map.py (T-110) |
+-- | E-73 | A map entry resolves to a (id, testcase) already cited literally, or two entries name the same (id, … | tests/test_17_citation_map.py (T-110) |
+-- | E-74 | A JavaScript/TypeScript test file whose parentheses do not balance, or with an unterminated block co… | tests/test_15_jsts.py (T-114) |
+-- | E-75 | An it/test call whose first argument is not a literal title (a variable, an interpolated template), … | tests/test_15_jsts.py (T-114) |
+-- | E-76 | A JavaScript/TypeScript case whose title carries each placeholders, and several results that fill th… | tests/test_09_self_application.py (T-116); tests/test_15_jsts.py (T-116) |
+-- | E-77 | A declared, non-retired id is the src or dst of no C-12 edge: no statement, row cell or Affects cell… | tests/test_09_self_application.py (T-121); tests/test_10_edges.py (T-121) |
+-- | E-78 | A CONTROLS marker (C-27) on the declaration of a T id | tests/test_18_hazards.py (T-126) |
+-- | E-79 | With --risk-file, a CONTROLS marker names a hazard the file does not list | tests/test_18_hazards.py (T-127) |
+-- | E-80 | The text in the CONTROLS position (C-01) begins (controls: but does not match C-27's grammar: an emp… | tests/test_18_hazards.py (T-126) |
+-- | E-81 | A hazard in C-27's set H has no non-retired control: it is listed in --risk-file and no marker names… | tests/test_18_hazards.py (T-126, T-127) |
+-- | I-018 | Proof-input inertness (v1.19). A check run without --proof/--proof-results writes speccheck.json and… | tests/test_09_self_application.py (T-100); tests/test_14_proof.py (T-100) |
+-- | I-019 | Namespace and map inertness (v1.23). A check run given neither --namespace nor --citation-map, over … | tests/test_16_namespaces.py (T-109); tests/test_17_citation_map.py (T-109) |
+-- | I-020 | Manifest determinism (v1.25). I-002 extends to speccheck.manifest.json: for --judge none and --judge… | tests/test_19_manifest.py (T-123) |
+-- | I-021 | Provenance and hazard inertness (v1.25). A check run given neither --manifest nor --risk-file, over … | tests/test_19_manifest.py (T-128) |
+-- | I-022 | qualify is read-only and offline (v1.26). A qualify run opens no socket, modifies no file of the ins… | tests/test_20_qualify.py (T-132, T-134) |
+-- | I-023 | Validation-pack inertness (v1.26). check, impact, explain, verify and --self-check write and print o… | tests/test_20_qualify.py (T-134) |
+-- | K-17 | Proof staleness (v1.19; the file match refined v1.19.1). A manifest theorem (C-21) whose name matche… | tests/test_09_self_application.py (T-99); tests/test_14_proof.py (T-99) |
+-- | K-18 | Exit-code precedence (v1.20). When one invocation carries both a usage fault (§5.4 2: an undefined f… | tests/test_07_cli.py (T-103); tests/test_09_self_application.py (T-103) |
+-- | K-19 | Citation-map size (v1.23). A citation map (C-23) is at most 2 MiB, the K-02 file cap. Over it, E-70 … | tests/test_17_citation_map.py (T-111) |
+-- | K-20 | Risk-file and hazard-id size (v1.25). A risk file (C-28) is at most 2 MiB, the K-02 cap; over it, E-… | tests/test_19_manifest.py (T-124); tests/test_18_hazards.py (T-126, T-127) |
+-- | R-100 | With --proof PATHS, the checker MUST scan the named Lean files or directories (repeatable, comma-sep… | tests/test_09_self_application.py (T-99); tests/test_14_proof.py (T-99) |
+-- | R-101 | The checker MUST treat a TOKEN immediately preceded by <ns>: — where <ns> matches [A-Za-z][A-Za-z0-9… | tests/test_09_self_application.py (T-107, T-112); tests/test_16_namespaces.py (T-107, T-108) |
+-- | R-103 | check, impact and explain MUST accept --citation-map FILE; each resolving entry MUST yield one mappe… | tests/test_17_citation_map.py (T-110, T-111) |
+-- | R-104 | For every .ts, .tsx, .mts, .cts, .js, .jsx, .mjs and .cjs file in the --tests list the checker MUST … | tests/test_09_self_application.py (T-113, T-116, T-117); tests/test_15_jsts.py (T-113, T-114, T-115, T-116, T-117) |
+-- | R-106 | check MUST accept a boolean --manifest flag (v1.25). With it, after both reports are written, check … | tests/test_19_manifest.py (T-122, T-123, T-125) |
+-- | R-107 | The checker MUST accept a fourth subcommand, speccheck verify --manifest FILE [--root DIR] [--verbos… | tests/test_19_manifest.py (T-124, T-125) |
+-- | R-108 | A declaring row or heading of an R, C, I, K or E id MAY carry the CONTROLS marker (C-01, C-27; v1.25… | tests/test_18_hazards.py (T-126) |
+-- | R-110 | SPEC.md §0 MUST contain the Intended use block (v1.26), stating that the validated function is check… | tests/test_09_self_application.py (T-130); tests/test_20_qualify.py (T-130) |
+-- | R-112 | qualify's installation qualification MUST (a) compute package_tree_sha256: SHA-256 of the UTF-8 text… | tests/test_09_self_application.py (T-130, T-137); tests/test_20_qualify.py (T-130, T-131, T-137) |
+-- | R-113 | qualify's operational qualification MUST run every case of the packaged catalog speccheck/_qualify/c… | tests/test_20_qualify.py (T-132) |
+-- | R-114 | This repository MUST ship speccheck/_qualify/tool_risk.json, a C-28 risk file listing exactly the to… | tests/test_20_qualify.py (T-135, T-48); tests/test_09_self_application.py (T-48) |
 --
--- The 98 `T-nn` acceptance tests are the §9 inventory; each is its own carrier — a T id is never
+-- The 137 `T-nn` acceptance tests are the §9 inventory; each is its own carrier — a T id is never
 -- proven here, since a T id's proof is a run, not a theorem.
 --
 -- ### Dual halves — proven in Lean, implementation half carried by a real test
@@ -787,6 +1040,27 @@ end Reachability
 -- | R-28 | tests/test_07_cli.py (T-59) |
 -- | R-31 | tests/test_02_attribution.py (T-65, T-66, T-67); tests/test_03_results.py (T-68); tests/test_05_judge.py (T-69) |
 -- | R-35 | tests/test_04_status.py (T-77) |
+-- | C-26 | tests/test_19_manifest.py (T-124) |
+-- | C-27 | tests/test_18_hazards.py (T-126, T-127); tests/test_19_manifest.py (T-129) |
+-- | C-29 | tests/test_09_self_application.py (T-130); tests/test_20_qualify.py (T-130, T-131) |
+-- | C-31 | tests/test_20_qualify.py (T-135) |
+-- | E-35 | tests/test_07_cli.py (T-61); tests/test_09_self_application.py (T-61, T-89); tests/test_05_judge.py (T-89) |
+-- | E-63 | tests/test_09_self_application.py (T-99); tests/test_14_proof.py (T-99) |
+-- | E-64 | tests/test_12_explain.py (T-102) |
+-- | E-65 | tests/test_09_self_application.py (T-99); tests/test_14_proof.py (T-99) |
+-- | E-70 | tests/test_17_citation_map.py (T-111) |
+-- | E-82 | tests/test_19_manifest.py (T-124) |
+-- | E-83 | tests/test_19_manifest.py (T-124) |
+-- | E-84 | tests/test_18_hazards.py (T-127) |
+-- | E-85 | tests/test_19_manifest.py (T-123); tests/test_20_qualify.py (T-134) |
+-- | E-86 | tests/test_20_qualify.py (T-133) |
+-- | E-87 | tests/test_20_qualify.py (T-133) |
+-- | E-88 | tests/test_20_qualify.py (T-132) |
+-- | R-102 | tests/test_09_self_application.py (T-107); tests/test_16_namespaces.py (T-107); tests/test_17_citation_map.py (T-111) |
+-- | R-105 | tests/test_07_cli.py (T-118); tests/test_09_self_application.py (T-118) |
+-- | R-109 | tests/test_18_hazards.py (T-127) |
+-- | R-111 | tests/test_09_self_application.py (T-130); tests/test_20_qualify.py (T-130, T-134, T-136) |
+-- | R-115 | tests/test_20_qualify.py (T-135) |
 --
 -- ### Excluded — the spec puts these out of scope by name
 --
@@ -801,7 +1075,10 @@ end Reachability
 -- | No multi-repository or multi-spec runs; `--against` reads a prior version of the same spec only | §0 Non-goals |
 -- | No change semantics: an edge records that a statement names another id, nothing more | §0 Non-goals |
 -- | No IDE integration, daemon mode, watch mode, or web UI | §0 Non-goals |
--- | No adapters other than Python and Swift; other languages get file-level attribution | §0 Non-goals, O-2 |
+-- | No adapters other than Python, Swift and JavaScript/TypeScript (v1.22); other languages get file-level attribution | §0 Non-goals, O-2 |
+-- | No risk management: hazard ids are labels owned by the user's ISO 14971 file (v1.25) | §0 Non-goals |
+-- | No signatures or attribution of records (v1.25) | §0 Non-goals |
+-- | No validation on the user's behalf (v1.26) | §0 Non-goals |
 -- | No graphical surface at all | §5.2, O-3 |
 
 end SpeccheckProof.Speccheck.Theorems

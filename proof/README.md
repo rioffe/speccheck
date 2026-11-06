@@ -1,18 +1,18 @@
 # speccheck proof
 
 Lean 4 formalization of the **deterministic core** of [`src/speccheck/`](../src/speccheck/) —
-the implementation of [`SPEC.md`](../SPEC.md) v1.18 — with a green acceptance suite
+the implementation of [`SPEC.md`](../SPEC.md) v1.26 — with a green acceptance suite
 (`uv run python -m pytest tests -q`) carrying the rest.
 
 > **The trust boundary, up front.** Lean proves the **model** in `Model.lean` — a pure Lean
-> transcription of `graph.py`, `judge.py`, `results.py`, `report.py`, `extract.py` and
-> `judge_mock.py` — never the `.py` files themselves. The bridge has three legs:
+> transcription of `graph.py`, `judge.py`, `results.py`, `report.py`, `extract.py`,
+> `judge_mock.py`, `manifest.py` and `qualify.py` — never the `.py` files themselves. The bridge has three legs:
 
 | Leg | Claims | Evidence |
 | --- | --- | --- |
 | 1. Transcription | the model is a faithful transcription of the source file | **manual** — the correspondence table in `Model.lean`'s header, function by function |
 | 2. **Lean (this project)** | the model satisfies the spec's module-level contract, for all inputs | `lake build` — kernel-checked theorems |
-| 3. Empirical | the *file* satisfies the process-level contract | `tests/test_01_extraction.py` … `tests/test_13_help.py` (the §9 acceptance suite) |
+| 3. Empirical | the *file* satisfies the process-level contract | `tests/test_01_extraction.py` … `tests/test_20_qualify.py` (the §9 acceptance suite) |
 
 > Overclaiming leg 2 as leg 1 or leg 3 is the one sin of proof work. This README, and every file
 > in this project, keeps the three separate.
@@ -29,6 +29,14 @@ even without `--strict` (E-19) — that the general §5.4 prose doesn't mention 
 here carry that branch (`allInScopeUncited`); `Theorems.lean` adds `row_exit_allUncited` and
 `allUncitedAlwaysExitOne` for it.
 
+**v1.26 update (2026-11-05).** Both projects were brought from their versions (v1.18 here, v1.20
+there) to `SPEC.md` v1.26. Two branches of `exit_code_for` are now known to be places where the code
+follows a statement outside §5.4: the E-19 branch above, and the D-45 failed-proof branch
+(`report.py:101-104`). `proof_from_spec/` carries each disagreement as a finding with a
+kernel-checked witness — F-904 (E-19 vs §5.4/R-15) and F-905 (D-45 vs R-15/§5.4), in
+[`docs/reviews/SPEC_MODEL_FINDINGS.md`](../docs/reviews/SPEC_MODEL_FINDINGS.md). This project
+transcribes the code, so it carries both branches.
+
 ## Layout
 
 - `SpeccheckProof/Speccheck/Spec.lean` — the **spec side**: the pinned constants (exit codes
@@ -42,8 +50,11 @@ here carry that branch (`allInScopeUncited`); `Theorems.lean` adds `row_exit_all
   algorithm `statusOf` (`graph.deterministic_status`/`graph.apply_verdicts`), the validation
   cascade `coerce` (`judge.validate`), the ratios and metrics (`graph.compute_metrics`), the exit
   map `exitOfCheck` (`report.exit_code_for`, `report.strict_judge_failure`), the progress
-  arithmetic (`judge.progress_line`), and `outcome : Input → Option Result`, where `none` means
-  the spec states no outcome for that input. The correspondence table is its header — the manual
+  arithmetic (`judge.progress_line`), and `outcome : Input → Option Result`, total since v1.20;
+  and, since v1.18: the jest-prefix join (`results.py`), the status word (`report._exit0_word`),
+  the hazard roll-up (`graph.compute_hazards`), `verify`'s exit (`manifest.py`, `cli.py`), the
+  qualification verdict (`qualify.first_failure`) and the anomaly selection
+  (`qualify.open_anomalies`). The correspondence table is its header — the manual
   trust boundary, including every part of the source deliberately *not* modelled and why.
 - `SpeccheckProof/Speccheck/Theorems.lean` — **the proof**: `section Rows` (one theorem per
   branch of the modelled functions — transcription, not evidence, and it says so),
@@ -76,6 +87,14 @@ wire formats, both report renderers, `explain`'s trace, and the CLI's argument p
 text.
 
 ## Scope
+
+**v1.26 (current).** 356 declared conformance ids (219 R/C/I/K/E + 137 T), checked mechanically:
+every R/C/I/K/E id is either a bold tag (75 proven, every one also a dual-halves row naming the
+test file that carries its implementation half) or a deferred row naming the real
+`tests/test_NN_*.py` file and T ids (144); the 137 T ids are the test inventory; 12 named
+exclusions. `lake build`: 124 theorems, exit 0, zero warnings.
+
+**v1.18 (historical):**
 
 252 declared conformance ids — 41 R, 19 C, 17 I, 16 K, 61 E, 98 T — the Phase 1 classification,
 checked mechanically against `Theorems.lean`'s bold ID tags and closing tables:

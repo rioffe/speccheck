@@ -1,7 +1,7 @@
 /-
 # `SpeccheckProof.Speccheck.Spec` — the normative side
 
-Transcribes the pinned constants of `SPEC.md` v1.18 (Specification Conformance Checker,
+Transcribes the pinned constants of `SPEC.md` v1.26 (Specification Conformance Checker,
 `speccheck`; `../SPEC.md`) and checks the spec's own claims about them. Rule for this file: every
 constant quotes the spec's normative text; every lemma in `section Facts` is a check that the
 spec's claims about those constants are mutually consistent. This module imports `Lean` and
