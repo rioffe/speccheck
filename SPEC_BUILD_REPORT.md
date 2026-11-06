@@ -98,7 +98,7 @@ the same nine Notes as Phase A. Verdicts on identical edges agreed run to run on
 21 and 25 flips between `ASSERTS` and `EXECUTES_ONLY` — the measurement behind
 `docs/plans/JUDGE_CONTROL_ANALYSIS.md`. Running Phase B again until one run happens to come back
 clean would be choosing evidence; the four runs are recorded instead, and the one remaining
-downgrade is a named exception for the requester to approve.
+downgrade is a named exception, which the requester approved on 2026-11-05.
 
 ```text
 Spec coverage: 356/356 IDs realized (0 deferred)
@@ -106,7 +106,7 @@ speccheck (mock): speccheck: CONFORMING - 356/356 passing (100.0%), 0 failing, 0
 speccheck (llm):  speccheck: NOT CONFORMING - 355/356 passing (99.7%), 0 failing, 0 skipped, 1 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm; hazards: 10/10 verified (openai/gpt-6-luna-pro, unknown_rate 0.0104, 1,154 judged edges, run 4 of 4; the one weak id, E-46, is a judge error adjudicated above)
 Observed: no rendered surface; goldens unchanged, help screens diffed, qualify run from a wheel in a fresh venv, every Note read
 Readiness: BUILT
-Conformance: PASS WITH NOTES (Phase B's E-46 downgrade adjudicated as a judge error; pending the requester's approval)
+Conformance: PASS WITH NOTES (Phase B's E-46 downgrade adjudicated as a judge error; adjudication approved by the requester, 2026-11-05)
 ```
 
 ## 0p. v1.25 increment (2026-11-05) — the provenance manifest, `verify`, and hazard traceability
@@ -2334,7 +2334,7 @@ The rows after K-18 were added at v1.23.1 for every id the matrix lacked — E-4
 
 ## 6. Verdict
 
-The current verdict is v1.26's, in §0q (PASS WITH NOTES, pending the requester's approval of one adjudicated Phase B downgrade). The block below is v1.20's, kept as recorded.
+The current verdict is v1.26's, in §0q (PASS WITH NOTES: one Phase B downgrade, E-46, adjudicated as a judge error and approved by the requester). The block below is v1.20's, kept as recorded.
 
 ```text
 Spec coverage: 267/267 IDs realized (0 deferred)
