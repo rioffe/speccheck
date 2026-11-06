@@ -1,0 +1,54 @@
+{
+  "anomalies": [
+    {
+      "id": "KA-01",
+      "summary": "A table row cut by an unescaped '|' that leaves its cell count equal to the header's gets no Note, so the cut statement is reported as if whole.",
+      "hazards": [
+        "TH-07"
+      ],
+      "workaround": "Escape every '|' inside a table cell as '\\|' or put it in a backtick span; review rows whose statement ends abruptly.",
+      "found_in": "1.24.0",
+      "fixed_in": null
+    },
+    {
+      "id": "KA-02",
+      "summary": "Citation is literal: a test that mentions an id as data, for example in an asserted error message, cites it exactly as a test that proves it does.",
+      "hazards": [
+        "TH-01"
+      ],
+      "workaround": "Put 'speccheck:ignore' on lines that mention an id without realizing it; run the mock judge, which requires an assertion token in the citing test.",
+      "found_in": "1.5.0",
+      "fixed_in": null
+    },
+    {
+      "id": "KA-03",
+      "summary": "The manifest proves which results file a run read, not that the results came from running the tests of the checked tree.",
+      "hazards": [
+        "TH-03"
+      ],
+      "workaround": "Produce the results file and run check in the same CI job, and keep that job's record with the manifest.",
+      "found_in": "1.25.0",
+      "fixed_in": null
+    },
+    {
+      "id": "KA-04",
+      "summary": "The Lean model in proof/ was transcribed from v1.18; its exit map does not include the v1.25 condition that an UNCONTROLLED hazard fails --strict.",
+      "hazards": [
+        "TH-06"
+      ],
+      "workaround": "Rely on the acceptance tests and OQ-04 for that condition until proof/ is rebuilt.",
+      "found_in": "1.25.0",
+      "fixed_in": null
+    },
+    {
+      "id": "KA-05",
+      "summary": "No operational-qualification case challenges the JavaScript/TypeScript adapter: there is no packaged fixture with goldens for it.",
+      "hazards": [
+        "TH-02"
+      ],
+      "workaround": "A team relying on the JavaScript/TypeScript adapter adds a case to its own performance qualification on its own project.",
+      "found_in": "1.26.0",
+      "fixed_in": null
+    }
+  ]
+}

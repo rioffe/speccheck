@@ -1,0 +1,16 @@
+{
+  "hazards": [
+    {
+      "id": "HZ-1",
+      "title": "Wrong arithmetic result shown"
+    },
+    {
+      "id": "HZ-2",
+      "title": "Division too slow for real-time use"
+    },
+    {
+      "id": "HZ-3",
+      "title": "Average of an empty list shown as zero"
+    }
+  ]
+}

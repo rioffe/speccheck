@@ -25,7 +25,7 @@ path = "src/speccheck/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/speccheck"]
 # package data (§10): the C-10 prompt and the byte-identical self-check fixture, goldens included
-artifacts = ["src/speccheck/judge_prompt.md", "src/speccheck/_selfcheck/**"]
+artifacts = ["src/speccheck/judge_prompt.md", "src/speccheck/_selfcheck/**", "src/speccheck/_qualify/**"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/speccheck", "tests", "fixtures", "tools", "SPEC.md", "README.md"]
@@ -37,7 +37,7 @@ filterwarnings = ["error"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-extend-exclude = ["src/speccheck/_selfcheck", "fixtures"]
+extend-exclude = ["src/speccheck/_selfcheck", "src/speccheck/_qualify", "fixtures"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

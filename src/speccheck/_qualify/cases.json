@@ -1,0 +1,209 @@
+{
+  "cases": [
+    {
+      "id": "OQ-01",
+      "title": "check on the golden fixture: every status, a retired id, a dangling and a stale citation",
+      "hazards": [
+        "TH-01",
+        "TH-02",
+        "TH-04",
+        "TH-05",
+        "TH-06",
+        "TH-07",
+        "TH-09"
+      ],
+      "fixture": "_selfcheck",
+      "steps": [
+        {
+          "argv": [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "src",
+            "--tests",
+            "tests",
+            "--results",
+            "junit.xml",
+            "--judge",
+            "mock",
+            "--strict",
+            "--out",
+            "out"
+          ],
+          "edit": null,
+          "exit": 1,
+          "stdout": "speccheck: NOT CONFORMING - 14/20 passing (70.0%), 1 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 1 dangling, 1 stale; judge=mock\n",
+          "goldens": {
+            "out/speccheck.json": "golden/speccheck.json",
+            "out/SPEC_CONFORMANCE_REPORT.md": "golden/SPEC_CONFORMANCE_REPORT.md"
+          }
+        }
+      ]
+    },
+    {
+      "id": "OQ-02",
+      "title": "check on the Swift fixture: test cases joined to xUnit results",
+      "hazards": [
+        "TH-02",
+        "TH-04"
+      ],
+      "fixture": "_qualify/swift",
+      "steps": [
+        {
+          "argv": [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "Sources",
+            "--tests",
+            "Tests",
+            "--results",
+            "junit.xml",
+            "--judge",
+            "mock",
+            "--strict",
+            "--out",
+            "out"
+          ],
+          "edit": null,
+          "exit": 1,
+          "stdout": "speccheck: NOT CONFORMING - 7/14 passing (50.0%), 2 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 0 dangling, 0 stale; judge=mock\n",
+          "goldens": {
+            "out/speccheck.json": "golden/speccheck.json",
+            "out/SPEC_CONFORMANCE_REPORT.md": "golden/SPEC_CONFORMANCE_REPORT.md"
+          }
+        }
+      ]
+    },
+    {
+      "id": "OQ-03",
+      "title": "check --manifest, then verify before and after a one-byte change to a source file",
+      "hazards": [
+        "TH-03",
+        "TH-08"
+      ],
+      "fixture": "_selfcheck",
+      "steps": [
+        {
+          "argv": [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "src",
+            "--tests",
+            "tests",
+            "--results",
+            "junit.xml",
+            "--judge",
+            "mock",
+            "--strict",
+            "--out",
+            "out",
+            "--manifest"
+          ],
+          "edit": null,
+          "exit": 1,
+          "stdout": "speccheck: NOT CONFORMING - 14/20 passing (70.0%), 1 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 1 dangling, 1 stale; judge=mock\n",
+          "goldens": {}
+        },
+        {
+          "argv": [
+            "verify",
+            "--manifest",
+            "out/speccheck.manifest.json"
+          ],
+          "edit": null,
+          "exit": 0,
+          "stdout": "verify: ok - 11 files match, tree 8dcd05b94016\n",
+          "goldens": {}
+        },
+        {
+          "argv": [
+            "verify",
+            "--manifest",
+            "out/speccheck.manifest.json"
+          ],
+          "edit": {
+            "append": "src/calc/core.py",
+            "text": "\n"
+          },
+          "exit": 1,
+          "stdout": "verify: mismatch src/calc/core.py\nverify: FAILED - 1 of 11 files differ\n",
+          "goldens": {}
+        }
+      ]
+    },
+    {
+      "id": "OQ-04",
+      "title": "check --strict --risk-file: one hazard each VERIFIED, NOT_VERIFIED and UNCONTROLLED",
+      "hazards": [
+        "TH-06"
+      ],
+      "fixture": "_qualify/hazards",
+      "steps": [
+        {
+          "argv": [
+            "check",
+            "--spec",
+            "SPEC.md",
+            "--src",
+            "src",
+            "--tests",
+            "tests",
+            "--results",
+            "junit.xml",
+            "--judge",
+            "mock",
+            "--strict",
+            "--risk-file",
+            "risk.json",
+            "--out",
+            "out"
+          ],
+          "edit": null,
+          "exit": 1,
+          "stdout": "speccheck: NOT CONFORMING - 14/20 passing (70.0%), 1 failing, 1 skipped, 1 weak, 1 unverified, 1 untested, 1 uncited; 1 dangling, 1 stale; judge=mock; hazards: 1/3 verified\n",
+          "goldens": {
+            "out/speccheck.json": "golden/speccheck.json",
+            "out/SPEC_CONFORMANCE_REPORT.md": "golden/SPEC_CONFORMANCE_REPORT.md"
+          }
+        }
+      ]
+    },
+    {
+      "id": "OQ-05",
+      "title": "impact --changed K-02 on the golden fixture",
+      "hazards": [
+        "TH-10"
+      ],
+      "fixture": "_selfcheck",
+      "steps": [
+        {
+          "argv": [
+            "impact",
+            "--spec",
+            "SPEC.md",
+            "--changed",
+            "K-02",
+            "--src",
+            "src",
+            "--tests",
+            "tests",
+            "--out",
+            "out"
+          ],
+          "edit": null,
+          "exit": 0,
+          "stdout": "speccheck impact: 1 changed, 4 impacted (depth 1), 6 to re-verify, 6 citations, 25 test cases\n",
+          "goldens": {
+            "out/impact.json": "golden/impact.json",
+            "out/IMPACT_REPORT.md": "golden/IMPACT_REPORT.md"
+          }
+        }
+      ]
+    }
+  ]
+}

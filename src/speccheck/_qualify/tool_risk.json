@@ -1,0 +1,44 @@
+{
+  "hazards": [
+    {
+      "id": "TH-01",
+      "title": "A token is counted as a citation that realizes nothing"
+    },
+    {
+      "id": "TH-02",
+      "title": "A test result is joined to the wrong test case"
+    },
+    {
+      "id": "TH-03",
+      "title": "The results file belongs to another tree, or is stale"
+    },
+    {
+      "id": "TH-04",
+      "title": "A status is computed wrongly"
+    },
+    {
+      "id": "TH-05",
+      "title": "The judge raises a status"
+    },
+    {
+      "id": "TH-06",
+      "title": "The exit code or summary line claims more than the report shows"
+    },
+    {
+      "id": "TH-07",
+      "title": "A declared id is silently missing from the report"
+    },
+    {
+      "id": "TH-08",
+      "title": "A report is altered or replaced after the run"
+    },
+    {
+      "id": "TH-09",
+      "title": "A retired id is counted, or a stale citation goes unreported"
+    },
+    {
+      "id": "TH-10",
+      "title": "`impact` under-reports what a change touches, so a revalidation is missed"
+    }
+  ]
+}
