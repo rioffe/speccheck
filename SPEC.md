@@ -1,6 +1,6 @@
 # SPECIFICATION — Specification Conformance Checker (`speccheck`; traceability graph, JUnit results, model-judged test strength; Python 3.12 + uv)
 
-> - **Status:** v1.26 — the shipped version: the code (1.26.0), `__version__` and the README's
+> - **Status:** v1.26 — the shipped version: the code (1.26.1; 1.26.0 was the first build), `__version__` and the README's
 >   claim all say v1.26 (`test_prose_artifacts_claim_the_shipped_version` binds them). Built
 >   2026-11-05 in three waves (`docs/plans/IMPLEMENTATION_PLAN.md`; `SPEC_BUILD_REPORT.md` §0q).
 >

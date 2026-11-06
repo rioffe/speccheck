@@ -11,7 +11,7 @@ and downgrade the verdict when the test merely runs the behavior without asserti
 never upgrade anything.
 
 This repository holds the checker itself — which implements its own `SPEC.md` (v1.26, code
-1.26.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
+1.26.1) in full, and so is the worked example of the method it serves — together with the seven agent skills that
 propose, write, review, plan, model, prove, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then

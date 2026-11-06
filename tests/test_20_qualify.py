@@ -301,7 +301,16 @@ def test_qualify_from_an_installed_wheel(wheel_venv: Path, tmp_path: Path):
     assert list(doc["environment"]) == ["implementation", "python", "system", "machine", "source"]
     assert doc["environment"]["source"].endswith(".whl")
     assert [h["id"] for h in doc["hazards"]] == list(_hazard_table())
-    assert [a["id"] for a in doc["known_anomalies"]] == [f"KA-{n:02d}" for n in range(1, 6)]
+    # R-115: exactly the anomalies not fixed in or before the running version, in file order
+    # (computed here from the packaged file, independently of qualify.open_anomalies)
+    running = tuple(int(x) for x in __version__.split("."))
+    packaged = json.loads((QDATA / "known_anomalies.json").read_text(encoding="utf-8"))
+    expected = [
+        a["id"]
+        for a in packaged["anomalies"]
+        if a["fixed_in"] is None or tuple(int(x) for x in a["fixed_in"].split(".")) > running
+    ]
+    assert [a["id"] for a in doc["known_anomalies"]] == expected
     positions = [md.index(h + "\n") for h in MD_HEADINGS]
     assert positions == sorted(positions)
     assert _intended_use_block() in md

@@ -27,8 +27,8 @@
 | F-502 | G-2 · under-determined pin | P1 | C-07 `judge_available`, E-35, R-28 | `f502ResolvedJudgeAvailableBudgetFalse`, `f502ResolvedStrictJudgeFailureUnavailable`, `judgeAvailableNullIffNone`, `f502Contrast` (was `f502JudgeAvailableBudgetSilent`, `f502JudgeAvailableBudgetSilentMock`, `f502StrictJudgeFailureNull`) | **resolved v1.20** |
 | F-503 | G-2 · under-specified relation | P2 | §5.4, K-01, K-18 | `k18UsageWinsWhenBoth` (was `f503ExitPrecedenceDiffer`, kept as the historical ambiguity record) | **resolved v1.20** |
 | F-504 | G-2 · under-specified interaction (v1.19) | P2 | C-07, D-49 (`proof` key presence) | `f504ManifestReadButKeyAbsent` | **resolved v1.19.1** |
-| F-904 | G-2 · two statements disagree | P1 | E-19 vs §5.4, R-15 | `f904E19DisagreesWithExitTable` | **open** |
-| F-905 | G-2 · decision row and normative rows disagree | P1 | D-45 vs R-15, §5.4 | `f905D45DisagreesWithR15` | **open** |
+| F-904 | G-2 · two statements disagree | P1 | E-19 vs §5.4, R-15 | `f904E19DisagreesWithExitTable` | **open** — proposed for v1.27 (Part E, D-77) |
+| F-905 | G-2 · decision row and normative rows disagree | P1 | D-45 vs R-15, §5.4 | `f905D45DisagreesWithR15` | **open** — proposed for v1.27 (Part E, D-78) |
 
 No **G-3a** finding: every requirement Lean cannot reach names at least one §9 `T-nn` (§11's
 "Verified by" column is total over the 140 deferred-only requirements — checked mechanically).

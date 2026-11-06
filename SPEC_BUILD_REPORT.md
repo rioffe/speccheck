@@ -1,10 +1,45 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.26.0 against `SPEC.md` (v1.26)
+# SPEC_BUILD_REPORT — `speccheck` v1.26.1 against `SPEC.md` (v1.26)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n), and to v1.24 (§0o), and 2026-11-05 to v1.25 (§0p) and v1.26 (§0q); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n), and to v1.24 (§0o), and 2026-11-05 to v1.25 (§0p) and v1.26 (§0q), with the 1.26.1 patch (§0q, first subsection); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
 
 ## 0q. v1.26 increment (2026-11-05) — the validation pack: intended use, `qualify`, the tool risk file, known anomalies
+
+### 1.26.1 patch (2026-11-05) — the formal models brought to v1.26; KA-04 fixed
+
+**Why.** KA-04 said `proof/` modelled v1.18 and its exit map lacked R-15's v1.25 `UNCONTROLLED`
+condition. Both Lean projects now model v1.26: `proof_from_spec/` (commit `a21c5b8`, 144 theorems,
+79 proven ids) and `proof/` (commit `748778b`, 124 theorems, 75 proven ids), each `lake build`
+exit 0, zero warnings, from a wiped `.lake`. The update produced two spec-model findings, F-904
+(E-19 vs §5.4/R-15) and F-905 (D-45 vs R-15/§5.4), both open, proposed for v1.27
+(`docs/proposals/PROPOSAL_v1.27_software_safety_class.md` Part E).
+
+**What changed in the package.** `known_anomalies.json`: KA-04 `fixed_in` `"1.26.1"`, so `qualify`
+lists KA-01, KA-02, KA-03 and KA-05 for 1.26.1 and later (R-115). `__version__` 1.26.1. No spec row,
+no kernel code: a patch release (`docs/validation/CHANGE_CONTROL.md`). T-130's anomaly assertion now
+computes R-115's selection from the packaged file instead of naming KA-01..KA-05.
+
+```text
+package_tree_sha256 3469a9ea6058bda94d128bea9f8582f78ff6d8bfbcbed1a4be82a63f5f7415d6   (64 files)
+speccheck --version                     speccheck 1.26.1
+speccheck qualify --out q               qualify: QUALIFIED - IQ 64 files, tree 3469a9ea6058; OQ 5/5 cases   exit 0
+```
+
+```text
+uv run python -m pytest tests -q --junitxml=junit.xml      225 passed   (junit.xml sha256 7e2339da…)
+uv run ruff check src tests tools                           All checks passed
+uv run speccheck --self-check                               self-check: ok
+speccheck: CONFORMING - 356/356 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock; hazards: 10/10 verified
+```
+
+Phase B was **not re-run** for 1.26.1: no kernel module changed, and the only test change is
+T-130's anomaly assertion, which the mock judge rates `ASSERTS`; 1.26.0's four recorded runs
+stand. The first `pytest` run after the version bump failed `test_version_flag` on stale
+editable-install metadata (as in v1.25); `uv sync --reinstall-package speccheck` cleared it.
+Verdict: unchanged from 1.26.0, PASS WITH NOTES.
+
+### 1.26.0
 
 **Why.** `docs/proposals/PROPOSAL_v1.26_validation_pack.md`, from
 `docs/plans/ISO13485_READINESS_PLAN.md` §3.1: an installed copy could prove one thing about itself

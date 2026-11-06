@@ -38,7 +38,7 @@
       ],
       "workaround": "Rely on the acceptance tests and OQ-04 for that condition until proof/ is rebuilt.",
       "found_in": "1.25.0",
-      "fixed_in": null
+      "fixed_in": "1.26.1"
     },
     {
       "id": "KA-05",
