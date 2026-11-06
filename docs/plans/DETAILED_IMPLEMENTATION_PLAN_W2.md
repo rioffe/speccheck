@@ -1,16 +1,13 @@
-# Detailed implementation plan — W2: manifest and verify (C-25, C-26, R-106, R-107, I-020)
+# Detailed implementation plan — W2: `speccheck qualify` (R-111..R-113, R-115, C-29, I-022, E-85..E-88)
 
-> - **Gate:** as W1, plus `check --manifest` then `verify` on this repository → `verify: ok`.
-> - **Budget:** 180–255 production lines: new `manifest.py`; `cli.py`; read-log hooks in `extract.py` and `lean.py`.
-> - **Depends on W1:** `Config.risk_file`.
+> - **Gate:** as W1, plus `uv build --wheel`, a fresh `uv venv`, `uv pip install <wheel>`, then `<venv>/bin/speccheck qualify --out q` in an empty directory → `qualify: QUALIFIED - IQ <n> files, tree <hex12>; OQ 5/5 cases`, exit 0.
+> - **Budget:** 230–320 production lines: new `qualify.py`; `cli.py`.
 
 ## Work items
 
-- **W2-01** T-122 (`tests/test_19_manifest.py`, on a copy of `fixtures/target`): key order; `inputs` equal an independent walk (spec, every scanned file with role, results); hashes/lengths equal disk; `tree_sha256` from the `shasum` line format; `reports` equal the written files, Markdown first; `tool.version`; reports byte-equal to a run without the flag; with `--out` inside `--tests` the manifest is never scanned. Red → `manifest.ReadLog`, `render_manifest`; `scan_roots(..., log=None)` logs every selected file (oversized and binary included, symlinks not); `scan_lean_paths(..., log=None)`; explicit reads in `_run_stages` and `load_citation_map`/risk file logged; `write_named_files` gets three files; C-03 exclusions for the manifest and its temporaries.
-- **W2-02** T-123: deterministic twice; `SOURCE_DATE_EPOCH=1793836800` → `generated_at` `2026-11-05T00:00:00Z`; `abc` and empty → exit 2 E-85 before any read; ignored without `--manifest`; CRLF twin → same reports, different spec hash; an injected failure before the third rename leaves none of the three.
-- **W2-03** T-124 and T-125: `verify` ok line; one-byte change → `mismatch` + `FAILED - 1 of N`; deleted report → `missing`; E-82 (no flag, outside root) exit 2; E-83 (not JSON, version, missing key, `../x`, bad hex) exit 3 with no input read; nothing written; socket guard. T-125: append to a `--src` file after a manifest run → reports unchanged, `verify` names it. Red → `verify` subparser in `build_parser`, `manifest.verify`, `execute_verify`.
-- **W2-04** T-129 help half: `check --help` names `--manifest`, `--risk-file`, `SOURCE_DATE_EPOCH`; `verify --help` names `--manifest FILE` and its four codes; regenerate `tests/data/help/{speccheck,check}_help.txt`, add `verify_help.txt`; T-95/T-98 still green.
-
-## Gate
-
-1–4 as W1. 5. `uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --manifest --out build/rec` then `uv run speccheck verify --manifest build/rec/speccheck.manifest.json` — expected `verify: ok - …`, exit 0.
+- **W2-01** T-130 red (wheel in a fresh venv, module-scoped fixture): exit 0, QUALIFIED line, C-29 key order, tree hash equals the R-112 computation over `src/speccheck/` minus caches, every case PASS, the Markdown's seven headings and empty signature table. → `qualify.package_iq`, `render_record`, `cli` subparser.
+- **W2-02** T-131: one byte appended to an installed module → `RECORD mismatch`, tree differs; a deleted file → `record_missing`. (Restore the file afterwards.)
+- **W2-03** T-132 (in-process, a copied data root): an altered OQ-02 golden fails only OQ-02; a step patched to raise and one opening a socket get E-88's `failure`; no temporary survives. → `run_catalog`, the shared dispatch, the scoped guard.
+- **W2-04** T-133: under `uv run`, E-86's line and exit 1 with both records; E-87 for a removed `known_anomalies.json` and an invalid `cases.json`.
+- **W2-05** T-134: two runs byte-identical; socket guard restored; `SOURCE_DATE_EPOCH` 1793836800 → `generated_at` in JSON and Markdown §1; `abc` → exit 2, nothing written; unwritable `--out` → exit 3; I-023: the existing golden tests still pass unchanged.
+- **W2-06** T-136: `qualify --help` content, `speccheck --help` lists `qualify`, `qualify --root .` exits 2, `tests/data/help/qualify_help.txt`; regenerate `speccheck_help.txt`.
