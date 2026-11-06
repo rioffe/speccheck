@@ -45,9 +45,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # R-101..R-103, C-22, C-23, I-019, K-19, E-67..E-73 and T-107..T-112, v1.23.1 added T-117
 # SPEC.md v1.24 declares 307 ids (47 R, 24 C, 19 I, 19 K, 77 E, 121 T; none retired); v1.24 added
 # R-105, C-24 (the JS/TS adapter, moved out of C-03), E-77 and T-118..T-121
-# SPEC.md v1.25 declares 334 ids (51 R, 28 C, 21 I, 20 K, 85 E, 129 T; none retired); v1.25 added
-# R-106..R-109, C-25..C-28, I-020, I-021, K-20, E-78..E-85 and T-122..T-129
-DECLARED_IDS = 334
+# SPEC.md v1.26 declares 356 ids (57 R, 31 C, 23 I, 20 K, 88 E, 137 T; none retired); v1.26 added
+# R-110..R-115, C-29..C-31, I-022, I-023, E-86..E-88 and T-130..T-137
+DECLARED_IDS = 356
 
 
 def test_self_application_runs_on_this_repository(tmp_path: Path):
@@ -346,7 +346,8 @@ def test_article_quotes_and_numbers_match_the_tree():
     # the two quoted rows' ids are built rather than written: citation is literal (F-013), so
     # naming them here would enter the judge's eligible set as a meaningless edge for each
     rows_checked = ["R-" + "11", "E-" + "16"]
-    quotes = [b for b in blocks if any(f"| **{m}** |" in b for m in rows_checked)]
+    # a quoted row may carry decoration after its bold id (v1.26: R-11's CONTROLS marker)
+    quotes = [b for b in blocks if any(f"| **{m}** " in b for m in rows_checked)]
     assert len(quotes) == 2, quotes
     for block in quotes:
         rows = block.splitlines()

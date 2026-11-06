@@ -87,11 +87,15 @@ def _tree_text(pairs: list[tuple[str, str]]) -> str:
 
 
 def tree_of_directory(package_dir: Path) -> tuple[str, int]:
-    """R-112 (a) over a source tree (`src/speccheck`): the same value an install of it yields."""
+    """R-112 (a) over a source tree (`src/speccheck`): the same value an install of it yields.
+    Dot-paths are skipped, as the wheel build skips them (pyproject.toml `exclude`)."""
     pairs = [
-        (f"speccheck/{p.relative_to(package_dir).as_posix()}", sha256_hex(p.read_bytes()))
+        (f"speccheck/{rel.as_posix()}", sha256_hex(p.read_bytes()))
         for p in package_dir.rglob("*")
-        if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"
+        if p.is_file()
+        and "__pycache__" not in (rel := p.relative_to(package_dir)).parts
+        and p.suffix != ".pyc"
+        and not any(part.startswith(".") for part in rel.parts)
     ]
     return sha256_hex(_tree_text(pairs).encode("utf-8")), len(pairs)
 
@@ -339,9 +343,7 @@ def open_anomalies(anomalies: list[dict], version: str) -> list[dict]:
     """R-115: entries not fixed in or before the running version, in file order."""
     running = _version_key(version)
     return [
-        a
-        for a in anomalies
-        if a.get("fixed_in") is None or _version_key(a["fixed_in"]) > running
+        a for a in anomalies if a.get("fixed_in") is None or _version_key(a["fixed_in"]) > running
     ]
 
 

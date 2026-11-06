@@ -10,8 +10,8 @@ produce byte-identical output. An optional model-backed *judge* can then read ea
 and downgrade the verdict when the test merely runs the behavior without asserting it; it can
 never upgrade anything.
 
-This repository holds the checker itself — which implements its own `SPEC.md` (v1.25, code
-1.25.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
+This repository holds the checker itself — which implements its own `SPEC.md` (v1.26, code
+1.26.0) in full, and so is the worked example of the method it serves — together with the seven agent skills that
 propose, write, review, plan, model, prove, and build from such specs (`skills/`), `spec2pdf.sh` for rendering a spec with
 clickable cross-references, and `install.sh` to set all of it up. The README goes from the method
 to the tool: what specification engineering is and how a project runs through it, then
@@ -195,7 +195,7 @@ same check on this repository itself:
 ```bash
 uv run python -m pytest tests -q --junitxml=junit.xml
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --out build/selfapp
-# speccheck: CONFORMING - 334/334 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
+# speccheck: CONFORMING - 356/356 passing (100.0%), ...; 0 dangling, 0 stale; judge=mock
 ```
 
 For a Swift package, run `swift test --xunit-output junit.xml` (SwiftPM writes the Swift Testing
@@ -224,6 +224,7 @@ speccheck explain ID --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--resul
                  [--judge-budget SECONDS|N%] [--jev-pre-triage] [--progress auto|always|never]
                  [--verbose [INFO|DEBUG]]
 speccheck verify --manifest FILE [--root DIR] [--verbose [INFO|DEBUG]]
+speccheck qualify [--out DIR] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
 speccheck --version
 speccheck --help
@@ -242,7 +243,7 @@ speccheck --help
 | `--risk-file FILE` | v1.25, `check`-only. A JSON list of the hazards whose risk control is allocated to this software, `{"hazards": [{"id": "HAZ-003", "title": "…"}]}`. A listed hazard that no `*(controls: …)*` row controls is `UNCONTROLLED` and fails `--strict` (see *Records for a quality system*). Unreadable or outside `--root` exits `2`; malformed, a duplicate id or over 2 MiB exits `3`. |
 | `--manifest` | v1.25, `check`-only. Also write `speccheck.manifest.json` under `--out`: the tool version, the options, and the SHA-256 and length of every file the run read and of both reports. Reads `SOURCE_DATE_EPOCH` when set (a non-negative integer, else exit `2`). |
 | `--root DIR` | Base for every path in the reports (default `.`). Every other path must resolve inside it. Command-line paths themselves are resolved against the current directory. |
-| `--out DIR` | Where `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json` go (default `.`; created if missing; must be inside `--root`). |
+| `--out DIR` | Where `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json` go (default `.`; created if missing; must be inside `--root`). On `qualify` (v1.26), where `qualification.json` and `QUALIFICATION_REPORT.md` go, resolved against the working directory: `qualify` has no `--root`. |
 | `--judge MODE` | `none` (default), `mock` (deterministic: assertion tokens in the test span), `llm`. |
 | `--strict` | Exit `1` unless every in-scope ID is `PASSING`, there are no dangling or stale citations, and (v1.25) no hazard is `UNCONTROLLED`; with `--judge llm`, also requires an available judge and `unknown_rate <= --max-unknown`. |
 | `--max-unknown` | Decimal in `[0, 1]`, default `0.2`; only consulted under `--strict --judge llm`. |
@@ -555,6 +556,46 @@ marker naming a hazard the file does not list is a Note, never a failure. A `VER
 its software controls passed their tests, not that the risk is acceptable: that judgment stays in
 the risk file. A run with neither flag and no marker is byte-identical to v1.24.
 
+### Qualifying an installed copy: `speccheck qualify` (v1.26)
+
+A manufacturer that uses speccheck inside an ISO 13485 quality system has to validate it for its
+intended use before first use and after every upgrade (clause 4.1.6). `qualify` does the part the
+tool can do for itself, on the machine it is installed on, and writes the record:
+
+```bash
+speccheck qualify --out qualification
+# qualify: QUALIFIED - IQ 64 files, tree <12 hex>; OQ 5/5 cases          exit 0
+```
+
+- **Installation qualification (IQ).** It hashes every installed `speccheck/` file into the
+  *package tree hash* — the same `shasum` line format as the manifest's `tree_sha256` — and checks
+  every hash in the distribution's `RECORD`. The tree hash equals the same computation over the
+  release tag, so comparing it with the value the release notes publish shows the installed files
+  are the released ones (D-68).
+- **Operational qualification (OQ).** It runs five packaged cases, each in a temporary copy of a
+  packaged fixture, under a socket guard, and compares exit codes, stdout and output files with
+  packaged goldens: `check` on the golden fixture (every status), `check` on the Swift fixture,
+  `check --manifest` then `verify` before and after a one-byte edit, `check --strict --risk-file`
+  with one hazard each `VERIFIED`, `NOT_VERIFIED` and `UNCONTROLLED`, and `impact`. Each case names
+  the tool hazards it challenges.
+- **The record.** `qualification.json` and `QUALIFICATION_REPORT.md` carry the intended use (the
+  statement in `SPEC.md` §0), the environment and dependency versions, the IQ and OQ results, the
+  ten tool hazards and the cases that challenge each, this version's known anomalies, the verdict,
+  and an empty *Executed by / Reviewed by* signature table. Signing is the quality system's job.
+
+`qualify` reads no project file, opens no socket, and writes only its two files. Under `uv run` in
+a checkout it reports `not an installed wheel (no hashed RECORD)` and exits `1`: an editable
+install cannot be qualified. `docs/validation/` holds the intended use, the tool risk assessment,
+the IQ/OQ protocol and the change-control rule; `tools/validation_impact.py <previous tag>` writes
+a release's *Validation impact* section.
+
+**speccheck checks its own risk assessment.** The ten tool hazards — the ways the validated
+function could report a false `PASSING`, or let a change escape revalidation — are a v1.25 risk
+file, `src/speccheck/_qualify/tool_risk.json`. The 31 requirements that control them carry
+`*(controls: TH-nn)*` markers in `SPEC.md`, and this repository's gate runs `check --strict
+--risk-file src/speccheck/_qualify/tool_risk.json`. A control that is retired or failing turns the
+build red.
+
 ### LLM judge via Ollama
 
 `--judge llm` posts one OpenAI-compatible chat-completions request per (test case, ID) edge of a
@@ -804,6 +845,7 @@ renamed JSON-then-Markdown; either both exist afterwards or neither).
 | `speccheck.json` | C-07, `schema_version` `"1.5"` (`"1.1"` added `title` per ID; `"1.2"` `clause` per verdict; `"1.3"` `recorded` per ID; `"1.4"` `decisions` and `edges`; `"1.5"` `declared` per test edge and `declared_ratio` in `metrics`) | Key order fixed; every ratio is a Decimal quantized to four places (`0.9000`), `null` on a zero denominator; every `tests[]` entry has a `verdict` key (`null` when not judged) and a `declared` bool (`true` when the edge's own docstring or a whole-line comment names the ID); no timestamps, absolute paths, or durations. `exit_code` is a pure function of the rest of the document plus `strict`. `decisions`/`edges` (v1.13, C-12) are read from the spec's own cross-references — never a citation, never a status/metric input. `declared`/`declared_ratio` (v1.14, C-14/C-16) are pure functions of the source and test trees, present under every `--judge` mode including `none`. |
 | `SPEC_CONFORMANCE_REPORT.md` | C-08 | Nine sections: verdict line, metrics, per-ID evidence (retired rows struck through, `(file)` for file-level cases, `—` for unjudged edges), dangling, stale, unattributed results, unrun citations, judge details (judge enabled only), notes; and (v1.25) a tenth, hazards, only when a CONTROLS marker or `--risk-file` exists. |
 | `speccheck.manifest.json` | C-25 (v1.25; written by `check --manifest` only) | `manifest_version` `"1.0"`. Tool version, options, every input's SHA-256 and length by role, `tree_sha256`, both reports' hashes; `generated_at` only from `SOURCE_DATE_EPOCH`. Renamed into place with the two reports, all three or none. Read by `speccheck verify`. |
+| `qualification.json` / `QUALIFICATION_REPORT.md` | C-29 (v1.26; written by `qualify` only) | `qualification_version` `"1.0"`. Intended use, environment, dependencies, IQ (package tree hash, `RECORD` mismatches and missing files, packaged-data faults), each OQ case's result, the tool hazards, the known anomalies, the verdict; the Markdown ends with an empty signature table. Byte-identical across runs on one installation; `generated_at` only from `SOURCE_DATE_EPOCH`. |
 | `impact.json` / `IMPACT_REPORT.md` | C-13 (v1.13; written by `impact`, not `check`) | `schema_version` `"1.0"`. Same atomic-write discipline, its own file pair — a `check` run never touches these and vice versa. |
 
 Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
@@ -812,17 +854,18 @@ Diagnostics use Python `logging` (logger `speccheck`, one stderr handler, format
 ## Project layout
 
 ```text
-SPEC.md                         the specification (v1.25; the source of truth; written in the
+SPEC.md                         the specification (v1.26; the source of truth; written in the
                                 spec_engineering_primer repo, hence its `../skills/...` source paths)
 pyproject.toml                  package `speccheck`, console script, extras [llm] and [dev]
 src/speccheck/
-  __init__.py                   __version__ (1.25.0, mirrors the spec version)
+  __init__.py                   __version__ (1.26.0, mirrors the spec version)
   __main__.py                   `python -m speccheck`
   cli.py                        argument parsing, path validation, pipeline wiring, exit codes, --self-check,
                                 the shared `_run_stages` pipeline, the `impact` subparser and its
                                 execute_impact pipeline (v1.13), the `explain` subparser (v1.17),
                                 `--namespace` and the `--citation-map` read/validate/resolve stage (v1.23),
-                                `--risk-file`, `--manifest`, the read log and the `verify` subparser (v1.25)
+                                `--risk-file`, `--manifest`, the read log and the `verify` subparser (v1.25),
+                                the `qualify` subparser and the dispatch its OQ steps share with main (v1.26)
   extract.py                    ID grammar, SPEC.md declarations/retirement/fences, tree walking, citations,
                                 the decision-table grammar and C-12 edge extraction (v1.13), the
                                 C-22 foreign-reference pass shared by citations and edges (v1.23)
@@ -846,9 +889,15 @@ src/speccheck/
                                 the R-38 `related` neighbourhood builder (v1.16)
   judge_prompt.md               the normative C-10 instruction text (package data)
   manifest.py                   the provenance manifest (C-25) and `verify` (C-26) (v1.25)
+  qualify.py                    `qualify`: package tree hash and RECORD check (IQ), the OQ catalog runner,
+                                the qualification record (C-29) (v1.26)
   report.py                     JSON and Markdown renderers, summary line, exit rule, atomic writer;
                                 the impact.json/IMPACT_REPORT.md renderers (v1.13)
   _selfcheck/                   byte-identical copy of fixtures/target/ (package data for --self-check)
+  _qualify/                     package data for `qualify` (v1.26): intended_use.md, cases.json (OQ-01..05),
+                                tool_risk.json (TH-01..10), known_anomalies.json (KA-01..05), swift/ (a copy
+                                of fixtures/target-swift/), hazards/ (the golden fixture with three CONTROLS
+                                markers, a risk file and its goldens)
 fixtures/target/                golden fixture: SPEC.md (a §12 decision table since v1.2, the eight
                                 adjacent pairs of T-76/T-84 since v1.3), src/, tests/, junit.xml,
                                 golden/{speccheck.json, SPEC_CONFORMANCE_REPORT.md,
@@ -877,7 +926,9 @@ tests/
   test_17_citation_map.py       §9.17 T-109..T-111 — the citation map
   test_18_hazards.py            §9.18 T-126, T-127 — the CONTROLS marker, the roll-up, --risk-file
   test_19_manifest.py           §9.18 T-122..T-125, T-128, T-129 — the manifest, verify, inertness
-  data/help/                    the five `--help` screens at COLUMNS=80 (T-97's goldens)
+  test_20_qualify.py            §9.19 T-130..T-137 — the intended use, the tool risk file, qualify from
+                                a wheel in a fresh venv, IQ/OQ failures, E-86..E-88
+  data/help/                    the six `--help` screens at COLUMNS=80 (T-97's goldens)
   data/namespaces/              the only files that contain `<ns>:ID` forms, behind a line-1
                                 ignore-file marker the tests drop (F-713)
   data/markers/                 the only files that contain the literal ignore markers
@@ -887,6 +938,8 @@ tools/
   adjacent_eval.py              T-84 (recorded): the fixture's adjacent subset under the shipped
                                 and the pre-v1.16 C-10 texts; opt-in, not collected by pytest
   sync_selfcheck.py             copies fixtures/target/ into src/speccheck/_selfcheck/ (guarded by T-60)
+  validation_impact.py          a release's *Validation impact* section: tool hazards whose controls
+                                changed and OQ cases whose fixtures changed since a tag (v1.26, D-71)
   impact_backtest.py            T-82 (recorded): scores `impact --against` on two ranges of this
                                 repository's own history; needs `git`; not collected by pytest (D-24)
 SPEC_BUILD_REPORT.md            the Phase 3 conformance audit
@@ -898,6 +951,13 @@ docs/
   proposals/                    PROPOSAL_<version>_<name>.md: the argument behind a spec version —
                                 problem, change as drafted rows, cost, alternatives, decisions
   reviews/                      SPEC_REVIEW_REPORT.md: the spec audited before anything was built
+  validation/                   INTENDED_USE.md, TOOL_RISK_ASSESSMENT.md, IQ_OQ_PROTOCOL.md,
+                                CHANGE_CONTROL.md: the validation pack for QMS use (v1.26);
+                                DEVELOPMENT_PROCESS.md: how speccheck itself is specified, built,
+                                verified and released, with its known gaps
+  templates/                    SPEC_TEMPLATE_IEC62304.md (safety class, SOUP, 62304 5.2.2 map),
+                                TRACEABILITY_MATRIX_TEMPLATE.md (generated from speccheck.json),
+                                VERIFICATION_REPORT_TEMPLATE.md: records for IEC 62304 users
   research/                     the research material behind the method (not part of the build)
 skills/
   spec-writing/SKILL.md         how a SPEC.md is written (the ID taxonomy speccheck consumes)
@@ -926,16 +986,18 @@ distribution with `xelatex`, and — for mermaid diagrams — `mermaid-filter` p
 ## Verification
 
 ```bash
-uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (213 tests); junit.xml feeds self-application
+uv run python -m pytest tests -q --junitxml=junit.xml     # the §9 suite (225 tests); junit.xml feeds self-application
 uv run ruff check src tests tools                          # lint
 uv run speccheck --self-check                              # packaged golden fixture, in-process, no sockets
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --out build/speccheck       # gate, phase A
-uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --judge-concurrency 16 --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*; this build: openai/gpt-6-luna-pro via OpenRouter)
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --risk-file src/speccheck/_qualify/tool_risk.json --out build/speccheck       # gate, phase A (v1.26: with the tool risk file, R-114)
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm  --strict --risk-file src/speccheck/_qualify/tool_risk.json --judge-concurrency 16 --out build/speccheck-llm   # gate, phase B (needs SPECCHECK_JUDGE_*; this build: openai/gpt-6-luna-pro via OpenRouter)
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge llm --jev-pre-triage --judge-budget 0% --out build/speccheck-triage   # v1.15: triage only, no judge call (needs SPECCHECK_JEV_*)
 uv run speccheck impact --spec SPEC.md --changed K-15 --src src --tests tests --out build/impact              # v1.13, not gated
 uv run speccheck explain R-01 --spec fixtures/target/SPEC.md --src fixtures/target/src --tests fixtures/target/tests --results fixtures/target/junit.xml --judge mock   # v1.17, not gated
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --manifest --out build/rec   # v1.25: the provenance manifest
 uv run speccheck verify --manifest build/rec/speccheck.manifest.json                    # v1.25: exit 0 while nothing it names has changed
+speccheck qualify --out qualification                      # v1.26: IQ/OQ of an installed copy (under `uv run`: E-86, exit 1)
+uv run python tools/validation_impact.py v1.25.0           # v1.26: the release notes' Validation impact section
 COLUMNS=80 uv run speccheck check --help                      # v1.18: the documented interface (T-97's goldens are the same screens)
 uv run python tools/bench.py                               # K-08 (recorded)
 uv run python tools/eval_judge.py --runs 3                 # T-49 (opt-in; model/URL from SPECCHECK_JUDGE_*, default qwen3:8b on Ollama)
@@ -977,6 +1039,11 @@ Since v1.25 `check --manifest` writes a provenance manifest and `speccheck verif
 (R-106, R-107), and a `*(controls: …)*` marker with an optional `--risk-file` traces hazards to
 the requirements that control them (R-108, R-109); a run using none of them is byte-identical to
 v1.24 (I-021).
+Since v1.26 `SPEC.md` §0 states the intended use for regulated work, `speccheck qualify` performs
+installation and operational qualification of an installed copy and writes a record to sign
+(R-110..R-113), the tool's own risk assessment is a packaged risk file that its build gate checks
+(R-114), and known anomalies ship with the code (R-115); `check`, `impact`, `explain`, `verify` and
+`--self-check` are unchanged (I-023).
 Interpretations the build had to make where the spec was silent or inconsistent are listed in
 `SPEC_BUILD_REPORT.md` §3.
 

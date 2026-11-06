@@ -116,7 +116,7 @@ LaTeX, diagrams are mermaid, and the rows are normative while the pictures illus
 from speccheck's own specification:
 
 ```markdown
-| **R-11** | A judge verdict MUST only ever lower an ID's status (`PASSING` →
+| **R-11** *(controls: TH-05)* | A judge verdict MUST only ever lower an ID's status (`PASSING` →
 `WEAKLY_PASSING`); the judge MUST NOT change any status other than `PASSING` and MUST
 NOT create, remove, or re-attribute citations. | §0 principle |
 ```
@@ -153,7 +153,7 @@ Given a `SPEC.md`, a source tree, a test tree, and a JUnit XML results file, it:
 - writes a Markdown report and a JSON report, byte-identical across runs, and prints one line:
 
 ```text
-speccheck: CONFORMING - 334/334 passing (100.0%), 0 failing, 0 skipped, \
+speccheck: CONFORMING - 356/356 passing (100.0%), 0 failing, 0 skipped, \
            0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock
 ```
 
@@ -194,7 +194,7 @@ model for free, or against OpenRouter, Anthropic's compatibility endpoint, or an
 for cents.
 
 speccheck is written to its own `SPEC.md`, and it is the worked example of the method. The
-numbers in the summary line above are its self-application: 334 IDs, 213 tests, every one
+numbers in the summary line above are its self-application: 356 IDs, 225 tests, every one
 `PASSING`, and (this is the part I find most convincing) when the LLM judge was first pointed
 at the tool's own suite, it found five tests that proved their IDs only by implication. The tests
 were strengthened; the code was not touched. That is the judge doing its job.

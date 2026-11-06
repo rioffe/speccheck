@@ -25,7 +25,10 @@ path = "src/speccheck/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/speccheck"]
 # package data (§10): the C-10 prompt and the byte-identical self-check fixture, goldens included
-artifacts = ["src/speccheck/judge_prompt.md", "src/speccheck/_selfcheck/**", "src/speccheck/_qualify/**"]
+artifacts = ["src/speccheck/judge_prompt.md", "src/speccheck/_selfcheck/**"]
+# v1.26 (R-112): never package a dot-path (an editor swap file, a SwiftPM .build/ index) — the
+# package tree hash of an install must equal the tag's, which holds only tracked files
+exclude = [".*"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src/speccheck", "tests", "fixtures", "tools", "SPEC.md", "README.md"]

@@ -1,8 +1,113 @@
-# SPEC_BUILD_REPORT — `speccheck` v1.25.0 against `SPEC.md` (v1.25)
+# SPEC_BUILD_REPORT — `speccheck` v1.26.0 against `SPEC.md` (v1.26)
 
-> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n), and to v1.24 (§0o), and 2026-11-05 to v1.25 (§0p); Python 3.12.13, `uv` 0.12.12
+> - **Built:** 2026-09-11 (v1.1, from `../SPEC_v1.1.md`), incremented 2026-09-13 to `SPEC.md` v1.4 (§0 below), 2026-09-17 to v1.6 (§0b), 2026-09-18 to v1.8 (§0c) and later that day to v1.11 (§0d), 2026-09-19 to v1.13 (§0e), 2026-09-20 to v1.14 (§0f), v1.15 (§0g), v1.16 (§0h) and v1.17 (§0i), 2026-09-21 to v1.18 (§0j), and 2026-09-24 to v1.19 and, same day, v1.19.1 (§0k), and, same day, v1.20 (§0l), 2026-10-27 to v1.21 and v1.22 (§0m) and to v1.23.1 (§0n), and to v1.24 (§0o), and 2026-11-05 to v1.25 (§0p) and v1.26 (§0q); Python 3.12.13, `uv` 0.12.12
 > - **Reference machine (K-08, D-14):** Apple M5 Max, 128 GiB RAM, macOS 26.6.2 (arm64), CPython 3.12.13 (uv-managed), run in isolation
 > - **Verdict:** see §6
+
+## 0q. v1.26 increment (2026-11-05) — the validation pack: intended use, `qualify`, the tool risk file, known anomalies
+
+**Why.** `docs/proposals/PROPOSAL_v1.26_validation_pack.md`, from
+`docs/plans/ISO13485_READINESS_PLAN.md` §3.1: an installed copy could prove one thing about itself
+(`--self-check`, one fixture); nothing tied an installation to a release; the tool risk assessment
+was four bullet points whose named controls had changed between v1.18 and v1.25 without notice; and
+known limitations were scattered across release notes. D-66..D-71 confirmed on the recommended
+branches. Built on branch `spec/v1.26` from `docs/plans/IMPLEMENTATION_PLAN.md`, one commit per wave.
+
+**Wave ledger.**
+
+| Wave | Gate | Real result | Commit |
+| --- | --- | --- | --- |
+| W1 — packaged data, the self-applied risk file (R-110, R-114, R-115, C-30, C-31; T-135) | pytest; ruff; `--self-check`; fixtures unchanged; `check --risk-file` lists the ten hazards | 215 passed / 2 failed (the id-count pin and the article's R-11 quote); ruff 0; `self-check: ok`; fixtures clean; TH-01..TH-10 with C-30's controls | `8148d25` |
+| W2 — `qualify` (R-111..R-113, C-29, I-022, E-85..E-88; T-130..T-134, T-136) | as W1, plus a wheel in a fresh venv: `qualify` QUALIFIED | 221 passed / the same 2; `qualify: QUALIFIED - IQ 64 files, tree 147ebe21c8d8; OQ 5/5 cases` (the tree of that commit) | `d6939e4` |
+| W3 — counts, version 1.26.0, docs, the release tree hash, both gates | the full exit gate, Phase A and Phase B with `--risk-file` | Phase A clean; Phase B four runs, two real gaps fixed (F-903, T-123), two judge errors (below) | this commit |
+
+**What the build found.**
+
+- **F-901, a spec defect, fixed in `37d56f3`.** T-135 asked an in-suite test to observe
+  `; hazards: 10/10 verified`, which needs the results file of the suite that is running it — the
+  same reason T-48's all-`PASSING` clause is recorded. The clause moved to T-48; T-135 keeps the
+  coverage, drift and hazard-set checks and asserts the ten hazards with their controls.
+- **F-902, a spec defect, fixed in `b1eb8d3`.** C-30's catalog listed OQ-01 without TH-02, while its
+  own hazard table credits OQ-01 with challenging TH-02 (the Python JUnit join). Found by T-135's
+  first run, which compares the two.
+- **`importlib.metadata` hides a deleted file.** On Python 3.12, `Distribution.files` drops `RECORD`
+  entries whose file is missing, so the first IQ reported a deleted `judge_prompt.md` as
+  `QUALIFIED` (T-131 caught it). `qualify` now parses `RECORD` itself.
+- **Stray files in the package tree.** During W2 an editor's swap file
+  (`_qualify/.tool_risk.json.swp`) and, in W3, a SwiftPM index (`_qualify/swift/.build/`, 245 files,
+  written when something opened the packaged `Package.swift`) appeared under `src/speccheck/`; the
+  wheel packaged both, which would break R-112's equality with the tag. Neither was created by the
+  build and neither was deleted. `pyproject.toml` now excludes every dot-path from the wheel (the
+  `_qualify/**` artifact glob, which overrode the exclusion, was dropped: the files are packaged as
+  part of the package), and `tree_of_directory` and T-135's drift walk skip dot-paths too.
+  `docs/validation/IQ_OQ_PROTOCOL.md` tells users to build from a clean checkout of the tag.
+- **A socket guard that outlives its run.** `--self-check` patches `socket.socket.__init__` for the
+  process lifetime; `qualify` uses a scoped guard that restores it (T-134 asserts the restore), so
+  the in-process tests need no manual undo.
+- **Oracles for the OQ goldens.** OQ-01, OQ-03 and OQ-05 compare with the §9.8 goldens and OQ-02
+  with the Swift fixture's — goldens hand-verified in earlier builds, unchanged here. OQ-04's
+  goldens are new: rendered by the v1.25 kernel and checked by hand against C-27 before they were
+  committed (HZ-1 two `PASSING` controls → `VERIFIED`; HZ-2 one `SKIPPED` control →
+  `NOT_VERIFIED`; HZ-3 none → `UNCONTROLLED`, and `--strict` exits `1`). They are a regression
+  guard for that check, not an independent oracle.
+- **What the Validation impact tool shows for this release.** `tools/validation_impact.py v1.25.0`
+  lists 33 changed ids and **no** tool hazard whose controls changed: v1.26 added CONTROLS markers
+  to 31 rows, and C-27 makes a marker change not a C-13 change. Every OQ case is listed, because
+  `cases.json` is new.
+
+**The release tree hash (T-137).**
+
+```text
+package_tree_sha256 d1272546bd055dce34e40e0a61e73a266ff895e0bd241b524547b6da9f9a1748   (64 files)
+uv build --wheel; uv venv --python 3.12; uv pip install speccheck-1.26.0-py3-none-any.whl
+speccheck --version                     speccheck 1.26.0
+speccheck qualify --out q               qualify: QUALIFIED - IQ 64 files, tree d1272546bd05; OQ 5/5 cases   exit 0
+```
+
+The release notes publish the same value when `v1.26.0` is tagged (D-71).
+
+**Gates.**
+
+```text
+uv run python -m pytest tests -q --junitxml=junit.xml      225 passed   (junit.xml sha256 32ab6ced…)
+uv run ruff check src tests tools                           All checks passed
+uv run speccheck --self-check                               self-check: ok
+uv run python tools/sync_selfcheck.py --check               exit 0
+git diff main -- fixtures src/speccheck/_selfcheck          empty: the goldens are v1.25's bytes (I-023)
+
+# Phase A (with the tool risk file, R-114)
+speccheck: CONFORMING - 356/356 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock; hazards: 10/10 verified
+notes: the eight `edge to undeclared id: … -> R-99` example Notes and `ignored 6 file(s) by
+speccheck:ignore-file`, the same nine as v1.25; no hazard Note (every tool hazard is listed and
+controlled) (every Note read)
+
+# Phase B: openai/gpt-6-luna-pro via OpenRouter, --judge-concurrency 16, --strict --risk-file
+# four full runs, each after a one-request probe (HTTP 200); about 17 minutes each
+```
+
+| Run | Inputs | Result | `unknown_rate` | Downgraded | What it was | Resolution |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 (19:12–19:29) | before F-903 | 355/356, exit 1 | 0.0139 (16/1,150) | R-115 | **real**: no test exercised R-115's selection clause (every seed anomaly is unfixed) | F-903: T-135 states it (`784fad6`); a new test, mutation-checked (`>` → `>=` fails it) |
+| 2 (19:31–19:48) | after F-903 | 355/356, exit 1 | 0.0191 (22/1,154) | E-13 | **judge error**: its asserting edge got `judge: malformed response`; the other edge is unrelated | none needed: test and id unchanged since v1.25, which passed it; run 3 rated the edge `ASSERTS` |
+| 3 (19:49–20:05) | same as run 2 | 355/356, exit 1 | 0.0147 (17/1,154) | I-020 | **real**, from v1.25: T-123 compared manifests written to different `--out` directories, so identical inputs were never compared | T-123 now runs identical argv twice into one `--out`, and once from a copy at another path, and checks the report hashes (this commit) |
+| 4 (20:07–20:25) | after the I-020 fix | **355/356, exit 1** | 0.0104 (12/1,154) | E-46 | **judge error**: rationale "checks extracted text and truncation rather than an E-46 finding" — but E-46's semantics *are* those outcomes, and T-72 asserts each clause (empty body → title; empty title → body; truncation at a line boundary, marker, exactly one Note; title unaffected) | adjudicated by reading the test; runs 2 and 3, and v1.25's Phase B, rated the same unchanged edge `ASSERTS` |
+
+Run 4 is the final gate: judge strength 344/345, `judge_available` true, hazards 10/10 verified,
+the same nine Notes as Phase A. Verdicts on identical edges agreed run to run on 1,058/1,154
+(runs 2→3, identical inputs) and 1,068/1,150 (runs 3→4, the changed T-123 edges excluded), with
+21 and 25 flips between `ASSERTS` and `EXECUTES_ONLY` — the measurement behind
+`docs/plans/JUDGE_CONTROL_ANALYSIS.md`. Running Phase B again until one run happens to come back
+clean would be choosing evidence; the four runs are recorded instead, and the one remaining
+downgrade is a named exception for the requester to approve.
+
+```text
+Spec coverage: 356/356 IDs realized (0 deferred)
+speccheck (mock): speccheck: CONFORMING - 356/356 passing (100.0%), 0 failing, 0 skipped, 0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock; hazards: 10/10 verified
+speccheck (llm):  speccheck: NOT CONFORMING - 355/356 passing (99.7%), 0 failing, 0 skipped, 1 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=llm; hazards: 10/10 verified (openai/gpt-6-luna-pro, unknown_rate 0.0104, 1,154 judged edges, run 4 of 4; the one weak id, E-46, is a judge error adjudicated above)
+Observed: no rendered surface; goldens unchanged, help screens diffed, qualify run from a wheel in a fresh venv, every Note read
+Readiness: BUILT
+Conformance: PASS WITH NOTES (Phase B's E-46 downgrade adjudicated as a judge error; pending the requester's approval)
+```
 
 ## 0p. v1.25 increment (2026-11-05) — the provenance manifest, `verify`, and hazard traceability
 
@@ -2202,12 +2307,34 @@ id. "Self-app" is the status from the T-48 run.
 | T-127 | — | `test_18_hazards::test_t127_risk_file_uncontrolled_hazard_fails_strict`; `test_18_hazards::test_t127_empty_risk_file_and_marker_free_spec`; `test_18_hazards::test_t127_malformed_risk_file_exits_3`; `test_18_hazards::test_t127_risk_file_usage_faults` | PASSING |
 | T-128 | — | `test_19_manifest::test_t128_runs_without_v1_25_inputs_are_byte_identical` | PASSING |
 | T-129 | — | `test_19_manifest::test_t129_help_screens_name_the_v1_25_surface` | PASSING |
+| R-110 | `qualify.py` | `test_20_qualify::test_intended_use_block_is_packaged_byte_for_byte`; `test_20_qualify::test_qualify_from_an_installed_wheel` | PASSING |
+| R-111 | `cli.py`, `qualify.py` | `test_20_qualify::test_qualify_from_an_installed_wheel`; `test_20_qualify::test_qualify_help_screen`; `test_20_qualify::test_qualify_is_deterministic_offline_and_leaves_the_rest_alone` | PASSING |
+| R-112 | `qualify.py` | `test_20_qualify::test_qualify_from_an_installed_wheel`; `test_20_qualify::test_qualify_names_a_changed_or_missing_installed_file`; `test_20_qualify::test_t137_the_release_tree_hash_is_recorded` | PASSING |
+| R-113 | `cli.py`, `qualify.py` | `test_20_qualify::test_a_failing_case_never_stops_the_catalog` | PASSING |
+| R-114 | `_qualify/tool_risk.json` (data) and the CONTROLS markers in `SPEC.md`; no code path, so no source citation | `test_20_qualify::test_self_application_lists_every_tool_hazard_with_its_controls`; `test_20_qualify::test_tool_risk_file_markers_cases_and_anomalies_agree` | PASSING |
+| R-115 | `qualify.py` | `test_20_qualify::test_tool_risk_file_markers_cases_and_anomalies_agree` | PASSING |
+| C-29 | `cli.py`, `qualify.py` | `test_20_qualify::test_qualify_from_an_installed_wheel`; `test_20_qualify::test_qualify_names_a_changed_or_missing_installed_file` | PASSING |
+| C-30 | `qualify.py` | `test_20_qualify::test_packaged_fixture_copies_do_not_drift`; `test_20_qualify::test_self_application_lists_every_tool_hazard_with_its_controls`; `test_20_qualify::test_tool_risk_file_markers_cases_and_anomalies_agree` | PASSING |
+| C-31 | `qualify.py` | `test_20_qualify::test_tool_risk_file_markers_cases_and_anomalies_agree` | PASSING |
+| I-022 | `qualify.py` | `test_20_qualify::test_a_failing_case_never_stops_the_catalog`; `test_20_qualify::test_qualify_is_deterministic_offline_and_leaves_the_rest_alone` | PASSING |
+| I-023 | no module: every v1.26 change is confined to `qualify.py` and `_qualify/` | `test_20_qualify::test_qualify_is_deterministic_offline_and_leaves_the_rest_alone` | PASSING |
+| E-86 | `qualify.py` | `test_20_qualify::test_editable_install_and_broken_packaged_data` | PASSING |
+| E-87 | `qualify.py` | `test_20_qualify::test_editable_install_and_broken_packaged_data` | PASSING |
+| E-88 | `cli.py`, `qualify.py` | `test_20_qualify::test_a_failing_case_never_stops_the_catalog` | PASSING |
+| T-130 | — | `test_20_qualify::test_intended_use_block_is_packaged_byte_for_byte`; `test_20_qualify::test_qualify_from_an_installed_wheel` | PASSING |
+| T-131 | — | `test_20_qualify::test_qualify_names_a_changed_or_missing_installed_file` | PASSING |
+| T-132 | — | `test_20_qualify::test_a_failing_case_never_stops_the_catalog` | PASSING |
+| T-133 | — | `test_20_qualify::test_editable_install_and_broken_packaged_data` | PASSING |
+| T-134 | — | `test_20_qualify::test_qualify_is_deterministic_offline_and_leaves_the_rest_alone` | PASSING |
+| T-135 | — | `test_20_qualify::test_packaged_fixture_copies_do_not_drift`; `test_20_qualify::test_self_application_lists_every_tool_hazard_with_its_controls`; `test_20_qualify::test_tool_risk_file_markers_cases_and_anomalies_agree` | PASSING |
+| T-136 | — | `test_20_qualify::test_qualify_help_screen` | PASSING |
+| T-137 | — | `test_20_qualify::test_t137_the_release_tree_hash_is_recorded` | PASSING |
 
 The rows after K-18 were added at v1.23.1 for every id the matrix lacked — E-42..E-52 (v1.6..v1.12), E-66 and T-104..T-106 (v1.21), R-104, E-74..E-76 and T-113..T-116 (v1.22), and the v1.23/v1.23.1 ids — and, at v1.24, R-105, C-24, E-77 and T-118..T-121 — generated from the final Phase A `build/speccheck/speccheck.json` (§0n): "Realized in" is the modules whose source cites the id, "Verified by" the citing test functions, "Self-app" the status.
 
 ## 6. Verdict
 
-The current verdict is v1.25's, in §0p (PASS; both gates conforming). The block below is v1.20's, kept as recorded.
+The current verdict is v1.26's, in §0q (PASS WITH NOTES, pending the requester's approval of one adjudicated Phase B downgrade). The block below is v1.20's, kept as recorded.
 
 ```text
 Spec coverage: 267/267 IDs realized (0 deferred)

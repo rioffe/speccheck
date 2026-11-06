@@ -32,7 +32,9 @@ and prompt. Of 1,154 edges, 1,058 got the same verdict (91.7%). The 96 that chan
 flips between `ASSERTS` and `EXECUTES_ONLY` (11 one way, 10 the other) — the distinction the judge
 exists to make — 37 between `EXECUTES_ONLY` and `UNRELATED`, and 27 to or from `UNKNOWN`. Each run
 downgraded a different id (run 1: R-115, a real gap, since fixed; run 2: E-13, noise; run 3:
-I-020, a real gap, since fixed).
+I-020, a real gap, since fixed; run 4: E-46, a wrong verdict on an unchanged test that runs 2 and
+3 rated `ASSERTS`). Runs 3 and 4 agreed on 1,068 of 1,150 unchanged edges (92.9%), with 25
+`ASSERTS`/`EXECUTES_ONLY` flips.
 
 So the judge is useful — two of the three downgrades were real test weaknesses — but a single run
 is not reproducible evidence.

@@ -530,7 +530,7 @@ dependencies, the traceability matrix, and the decisions to confirm.
 Formulas are LaTeX, diagrams are mermaid, and the rows are normative
 while the pictures illustrate. A row from speccheck’s own
 specification:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **R-11** <span class="pp">|</span> A judge verdict MUST only ever lower an ID&#39;s status (<span class="in">`PASSING`</span> →</span>
+<div class="sourceCode" id="cb1"><pre class="sourceCode markdown"><code class="sourceCode markdown"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="pp">|</span> **R-11** *(controls: TH-05)* <span class="pp">|</span> A judge verdict MUST only ever lower an ID&#39;s status (<span class="in">`PASSING`</span> →</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="in">`WEAKLY_PASSING`</span>); the judge MUST NOT change any status other than <span class="in">`PASSING`</span> and MUST</span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>NOT create, remove, or re-attribute citations. | §0 principle |</span></code></pre></div>
 <p>and the edge case that pins what happens when a model misbehaves:</p>
@@ -565,7 +565,7 @@ ID that was retired);</li>
 <li>writes a Markdown report and a JSON report, byte-identical across
 runs, and prints one line:</li>
 </ul>
-<pre class="text"><code>speccheck: CONFORMING - 307/307 passing (100.0%), 0 failing, 0 skipped, \
+<pre class="text"><code>speccheck: CONFORMING - 356/356 passing (100.0%), 0 failing, 0 skipped, \
            0 weak, 0 unverified, 0 untested, 0 uncited; 0 dangling, 0 stale; judge=mock</code></pre>
 <p>With <code>--strict</code>, that line is a CI gate: exit
 <code>0</code> only when every ID is <code>PASSING</code> and nothing is
@@ -618,7 +618,7 @@ model for free, or against OpenRouter, Anthropic’s compatibility
 endpoint, or anything similar for cents.</p>
 <p>speccheck is written to its own <code>SPEC.md</code>, and it is the
 worked example of the method. The numbers in the summary line above are
-its self-application: 307 IDs, 189 tests, every one
+its self-application: 356 IDs, 225 tests, every one
 <code>PASSING</code>, and (this is the part I find most convincing) when
 the LLM judge was first pointed at the tool’s own suite, it found five
 tests that proved their IDs only by implication. The tests were

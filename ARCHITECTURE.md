@@ -1,11 +1,11 @@
-# ARCHITECTURE — `speccheck` 1.25.0
+# ARCHITECTURE — `speccheck` 1.26.0
 
 This document describes the system as built, module by module and data flow by data flow. It is a
 companion to `README.md` (how to use it), `SPEC.md` (what it must do), and
 `SPEC_BUILD_REPORT.md` (the evidence that it does). Spec IDs are cited inline so that every design
 element can be traced back to the clause that demanded it.
 
-It describes the build of `SPEC.md` **v1.25**, and the increments that got there:
+It describes the build of `SPEC.md` **v1.26**, and the increments that got there:
 
 | Version | What it added | Modules it touched |
 | --- | --- | --- |
@@ -26,6 +26,7 @@ It describes the build of `SPEC.md` **v1.25**, and the increments that got there
 | v1.23/v1.23.1 | foreign references and `--namespace` (R-101, R-102, C-22); the citation map (R-103, C-23); the first full review's fixes (F-701..F-717) | `extract.py`, `cli.py`, `attribute.py`, `graph.py`, `report.py`, `explain.py`, `jsts.py`, `judge_mock.py`, `results.py` |
 | v1.24 | `UNPROVEN` on a non-strict run `--strict` would reject (R-105); CommonMark backtick spans in the row splitter; the cut-row and isolated-id Notes (E-66, E-77); the JS/TS adapter's text moved to C-24 | `report.py`, `extract.py`, `cli.py` |
 | v1.25 | the provenance manifest and `verify` (R-106, R-107, C-25, C-26, I-020); the CONTROLS marker, the hazard roll-up and `--risk-file` (R-108, R-109, C-27, C-28) | `manifest.py` (new), `extract.py`, `lean.py`, `graph.py`, `report.py`, `explain.py`, `cli.py` |
+| v1.26 | the intended use (R-110); `qualify`: IQ, OQ and the qualification record (R-111..R-113, C-29, C-30); the tool risk file checked by the build gate (R-114); known anomalies (R-115, C-31) | `qualify.py` (new), `_qualify/` (package data, new), `cli.py`, `pyproject.toml` |
 
 ## 1. The one idea
 
@@ -68,11 +69,13 @@ a proof state, reported beside its status and never folded into it (E-63).
 
 ```text
 src/speccheck/
-  __init__.py         __version__ = "1.24.0"      (K-10: pyproject reads it back)          3 lines
+  __init__.py         __version__ = "1.26.0"      (K-10: pyproject reads it back)          3 lines
   __main__.py         python -m speccheck                                                    7
   cli.py              §5 surface: parsing, help (C-19), K-18 validation order, wiring, exit
-                      codes, logging, --progress, E-41, --self-check, the three subcommands,
-                      --namespace, the --citation-map read/validate/resolve stage (C-23)  1527
+                      codes, logging, --progress, E-41, --self-check, the five subcommands,
+                      --namespace, the --citation-map read/validate/resolve stage (C-23),
+                      --risk-file, --manifest and its read log (v1.25), the dispatch
+                      shared by main and qualify's OQ steps (v1.26)                      1874
   extract.py          C-01 grammar, declarations, retirement, the recorded marker, K-14 cap,
                       C-01 (c) decisions and TABLEs, CommonMark code spans, C-12 edges
                       (ranges, row cells), isolated ids, the C-22 foreign pass, the tree
@@ -96,8 +99,14 @@ src/speccheck/
   explain.py          C-18 the one-id trace renderer, pure                                   119
   report.py           C-07 JSON, C-08 Markdown, C-13 impact reports, §5.1 line, §5.4 rule,
                       §3.1 writer, the CONFORMING/UNPROVEN word                              722
+  manifest.py         C-25 the provenance manifest, C-26 verify (v1.25)                     189
+  qualify.py          R-111..R-113 qualify: the package tree hash and RECORD check (IQ),
+                      the OQ catalog runner under a scoped socket guard, the C-29 record
+                      (v1.26)                                                                592
   judge_prompt.md     C-10 instruction text (package data, hashed into reports)
   _selfcheck/         byte-identical copy of fixtures/target/ (package data)
+  _qualify/           v1.26 package data: intended_use.md, cases.json, tool_risk.json,
+                      known_anomalies.json, and the fixtures swift/ and hazards/
 ```
 
 Imports flow strictly downward; no module imports `cli`, and nothing in the kernel imports a
@@ -115,6 +124,8 @@ flowchart TD
     graphm[graph] --> extract & attribute & results & judge & proof
     impact --> extract
     explain --> graphm & impact & judge
+    qualify --> manifest & report
+    manifest --> report
     jev --> judge
     report --> extract & attribute & results & graphm
     judge_mock --> judge
@@ -928,8 +939,8 @@ path with `check` beyond `dumps` and the CLI's error mapping.
 
 ## 12. The CLI (`cli.py`)
 
-`cli.py` owns everything the spec calls a *surface*: three subcommands (`check` v0.1, `impact`
-v1.13, `explain` v1.17) plus `--self-check`.
+`cli.py` owns everything the spec calls a *surface*: five subcommands (`check` v0.1, `impact`
+v1.13, `explain` v1.17, `verify` v1.25, `qualify` v1.26) plus `--self-check`.
 
 - **Parsing** — an `argparse` parser whose `error()` raises `UsageError` instead of exiting, so every
   usage problem funnels through one `except` that logs at `ERROR` and returns `2`. Manual validation
@@ -1021,6 +1032,23 @@ It is then verified four ways: T-36 (same fixture, different absolute paths, `--
 temporaries → identical bytes), T-92 (the `explain` trace, twice, and against the golden JSON's
 status), the checked-in goldens under `fixtures/target/golden/` (T-46, T-80, T-97 for the help
 screens), and `--self-check` from the installed package.
+
+**Qualification (v1.26, `qualify.py`).** `qualify` is not the §3.1 pipeline. `package_iq` reads
+the distribution's `RECORD` directly — `importlib.metadata`'s `Distribution.files` drops the entries
+whose file is missing on Python 3.12+, which would hide exactly the deletion IQ has to report — and
+hashes every `speccheck/` path (no `.pyc`, no `__pycache__/`) into the package tree hash in the
+manifest's `shasum` line format, so the value equals the same computation over `git archive <tag>
+src/speccheck`. That equality needs the wheel to hold only tracked files, so `pyproject.toml`
+excludes every dot-path from the wheel (an editor's swap file and a SwiftPM `.build/` index next to
+the packaged `Package.swift` both appeared during the build), and `tree_of_directory` applies the
+same rule. `run_catalog` copies each case's packaged fixture into a fresh temporary directory, makes
+it the working directory, and runs each step through `cli.run_argv`: the same `_dispatch` `main`
+uses, with `main`'s mapping of usage faults to `2` and input-contract faults to `3`, but letting any
+other exception — including the scoped socket guard's `SocketBlocked` — reach the runner, which
+records it as the case's E-88 failure. `qualify.py` imports neither `cli` nor any provider: the
+CLI passes `run_argv` in as a function, and the module's own imports are `manifest` and `report`.
+The guard restores `socket.socket.__init__` in a `finally`, so an in-process caller is left as it
+was.
 
 ## 14. The fixture and the self-check, as one artifact
 

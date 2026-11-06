@@ -120,10 +120,24 @@ def test_t123_determinism_epoch_and_crlf(tmp_path):
     an invalid value exits 2 (E-85) before any read and is ignored without --manifest; a CRLF
     twin of the spec gives identical reports and a different spec hash. (I-020, C-25, E-85)"""
     base = fixture_copy(tmp_path)
+    # I-020: identical inputs (same bytes, same argv, same env), run twice into the same --out,
+    # give a byte-identical manifest; and so does the same run from a copy of the tree at another
+    # absolute path (the manifest holds no absolute path)
     run_cli(ARGV + ["--manifest", "--out", "a"], base)
+    first = (base / "a" / MANIFEST).read_bytes()
+    run_cli(ARGV + ["--manifest", "--out", "a"], base)
+    assert (base / "a" / MANIFEST).read_bytes() == first
+    elsewhere = fixture_copy(tmp_path / "elsewhere")
+    run_cli(ARGV + ["--manifest", "--out", "a"], elsewhere)
+    assert (elsewhere / "a" / MANIFEST).read_bytes() == first
+    # the reports it names are the two files this run left in --out, hash and length
+    for entry in manifest_at(base / "a")["reports"]:
+        data = (base / entry["path"]).read_bytes()
+        assert entry["sha256"] == hashlib.sha256(data).hexdigest() and entry["bytes"] == len(data)
+    # a different --out is a different input (argv), and changes only the report paths
     run_cli(ARGV + ["--manifest", "--out", "b"], base)
-    a, b = (base / "a" / MANIFEST).read_text(), (base / "b" / MANIFEST).read_text()
-    assert a.replace('"a/', '"b/') == b  # only the report paths differ
+    b = (base / "b" / MANIFEST).read_text()
+    assert first.decode("utf-8").replace('"a/', '"b/') == b
 
     env = {"SOURCE_DATE_EPOCH": "1793836800"}
     run_cli(ARGV + ["--manifest", "--out", "e"], base, env)

@@ -52,7 +52,11 @@ def _tracked(directory: Path) -> dict[str, bytes]:
     return {
         p.relative_to(directory).as_posix(): p.read_bytes()
         for p in sorted(directory.rglob("*"))
-        if p.is_file() and "__pycache__" not in p.parts
+        if p.is_file()
+        and "__pycache__" not in p.parts
+        # dot-paths are never packaged (pyproject.toml `exclude`): an editor's swap file or a
+        # SwiftPM .build/ index next to a packaged Package.swift is not part of the fixture
+        and not any(part.startswith(".") for part in p.relative_to(directory).parts)
     }
 
 
@@ -472,3 +476,62 @@ def test_qualify_help_screen(tmp_path: Path):
     top = run_cli(["--help"], tmp_path)
     assert "qualify" in top.stdout
     assert run_cli(["qualify", "--root", "."], tmp_path).code == 2
+
+
+def test_t137_the_release_tree_hash_is_recorded():
+    """T-137 (recorded; this is its presence check): `SPEC_BUILD_REPORT.md` §0q records the
+    package tree hash of this release as `package_tree_sha256 <64 hex>`, and the value equals the
+    R-112 (a) computation over this tree's `src/speccheck/`; the run of `qualify` from an install
+    of the release, and the release notes, are recorded there too. (R-112)"""
+    report = (ROOT / "SPEC_BUILD_REPORT.md").read_text(encoding="utf-8")
+    start = report.index("## 0q.")
+    section = report[start : report.index("\n## 0p.", start)]
+    match = re.search(r"package_tree_sha256 ([0-9a-f]{64})\b", section)
+    assert match, "§0q records no package_tree_sha256"
+    tree, _files = q.tree_of_directory(PKG)
+    assert match.group(1) == tree
+    assert f"tree {tree[:12]}; OQ 5/5 cases" in section
+
+
+def test_t135_record_lists_only_anomalies_not_fixed_in_this_version(tmp_path: Path):
+    """T-135 (R-115's selection): with anomalies fixed in an earlier version, in the running
+    version, in a later version and in none, the record's `known_anomalies` and the Markdown's §6
+    hold exactly the later and the unfixed ones, in file order; with none left §6 reads `None.`.
+    (R-115, C-31, C-29)"""
+    major, minor, patch = (int(p) for p in __version__.split("."))
+    earlier, later = f"{major}.{minor - 1}.0", f"{major}.{minor}.{patch + 1}"
+
+    def entry(ident: str, fixed: str | None) -> dict:
+        return {
+            "id": ident,
+            "summary": f"summary of {ident}",
+            "hazards": ["TH-01"],
+            "workaround": f"workaround for {ident}",
+            "found_in": "1.0.0",
+            "fixed_in": fixed,
+        }
+
+    root = _copy_package(tmp_path)
+    path = root / "_qualify" / "known_anomalies.json"
+    entries = [
+        entry("KA-91", earlier),
+        entry("KA-92", None),
+        entry("KA-93", __version__),
+        entry("KA-94", later),
+    ]
+    path.write_text(json.dumps({"anomalies": entries}), encoding="utf-8")
+    record = _run_in_process(root)
+    doc = json.loads(record.json_text)
+    assert [a["id"] for a in doc["known_anomalies"]] == ["KA-92", "KA-94"]
+    assert doc["known_anomalies"][1] == entries[3]
+    section = record.md_text.split("## 6. Known anomalies")[1].split("## 7.")[0]
+    assert "| KA-92 | summary of KA-92 | TH-01 | workaround for KA-92 | 1.0.0 | — |" in section
+    assert (
+        f"| KA-94 | summary of KA-94 | TH-01 | workaround for KA-94 | 1.0.0 | {later} |" in section
+    )
+    assert "KA-91" not in section and "KA-93" not in section
+
+    path.write_text(json.dumps({"anomalies": entries[:1] + entries[2:3]}), encoding="utf-8")
+    record = _run_in_process(root)
+    assert json.loads(record.json_text)["known_anomalies"] == []
+    assert "## 6. Known anomalies\n\nNone.\n" in record.md_text
