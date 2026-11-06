@@ -1,0 +1,53 @@
+# Phase A of the build gate on every push and pull request (docs/validation/DEVELOPMENT_PROCESS.md §5).
+# Deterministic and offline: the mock judge, no secrets. Phase B (the LLM judge) stays a manual,
+# release-time step: it needs an API key and costs about 1,150 judge calls per run.
+name: phase-a
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: uv sync --extra dev
+
+      - name: Test suite (the §9 suite; junit.xml feeds the gate)
+        run: uv run python -m pytest tests -q --junitxml=junit.xml
+
+      - name: Lint
+        run: uv run ruff check src tests tools
+
+      - name: Self-check (packaged golden fixture, no sockets)
+        run: uv run speccheck --self-check
+
+      - name: The packaged fixture still equals fixtures/target/
+        run: uv run python tools/sync_selfcheck.py --check
+
+      - name: Phase A (mock judge, strict, with the tool risk file)
+        run: >-
+          uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml
+          --judge mock --strict --risk-file src/speccheck/_qualify/tool_risk.json
+          --manifest --out build/speccheck
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-a-evidence
+          path: |
+            junit.xml
+            build/speccheck/
+          if-no-files-found: warn

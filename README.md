@@ -1008,6 +1008,8 @@ uv run python tools/sync_selfcheck.py --check              # _selfcheck/ still e
 
 Run one test with `uv run python -m pytest tests/test_04_status.py::test_family_t_semantics -q`.
 
+Phase A also runs on GitHub Actions on every push and pull request (`.github/workflows/phase-a.yml`: the suite, lint, the self-check, the `_selfcheck` sync check and the strict mock-judge gate with the tool risk file, keeping `junit.xml` and the reports as artifacts). Phase B needs an API key and is run by hand before a release.
+
 ## Scope
 
 The full specification is implemented; nothing was scoped out. The optional LLM judge (O-1) is

@@ -169,7 +169,7 @@ Stated so a supplier assessment can weigh them; each has the action that would c
 
 | Gap | Consequence | Action |
 | --- | --- | --- |
-| No continuous integration: every gate runs on the developer's machine | the record of a gate is the build report's pasted output, not an independent run | add a CI workflow that runs the §5 gate (Phase A) on every push and attaches `junit.xml` and the reports |
+| Phase B runs only on the developer's machine; Phase A has CI only from 1.26.0 | before 1.26.0 the record of every gate is the build report's pasted output; Phase B (paid, nondeterministic) stays a manual release-time step | `.github/workflows/phase-a.yml` runs the §5 gate's Phase A on every push and pull request and keeps `junit.xml` and the reports as artifacts; cite the CI run in the build report from the first release it covers |
 | One human; agents draft most of the work | no second human reviews a change before merge; independence rests on the gates and on the owner confirming decisions | name an independent reviewer for releases a customer will validate; record the review in the release notes |
 | Spec review is not run for every version (last full review: the v1.23 fold) | a precision defect can reach a build; v1.25 and v1.26 each found one or two while building (F-801, F-901, F-902) | run `spec-review` before building any version that adds a contract |
 | Versions 1.19, 1.21, 1.22 and 1.23.0 were built but never tagged or released | those versions cannot be identified by a tag or qualified | from 1.26.0 every version is tagged and released (`CHANGE_CONTROL.md`) |
