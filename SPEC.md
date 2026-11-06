@@ -4,6 +4,21 @@
 >   claim all say v1.25 (`test_prose_artifacts_claim_the_shipped_version` binds them). Built
 >   2026-11-05 in three waves (`docs/plans/IMPLEMENTATION_PLAN.md`; `SPEC_BUILD_REPORT.md` §0p).
 >
+> - **Specified, not yet built:** v1.26 — a validation pack a manufacturer can run, file and sign
+>   (`docs/proposals/PROPOSAL_v1.26_validation_pack.md`, 2026-11-05; D-66..D-71 confirmed on the
+>   recommended branches, same day; `docs/plans/ISO13485_READINESS_PLAN.md` §3.1). **(a)** §0 states
+>   the intended use: the validated function is `check`, `verify` and `impact` with `--judge
+>   none`/`mock`, plus `--self-check` and `qualify`; the LLM judge, the triage pass and `explain` are
+>   advisory (R-110). **(b)** `speccheck qualify` performs installation qualification (a package tree
+>   hash that equals the same computation over the release tag, and every `RECORD` hash) and
+>   operational qualification (a packaged catalog of five cases, each naming the tool hazards it
+>   challenges), and writes `qualification.json` and `QUALIFICATION_REPORT.md` with an empty
+>   signature block (R-111..R-113, C-29, C-30). **(c)** The tool risk assessment is a packaged risk
+>   file of ten tool hazards whose controls carry CONTROLS markers on this document's own rows, and
+>   the self-application gate runs with `--risk-file` (R-114). **(d)** Known anomalies are packaged
+>   and rendered in every qualification record (R-115, C-31). Nothing `check`, `impact`, `explain`,
+>   `verify` or `--self-check` writes or prints changes (I-023).
+>
 > - **v1.25 (built):** a provenance manifest a quality system can file as a
 >   record, and hazard-to-control traceability
 >   (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md`, 2026-11-05;
@@ -152,6 +167,31 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 - The checker never reads its own outputs as inputs: the spec, the results file, the two report files of `check` and the two of `impact`, and (v1.25) the manifest are excluded from every scan (C-03, F-002).
 - No risk management (v1.25). A hazard id in a CONTROLS marker or a risk file (C-27, C-28) is a label owned by the user's ISO 14971 risk management file; the checker reports whether the requirements labelled as its software controls are `PASSING`, never whether a risk is acceptable, and never estimates or evaluates one.
 - No signatures or attribution (v1.25). The manifest (C-25) is a deterministic, hashable record of what a run read and wrote; who ran it, who approved it, and its electronic signature belong to the user's quality system (D-62).
+- No validation on the user's behalf (v1.26). `qualify` (R-111) gives a manufacturer the installation and operational qualification of the installed tool, as a record; validating speccheck for their intended use, performance qualification on their own project, review and signature remain their quality system's (D-66).
+
+**Intended use (v1.26; R-110, D-67).** speccheck is software used in a quality management system
+(ISO 13485:2016 clause 4.1.6). The block below is its intended use. It is packaged byte for byte as
+`speccheck/_qualify/intended_use.md` and printed in every qualification record (C-29), so the
+statement a customer validates against is the one the installed tool carries.
+
+```text
+Intended use of speccheck in a quality management system (v1.26)
+
+Validated function: `speccheck check`, `speccheck verify` and `speccheck impact`, each run with
+`--judge none` or `--judge mock`, together with `speccheck --self-check` and `speccheck qualify`.
+For one specification, one set of source and test trees and one results file, `check` reports
+which declared requirements are cited, tested and passing; identical inputs give byte-identical
+reports. `verify` reports whether the files a manifest names are unchanged. `impact` lists what a
+change to the specification might touch.
+
+Outside validated use: `--judge llm`, `--jev-pre-triage` and `speccheck explain`. They may be
+used. The judge can only lower a status, never raise one, but its output is advisory and is not
+verification evidence.
+
+speccheck does not run tests, does not decide whether a risk is acceptable, and does not sign or
+approve records. The user's quality system owns test execution, risk acceptance, review, approval
+and signatures, and the validation of speccheck for the user's own intended use.
+```
 
 **A known limitation, stated rather than hidden (F-013):** citation is literal. A test that mentions `R-03` as *data* — asserting on a report that contains it, or on an error message — cites R-03 exactly as a test that proves it does. The `speccheck:ignore` markers in C-01 are the opt-out; they are the author's responsibility, and `speccheck` never infers intent from context. Since v1.23 two lexical, author-declared exceptions exist: a token written `ns:ID` is read as someone else's id (C-22), and `--citation-map` lets an owner of the specs but not of the tests state a citation outside the code (C-23) — labelled `mapped` everywhere it is read, never inferred.
 
@@ -172,7 +212,8 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **Judge** (`speccheck/judge.py`; providers `judge_mock.py`, `judge_llm.py`) | For each (test case, ID) edge of a `PASSING` ID, return a verdict with evidence lines; the mock provider is deterministic, the LLM provider is opt-in. Single-principal: the judge sees one edge at a time and holds no state across calls. |
 | **Reporter** (`speccheck/report.py`) | Render the Markdown and JSON reports from the graph and judge results — for `impact`, the two C-13 reports from the walk, and for `explain` (v1.17) the one-id C-18 trace on stdout — in a fixed order, with no content that varies between identical runs. |
 | **Triage provider** (`speccheck/jev.py`) | With `--jev-pre-triage` under `--judge llm` (v1.15), ask the C-17 Jev endpoint the C-06 verdict question once per judge-eligible edge and return one confidence per edge; the kernel uses those confidences only to order the judge's issue queue (K-16) and discards the answers (I-015). Stateless, advisory, and single-principal like the judge; its answer is never a `Verdict` and never reaches a report. |
-| **CLI** (`speccheck/cli.py`, entry point `speccheck`) | The only surface; three subcommands, `check`, `impact` (v1.13) and `explain` (v1.17), each documenting its own flags and the environment it reads (v1.18, R-41). Parse arguments, wire the pipeline, apply the exit-code and verbosity contracts. |
+| **Qualifier** (`speccheck/qualify.py`; v1.26) | For `speccheck qualify` (R-111): hash the installed package against its `RECORD` and into the package tree hash (R-112), run the packaged OQ catalog in temporary copies under the socket guard (R-113), and render the qualification record (C-29). Reads only the installed package and writes only under `--out`. |
+| **CLI** (`speccheck/cli.py`, entry point `speccheck`) | The only surface; five subcommands, `check`, `impact` (v1.13), `explain` (v1.17), `verify` (v1.25) and `qualify` (v1.26), each documenting its own flags and the environment it reads (v1.18, R-41). Parse arguments, wire the pipeline, apply the exit-code and verbosity contracts. |
 
 ---
 
@@ -180,43 +221,43 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 
 | ID | Statement | Source |
 | -- | --------- | ------ |
-| **R-01** | The checker MUST read a Markdown specification and extract every *declared* spec ID together with its family and statement text, per the grammar in C-01. | prompt; spec-writing §ID taxonomy |
-| **R-02** | The checker MUST recognize a declared ID as *retired* when its declaration is struck through (`~~R-07~~`), and MUST exclude retired IDs from coverage denominators. | spec-writing §ID taxonomy ("retire old ones with a strike-through") |
-| **R-03** | The checker MUST scan every text file under each directory — and every file named directly — in the `--src` list, except the files C-03 excludes, and record a *source citation* for each (file, ID) pair where the ID token occurs, per C-03. The `--src` list is the comma-separated, per-occurrence, deduplicated effective set defined by C-03's PATHS rule (D-23). | prompt ("analyzes an implementation") |
-| **R-04** | The checker MUST scan every text file under each directory — and every file named directly — in the `--tests` list, except the files C-03 excludes, and record a *test citation* for each (test case, ID) pair, attributing the citation to the enclosing test case when the file's language adapter can delimit test cases, and to the file otherwise. The `--tests` list is the comma-separated, per-occurrence, deduplicated effective set defined by C-03's PATHS rule (D-23). | prompt ("and its tests") |
-| **R-05** | When `--results` is given, the checker MUST read a JUnit XML file and join each `<testcase>` to an attributed test case, recording the outcome `passed`, `failed`, `error`, or `skipped` per C-04. | spec-build Phase 1 exit gate |
-| **R-06** | The checker MUST assign every declared, non-retired ID exactly one deterministic status from the set in C-05, computed by the algorithm in C-05 and by nothing else. | spec-build Phase 3.1 |
+| **R-01** *(controls: TH-07)* | The checker MUST read a Markdown specification and extract every *declared* spec ID together with its family and statement text, per the grammar in C-01. | prompt; spec-writing §ID taxonomy |
+| **R-02** *(controls: TH-09)* | The checker MUST recognize a declared ID as *retired* when its declaration is struck through (`~~R-07~~`), and MUST exclude retired IDs from coverage denominators. | spec-writing §ID taxonomy ("retire old ones with a strike-through") |
+| **R-03** *(controls: TH-01)* | The checker MUST scan every text file under each directory — and every file named directly — in the `--src` list, except the files C-03 excludes, and record a *source citation* for each (file, ID) pair where the ID token occurs, per C-03. The `--src` list is the comma-separated, per-occurrence, deduplicated effective set defined by C-03's PATHS rule (D-23). | prompt ("analyzes an implementation") |
+| **R-04** *(controls: TH-01)* | The checker MUST scan every text file under each directory — and every file named directly — in the `--tests` list, except the files C-03 excludes, and record a *test citation* for each (test case, ID) pair, attributing the citation to the enclosing test case when the file's language adapter can delimit test cases, and to the file otherwise. The `--tests` list is the comma-separated, per-occurrence, deduplicated effective set defined by C-03's PATHS rule (D-23). | prompt ("and its tests") |
+| **R-05** *(controls: TH-02)* | When `--results` is given, the checker MUST read a JUnit XML file and join each `<testcase>` to an attributed test case, recording the outcome `passed`, `failed`, `error`, or `skipped` per C-04. | spec-build Phase 1 exit gate |
+| **R-06** *(controls: TH-04)* | The checker MUST assign every declared, non-retired ID exactly one deterministic status from the set in C-05, computed by the algorithm in C-05 and by nothing else. | spec-build Phase 3.1 |
 | **R-07** | The checker MUST list every *dangling citation*: an ID token cited in a source or test file that is not declared in the specification. | spec-build Phase 3.1 ("no ID is dangling") |
-| **R-08** | The checker MUST list every *stale citation*: a citation of a retired ID. | R-02 |
+| **R-08** *(controls: TH-09)* | The checker MUST list every *stale citation*: a citation of a retired ID. | R-02 |
 | **R-09** | The checker MUST compute the coverage metrics in C-07 §metrics, applying the zero-denominator rules stated there; it MUST NOT raise or emit `0.0` for an undefined ratio. | spec-writing §precision rules |
 | **R-10** | When `--judge` is `mock` or `llm`, the checker MUST obtain, for each (test case, ID) edge whose ID is `PASSING` and whose test outcome is `passed` (F-104), one judge verdict from the set `ASSERTS`, `EXECUTES_ONLY`, `UNRELATED`, `UNKNOWN`, with evidence per C-06. | prompt ("AI-assisted") |
-| **R-11** | A judge verdict MUST only ever lower an ID's status (`PASSING` → `WEAKLY_PASSING`); the judge MUST NOT change any status other than `PASSING` and MUST NOT create, remove, or re-attribute citations. | §0 principle |
-| **R-12** | The checker MUST write a Markdown report (`SPEC_CONFORMANCE_REPORT.md`) laid out per C-08 in which every declared ID appears exactly once. | prompt ("traceable conformance report") |
+| **R-11** *(controls: TH-05)* | A judge verdict MUST only ever lower an ID's status (`PASSING` → `WEAKLY_PASSING`); the judge MUST NOT change any status other than `PASSING` and MUST NOT create, remove, or re-attribute citations. | §0 principle |
+| **R-12** *(controls: TH-07)* | The checker MUST write a Markdown report (`SPEC_CONFORMANCE_REPORT.md`) laid out per C-08 in which every declared ID appears exactly once. | prompt ("traceable conformance report") |
 | **R-13** | The checker MUST write a JSON report (`speccheck.json`) conforming to C-07 that contains everything the Markdown report shows. | CI consumption |
-| **R-14** | The checker MUST exit with the codes in §5.4, and the exit code MUST be a pure function of the JSON report content plus the `--strict` flag. | CI gating |
-| **R-15** | With `--strict`, any in-scope ID whose status is not `PASSING`, any dangling citation, any stale citation, and (v1.25) any hazard whose status is `UNCONTROLLED` (C-27) MUST cause exit `1`. Status (C-05) and hazard status (C-27) are the only inputs to this rule; individual judge verdicts are not consulted again (F-003). | spec-build "done when"; the hazard clause: `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 B, D-64 |
+| **R-14** *(controls: TH-06)* | The checker MUST exit with the codes in §5.4, and the exit code MUST be a pure function of the JSON report content plus the `--strict` flag. | CI gating |
+| **R-15** *(controls: TH-03, TH-06)* | With `--strict`, any in-scope ID whose status is not `PASSING`, any dangling citation, any stale citation, and (v1.25) any hazard whose status is `UNCONTROLLED` (C-27) MUST cause exit `1`. Status (C-05) and hazard status (C-27) are the only inputs to this rule; individual judge verdicts are not consulted again (F-003). | spec-build "done when"; the hazard clause: `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 B, D-64 |
 | **R-16** | With `--judge none` or `--judge mock`, two runs over byte-identical inputs MUST produce byte-identical `SPEC_CONFORMANCE_REPORT.md` and `speccheck.json`. | spec-writing §precision rules (determinism) |
 | **R-17** | The checker MUST implement the diagnostics contract in §5.3: silent by default; `--verbose`/`--verbose INFO` emit metadata only; `--verbose DEBUG` additionally emits judge prompts and responses; all diagnostics go to stderr and never alter stdout or the report files. | spec-writing §5 cross-cutting contracts |
 | **R-18** | With `--judge none` or `--judge mock`, the process MUST perform no network I/O, and `speccheck --self-check` MUST verify this boundary. | §0 boundary |
 | **R-19** | The checker MUST treat all inputs as read-only; it MUST NOT create, modify, or delete any file outside `--out`, except as I-001 permits for `--self-check` (F-104). | safety |
 | **R-20** | All paths in reports MUST be relative to `--root` (default: current directory) and use `/` as separator regardless of host OS. | R-16 (portability of golden reports) |
 | **R-21** | On completion (exit 0 or 1) the checker MUST print exactly one summary line to stdout in the format of §5.1 and nothing else. | CI log hygiene |
-| **R-22** | The mock judge MUST be deterministic and MUST NOT require configuration: it returns `ASSERTS` when the test case's span contains an assertion token per C-06, else `EXECUTES_ONLY`. | R-16; testability of the judge path |
+| **R-22** *(controls: TH-01)* | The mock judge MUST be deterministic and MUST NOT require configuration: it returns `ASSERTS` when the test case's span contains an assertion token per C-06, else `EXECUTES_ONLY`. | R-16; testability of the judge path |
 | **R-23** | The LLM judge MUST read its endpoint, model name, and API key from environment variables per C-09; a missing variable MUST be a usage error (exit `2`), and the key MUST never appear in any output, log, or report at any verbosity. | secret handling |
 | **R-24** | Every deterministic status (C-05 steps 1–4), every count, and every metric in the report MUST be reproducible by an operator using only the report's own evidence table, `grep`, and the results file; `WEAKLY_PASSING` and the judge-derived metrics MUST be reproducible from the same inputs plus the verdicts *as recorded* in the report (F-017). | prompt ("traceable") |
-| **R-25** | The checker MUST treat family `T` per C-05: a T id's status is determined by test citations and their outcomes only; source citations of a T id are recorded as evidence but never change its status, and a T id with no test citation is `UNCITED`, never `UNTESTED` (F-001). | spec-build ("every T-nn cites its spec ID") |
+| **R-25** *(controls: TH-04)* | The checker MUST treat family `T` per C-05: a T id's status is determined by test citations and their outcomes only; source citations of a T id are recorded as evidence but never change its status, and a T id with no test citation is `UNCITED`, never `UNTESTED` (F-001). | spec-build ("every T-nn cites its spec ID") |
 | **R-26** | The LLM judge MUST use exactly the request body, response path, and instruction text pinned in C-06 and C-10, and the report MUST record the SHA-256 of the instruction text used (F-004). | review F-004 |
-| **R-27** | The checker MUST honor the ignore markers in C-01: a line containing `speccheck:ignore` yields no citations, and a file whose first three lines contain `speccheck:ignore-file` is not scanned; ignored files are counted in a Note (F-013). | review F-013 |
+| **R-27** *(controls: TH-01)* | The checker MUST honor the ignore markers in C-01: a line containing `speccheck:ignore` yields no citations, and a file whose first three lines contain `speccheck:ignore-file` is not scanned; ignored files are counted in a Note (F-013). | review F-013 |
 | **R-28** | With `--strict` and `--judge llm`, the checker MUST exit `1` when the judge was unavailable (`judge_available == false`) or when `unknown_rate` exceeds `--max-unknown` (K-11), and the summary line MUST name the reason (F-012). | review F-012 |
 | **R-29** | The summary line MUST be a single line of ASCII text written to stdout as UTF-8 regardless of locale, in the exact format of §5.1 (F-010). | review F-010 |
 | **R-30** | With `--judge llm`, the checker MUST display a progress indicator for the judge stage on stderr, in the format of C-11, whenever `--progress` resolves to on (default `auto`: on iff stderr is a TTY and verbosity is not `DEBUG`; §5.1). The indicator MUST be redrawn in place per K-13, MUST be erased before anything else is written to stderr or stdout after the judge stage begins, and MUST NOT alter stdout, either report file, or the exit code. With `--judge none` or `--judge mock` no indicator is ever drawn. | requester (2026-09-13: "speccheck should include progress bar when running with LLM judge, since that takes quite a bit of time") |
-| **R-31** | For every `.swift` file in the `--tests` list (named directly as a PATHS element or found under a directory element; D-23) the checker MUST delimit test cases per the C-03 Swift adapter — Swift Testing `@Test` functions and XCTest `test*` methods — with a span that begins at the first line of the doc comment / attribute block above the declaration and ends at the function's closing brace, and MUST join their citations to SwiftPM's xUnit `<testcase>` outcomes by function identifier (C-04), so that a citation written where `spec-build` puts it (the test's doc comment) counts exactly as a Python citation does under R-04 and R-05. | requester (2026-09-17: "what would it take to make it work for Swift projects as well as Python ones?" — "go ahead"); the MonteCarloPi Swift build (`SPEC_BUILD_REPORT.md` of that project), where every Swift citation was file-level and the run reported `62 unverified` |
-| **R-32** | The declaration parser MUST declare an ID whose bold form is the *beginning* of a table row's first cell and is followed by whitespace-separated decoration (`\| **K-07** **[port]** \|`), ignoring the decoration; the statement remains the second cell (C-01 (a), E-44). | the MonteCarloPi port spec marks port-specific ids `**[port]**` inside the id cell; six declared ids were reported as 43 dangling citations |
+| **R-31** *(controls: TH-02)* | For every `.swift` file in the `--tests` list (named directly as a PATHS element or found under a directory element; D-23) the checker MUST delimit test cases per the C-03 Swift adapter — Swift Testing `@Test` functions and XCTest `test*` methods — with a span that begins at the first line of the doc comment / attribute block above the declaration and ends at the function's closing brace, and MUST join their citations to SwiftPM's xUnit `<testcase>` outcomes by function identifier (C-04), so that a citation written where `spec-build` puts it (the test's doc comment) counts exactly as a Python citation does under R-04 and R-05. | requester (2026-09-17: "what would it take to make it work for Swift projects as well as Python ones?" — "go ahead"); the MonteCarloPi Swift build (`SPEC_BUILD_REPORT.md` of that project), where every Swift citation was file-level and the run reported `62 unverified` |
+| **R-32** *(controls: TH-07)* | The declaration parser MUST declare an ID whose bold form is the *beginning* of a table row's first cell and is followed by whitespace-separated decoration (`\| **K-07** **[port]** \|`), ignoring the decoration; the statement remains the second cell (C-01 (a), E-44). | the MonteCarloPi port spec marks port-specific ids `**[port]**` inside the id cell; six declared ids were reported as 43 dangling citations |
 | **R-33** | For an ID declared by a heading (C-01 (b)), the checker MUST use the heading text followed by the section body beneath it — prose, bullets, and fenced code blocks, up to the next heading of the same or a higher level, capped per K-14 — as the ID's statement (`SpecId.text`, `JudgeRequest.statement`, JSON `statement`), so that the judge and the JSON report see the contract's pinned shape and not its title. The heading text alone is kept as `SpecId.title` / JSON `title`, and that is what the Markdown report renders (C-08). Table-row declarations are unchanged. | `docs/proposals/PROPOSAL_v1.7_heading_bodies.md` (2026-09-17): two judges over the same 130 MonteCarloPi edges — `gpt-4o-mini` 65/70, 0 weak; `gemini-3.8-flash` 56/70, 9 weak, 15 UNRELATED, 3 UNKNOWN — and every disagreement was a `###`-declared contract whose statement was a title (`Data structures`, `` `EstimationWorker` (an `actor`) ``) while the pinned API sat unsent beneath it |
 | **R-34** | For every `ASSERTS` or `EXECUTES_ONLY` verdict the judge MUST name the clause of the statement it judged against, as a verbatim excerpt, and the kernel MUST discard as `UNKNOWN` any such verdict whose excerpt cannot be located in the statement (K-15, E-48) — the statement-side mirror of the evidence-line rule (C-06, I-005), so that a recorded verdict is grounded in both the test and the statement. | `docs/proposals/PROPOSAL_v1.9_clause_grounding.md`: with bodies in the statement, `gpt-4o-mini` graded long contracts by their gist — 13 of 18 stable downgrades on the mdv tree were tests asserting a body clause nearly verbatim — while a model that located the clause (`gemini-3.8-flash`) did not; nothing in the report showed *which* clause either had judged |
-| **R-35** | A T id declared with the literal marker `*(recorded)*` immediately after its ID form (C-01) is RECORDED: the checker MUST compute its status by C-05 steps 1–4 exactly as for any other T id — it still needs a citing test case with a passed outcome to be `PASSING` — and MUST NOT send any of its edges to the judge, so that C-05 step 5 never applies to it; the marker MUST be carried into both reports (C-07 `recorded`, C-08). On a non-T id the marker is ignored with a Note (E-50). | D-22: the recorded tests of this document (T-48, T-49, T-51) are cited by presence checks so that they are not `UNCITED`; an honest judge reads such a check as `EXECUTES_ONLY` — `gemini-3.8-flash` did so to T-48 on 2026-09-18 — and `--strict --judge llm` went red for a reason the spec intended but had not written down |
-| **R-36** | The checker MUST extract, from every declared id's statement, the ids it names, and record them as typed edges — `depends_on` between two R/C/I/K/E ids, `verifies` between a T id and an R/C/I/K/E id, `depends_on` between two T ids — together with every §12 decision row (family D, declaration-only) and the ids its *Affects* cell names as `affects` edges, in `speccheck.json` (C-12, C-07 `decisions`, `edges`). An edge whose target is undeclared is a Note, not an error; an edge whose target is retired is recorded with `retired: true` (E-55). D ids are never citation targets, never appear in `ids`, and count in no metric. | `docs/proposals/PROPOSAL_v1.13_impact.md` §1: in v1.12 of this document 134 of 203 live ids name another id (434 tokens; 186 `depends_on`, 240 `verifies`, 110 `affects` edges), and nothing read them |
-| **R-37** | The checker MUST provide an `impact` subcommand that, given a changed set — the ids of `--changed`, or the ids whose declarations differ between `--spec` and a prior version named by `--against` — reports every id reached from that set by `affects` edges and by *reverse* `depends_on` edges (dependents, never what the changed id itself depends on), each at its shortest depth with the edge that first reached it, up to `--depth`; the T ids that verify any id of the set; and, when `--src`/`--tests` are given, every source citation and every test case citing any of them; as `impact.json` and `IMPACT_REPORT.md` under `--out` (C-13), deterministically (I-002) and under I-001's write discipline. `impact` never consults a results file or the judge and has no gate. | `docs/proposals/PROPOSAL_v1.13_impact.md` §2 Part B; D-24 |
+| **R-35** *(controls: TH-04)* | A T id declared with the literal marker `*(recorded)*` immediately after its ID form (C-01) is RECORDED: the checker MUST compute its status by C-05 steps 1–4 exactly as for any other T id — it still needs a citing test case with a passed outcome to be `PASSING` — and MUST NOT send any of its edges to the judge, so that C-05 step 5 never applies to it; the marker MUST be carried into both reports (C-07 `recorded`, C-08). On a non-T id the marker is ignored with a Note (E-50). | D-22: the recorded tests of this document (T-48, T-49, T-51) are cited by presence checks so that they are not `UNCITED`; an honest judge reads such a check as `EXECUTES_ONLY` — `gemini-3.8-flash` did so to T-48 on 2026-09-18 — and `--strict --judge llm` went red for a reason the spec intended but had not written down |
+| **R-36** *(controls: TH-10)* | The checker MUST extract, from every declared id's statement, the ids it names, and record them as typed edges — `depends_on` between two R/C/I/K/E ids, `verifies` between a T id and an R/C/I/K/E id, `depends_on` between two T ids — together with every §12 decision row (family D, declaration-only) and the ids its *Affects* cell names as `affects` edges, in `speccheck.json` (C-12, C-07 `decisions`, `edges`). An edge whose target is undeclared is a Note, not an error; an edge whose target is retired is recorded with `retired: true` (E-55). D ids are never citation targets, never appear in `ids`, and count in no metric. | `docs/proposals/PROPOSAL_v1.13_impact.md` §1: in v1.12 of this document 134 of 203 live ids name another id (434 tokens; 186 `depends_on`, 240 `verifies`, 110 `affects` edges), and nothing read them |
+| **R-37** *(controls: TH-10)* | The checker MUST provide an `impact` subcommand that, given a changed set — the ids of `--changed`, or the ids whose declarations differ between `--spec` and a prior version named by `--against` — reports every id reached from that set by `affects` edges and by *reverse* `depends_on` edges (dependents, never what the changed id itself depends on), each at its shortest depth with the edge that first reached it, up to `--depth`; the T ids that verify any id of the set; and, when `--src`/`--tests` are given, every source citation and every test case citing any of them; as `impact.json` and `IMPACT_REPORT.md` under `--out` (C-13), deterministically (I-002) and under I-001's write discipline. `impact` never consults a results file or the judge and has no gate. | `docs/proposals/PROPOSAL_v1.13_impact.md` §2 Part B; D-24 |
 | **R-38** | For every judged edge the checker MUST send the judge, with the statement, the **`related`** titles of the obligations the statement names and of those that name it — a C-12 `depends_on` neighbourhood, both directions, in-scope R/C/I/K/E ids only, the statement's own references first, at most eight total in C-07 id order, each a whitespace-collapsed title tail-truncated to 160 characters with `…`, a retired neighbour keeping its title with `(retired)` (D-28, E-57), and `[]` when the id has no neighbour — so that the judge can distinguish an assertion about this obligation from an assertion about a neighbour it refers to. The C-10 instruction text MUST define that an assertion corresponding only to a related obligation is not evidence for this one (C-10), and the `related` field MUST ride the C-17 triage `state` as well as the real-judge request (D-28's sub-decision, recorded as `D-28b`). `related` is request-side context only: it is never a status, a metric, or a `speccheck.json` field, and it changes no C-06 coercion rule — the D-26 advisory stance extends to it. | `docs/proposals/PROPOSAL_v1.14_obligation_aware_judge.md` §1–2 and §5 (reach); §7 addendum (the triage `state` sub-decision) |
 | **R-39** | The checker MUST compute, for every citation of an in-scope R/C/I/K/E id inside an attributed (non-file-level) test case, whether it is DECLARED (a citation line inside the case's own docstring, or a whole-line comment) or INCIDENTAL (C-03, C-14); the fact MUST be available under every `--judge` mode, including `none`, and MUST NOT depend on the results file, the judge, or any network access (I-014). | `docs/proposals/PROPOSAL_v1.15_declared_vs_incidental_citations.md` §1–2 |
 | **R-40** | The checker MUST accept a third subcommand, `speccheck explain <ID>`, that runs the same extract / attribute / map-results / graph / (triage /) judge stages as `check` over the same inputs, then renders the one id named by `<ID>` as a single human-readable trace on stdout (C-18); `explain` produces no status, verdict, citation, metric or note that a `check` run over the same inputs does not already compute, and its stdout is a pure function of those inputs and of C-18 (I-016). | `docs/proposals/PROPOSAL_v1.17_explain_id.md` §1 |
@@ -225,12 +266,18 @@ This is Phase 3 of `spec-build` ("re-read the spec and audit every artifact") ma
 | **R-101** | The checker MUST treat a TOKEN immediately preceded by `<ns>:` — where `<ns>` matches `[A-Za-z][A-Za-z0-9_-]*` (no length cap in recognition, F-712), is not itself shaped like an ID (`[RCIKET]-[0-9]{1,3}`, so two adjacent ids joined by a colon stay two local tokens), and is not the `--namespace` value — as a *foreign reference*: it MUST NOT yield a citation, a C-12 edge, a dangling citation or an undeclared-target Note (C-22, E-67, E-69). | `docs/proposals/PROPOSAL_v1.23_namespaces_and_citation_map.md` §1 A: a test docstring naming `platform:R-99` made the local `R-99` PASSING (1/1), and an undeclared foreign id is a `--strict` dangling-citation failure |
 | **R-102** | `check`, `impact` and `explain` MUST accept `--namespace NS` (at most once; a second occurrence is exit `2`, `--namespace: given more than once`; the value matching `[A-Za-z][A-Za-z0-9_-]{0,31}` and not shaped like an ID); a token written `NS:ID` MUST then be a citation of local `ID`, identically to the bare token, and a bare token MUST remain a local citation (E-68, D-52). | proposal §2 Part A; a downstream project's tests cite the platform spec's ids |
 | **R-103** | `check`, `impact` and `explain` MUST accept `--citation-map FILE`; each resolving entry MUST yield one *mapped* test citation of its id on the named test case, marked in `speccheck.json`, the Markdown report, the `explain` trace and the summary line, and MUST NOT change C-05, the judge's eligibility or any exit code on its own (C-23, E-70..E-73, I-019). | proposal §1 B: a ~1,100-id retrofit needed an out-of-tool injector and a throwaway copy because the engineers own the repositories |
-| **R-104** | For every `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` file in the `--tests` list the checker MUST delimit test cases per the JavaScript/TypeScript adapter (C-24) — `it` and `test` calls (with the `only`, `skip`, `todo`, `concurrent`, `each`, `runIf`, `skipIf` forms) named by the `describe` titles enclosing them — with a span that begins at the first line of the comment block above the call and ends at the line holding the call's closing parenthesis, and MUST join their citations to a JUnit `<testcase>` by C-04's path-classname and `describe > test` name rules, so that a citation written above or inside a vitest or jest test counts exactly as a Python citation does under R-04 and R-05. | a regulated-domain user's report (2026-10-14: "TypeScript tests can never join a result"; their review interface could reach `UNVERIFIED` and no further); `vitest run --reporter=junit` measured 2026-10-27 (C-04) |
-| **R-105** | On exit `0` without `--strict`, the summary line's `<STATUS>` (§5.1) MUST be `UNPROVEN` instead of `CONFORMING` whenever R-15's conditions do not hold — some in-scope id is not `PASSING`, or `dangling` or `stale` is non-empty. `CONFORMING` MUST be printed only when they all hold, and `NOT CONFORMING` on exit `1` as before. The exit code, every status and `speccheck.json` are unchanged (R-14, §5.4); C-08's §1 verdict line, being the summary line verbatim, follows. | `docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md` §1 A: on the golden fixture without `--results`, a non-strict run printed `CONFORMING - 0/20 passing` and exited `0` |
-| **R-106** | `check` MUST accept a boolean `--manifest` flag (v1.25). With it, after both reports are written, `check` MUST write `speccheck.manifest.json` under `--out` per C-25, recording the tool version, the effective options, the SHA-256 and byte length of every file the run read, and the SHA-256 and byte length of both reports, and MUST NOT change a byte of either report. Without it, no manifest is written and `SOURCE_DATE_EPOCH` is not read (I-021). | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 A: a line appended to `src/speccheck/report.py` after the test run left both v1.24 reports byte-identical (`d51c504c…`, `5a9f30c3…`); D-61, D-62 |
-| **R-107** | The checker MUST accept a fourth subcommand, `speccheck verify --manifest FILE [--root DIR] [--verbose [LEVEL]]` (v1.25), which MUST re-read, relative to `--root`, every file a C-25 manifest names in `inputs` and `reports`, recompute each SHA-256 and byte length, and report per C-26: exit `0` when every file is present with its recorded hash and length, `1` when any is missing or differs, `2`/`3` on a usage or manifest fault (E-82, E-83). It MUST NOT write any file, MUST NOT open a network connection, and MUST NOT re-run `check` (D-65). | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 A; D-65 |
+| **R-104** *(controls: TH-02)* | For every `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs` and `.cjs` file in the `--tests` list the checker MUST delimit test cases per the JavaScript/TypeScript adapter (C-24) — `it` and `test` calls (with the `only`, `skip`, `todo`, `concurrent`, `each`, `runIf`, `skipIf` forms) named by the `describe` titles enclosing them — with a span that begins at the first line of the comment block above the call and ends at the line holding the call's closing parenthesis, and MUST join their citations to a JUnit `<testcase>` by C-04's path-classname and `describe > test` name rules, so that a citation written above or inside a vitest or jest test counts exactly as a Python citation does under R-04 and R-05. | a regulated-domain user's report (2026-10-14: "TypeScript tests can never join a result"; their review interface could reach `UNVERIFIED` and no further); `vitest run --reporter=junit` measured 2026-10-27 (C-04) |
+| **R-105** *(controls: TH-06)* | On exit `0` without `--strict`, the summary line's `<STATUS>` (§5.1) MUST be `UNPROVEN` instead of `CONFORMING` whenever R-15's conditions do not hold — some in-scope id is not `PASSING`, or `dangling` or `stale` is non-empty. `CONFORMING` MUST be printed only when they all hold, and `NOT CONFORMING` on exit `1` as before. The exit code, every status and `speccheck.json` are unchanged (R-14, §5.4); C-08's §1 verdict line, being the summary line verbatim, follows. | `docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md` §1 A: on the golden fixture without `--results`, a non-strict run printed `CONFORMING - 0/20 passing` and exited `0` |
+| **R-106** *(controls: TH-03)* | `check` MUST accept a boolean `--manifest` flag (v1.25). With it, after both reports are written, `check` MUST write `speccheck.manifest.json` under `--out` per C-25, recording the tool version, the effective options, the SHA-256 and byte length of every file the run read, and the SHA-256 and byte length of both reports, and MUST NOT change a byte of either report. Without it, no manifest is written and `SOURCE_DATE_EPOCH` is not read (I-021). | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 A: a line appended to `src/speccheck/report.py` after the test run left both v1.24 reports byte-identical (`d51c504c…`, `5a9f30c3…`); D-61, D-62 |
+| **R-107** *(controls: TH-08)* | The checker MUST accept a fourth subcommand, `speccheck verify --manifest FILE [--root DIR] [--verbose [LEVEL]]` (v1.25), which MUST re-read, relative to `--root`, every file a C-25 manifest names in `inputs` and `reports`, recompute each SHA-256 and byte length, and report per C-26: exit `0` when every file is present with its recorded hash and length, `1` when any is missing or differs, `2`/`3` on a usage or manifest fault (E-82, E-83). It MUST NOT write any file, MUST NOT open a network connection, and MUST NOT re-run `check` (D-65). | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 A; D-65 |
 | **R-108** | A declaring row or heading of an R, C, I, K or E id MAY carry the CONTROLS marker (C-01, C-27; v1.25). The checker MUST record the hazard ids it names on that id (C-07 `controls`) and MUST compute, for every hazard named by a marker or listed in a risk file, one status — `VERIFIED`, `NOT_VERIFIED` or `UNCONTROLLED` — from the C-05 statuses of its non-retired controls (C-27). The marker MUST NOT change any id's status, any C-12 edge, the judge's eligibility, or any value in `metrics`. | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 B: a medical-device team built "a control row and a verifying test for every hazard family in our risk file" by hand (`letter_from_johnathan.md`, "What we had to adapt"); D-63 |
 | **R-109** | `check` MUST accept `--risk-file FILE` (C-28; v1.25). Every hazard the file lists that no non-retired declared id controls MUST have status `UNCONTROLLED` (E-81), and with `--strict` an `UNCONTROLLED` hazard MUST cause exit `1` (R-15). A CONTROLS marker naming a hazard the file does not list MUST yield a Note (E-79) and MUST NOT affect the exit code. | `docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §1 B; D-64 |
+| **R-110** | SPEC.md §0 MUST contain the *Intended use* block (v1.26), stating that the validated function is `check`, `verify` and `impact`, each with `--judge none` or `--judge mock`, together with `--self-check` and `qualify`, and that `--judge llm`, `--jev-pre-triage` and `explain` are advisory and outside validated use. The packaged file `speccheck/_qualify/intended_use.md` MUST equal that block's content — the lines between its fence lines, each terminated by `\n` — byte for byte, and `qualify` MUST render it verbatim in both qualification records (C-29). | ISO 13485 4.1.6; `docs/proposals/PROPOSAL_v1.26_validation_pack.md` §1 A |
+| **R-111** | The checker MUST accept a fifth subcommand, `speccheck qualify [--out DIR] [--verbose [LEVEL]]` (v1.26). It reads no project input and has no `--root`; `--out` (default `.`, resolved against the working directory, created if missing) is where it writes `qualification.json` and `QUALIFICATION_REPORT.md` (C-29), in the all-or-nothing temp-and-rename sequence of §3.1 step 5. It MUST perform the IQ of R-112 and the OQ of R-113, then print exactly one stdout line: `qualify: QUALIFIED - IQ <n> files, tree <hex12>; OQ <k>/<k> cases` and exit `0` when every IQ check and every OQ case passed; otherwise `qualify: NOT QUALIFIED - <first failure>` and exit `1`, `<first failure>` per C-29. A usage fault exits `2`; an unwritable `--out` exits `3` (E-18's message). | §1 B of the proposal; D-66 |
+| **R-112** | `qualify`'s installation qualification MUST (a) compute `package_tree_sha256`: SHA-256 of the UTF-8 text made of one line `<sha256>  <path>\n` (C-25's `shasum` line format) per path under `speccheck/` that the installed distribution's `RECORD` lists, excluding `*.pyc` and any path containing `__pycache__/`, in code-point order of path, each `<sha256>` the lower-case hex SHA-256 of the file's bytes on disk — so that the value equals the same computation over `git archive <tag> src/speccheck` run from `src/` (D-68); (b) check every `RECORD` entry that carries a hash against the file on disk, recording each mismatch and each missing file by its `RECORD` path; (c) record the distribution version, the `url` of `direct_url.json` (or `null`), `sys.implementation.name`, `platform.python_version()`, `platform.system()`, `platform.machine()`, and, for every distinct distribution name in the distribution's `Requires-Dist`, its installed version or `null`. | §1 B, evidence (2) of the proposal; D-68 |
+| **R-113** | `qualify`'s operational qualification MUST run every case of the packaged catalog `speccheck/_qualify/cases.json` (C-30), in catalog order. Each case runs in its own fresh temporary copy of its packaged fixture, with that copy as the working directory, in the same process, under the socket guard of T-43, with `SOURCE_DATE_EPOCH` removed from the environment its steps see. A case passes when every step's exit code and complete stdout equal the step's expected values and every output file the step names equals its golden byte for byte. A failing case MUST NOT stop later cases, and every temporary copy MUST be removed whatever the outcome. | §1 B of the proposal |
+| **R-114** | This repository MUST ship `speccheck/_qualify/tool_risk.json`, a C-28 risk file listing exactly the tool hazards of C-30's hazard table. Every hazard it lists MUST be named by at least one CONTROLS marker (C-27) on a declaration of this SPEC.md and by at least one case's `hazards` in `cases.json`. The self-application run of the build gate (`check --strict`, Phase A and Phase B) MUST pass `--risk-file src/speccheck/_qualify/tool_risk.json` and report every hazard `VERIFIED`. | §1 C of the proposal; D-69 |
+| **R-115** | This repository MUST ship `speccheck/_qualify/known_anomalies.json` (C-31), and `qualify` MUST render, in file order, every entry whose `fixed_in` is `null` or a version later than the running one (compared as three integers). | §1 D of the proposal; D-70 |
 
 ---
 
@@ -331,6 +378,8 @@ stage, reads no report file as input (§0's boundary), and writes nothing at all
 | `IMPACT_REPORT.md` | `--out`, by `impact` only | mirrors `impact.json` `schema_version` | C-13 |
 | `impact.json` | `--out`, by `impact` only | `schema_version: "1.0"` (v1.13) | C-13 |
 | `speccheck.manifest.json` | `--out`, by `check --manifest` only (v1.25) | `manifest_version: "1.0"` | C-25 |
+| `QUALIFICATION_REPORT.md` | `--out`, by `qualify` only (v1.26) | mirrors `qualification.json` | C-29 |
+| `qualification.json` | `--out`, by `qualify` only (v1.26) | `qualification_version: "1.0"` | C-29 |
 
 A subcommand's two files are overwritten on every successful run of that subcommand, via the temp-and-rename sequence in §3.1; `check` never touches the `impact` files and vice versa. No other file is ever written, and no temporary survives a run (I-001).
 
@@ -338,11 +387,13 @@ A subcommand's two files are overwritten on every successful run of that subcomm
 
 `check --manifest` (v1.25) writes its manifest in the same temp-and-rename sequence as the two reports: the manifest's `reports` hashes are of the report bytes about to be renamed into place, and either all three files are written or none is. A run without the flag never creates, modifies or deletes a manifest, including a stale one left in `--out` by an earlier run (D-61). `verify` (v1.25) writes **no** durable artifact (C-26).
 
+`qualify` (v1.26) is not the §3.1 pipeline: it reads no project input. It hashes the installed package (R-112), runs each OQ case in a temporary copy of a packaged fixture (R-113; each case's own `check`, `verify` or `impact` follows its subcommand's pipeline there, and the copy is removed), then writes its two records under `--out` with the §3.1 step-5 temp-and-rename sequence, JSON first. It never touches the files of `check` or `impact`, and they never touch its.
+
 ---
 
 ## 4. Interfaces / contracts
 
-### C-01 Spec ID grammar, declaration, citation, retirement
+### C-01 *(controls: TH-01)* Spec ID grammar, declaration, citation, retirement
 
 ```text
 ID        := FAMILY "-" DIGITS
@@ -529,7 +580,7 @@ class SpecIndex:
     #            no two Edge share (src, kind, dst)
 ```
 
-### C-03 `Citation`, `TestCase`, attribution
+### C-03 *(controls: TH-01)* `Citation`, `TestCase`, attribution
 
 ```python
 @dataclass(frozen=True)
@@ -682,7 +733,7 @@ Excluded from every scan (F-002), whether or not they lie under a --src/--tests 
   resolved path (symlinks resolved), is silent (no Note), and applies before K-02/K-03 filtering.
 ```
 
-### C-04 JUnit XML subset
+### C-04 *(controls: TH-02)* JUnit XML subset
 
 ```text
 Root: <testsuites> or <testsuite>. Every <testcase> element anywhere below the root is an outcome.
@@ -736,7 +787,7 @@ Join to a TestCase (F-006): a result joins the TestCase whose `join_name` equals
 Malformed XML, or a root that is neither element: E-05 -> exit 3.
 ```
 
-### C-05 Status algorithm and `IdStatus`
+### C-05 *(controls: TH-04)* Status algorithm and `IdStatus`
 
 ```text
 IdStatus (deterministic):  RETIRED | UNCITED | UNTESTED | UNVERIFIED | FAILING | SKIPPED | PASSING
@@ -1509,7 +1560,7 @@ impact (<depth>):
 
 ### C-19 Help contract (v1.18; R-41)
 
-Every argument definition of the four parsers (`verify` added in v1.25) except `-h` carries a non-empty help string. One
+Every argument definition of the five parsers (`verify` added in v1.25, `qualify` in v1.26) except `-h` carries a non-empty help string. One
 flag's entry is one paragraph, in this order:
 
 1. **Purpose** — one sentence saying what the flag does.
@@ -1539,6 +1590,9 @@ Each `--help` screen additionally carries:
   from the help alone (D-40).
   `verify`'s screen (v1.25) states its own meanings instead: `0` every file matches, `1` a file is
   missing or differs, `2` usage, `3` malformed manifest, and the C-26 output lines.
+  `qualify`'s screen (v1.26) does too: `0` qualified, `1` not qualified, `2` usage, `3` `--out` not
+  writable, and the R-111 output line; its `environment:` block names `SOURCE_DATE_EPOCH` (read
+  always by `qualify`, optional, a non-negative integer, no default; C-29) and `COLUMNS`.
 
 The help's value tokens are the *validator's* tokens: for every flag with a finite accepted set,
 the tokens its help names equal the tokens its own usage error names (T-95), and the tokens are
@@ -1822,6 +1876,137 @@ Faults: unreadable -> exit 2 (`--risk-file: cannot read <path>`); not JSON, `haz
 An empty list is valid: H is then the marker hazards alone, and `hazards` is present.
 ```
 
+### C-29 The qualification record (v1.26; R-111)
+
+```text
+Files: <out>/qualification.json and <out>/QUALIFICATION_REPORT.md, written by `qualify` only, in
+  the §3.1 step-5 temp-and-rename sequence, JSON first. JSON serialized as speccheck.json is (C-07):
+  UTF-8, two-space indent, "\n" line endings, a trailing newline, keys in exactly this order:
+{
+  "qualification_version": "1.0",
+  "tool": {"name": "speccheck", "version": "<__version__>"},
+  "intended_use": "<the bytes of _qualify/intended_use.md>",                         // R-110
+  "environment": {"implementation": "cpython", "python": "3.12.13", "system": "Darwin",
+                  "machine": "arm64", "source": "<direct_url.json url> | null"},     // R-112 (c)
+  "dependencies": [ {"name": "httpx", "version": "0.28.1" | null}, ... ],           // sorted by name
+  "iq": {"package_tree_sha256": "<64 hex> | null", "files": <n>,
+         "record_mismatches": ["speccheck/report.py", ...], "record_missing": [...],
+         "data_faults": ["_qualify/cases.json: <reason>", ...]},                    // E-87
+  "oq": [ {"id": "OQ-01", "title": "...", "hazards": ["TH-01", ...],
+           "result": "PASS" | "FAIL", "failure": null | "<reason>"}, ... ],          // catalog order
+  "hazards": [ {"id": "TH-01", "title": "...", "cases": ["OQ-01", ...]}, ... ],     // tool_risk.json order
+  "known_anomalies": [ <C-31 entries R-115 selects, file order> ],
+  "verdict": "QUALIFIED" | "NOT QUALIFIED",
+  "generated_at": "2026-11-05T00:00:00Z"            // only when SOURCE_DATE_EPOCH is set (as C-25)
+}
+files     the number of paths in the package tree hash (R-112 (a)); 0 when it is null (E-86).
+lists     record_mismatches, record_missing and data_faults sorted by code point; empty lists stay.
+source    the record describes the host it ran on, so it is not portable across hosts the way the
+          C-07 report is: `source` may be an absolute file URL. Two runs on one installation with
+          the same environment are byte-identical (I-022).
+verdict   "QUALIFIED" iff package_tree_sha256 is non-null, all three IQ lists are empty, and every
+          `oq` result is "PASS".
+first failure (R-111's stdout line), the first that applies, in this order:
+          "not an installed wheel (no hashed RECORD)" (E-86); "packaged data <entry>" for the first
+          data_faults entry (E-87); "RECORD mismatch <path>" / "RECORD missing <path>" for the
+          first entry of each list; "<OQ id>: <failure>" for the first failing case.
+<hex12>   the first 12 hex digits of package_tree_sha256.
+
+QUALIFICATION_REPORT.md, the same content in the same order:
+  # Qualification record — speccheck <version>
+  ## 1. Verdict          the verdict, then the R-111 stdout line in a code span
+  ## 2. Intended use     the intended_use text in a ```text fence
+  ## 3. Installation qualification   | Item | Value | rows for each environment key, the
+                         package tree hash, files; then the three IQ lists, each "None." if empty;
+                         then | Dependency | Installed |, "not installed" for null
+  ## 4. Operational qualification    | Case | Title | Hazards | Result | Failure |, an em dash
+                         for a null failure
+  ## 5. Tool hazards     | Hazard | Title | Challenged by |
+  ## 6. Known anomalies  | Anomaly | Summary | Hazards | Workaround | Found in | Fixed in |, or
+                         "None."; "—" for a null fixed_in
+  ## 7. Signatures       | Role | Name | Signature | Date | with the rows "Executed by" and
+                         "Reviewed by" and every other cell empty
+  and "Generated at: <generated_at>" as the last line of §1 only when generated_at is present.
+SOURCE_DATE_EPOCH: read by every `qualify` run; validated as E-85 (exit 2 before any work).
+```
+
+### C-30 The OQ case catalog and the tool hazards (v1.26; R-113, R-114)
+
+```text
+File: speccheck/_qualify/cases.json, UTF-8 JSON:
+{"cases": [ {"id": "OQ-nn", "title": str, "hazards": [TH ids],
+             "fixture": "<directory under the speccheck package, e.g. _selfcheck>",
+             "steps": [ {"argv": [str, ...],                 // speccheck argv, without the program
+                         "edit": null | {"append": "<path in the copy>", "text": str},
+                         "exit": int, "stdout": str,          // the complete stdout, "\n"-terminated
+                         "goldens": {"<output path in the copy>": "<golden path in the copy>"}} ]} ]}
+Steps run in order in one temporary copy of `fixture` (copied whole, its golden files included),
+  with the copy as the working directory, so every argv path is relative to it. An `edit` appends
+  its UTF-8 text to the named file before the step's argv runs. A step passes when its exit code
+  and stdout equal `exit` and `stdout` and every `goldens` pair is byte-identical.
+Packaged fixtures: `_selfcheck/` (the §9.8 fixture, unchanged), `_qualify/swift/` (a byte copy of
+  `fixtures/target-swift/`), `_qualify/hazards/` (a copy of the §9.8 fixture whose SPEC.md marks
+  three ids with CONTROLS markers, plus `risk.json` and its own `golden/`). T-135 keeps the two
+  copies byte-identical to their sources, as T-60 does for `_selfcheck/`.
+
+The initial catalog:
+  OQ-01  _selfcheck       check --spec SPEC.md --src src --tests tests --results junit.xml
+                          --judge mock --strict --out out          exit 1; goldens: both reports
+                          (the --self-check run: every status, a retired id, a dangling and a
+                          stale citation)                          TH-01 TH-04 TH-05 TH-06 TH-07 TH-09
+  OQ-02  _qualify/swift   check --spec SPEC.md --src Sources --tests Tests --results junit.xml
+                          --judge mock --strict --out out          exit 1; goldens: both reports
+                                                                   TH-02 TH-04
+  OQ-03  _selfcheck       (1) the OQ-01 argv plus --manifest, exit 1; (2) verify --manifest
+                          out/speccheck.manifest.json, exit 0, the `verify: ok` line; (3) edit:
+                          append "\n" to the first file under src/, then the step-2 argv, exit 1,
+                          the `mismatch` line naming that file and the `FAILED - 1 of <N>` line
+                                                                   TH-03 TH-08
+  OQ-04  _qualify/hazards check ... --judge mock --strict --risk-file risk.json --out out
+                          exit 1; goldens: both reports, one hazard each VERIFIED, NOT_VERIFIED
+                          and UNCONTROLLED                         TH-06
+  OQ-05  _selfcheck       impact --spec SPEC.md --changed K-02 --src src --tests tests --out out
+                          exit 0; goldens: impact.json, IMPACT_REPORT.md            TH-10
+```
+
+The tool hazards. Each is a way the validated function could report more than the evidence
+supports, or let a change escape revalidation. `speccheck/_qualify/tool_risk.json` lists exactly
+these ids and titles (R-114); the *Controlled by* ids carry the CONTROLS marker in this document;
+severity, rationale and residual risk are argued in `docs/validation/TOOL_RISK_ASSESSMENT.md`.
+
+| Hazard | Title (as in `tool_risk.json`) | Controlled by | OQ cases | Residual |
+| --- | --- | --- | --- | --- |
+| TH-01 | A token is counted as a citation that realizes nothing | R-03, R-04, R-27, R-22, C-01, C-03 | OQ-01 | KA-02 |
+| TH-02 | A test result is joined to the wrong test case | R-05, R-31, R-104, C-04 | OQ-01, OQ-02 | KA-05 |
+| TH-03 | The results file belongs to another tree, or is stale | R-15, R-106 | OQ-03 | KA-03 |
+| TH-04 | A status is computed wrongly | R-06, R-25, R-35, C-05 | OQ-01, OQ-02 | — |
+| TH-05 | The judge raises a status | R-11, I-004 | OQ-01 | — |
+| TH-06 | The exit code or summary line claims more than the report shows | R-14, R-15, R-105, I-009 | OQ-01, OQ-04 | KA-04 |
+| TH-07 | A declared id is silently missing from the report | R-01, R-12, R-32, I-003 | OQ-01 | KA-01 |
+| TH-08 | A report is altered or replaced after the run | R-107 | OQ-03 | — |
+| TH-09 | A retired id is counted, or a stale citation goes unreported | R-02, R-08 | OQ-01 | — |
+| TH-10 | `impact` under-reports what a change touches, so a revalidation is missed | R-36, R-37, I-013 | OQ-05 | — |
+
+### C-31 Known anomalies (v1.26; R-115)
+
+```text
+File: speccheck/_qualify/known_anomalies.json, UTF-8 JSON:
+{"anomalies": [ {"id": "KA-nn", "summary": str, "hazards": [TH ids], "workaround": str,
+                 "found_in": "X.Y.Z", "fixed_in": "X.Y.Z" | null}, ... ]}
+Ids unique and never renumbered or removed: a fixed anomaly keeps its entry with fixed_in set.
+Each `hazards` id is a C-30 tool hazard (T-135).
+```
+
+The seed list (v1.26.0):
+
+| Anomaly | Summary | Hazards | Found in |
+| --- | --- | --- | --- |
+| KA-01 | A table row cut by an unescaped `\|` that leaves its cell count equal to the header's gets no Note. | TH-07 | 1.24.0 |
+| KA-02 | Citation is literal: a test that mentions an id as data cites it (§0, F-013). | TH-01 | 1.5.0 |
+| KA-03 | The manifest proves which results file a run read, not that the results came from the checked tree. | TH-03 | 1.25.0 |
+| KA-04 | `proof/` models v1.18; its exit map lacks R-15's v1.25 `UNCONTROLLED` condition. | TH-06 | 1.25.0 |
+| KA-05 | No OQ case challenges the JavaScript/TypeScript adapter (no packaged fixture with goldens). | TH-02 | 1.26.0 |
+
 ---
 
 ## 5. Interface specification
@@ -1842,6 +2027,7 @@ speccheck explain ID --spec SPEC.md [--src PATHS]... [--tests PATHS]... [--resul
                  [--judge-budget SECONDS|N%] [--jev-pre-triage] [--max-unknown FRACTION]
                  [--progress auto|always|never] [--verbose [INFO|DEBUG]]
 speccheck verify --manifest FILE [--root DIR] [--verbose [INFO|DEBUG]]
+speccheck qualify [--out DIR] [--verbose [INFO|DEBUG]]
 speccheck --self-check [--verbose [INFO|DEBUG]]
 speccheck --version
 speccheck --help
@@ -1878,6 +2064,7 @@ speccheck --help
 | `--manifest` | `check`-only, boolean, default off (v1.25, R-106, C-25, D-61). Also write `speccheck.manifest.json` under `--out`: the tool version, options, and the SHA-256 and length of every file read and of both reports. Reads `SOURCE_DATE_EPOCH` when set (E-85). Given to `impact` or `explain` → usage error. | `2` |
 | `--risk-file FILE` | `check`-only (v1.25, R-109, C-28). A JSON list of the hazards whose control is allocated to this software; every listed hazard no non-retired id controls is `UNCONTROLLED` and fails `--strict`. Absent → only CONTROLS markers (C-27) define hazards, and no `hazards` key exists without one (I-021). Unreadable → `2`; malformed, duplicate id, or over K-20 → E-84 (`3`). Given to `impact` or `explain` → usage error. | `2` / `3` |
 | `verify` | v1.25 (R-107, C-26). Re-hash every file a C-25 manifest names and print `verify: ok - …` or one `missing`/`mismatch` line per failing file and `verify: FAILED - …`. Accepts `--manifest FILE` (required), `--root`, `--verbose`; any other flag → usage error. Writes nothing, reads no network. | `0` all match, `1` a file missing or differs, `2` usage (E-82), `3` malformed manifest (E-83) |
+| `qualify` | v1.26 (R-111, C-29, C-30). Installation and operational qualification of the installed tool: hash the package (R-112), run the packaged OQ catalog (R-113), write `qualification.json` and `QUALIFICATION_REPORT.md` under `--out` (default `.`, resolved against the working directory; there is no `--root`), print the R-111 line. Accepts `--out` and `--verbose`; any other flag → usage error. Reads `SOURCE_DATE_EPOCH` (E-85). Reads no project file and opens no socket (I-022). | `0` qualified, `1` not qualified, `2` usage, `3` `--out` not writable (E-18) |
 
 Every row of this table is also stated, in the form C-19 pins, in the `--help` output of the subcommand that defines the flag (v1.18, R-41); the table stays normative and T-95 checks the values against the validator's own usage-error text, so the two cannot disagree about an accepted token.
 
@@ -1933,6 +2120,8 @@ Any uncaught exception MUST also map to `3` with a one-line message; a traceback
 
 `explain` (v1.17) uses `0` (the C-18 trace written; there is no `1`: nothing it renders is pass/fail), `2` (usage, E-60, E-64) and `3` (E-01/E-02/E-03, E-05, E-70); it writes no file, so E-18 and the "reports written?" column do not apply to it.
 
+`qualify` (v1.26) uses `0` (every IQ check and OQ case passed), `1` (any failed, E-86..E-88 included; both records are still written), `2` (usage, E-85) and `3` (E-18, `--out` not writable; no record is written).
+
 `verify` (v1.25) uses `0` (every file the manifest names is present with its recorded hash and length), `1` (one or more is missing or differs; C-26), `2` (usage, E-82, and an invalid `--root`) and `3` (E-83); it writes no file, so the "reports written?" column does not apply to it. `--manifest` on `check` adds one usage fault (E-85) and no new exit code.
 
 Since v1.18 this set is reachable from the CLI itself: every `--help` screen carries the exit-code epilog C-19 pins (D-40), naming the four codes and the summary line.
@@ -1945,19 +2134,19 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 
 | ID | Invariant |
 | -- | --------- |
-| **I-001** | **Read-only inputs.** No file under `--root` other than the two report files of the subcommand that ran, under `--out` (`check`: `speccheck.json`, `SPEC_CONFORMANCE_REPORT.md`, and `speccheck.manifest.json` when `--manifest` was given, v1.25; `impact`: `impact.json`, `IMPACT_REPORT.md`; v1.13) — and the `--out` directory itself, if it did not exist — is created, modified, or deleted by a run, and no temporary of §3.1 survives a run; no file outside `--root` is written at all. Sole exception: `--self-check` creates, uses, and removes one fresh temporary directory (F-011); it writes nowhere else. `verify` (v1.25) creates, modifies and deletes nothing at all. |
+| **I-001** | **Read-only inputs.** No file under `--root` other than the two report files of the subcommand that ran, under `--out` (`check`: `speccheck.json`, `SPEC_CONFORMANCE_REPORT.md`, and `speccheck.manifest.json` when `--manifest` was given, v1.25; `impact`: `impact.json`, `IMPACT_REPORT.md`; v1.13) — and the `--out` directory itself, if it did not exist — is created, modified, or deleted by a run, and no temporary of §3.1 survives a run; no file outside `--root` is written at all. Sole exception: `--self-check` creates, uses, and removes one fresh temporary directory (F-011); it writes nowhere else. `qualify` (v1.26) has no `--root`: it writes exactly its two records under `--out` and creates, uses and removes one temporary directory per OQ case (I-022). `verify` (v1.25) creates, modifies and deletes nothing at all. |
 | **I-002** | **Determinism.** For `--judge none` and `--judge mock`, and for every `impact` run (v1.13), identical inputs (bytes of every file read, argv, env) produce byte-identical report files and summary line, on any OS. A `SPEC.md` that differs from another only in `\r\n` versus `\n` line endings counts as identical input (C-01 Lines rule; F-301). |
-| **I-003** | **Exactly-once reporting.** Every declared ID (retired included) appears exactly once in `ids` and exactly once in the Markdown per-ID table; no undeclared ID ever appears there. A decision (C-01 (c)) is not an ID: it appears exactly once in `decisions` and never in `ids` (D-25). |
-| **I-004** | **Downgrade-only judge.** For every ID, `status_with_judge` $\in$ `{status_without_judge}` $\cup$ (`{WEAKLY_PASSING}` iff `status_without_judge == PASSING`). Disabling the judge never changes any status except `WEAKLY_PASSING` → `PASSING`. |
+| **I-003** *(controls: TH-07)* | **Exactly-once reporting.** Every declared ID (retired included) appears exactly once in `ids` and exactly once in the Markdown per-ID table; no undeclared ID ever appears there. A decision (C-01 (c)) is not an ID: it appears exactly once in `decisions` and never in `ids` (D-25). |
+| **I-004** *(controls: TH-05)* | **Downgrade-only judge.** For every ID, `status_with_judge` $\in$ `{status_without_judge}` $\cup$ (`{WEAKLY_PASSING}` iff `status_without_judge == PASSING`). Disabling the judge never changes any status except `WEAKLY_PASSING` → `PASSING`. |
 | **I-005** | **Grounded verdicts, on both sides.** Every verdict in a report carries an `evidence` list (possibly empty), every `ASSERTS` carries $\geq$ 1 entry, and every evidence entry points to a line inside the judged test case's span in the judged file; and every `ASSERTS` or `EXECUTES_ONLY` carries a `clause` that is LOCATED in the judged ID's statement per K-15 (v1.9, R-34). |
 | **I-006** | **Network boundary.** With `--judge none`/`mock`, no socket is opened for the lifetime of the process. |
 | **I-007** | **Secret and payload hygiene.** The API key never appears in stdout, stderr, or either report. INFO never contains file contents, statements, prompts, or responses. |
 | **I-008** | **Total metrics.** Every ratio is either a number in `[0, 1]` or `null`/`n/a`; no run raises on a zero denominator. |
-| **I-009** | **Exit $\equiv$ report.** `exit_code` in `speccheck.json` equals the process exit status, and both are computable from the rest of the JSON plus `strict` by the §5.4 rule. |
+| **I-009** *(controls: TH-06)* | **Exit $\equiv$ report.** `exit_code` in `speccheck.json` equals the process exit status, and both are computable from the rest of the JSON plus `strict` by the §5.4 rule. |
 | **I-010** | **One judge call per edge.** The judge is invoked at most once per (test case, ID) edge per run, and only for edges whose ID is `PASSING` after C-05 step 4, is not RECORDED (R-35), and whose test outcome is `passed`. |
 | **I-011** | **Family-safe numbering.** ID normalization is injective within a family: `R-7`, `R-07`, `R-007` map to one ID; `R-07` and `C-07` never collide. |
 | **I-012** | **One scan per physical file (D-23).** For the `--src` list, and separately for the `--tests` list, every physical file reached by the PATHS elements is scanned and produces citations at most once (C-03 PATHS deduplication): a file reached by two overlapping elements, or named directly and also covered by a directory element, is deduplicated by resolved path. Where a direct file and a directory element both cover a file, that file's recorded `--src`/`--tests` root — and therefore a directly-named `.swift` file's `MODULE` (D-18) — is the FIRST element in the effective-list order that covers it; the emitted citation order is by ascending resolved path, independent of the order in which paths were named. Two inputs that name the same physical file set produce byte-identical reports (I-002). |
-| **I-013** | **The direct set is exact; depth is a prefix (v1.13).** In every `impact` report, an id is at depth 1 if and only if it is the `dst` of an `affects` edge whose `src` is a changed D id, or the `src` of a `depends_on` edge whose `dst` is a changed id, and it is not itself in the changed set; and for every $N \geq 1$ the `impact` list under `--depth N` is exactly the rows of the `--depth 0` list whose depth is $\leq N$, in the same order with the same `via`. |
+| **I-013** *(controls: TH-10)* | **The direct set is exact; depth is a prefix (v1.13).** In every `impact` report, an id is at depth 1 if and only if it is the `dst` of an `affects` edge whose `src` is a changed D id, or the `src` of a `depends_on` edge whose `dst` is a changed id, and it is not itself in the changed set; and for every $N \geq 1$ the `impact` list under `--depth N` is exactly the rows of the `--depth 0` list whose depth is $\leq N$, in the same order with the same `via`. |
 | **I-014** | **`declared` is a pure function of the source and test trees (v1.14).** `Citation.declared` and every value derived from it (`JudgeRequest.declared`, `tests[].declared`, `declared_ratio`) depend only on the bytes of the files under `--src`/`--tests` and their citations; two runs with identical source and test trees produce identical `declared` values and `declared_ratio` regardless of `--judge` mode, `--results`, or network access — extending I-002's determinism guarantee to this fact. |
 | **I-015** | **Jev stays advisory (v1.15).** For every edge, and under every combination of `--jev-pre-triage` and `--judge-budget`, the recorded `Verdict` (`verdict`, `clause`, `evidence`, `rationale`, `coerced`) is produced only by the configured `--judge` provider (C-06: `mock`, or the C-09 `llm` provider) or by an existing C-06 coercion rule. The C-17 triage provider's response is read only to compute K-16's order; it is never validated against C-06, never written to `speccheck.json` or `SPEC_CONFORMANCE_REPORT.md`, and never the source of a `Verdict`. Its request is not a judge call: I-010 is unchanged and applies to the judge alone, so a triaged run makes one C-17 request per judge-eligible edge and then one C-06 request per edge it issues. |
 | **I-016** | **`explain` is additive and read-only (v1.17).** `explain` writes no report file, changes no status, verdict, citation, metric or note, and issues no judge call a `check` run over the same inputs would not issue (E-61). The facts it renders are the same `IdRecord`/edge/`Verdict` facts that run produces and the same `walk`/`reverify` facts `impact` produces (C-12, C-13), so a `check` and an `explain` over identical inputs agree on every status the trace shows, and no `--strict` gate moves. |
@@ -1966,6 +2155,8 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **I-019** | **Namespace and map inertness (v1.23).** A `check` run given neither `--namespace` nor `--citation-map`, over inputs in which no scanned file and no declared statement or *Affects* cell contains a `<ns>:`-prefixed token, writes `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical to a v1.22 run on the same inputs, prints the same summary line, and exits the same (T-109). The converse is deliberate: the same inputs *with* such a token change by exactly that token's citation or edge (E-67, E-69). |
 | **I-020** | **Manifest determinism (v1.25).** I-002 extends to `speccheck.manifest.json`: for `--judge none` and `--judge mock`, identical inputs — the bytes of every file read, argv, and env, `SOURCE_DATE_EPOCH` included — produce a byte-identical manifest on any OS, and its `reports` hashes equal the SHA-256 of the two report files the same run left in `--out`. The manifest's `tool.version` makes it differ across tool versions; the reports do not (C-07). |
 | **I-021** | **Provenance and hazard inertness (v1.25).** A `check` run given neither `--manifest` nor `--risk-file`, over a specification in which no declaration carries a CONTROLS marker (C-01, C-27), writes `speccheck.json` and `SPEC_CONFORMANCE_REPORT.md` byte-identical to a v1.24 run on the same inputs, writes no other file, prints the same summary line and exits the same; an `explain` trace of an id with no marker is byte-identical to v1.24's; `SOURCE_DATE_EPOCH` is read only with `--manifest`. With `--manifest` alone the two reports are still byte-identical to v1.24's, and only the third file is added. |
+| **I-022** | **`qualify` is read-only and offline (v1.26).** A `qualify` run opens no socket, modifies no file of the installed package, writes nothing outside `--out` except its own temporary directories (all removed, whatever the outcome), and writes exactly `qualification.json` and `QUALIFICATION_REPORT.md` there, or neither. Two runs on one installation with the same environment variables produce byte-identical records. |
+| **I-023** | **Validation-pack inertness (v1.26).** `check`, `impact`, `explain`, `verify` and `--self-check` write and print output byte-identical to v1.25's on the same inputs and exit the same; the only v1.26 change any of them can observe is the CONTROLS markers this document's own rows carry, which change this repository's self-application reports and no fixture's. |
 
 ---
 
@@ -2084,7 +2275,10 @@ Since v1.18 this set is reachable from the CLI itself: every `--help` screen car
 | **E-82** | `verify` without `--manifest`, or with a `--manifest` path that does not exist, cannot be read, or resolves outside `--root` | Exit `2`; message `verify: --manifest <reason>`; nothing on stdout. (R-107) |
 | **E-83** | `verify` on a manifest that is over 2 MiB, not JSON, carries a `manifest_version` other than `"1.0"`, lacks a C-25 key, has an entry whose `sha256` is not 64 lower-case hex digits or whose `bytes` is not a non-negative integer, or names a `path` that is absolute or resolves outside `--root` | Exit `3`; message `verify: malformed manifest: <reason>`; nothing on stdout; no input file is read (a manifest cannot direct a read outside the tree). (R-107, K-20) |
 | **E-84** | `--risk-file` is over 2 MiB, not JSON, lacks a `hazards` list, has an entry that is not an object, has an `id` missing or failing HAZID, a non-string `title`, or two entries with the same `id` | Exit `3`; message `--risk-file: <reason>` (a duplicate names the id); no report is written. (R-109, C-28, K-20) |
-| **E-85** | `check --manifest` with `SOURCE_DATE_EPOCH` set to anything but a non-negative decimal integer (empty included) | Exit `2`; message `SOURCE_DATE_EPOCH: not a non-negative integer: <value>`; raised in the usage-fault class, so before any input is read (K-18). Without `--manifest` the variable is not read, whatever its value (I-021). (R-106, C-25) |
+| **E-85** | `check --manifest`, or `qualify` (v1.26), with `SOURCE_DATE_EPOCH` set to anything but a non-negative decimal integer (empty included) | Exit `2`; message `SOURCE_DATE_EPOCH: not a non-negative integer: <value>`; raised in the usage-fault class, so before any input is read (K-18) and, for `qualify`, before any IQ or OQ work. Without `--manifest` `check` does not read the variable, whatever its value (I-021). (R-106, C-25, C-29) |
+| **E-86** | `qualify` from an installation whose distribution has no `RECORD`, or no hashed `RECORD` entry under `speccheck/` (an editable or source-tree install, such as `uv run` in a checkout) | IQ fails: `package_tree_sha256` and `files` are `null` and `0`; OQ still runs; both records are written; verdict `NOT QUALIFIED`; the R-111 line's first failure is `not an installed wheel (no hashed RECORD)`; exit `1`. (R-112, C-29) |
+| **E-87** | A packaged `_qualify/` file — `cases.json`, `tool_risk.json`, `known_anomalies.json`, `intended_use.md` — or a fixture or golden a case names is missing, not UTF-8, not valid JSON, or not of its C-28/C-30/C-31 shape | An IQ data fault: one `data_faults` entry `<path under the package>: <reason>` per file; the run never raises. Cases that parsed still run; a case whose fixture or golden is missing is `FAIL` as well; a missing `intended_use.md` renders as an empty block. Verdict `NOT QUALIFIED`, exit `1`. (R-110, R-113, R-114, R-115) |
+| **E-88** | An OQ step raises an exception, or its run attempts to open a socket | That case is `FAIL` with `failure` `step <n>: <exception class name>` (or `step <n>: socket`), its copy is removed, and later cases still run; exit `1`. A `SystemExit` from the inner command is its exit code, not an exception. (R-113, I-022) |
 
 ---
 
@@ -2311,20 +2505,34 @@ Every test cites, in its docstring or a comment, its own T id and the R/C/I/K/E 
 | **T-128** | I-021: on the §9.8 golden fixture, the Swift fixture and every fixture of T-109, a v1.25 `check` with neither new flag over a marker-free spec reproduces the committed v1.24 goldens byte for byte, with the same summary line and exit code, and creates no third file; `--self-check` passes unchanged. (I-021) |
 | **T-129** | With hazards present the summary line ends `; hazards: 1/2 verified`, matches the §5.1 regex (T-44), is ASCII, and follows `; citations: <M> mapped` when a citation map also resolves; the regex still matches every v1.24 line; C-08's §1 verdict line carries the same suffix; the `check --help` screen names `--manifest`, `--risk-file` and `SOURCE_DATE_EPOCH`, and `verify --help` names `--manifest FILE` and its four exit codes (C-19, T-97's goldens regenerated). (C-27, §5.1, C-19, R-41) |
 
+### 9.19 Validation pack (R-110..R-115, C-29..C-31, I-022, I-023, E-85..E-88; v1.26)
+
+| ID | Test |
+| -- | ---- |
+| **T-130** | From a wheel built from this tree and installed into a fresh virtual environment, `speccheck qualify --out q` run in an empty directory exits `0` and prints the QUALIFIED line of R-111; `qualification.json` has C-29's keys in order; `iq.package_tree_sha256` equals the R-112 (a) computation over this tree's `src/speccheck/` minus caches, and `files` its path count; every `oq` result is `PASS`; `intended_use` equals the content of SPEC.md §0's *Intended use* block, which equals `_qualify/intended_use.md`; `QUALIFICATION_REPORT.md` has C-29's seven headings in order, the intended-use text, and the empty signature table. (R-110, R-111, R-112, C-29) |
+| **T-131** | In that installation, one byte appended to an installed `speccheck/*.py` file: `qualify` exits `1`, `record_mismatches` lists exactly that path, the line's first failure is `RECORD mismatch speccheck/<file>`, and `package_tree_sha256` differs from T-130's; a deleted installed file appears in `record_missing`. (R-112, C-29) |
+| **T-132** | With a packaged golden of OQ-02 altered: OQ-02 is `FAIL` naming that golden, OQ-01 and OQ-03..OQ-05 are `PASS`, exit `1`; a case whose step is made to raise and one whose step opens a socket each get E-88's `failure`, and later cases still run; no temporary copy survives any of them. (R-113, E-88, I-022) |
+| **T-133** | Under `uv run` in this checkout (an editable install) `qualify` writes both records, every case passes, and it exits `1` with E-86's first failure; with `known_anomalies.json` removed from the package, and with `cases.json` made invalid JSON, each run lists E-87's `data_faults` entry and exits `1` without raising. (E-86, E-87) |
+| **T-134** | Two `qualify` runs give byte-identical records; no file outside `--out` changes and the socket guard never fires; `SOURCE_DATE_EPOCH=1793836800` adds `generated_at` `2026-11-05T00:00:00Z` to the JSON and the Markdown's §1, and `SOURCE_DATE_EPOCH=abc` exits `2` with E-85's message and writes nothing; an unwritable `--out` exits `3`; the §9.8 and Swift fixtures, every T-109 fixture and `--self-check` reproduce their committed goldens, and `check`, `impact`, `explain` and `verify` runs on them print and write what v1.25 does. (I-022, I-023, E-85, R-111) |
+| **T-135** | Coverage and drift: `tool_risk.json` is a valid C-28 file whose ids and titles equal C-30's hazard table; every hazard is named by some case's `hazards` and by a CONTROLS marker on a declaration of this SPEC.md, and every *Controlled by* id of the table carries that hazard in its marker; every `known_anomalies.json` entry has C-31's shape and names only C-30 hazards; every packaged case's fixture and goldens exist; `_qualify/swift/` is byte-identical to `fixtures/target-swift/`, and `_qualify/hazards/` to the §9.8 fixture except its SPEC.md, `risk.json` and `golden/`; the self-application `check --strict --risk-file src/speccheck/_qualify/tool_risk.json` over this repository prints `; hazards: 10/10 verified`. (R-114, R-115, C-30, C-31) |
+| **T-136** | `speccheck qualify --help` names `--out` and `--verbose`, `SOURCE_DATE_EPOCH`, and the four exit codes with R-111's line; the `speccheck --help` screen lists `qualify`; `qualify --root .` exits `2`; T-97's goldens gain `qualify_help.txt`. (R-111, C-19, R-41) |
+| **T-137** *(recorded)* | The v1.26.0 release notes publish `package_tree_sha256` computed from the tag, and a `qualify` run from an install of that release prints the same 12-hex prefix. Recorded in `SPEC_BUILD_REPORT.md` §0q and in the release notes; the suite's presence check asserts that §0q carries the full 64-hex value and that it equals T-130's computation over the tree. (R-112) |
+
 ---
 
 ## 10. Dependencies and environment
 
 - **Runtime:** Python 3.12; `uv` for environment and lockfile. Install: `uv sync --extra dev`; with the model judge: `uv sync --extra dev --extra llm`.
 - **Kernel dependencies:** none beyond the standard library (`re`, `ast`, `xml.etree.ElementTree`, `json`, `argparse`, `pathlib`, `logging`, `hashlib`). The lean adapter (`lean.py`, v1.19, C-20) is the same line-based, standard-library-only pattern as `swift.py` — no Lean toolchain is required to run `check` itself, since `--proof-results` is read, never executed (C-21).
-- **Package data:** `speccheck/judge_prompt.md` (C-10) and `speccheck/_selfcheck/` (a byte-identical copy of `fixtures/target/` including its `golden/` directory, kept in sync by T-60; F-011, F-107), both included in the wheel.
+- **Package data:** `speccheck/judge_prompt.md` (C-10) and `speccheck/_selfcheck/` (a byte-identical copy of `fixtures/target/` including its `golden/` directory, kept in sync by T-60; F-011, F-107), both included in the wheel. From v1.26, `speccheck/_qualify/`: `intended_use.md` (R-110), `cases.json` and the fixtures `swift/` and `hazards/` (C-30), `tool_risk.json` (R-114) and `known_anomalies.json` (C-31), kept in step by T-135.
+- **Validation documents (v1.26; not normative for the kernel, not part of the wheel):** `docs/validation/INTENDED_USE.md` (the §0 block, expanded), `TOOL_RISK_ASSESSMENT.md` (C-30's hazards with severity, rationale and residual risk), `IQ_OQ_PROTOCOL.md` (install the tagged release, run `speccheck qualify --out <dir>`, compare the tree hash with the release notes, file and sign the record) and `CHANGE_CONTROL.md` (D-71: every tagged release gets a GitHub release carrying `package_tree_sha256` and a *Validation impact* section; customers re-run `qualify` on every upgrade).
 - **Golden fixture layout:** `fixtures/target/{SPEC.md, src/, tests/, junit.xml, golden/speccheck.json, golden/SPEC_CONFORMANCE_REPORT.md, golden/impact.json, golden/IMPACT_REPORT.md, proof/, proof-results.json}` (`impact.json`/`IMPACT_REPORT.md` since v1.13, T-80; `proof/` — a three-declaration Lean fixture — and `proof-results.json` — its two-entry manifest — since v1.19, T-99); `golden/` is never a scan root and is never written to by a run (Q-003).
 - **`[llm]` extra:** `httpx` (HTTP client with per-request timeout). No provider SDK; the wire format is C-06. The C-17 triage pass uses the same client and the same extra.
 - **`[dev]` extra:** `pytest`, `pytest-cov`, `hypothesis` (T-28), `ruff`.
-- **Environment variables:** C-09 (only with `--judge llm`), C-17 (only with `--jev-pre-triage` under `--judge llm`; v1.15), and `SOURCE_DATE_EPOCH` (only with `check --manifest`; v1.25, C-25, E-85). No configuration files are read.
+- **Environment variables:** C-09 (only with `--judge llm`), C-17 (only with `--jev-pre-triage` under `--judge llm`; v1.15), and `SOURCE_DATE_EPOCH` (with `check --manifest`, v1.25, and with `qualify`, v1.26; C-25, C-29, E-85). No configuration files are read.
 - **Host prerequisites:** none. No network access is required except with `--judge llm`, and — when `--jev-pre-triage` is given — the C-17 triage pass that flag enables. The kernel never invokes `git` or any subprocess (D-24).
-- **Help goldens (T-97, v1.18):** `tests/data/help/{speccheck,check,impact,explain,verify}_help.txt` (`verify` from v1.25) — the C-19 screens rendered at `COLUMNS=80`, checked in as test data (not a §9.8 report golden; D-39).
-- **Tools (not collected by pytest, not part of the wheel):** `tools/bench.py` (T-51), `tools/eval_judge.py` (T-49), `tools/sync_selfcheck.py` (T-60), `tools/impact_backtest.py` (T-82; the only one that needs `git` and the repository history; D-24), `tools/proof_evidence.py` (v1.19; a standalone sidecar — reads a project's own `proof/` lake project and test suite, writes the C-21 manifest `--proof-results` reads; not part of the kernel and not required to run `check`, T-99's cross-repository integration case).
+- **Help goldens (T-97, v1.18):** `tests/data/help/{speccheck,check,impact,explain,verify,qualify}_help.txt` (`verify` from v1.25, `qualify` from v1.26) — the C-19 screens rendered at `COLUMNS=80`, checked in as test data (not a §9.8 report golden; D-39).
+- **Tools (not collected by pytest, not part of the wheel):** `tools/bench.py` (T-51), `tools/eval_judge.py` (T-49), `tools/sync_selfcheck.py` (T-60), `tools/impact_backtest.py` (T-82; the only one that needs `git` and the repository history; D-24), `tools/validation_impact.py` (v1.26, D-71: joins `impact --against <prior tag's SPEC.md>`'s `changed` ids with the self-application run's per-id `controls`, and lists each tool hazard whose controls changed and each OQ case whose fixture or golden changed since the prior tag; it needs `git`, like `tools/impact_backtest.py`), `tools/proof_evidence.py` (v1.19; a standalone sidecar — reads a project's own `proof/` lake project and test suite, writes the C-21 manifest `--proof-results` reads; not part of the kernel and not required to run `check`, T-99's cross-repository integration case).
 - **Commands:**
 
 ```bash
@@ -2338,6 +2546,8 @@ uv run speccheck explain R-01 --spec SPEC.md --src src --tests tests --results j
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --proof proof --proof-results build/proof/proof-results.json --judge mock   # v1.19
 uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --manifest --out build/rec   # v1.25; then:
 uv run speccheck verify --manifest build/rec/speccheck.manifest.json                          # v1.25; exit 0 = nothing changed
+uv run speccheck check --spec SPEC.md --src src --tests tests --results junit.xml --judge mock --strict --risk-file src/speccheck/_qualify/tool_risk.json   # v1.26 self-application gate (R-114)
+speccheck qualify --out qual                                                                 # v1.26; from an installed wheel (under uv run: E-86)
 ```
 
 - **Optional items:**
@@ -2404,6 +2614,12 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | R-107 | `cli.py` (the `verify` parser), `manifest.py` (re-hash, C-26 lines, exit codes) | T-124, T-125 |
 | R-108 | `extract.py` (CONTROLS marker → `SpecId.controls`), `graph.py` (hazard roll-up after C-05 step 5) | T-126 |
 | R-109 | `cli.py` (`--risk-file` read and validation), `graph.py` (`UNCONTROLLED`, R-15's hazard clause) | T-127 |
+| R-110 | SPEC.md §0 *Intended use*, `_qualify/intended_use.md`, `qualify.py` (rendering) | T-130 |
+| R-111 | `cli.py` (`qualify` subparser, exit, stdout line), `qualify.py` | T-130, T-134, T-136 |
+| R-112 | `qualify.py` (package tree hash, `RECORD` check, environment) | T-130, T-131, T-137 |
+| R-113 | `qualify.py` (catalog runner, socket guard, temporary copies) | T-132 |
+| R-114 | `_qualify/tool_risk.json`, CONTROLS markers in SPEC.md, the build gate | T-135 |
+| R-115 | `_qualify/known_anomalies.json`, `qualify.py` (selection, rendering) | T-135 |
 | C-01 | `extract.py` (`ID_RE`, fence tracker, row/heading parsers incl. first-cell decoration, RECORDED marker and section bodies, decision rows (c), ignore markers) | T-126, T-01, T-02, T-03, T-04, T-05, T-55, T-57, T-70, T-72, T-77, T-79, T-119 |
 | C-02 | `extract.py` (`SpecId` with `title`, `text` and `recorded`, `Decision`, `Edge`, `SpecIndex`) | T-01, T-06, T-72, T-77, T-79 |
 | C-03 | `attribute.py` (`TestCase`, `Citation` incl. `declared`, `test*` methods, Swift adapter, JavaScript/TypeScript adapter), `jsts.py`, `extract.py` (exclusions incl. temporaries, binary, symlinks), `cli.py` (PATHS list parsing; D-23) | T-09, T-10, T-13, T-14, T-36, T-56, T-65, T-66, T-67, T-78, T-85, T-110, T-113, T-114, T-115 |
@@ -2432,6 +2648,9 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | C-26 | `manifest.py` (`verify`: read order, `missing`/`mismatch` lines, counts) | T-124 |
 | C-27 | `extract.py` (grammar), `graph.py` (H, CTRL, statuses), `report.py` (`controls`, `hazards`, `## 10. Hazards`, summary suffix), `explain.py` (`controls:` line) | T-126, T-127, T-129 |
 | C-28 | `cli.py` (risk-file shape, faults, scan exclusion) | T-127 |
+| C-29 | `qualify.py` (record rendering, key order, first-failure order) | T-130, T-131 |
+| C-30 | `_qualify/cases.json`, `_qualify/swift/`, `_qualify/hazards/`, `qualify.py` (step semantics) | T-132, T-135 |
+| C-31 | `_qualify/known_anomalies.json` | T-135 |
 | I-001 | `report.py` (temp-and-rename, interrupt cleanup), `cli.py` | T-123, T-124, T-07, T-38, T-43, T-45, T-60, T-64 |
 | I-002 | kernel modules | T-36 |
 | I-003 | `report.py` | T-25, T-35 |
@@ -2453,6 +2672,8 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | I-019 | `extract.py`, `cli.py`, `report.py` (every addition conditional on its input) | T-109 |
 | I-020 | `manifest.py` (no time, host or absolute path; `SOURCE_DATE_EPOCH` only) | T-123 |
 | I-021 | `cli.py`, `report.py`, `explain.py` (every v1.25 addition conditional on its flag or marker) | T-128 |
+| I-022 | `qualify.py` (socket guard, temporary copies, two-file write) | T-132, T-134 |
+| I-023 | every v1.26 addition is confined to `qualify` and package data | T-134 |
 | K-01 | `cli.py` | T-39, T-40, T-19, T-64 |
 | K-02 | `extract.py` (file filters, binary rule) | T-13 |
 | K-03 | `extract.py` (walker, no symlinks) | T-13 |
@@ -2557,7 +2778,10 @@ Until the build exists, "where realized" names the component the §1/§4 design 
 | E-82 | `cli.py` (`verify --manifest` usage faults) | T-124 |
 | E-83 | `manifest.py` (manifest validation before any read) | T-124 |
 | E-84 | `cli.py` (risk-file validation) | T-127 |
-| E-85 | `cli.py` (`SOURCE_DATE_EPOCH` validation, usage class) | T-123 |
+| E-85 | `cli.py` (`SOURCE_DATE_EPOCH` validation, usage class; `check --manifest` and `qualify`) | T-123, T-134 |
+| E-86 | `qualify.py` (no hashed `RECORD`) | T-133 |
+| E-87 | `qualify.py` (packaged-data faults) | T-133 |
+| E-88 | `qualify.py` (a raising or socket-opening step) | T-132 |
 
 ---
 
@@ -2629,6 +2853,12 @@ Every row below is a decision the specification's author made on the requester's
 | D-63 | How a requirement is bound to the hazards it controls (v1.25) | **a `*(controls: …)*` DECORATION marker** on the controlling row or heading: no new id family, hazard ids keep the risk file's own shape, and C-01 already parses that position for RECORDED | a hazard family `H-nn` in C-01 (first-class rows, at the cost of `by_family`'s six keys, every golden, and renumbering the user's hazards); widening C-22's FOREIGN grammar (a foreign reference yields no edge by design, and a wider id grammar would match prose such as `ISO:13485`) | R-108, C-01, C-02, C-27, E-78, E-80, T-126 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
 | D-64 | Whether an `UNCONTROLLED` hazard fails `--strict` (v1.25) | **yes**: the risk file lists exactly the hazards allocated to this software, so one with no control row is the gap ISO 14971 asks to close, and a Note alone would let a `CONFORMING` gate hide it | a Note only (no new R-15 condition, but a green strict gate with a hazard nobody controls) | R-15, R-109, C-27, C-28, E-81, T-127 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
 | D-65 | Whether `verify` re-hashes or re-runs (v1.25) | **re-hashes only**: simple and exact, works for `--judge llm` runs too, and an auditor who wants a re-run already has `check` followed by `verify` | `verify --recompute` for `none`/`mock` manifests (proves the reports follow from the inputs, but needs re-runnable argv in C-25 and a temporary `--out`) | R-107, C-26, T-124 | requester / confirmed v1.25, 2026-11-05 (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md` §5) |
+| D-66 | How a customer qualifies the installed tool (v1.26) | **a packaged `speccheck qualify` subcommand** with its own case catalog: it runs from the installed wheel alone and writes a fileable record naming intended use, hazards and anomalies | ship the test suite for the customer to run with `pytest` (complete, but needs a checkout and the dev extra, and 11 of the 19 test files read repository-relative paths; yields no record) | R-111, R-113, C-29, C-30, I-022, T-130, T-132 | requester / confirmed v1.26, 2026-11-05 (`docs/proposals/PROPOSAL_v1.26_validation_pack.md` §5) |
+| D-67 | The validated function (v1.26) | **`check`, `verify`, `impact` with `--judge none`/`mock`, plus `--self-check` and `qualify`**; `--judge llm`, `--jev-pre-triage` and `explain` advisory, outside validated use, until the readiness plan's §3.4 policy amends R-110 | bring the LLM judge under controls now (a pinned model, stored requests, T-49 as ongoing performance qualification) | R-110, T-130 | requester / confirmed v1.26, 2026-11-05 (`docs/proposals/PROPOSAL_v1.26_validation_pack.md` §5) |
+| D-68 | What installation qualification compares against (v1.26) | **a `package_tree_sha256` published for each tag**: measured equal to the installed tree for 1.24.0 (`e6dce81cc30b…`) and 1.25.0 (`b76021806389…`), so it is exact and reproducible from the tag | `RECORD` self-consistency only (cannot tell a modified checkout from the release); signed wheels (stronger, needs key custody) | R-112, C-29, T-130, T-131, T-137 | requester / confirmed v1.26, 2026-11-05 (`docs/proposals/PROPOSAL_v1.26_validation_pack.md` §5) |
+| D-69 | The form of the tool risk assessment (v1.26) | **machine-checked**: ten tool hazards in a packaged C-28 risk file, CONTROLS markers on this document's control rows, the self-application gate run with `--risk-file`, so a retired or failing control turns the build red | a prose assessment reviewed by hand at each release (four of the five controls the readiness plan named changed between v1.18 and v1.25 with nothing flagging it) | R-114, C-30, T-135 | requester / confirmed v1.26, 2026-11-05 (`docs/proposals/PROPOSAL_v1.26_validation_pack.md` §5) |
+| D-70 | Where known anomalies live (v1.26) | **packaged JSON rendered into every qualification record**: versioned with the code and present offline in the customer's record | a `KNOWN_ANOMALIES.md` in the repository, or GitHub issues (absent from the installed tool and the record) | R-115, C-31, C-29, T-135 | requester / confirmed v1.26, 2026-11-05 (`docs/proposals/PROPOSAL_v1.26_validation_pack.md` §5) |
+| D-71 | Change control (v1.26) | **by rule**: every tagged release gets a GitHub release with `package_tree_sha256` and a *Validation impact* section from `tools/validation_impact.py`, and customers re-run `qualify` on every upgrade | a hand-kept list of validation-critical contracts whose change triggers revalidation | R-112, R-114, T-137 | requester / confirmed v1.26, 2026-11-05 (`docs/proposals/PROPOSAL_v1.26_validation_pack.md` §5) |
 | D-46 | Whether `judge_available` becomes boolean and total over the eligible-but-unissued case (v1.20) | **boolean, total**: `false` whenever at least one edge was judge-eligible and no call succeeded, whether every call failed (E-14) or none was issued (E-35) — the field is what R-28 gates on, and "no usable judge" is one operational fact however it arose; T-101 measures both budget forms | leave C-07's two clauses and patch only E-32's reason — smaller diff, but `speccheck.json` keeps a field the contract doesn't fully determine for this cell | C-07, E-32, E-35, R-28, T-101 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
 | D-47 | Whether `--spec` becomes genuinely required on `explain` (v1.20) | **required**, synopsis brackets dropped — states existing behaviour (the flag table already said `Required.`; there was already no defined way to run `explain` without a spec) rather than inventing a new one; T-102 pins it | make `--spec` optional with a stated default — smaller for a quick `explain R-01`, but invents a fallback file the spec has never had and adds a second place the input spec is chosen | R-40, C-18, C-19, E-64, T-102 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
 | D-48 | Whether exit-code precedence (usage fault vs. input-contract violation) is pinned as a normative `K` row (v1.20) | **pinned**, K-18, beside K-01's exit set — one sentence, checkable by T-103 | leave §5.4 silent — two faithful implementations could then exit `2` or `3` on the same invocation | K-01, K-18, §5.4, T-103 | requester / confirmed v1.20 (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md` §5, recommended branch, 2026-09-24) |
@@ -2674,3 +2904,4 @@ D-28 (and its sub-decision D-28b), E-57 and R-38 — the obligation-aware judge 
 | v1.23.1 | The first full review since v1.10 (`docs/reviews/SPEC_REVIEW_REPORT.md`, F-701..F-717, 2026-10-27), folded before the v1.23 build. **Behaviour (all still unbuilt):** C-06's pinned request body restored — v1.16 had left a prose paragraph inside it, dropped the user-message opener and added a sentence contradicting `"messages": [`; the code was right (F-701). The `--citation-map` and `--proof-results` files are excluded from every scan (C-03, F-702). A mapped citation is DECLARED by a third C-14 rule, C-10's `declared` definition says so (so `judge_prompt.md` and `judge_prompt_sha256` change at the build and the recorded T-49 runs are void, F-303), and mapped citations are outside `declared_ratio`, now written as a formula over R-39's unchanged population of non-file-level cases (C-07, C-16, D-57; F-703, F-714). Mapped dangling/stale entries carry `mapped: true` (F-704). C-14 covers JS/TS comment-only lines (F-705, D-27). The mock judge recognises `expect(`/`expect.` (F-706; no golden changes). jest-junit needs `ancestorSeparator: " > "` and is documented, not claimed, until the new recorded T-117 (F-707, D-56). The JS/TS tokenizer has a pinned regex-versus-division rule (F-708). K-18 counts every file flag's readability as a usage fault decided before parsing (F-709). C-18's reasons name C-05's own steps and `<outcome>` gains `error`; T-92/T-93 strings change (F-711). FOREIGN recognition has no length cap; the 32-character limit is the `--namespace` value's (R-101, R-102, C-22; F-712). Foreign-token test inputs live under `tests/data/` (§9 preamble, F-713). A foreign range endpoint names nothing; a map entry cannot address a Python method by class (C-12, C-23; F-716). **Lists and wording:** §5.4's exit-3 lists (F-710); §5.1's `impact`/`explain`/`--root`/`--namespace` rows and E-09, E-68 (F-715); the split §5.1 and §9 tables joined, §2/§8/§11 rows sorted by id, O-2, C-12, E-14 and the Sources bullet brought up to date, proposal-local "Part A/B/C" labels replaced (F-717); C-03's copy of the DECLARED rule replaced by a pointer to C-14, which keeps C-03 (16.2 kB) under K-14's cap, and K-14's stale 8.4 kB reference point corrected. New id: T-117. |
 | v1.24 | Three suggestions from a regulated-domain debrief (`docs/proposals/PROPOSAL_v1.24_unproven_cut_rows_isolated_ids.md`, 2026-10-27; D-58..D-60 confirmed on the recommended branches, same day). R-105: a non-strict exit-0 run that `--strict` would reject prints `UNPROVEN`, not `CONFORMING` (§5.1 and its T-44 regex, §5.4); the exit code is unchanged. C-01 (a): a backtick span is the CommonMark code span (D-59), which repairs `mdv*`'s R-24 (a statement cut in half) and 32 rows whose closing `\|` leaked into the last cell, this document's T-05 among them. E-66 also Notes a declared row with more cells than its TABLE's header. E-77 and C-12: one Note names the declared ids no edge touches (D-60). T-42 now cites R-17, the id it verifies (it named only §5.3 and would have been the one isolated id here). Not in the proposal, found while folding it: C-03 had crossed K-14's 16,384-byte cap at `b6949a1` (v1.23.1's jest measurement), so the released v1.23.1 truncated C-03's statement with a K-14 Note that no gate reads; the JS/TS adapter moved verbatim into a new C-24 (C-03 is now 11.9 kB), R-104, C-14, T-113..T-117, D-56 and §11 point at it, and K-14's reference point says what happened. New ids: R-105, C-24, E-77, T-118..T-121, D-58..D-60. The fixture goldens gain the E-77 Note at the build. |
 | v1.25 | A provenance manifest and hazard-to-control traceability (`docs/proposals/PROPOSAL_v1.25_provenance_manifest_and_risk_controls.md`, 2026-11-05; D-61..D-65 confirmed on the recommended branches, same day; `docs/plans/ISO13485_READINESS_PLAN.md` §3.2, §3.3). Evidence: on a copy of this repository a line appended to `src/speccheck/report.py` after the test run left both v1.24 reports byte-identical, so a report could not identify the code it verified. R-106, C-25, I-020: `check --manifest` writes `speccheck.manifest.json` (tool version, options, SHA-256 and length of every file read and of both reports, `tree_sha256`, `generated_at` only from `SOURCE_DATE_EPOCH`), renamed into place with the two reports. R-107, C-26: `speccheck verify` re-hashes and exits `1` naming each changed or missing file. R-108, C-27: the CONTROLS marker (C-01, `SpecId.controls`) and the `VERIFIED`/`NOT_VERIFIED`/`UNCONTROLLED` hazard roll-up in `controls`, `hazards`, C-08's `## 10. Hazards`, `explain`'s `controls:` line and the summary suffix `; hazards: <V>/<H> verified`. R-109, C-28: `--risk-file`; R-15 gains one condition, an `UNCONTROLLED` hazard. I-001 admits the third file; I-021 keeps every run that uses none of it byte-identical to v1.24; K-20; E-78..E-85; T-122..T-129; §0 gains two non-goals (no risk management, no signatures). Settled while folding, beyond the proposal's draft rows: the manifest joins §3.1's temp-and-rename sequence instead of being written after it (so the reports and the manifest are written together or not at all); `--risk-file` is `check`-only, since `explain`'s `controls:` line needs no titles and a marked id's hazards cannot be `UNCONTROLLED` unless it is retired; a symlink skipped by E-11 is not listed in `inputs` (it was never read); `verify` caps a manifest at K-02's 2 MiB (E-83); `impact` parses and ignores the marker. Found while building (F-801): C-27's Notes line said each of E-78..E-81 appears at most once per run, while E-78 and E-80 say one Note per such id; C-27 now agrees with the E rows and states that `impact` emits none of them. Built 2026-11-05 in three waves on `spec/v1.25` (`SPEC_BUILD_REPORT.md` §0p): W1 hazards, W2 manifest and `verify`, W3 proof; the two id-count pins now read 334. |
+| v1.26 | A validation pack a manufacturer can run, file and sign (`docs/proposals/PROPOSAL_v1.26_validation_pack.md`, 2026-11-05; D-66..D-71 confirmed on the recommended branches, same day; `docs/plans/ISO13485_READINESS_PLAN.md` §3.1). Evidence: an installed wheel carried only `--self-check` (one fixture; none of the 19 test files ships); the installed package files hash to the same tree digest as their tag for 1.24.0 and 1.25.0, yet no release published one; `impact --against` v1.18 reported 134 changed ids, among them C-01, C-03, C-04 and R-15, controls the readiness plan names, with no rule saying which changes force revalidation. R-110 and §0's *Intended use* block (packaged as `_qualify/intended_use.md`); §0 gains a non-goal (no validation on the user's behalf). R-111..R-113, C-29, C-30: `speccheck qualify` — IQ (package tree hash, `RECORD` hashes, environment and dependencies) and OQ (five packaged cases, OQ-01..OQ-05), written as `qualification.json` and `QUALIFICATION_REPORT.md` with an empty signature block. R-114 and C-30's hazard table: ten tool hazards TH-01..TH-10 in `_qualify/tool_risk.json`; CONTROLS markers added to the 31 declarations that control them (R-01..R-06, R-08, R-11, R-12, R-14, R-15, R-22, R-25, R-27, R-31, R-32, R-35..R-37, R-104..R-107, C-01, C-03, C-04, C-05, I-003, I-004, I-009, I-013); the self-application gate gains `--risk-file`. R-115, C-31: five known anomalies KA-01..KA-05. I-001 admits `qualify`'s writes; I-022, I-023; E-85 extended to `qualify`; E-86..E-88; T-130..T-137; §1 gains the Qualifier actor and the CLI row now names five subcommands; §3.3, C-19, §5.1, §5.4, §10, §11, §12 D-66..D-71. Settled while folding, beyond the proposal's draft rows: the intended use is a fenced block in §0 so the packaged file can be compared with it byte for byte; OQ steps run with the copy as the working directory, so `cases.json` needs no path substitution; `qualify` reads `SOURCE_DATE_EPOCH` on every run; packaged-data faults are IQ failures listed in `data_faults`, never a crash; the hazard table and the anomaly seed list live in C-30 and C-31. |
