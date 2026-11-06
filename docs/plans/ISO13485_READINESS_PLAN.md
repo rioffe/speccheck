@@ -101,7 +101,7 @@ The judge is non-deterministic, depends on the network, and the model can drift.
 You don't need ISO 13485 certification to sell the tool. But customers doing supplier qualification
 will look for a documented lifecycle, version control, defect handling, and a release process.
 
-- [ ] Write a short **development process document**. The spec-proposal → spec-review → spec-plan →
+- [x] Write a short **development process document** (`docs/validation/DEVELOPMENT_PROCESS.md`, 2026-11-05). The spec-proposal → spec-review → spec-plan →
   spec-build → spec-proof workflow already produces most of the evidence; it just needs writing up.
 
 ### 3.6 Templates customers can map to their own procedures
