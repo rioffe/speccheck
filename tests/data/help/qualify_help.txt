@@ -1,0 +1,27 @@
+usage: speccheck qualify [-h] [--out DIR] [--verbose [LEVEL]]
+
+Hash the installed package against its RECORD and into the package tree hash (IQ), run the packaged operational-qualification cases in temporary copies of packaged fixtures (OQ), and write qualification.json and QUALIFICATION_REPORT.md: the intended use, the tool hazards, the known anomalies, the verdict, and an empty signature block. Reads no project file; opens no socket.
+
+options:
+  -h, --help         show this help message and exit
+  --out DIR          where qualification.json and QUALIFICATION_REPORT.md are
+                     written (C-29); resolved against the working directory
+                     (qualify has no --root) and created if missing. default:
+                     .
+  --verbose [LEVEL]  diagnostics on stderr: INFO or DEBUG (DEBUG adds the
+                     judge request and response lines, with the API key
+                     redacted); bare --verbose means INFO. default: ERROR
+                     (nothing below ERROR reaches stderr)
+
+environment:
+  SOURCE_DATE_EPOCH     optional, read by every qualify run: a non-negative integer of seconds
+                        since the Unix epoch, recorded as generated_at (no default: without it
+                        the record carries no time)
+  COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
+                        it)
+
+exit codes:
+  0 qualified   1 not qualified   2 usage error   3 --out not writable
+output (stdout, exactly one line):
+  qualify: QUALIFIED - IQ <n> files, tree <first 12 hex digits>; OQ <k>/<k> cases
+  or: qualify: NOT QUALIFIED - <first failure>

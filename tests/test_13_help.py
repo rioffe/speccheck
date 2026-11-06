@@ -19,6 +19,7 @@ SCREENS = {
     "impact": ["impact", "--help"],
     "explain": ["explain", "--help"],
     "verify": ["verify", "--help"],  # v1.25 (R-107, C-26)
+    "qualify": ["qualify", "--help"],  # v1.26 (R-111, C-19)
 }
 # C-19's metavar vocabulary: the value shapes §5.1's synopsis names
 METAVARS = {

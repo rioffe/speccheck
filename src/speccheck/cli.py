@@ -74,6 +74,8 @@ from .lean import scan_lean_paths
 from .manifest import MANIFEST_NAME, ManifestError, ReadLog, generated_at, render_manifest
 from .manifest import verify as verify_manifest
 from .proof import ProofError, join_proof, parse_proof_results
+from .qualify import QUALIFICATION_JSON, QUALIFICATION_MD
+from .qualify import qualify as run_qualification
 from .report import (
     IMPACT_JSON_NAME,
     IMPACT_MD_NAME,
@@ -160,6 +162,14 @@ class VerifyConfig:
 
 
 @dataclass(frozen=True)
+class QualifyConfig:
+    """v1.26 (R-111): `qualify [--out DIR]`; no --root, no project input."""
+
+    out: Path
+    source_date_epoch: int | None = None  # C-29, E-85: read by every qualify run
+
+
+@dataclass(frozen=True)
 class ImpactConfig:
     """v1.13 / C-13: `impact`'s own config; no results file, no judge."""
 
@@ -196,12 +206,13 @@ class Action:
     """What argv asked for: a check run, an impact run, an explain run, a self-check, or nothing
     more (help/version handled)."""
 
-    kind: str  # "check" | "impact" | "explain" | "verify" | "self-check"
+    kind: str  # "check" | "impact" | "explain" | "verify" | "qualify" | "self-check"
     verbose: str | None
     config: Config | None = None
     impact_config: ImpactConfig | None = None
     explain_config: ExplainConfig | None = None
     verify_config: VerifyConfig | None = None
+    qualify_config: QualifyConfig | None = None
 
 
 def _expected(values: Sequence[str]) -> str:
@@ -233,9 +244,10 @@ ENVIRONMENT_EPILOG = """environment:
                         optional; default https://openrouter.ai/api/alpha/decisions and
                         ~typesafe/jev-latest
   SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
-  SOURCE_DATE_EPOCH     optional; read only by check --manifest: a non-negative integer of
-                        seconds since the Unix epoch, recorded as the manifest's generated_at
-                        (no default: without it the manifest carries no time)
+  SOURCE_DATE_EPOCH     optional; read only by check --manifest and by qualify (v1.26): a
+                        non-negative integer of seconds since the Unix epoch, recorded as the
+                        record's generated_at (no default: without it the record carries no
+                        time)
   COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
                         it)
 """
@@ -257,6 +269,23 @@ output (stdout):
   verify: missing <path>   |   verify: mismatch <path>
   then: verify: FAILED - <k> of <N> files differ
 """
+QUALIFY_EPILOG = """environment:
+  SOURCE_DATE_EPOCH     optional, read by every qualify run: a non-negative integer of seconds
+                        since the Unix epoch, recorded as generated_at (no default: without it
+                        the record carries no time)
+  COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
+                        it)
+
+exit codes:
+  0 qualified   1 not qualified   2 usage error   3 --out not writable
+output (stdout, exactly one line):
+  qualify: QUALIFIED - IQ <n> files, tree <first 12 hex digits>; OQ <k>/<k> cases
+  or: qualify: NOT QUALIFIED - <first failure>
+"""
+_HELP_QUALIFY_OUT = (
+    "where qualification.json and QUALIFICATION_REPORT.md are written (C-29); resolved against "
+    "the working directory (qualify has no --root) and created if missing. default: ."
+)
 _HELP_MANIFEST = (
     "check-only (v1.25). also write speccheck.manifest.json under --out: the tool version, the "
     "options, and the SHA-256 and length of every file the run read and of both reports (C-25), "
@@ -533,9 +562,10 @@ _HELP_PROOF_RESULTS = (
 
 
 def build_parser() -> _Parser:
-    """The four parsers. Every argument definition carries a C-19 help entry: purpose, accepted
-    values as literal tokens, the default, and the preconditions; the epilog carries the
-    environment the kernel reads and the exit-code contract (v1.18, R-41/C-19)."""
+    """The five parsers (`verify` v1.25, `qualify` v1.26). Every argument definition carries a
+    C-19 help entry: purpose, accepted values as literal tokens, the default, and the
+    preconditions; the epilog carries the environment the kernel reads and the exit-code
+    contract (v1.18, R-41/C-19)."""
     parser = _Parser(
         prog="speccheck",
         description="Specification conformance checker: traceability graph, JUnit results, "
@@ -692,6 +722,21 @@ def build_parser() -> _Parser:
         help="the directory every path in the manifest is relative to. default: .",
     )
     verify.add_argument(
+        "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
+    )
+    qualify = sub.add_parser(
+        "qualify",
+        help="installation and operational qualification of this installed copy (R-111)",
+        description="Hash the installed package against its RECORD and into the package tree "
+        "hash (IQ), run the packaged operational-qualification cases in temporary copies of "
+        "packaged fixtures (OQ), and write qualification.json and QUALIFICATION_REPORT.md: the "
+        "intended use, the tool hazards, the known anomalies, the verdict, and an empty "
+        "signature block. Reads no project file; opens no socket.",
+        epilog=QUALIFY_EPILOG,
+        formatter_class=_FORMATTER,
+    )
+    qualify.add_argument("--out", default=".", metavar="DIR", help=_HELP_QUALIFY_OUT)
+    qualify.add_argument(
         "--verbose", nargs="?", const="INFO", default=None, metavar="LEVEL", help=_HELP_VERBOSE
     )
     return parser
@@ -898,6 +943,12 @@ def parse_config(argv: Sequence[str], environ: Mapping[str, str]) -> Action:
         )
     if args.command == "verify":
         return Action("verify", verbose, verify_config=_build_verify_config(args))
+    if args.command == "qualify":  # v1.26 (R-111); E-85 is a usage fault, before any work
+        return Action(
+            "qualify",
+            verbose,
+            qualify_config=QualifyConfig(Path(args.out).resolve(), _source_date_epoch(environ)),
+        )
     return Action("check", verbose, config=_build_check_config(args, environ, verbose))
 
 
@@ -1440,6 +1491,28 @@ def execute_verify(config: VerifyConfig, stdout: io.TextIOBase | None = None) ->
     return result.exit_code
 
 
+def execute_qualify(
+    config: QualifyConfig,
+    environ: Mapping[str, str],
+    stdout: io.TextIOBase | None = None,
+) -> int:
+    """v1.26 / R-111: IQ and OQ, then both C-29 records in one temp-and-rename sequence, JSON
+    first, then the one stdout line. An unwritable --out is OutError (exit 3, E-18)."""
+    step_env = {k: v for k, v in environ.items() if k != "SOURCE_DATE_EPOCH"}  # R-113
+
+    def run_step(argv: list[str], out: io.StringIO) -> int:
+        return run_argv(argv, step_env, out)
+
+    record = run_qualification(
+        version=__version__, run_step=run_step, epoch=config.source_date_epoch
+    )
+    write_named_files(
+        config.out, [(QUALIFICATION_JSON, record.json_text), (QUALIFICATION_MD, record.md_text)]
+    )
+    _emit_line(record.line, stdout)
+    return record.exit_code
+
+
 def execute_impact(config: ImpactConfig, stdout: io.TextIOBase | None = None) -> int:
     """v1.13 / C-13: the `impact` pipeline. Always exits 0 once the reports are written --
     nothing here is pass/fail."""
@@ -1724,6 +1797,52 @@ def _peek_verbose(argv: Sequence[str]) -> str | None:
     return None
 
 
+_CONTRACT_ERRORS = (
+    SpecError,
+    ResultsError,
+    OutError,
+    ProofError,
+    CitationMapError,
+    RiskFileError,
+    ManifestError,
+)
+
+
+def _dispatch(
+    action: Action, environ: Mapping[str, str], stdout: io.TextIOBase | None = None
+) -> int:
+    """Run what argv asked for; shared by `main` and `qualify`'s OQ steps (R-113)."""
+    if action.kind == "self-check":
+        return self_check(stdout=stdout, environ=environ)
+    if action.kind == "impact":
+        assert action.impact_config is not None
+        return execute_impact(action.impact_config, stdout)
+    if action.kind == "explain":
+        assert action.explain_config is not None
+        return execute_explain(action.explain_config, stdout)
+    if action.kind == "verify":
+        assert action.verify_config is not None
+        return execute_verify(action.verify_config, stdout)
+    if action.kind == "qualify":
+        assert action.qualify_config is not None
+        return execute_qualify(action.qualify_config, environ, stdout)
+    assert action.config is not None
+    return execute(action.config, stdout)
+
+
+def run_argv(argv: Sequence[str], environ: Mapping[str, str], stdout: io.TextIOBase) -> int:
+    """One OQ step (R-113): `main`'s exit mapping for usage (2) and input-contract (3) faults;
+    any other exception — a blocked socket included — propagates to `qualify` (E-88)."""
+    try:
+        return _dispatch(parse_config(argv, environ), environ, stdout)
+    except UsageError as exc:
+        log.error("%s", exc)
+        return 2
+    except _CONTRACT_ERRORS as exc:
+        log.error("%s", exc)
+        return 3
+
+
 def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     environ = os.environ if environ is None else environ
@@ -1731,31 +1850,11 @@ def main(argv: Sequence[str] | None = None, environ: Mapping[str, str] | None = 
     try:
         action = parse_config(argv, environ)
         configure_logging(action.verbose)
-        if action.kind == "self-check":
-            return self_check(environ=environ)
-        if action.kind == "impact":
-            assert action.impact_config is not None
-            return execute_impact(action.impact_config)
-        if action.kind == "explain":
-            assert action.explain_config is not None
-            return execute_explain(action.explain_config)
-        if action.kind == "verify":
-            assert action.verify_config is not None
-            return execute_verify(action.verify_config)
-        assert action.config is not None
-        return execute(action.config)
+        return _dispatch(action, environ)
     except UsageError as exc:
         log.error("%s", exc)
         return 2
-    except (
-        SpecError,
-        ResultsError,
-        OutError,
-        ProofError,
-        CitationMapError,
-        RiskFileError,
-        ManifestError,
-    ) as exc:
+    except _CONTRACT_ERRORS as exc:
         log.error("%s", exc)
         return 3
     except SystemExit as exc:  # argparse --help / --version

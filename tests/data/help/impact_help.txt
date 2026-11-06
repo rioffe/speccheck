@@ -63,9 +63,10 @@ environment:
                         optional; default https://openrouter.ai/api/alpha/decisions and
                         ~typesafe/jev-latest
   SPECCHECK_JEV_TIMEOUT optional, seconds, an integer 1..300, default 30
-  SOURCE_DATE_EPOCH     optional; read only by check --manifest: a non-negative integer of
-                        seconds since the Unix epoch, recorded as the manifest's generated_at
-                        (no default: without it the manifest carries no time)
+  SOURCE_DATE_EPOCH     optional; read only by check --manifest and by qualify (v1.26): a
+                        non-negative integer of seconds since the Unix epoch, recorded as the
+                        record's generated_at (no default: without it the record carries no
+                        time)
   COLUMNS               optional; the width this help is wrapped to (nothing else in a run reads
                         it)
 
