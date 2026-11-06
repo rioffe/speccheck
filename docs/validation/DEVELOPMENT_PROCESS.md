@@ -22,7 +22,7 @@
 ## 2. Lifecycle
 
 ```mermaid
-flowchart LR
+flowchart TD
   E["Evidence: a run, a review, a user report"] --> P["spec-proposal: PROPOSAL_vX.Y_*.md, D-nn decisions"]
   P --> O{"Owner confirms D-nn"}
   O --> W["spec-writing: SPEC.md vX.Y fold + revision row"]
