@@ -96,6 +96,10 @@ The judge is non-deterministic, depends on the network, and the model can drift.
   - treat the T-49 accuracy runs as ongoing performance qualification, revalidated whenever the model
     or `judge_prompt_sha256` changes
 
+Status (2026-11-05): v1.26 takes **Exclude** (`SPEC.md` R-110, D-67). What **Control** would take —
+pinning, records, measurement, a nondeterminism policy, new tool hazards and the ongoing cost,
+with this build's measured run-to-run agreement — is in `JUDGE_CONTROL_ANALYSIS.md`.
+
 ### 3.5 Our own development process
 
 You don't need ISO 13485 certification to sell the tool. But customers doing supplier qualification
