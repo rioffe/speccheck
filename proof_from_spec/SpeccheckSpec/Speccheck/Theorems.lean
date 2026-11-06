@@ -3,7 +3,7 @@
 
 ## What this proves
 
-For the deterministic, enumerable part of `SPEC.md` v1.20, for **all inputs**, kernel-checked:
+For the deterministic, enumerable part of `SPEC.md` v1.26, for **all inputs**, kernel-checked:
 
 - **The status algorithm** (C-05): `statusOf` returns `RETIRED` for retired ids, `UNCITED` for a
   T id with source citations only (F-001/E-25), and only `PASSING`/`WEAKLY_PASSING` from the judge
@@ -34,6 +34,22 @@ For the deterministic, enumerable part of `SPEC.md` v1.20, for **all inputs**, k
   always `stale`, never `failed`, and a name-unmatched one is always `unknown`, never `failed`
   (K-17's own emphasis). Proof never changes status (E-63): `statusWithProof` provably ignores its
   proof-state argument, for every evidence record and every proof state.
+- **The status word** (R-105, v1.24): `UNPROVEN` never appears under `--strict`, and the word is
+  `NOT CONFORMING` exactly on exit `1`.
+- **The hazard roll-up** (C-27, R-109, D-64, v1.25): `UNCONTROLLED` exactly when every
+  controlling id is retired (or none exists); `VERIFIED` implies every live control `PASSING`, so a
+  `WEAKLY_PASSING` control never verifies; the downgrade-only judge can never turn a hazard
+  `VERIFIED`; an `UNCONTROLLED` hazard fails `--strict`; and C-27's claim that `NOT_VERIFIED` adds
+  nothing to `--strict` holds for every coherent report.
+- **`verify`** (C-26, E-82, E-83, v1.25): the closed exit set; a run exiting `2` or `3` read no
+  file the manifest names; exit `0` exactly when nothing differs.
+- **`qualify`** (C-29, R-111, E-86..E-88, v1.26): C-29's verdict sentence and its first-failure
+  order agree on every input; the `QUALIFIED` line always has a tree; "not an installed wheel"
+  outranks every other failure; a failing case or a data fault can never be masked.
+- **The anomaly selection** (R-115, C-31, v1.26): the version order is strict; an unfixed anomaly
+  is always listed, one fixed in or before the running version never is, and file order is kept.
+- **Two findings** (F-904, F-905): E-19 and D-45 each state an exit outcome that §5.4/R-15 do not,
+  witnessed by one report each.
 
 ## What this does not prove
 
@@ -365,6 +381,51 @@ theorem row_proof_failed :
     proofStateOf { cited := true, nameMatch := true, locationMatch := true, manifestChecked := false } = some .failed := by
   decide
 
+/-- **R-15, D-64** (transcription, v1.25): under `--strict`, an `UNCONTROLLED` hazard exits `1`
+although every in-scope id is `PASSING`. -/
+theorem row_exit_uncontrolled_strict :
+    exitOfCheck { factConforming with anyUncontrolled := true } true = exitNotConforming := by
+  decide
+
+/-- **R-105** (transcription, v1.24): a non-strict run exiting `0` with an id not `PASSING` prints
+`UNPROVEN`. -/
+theorem row_summary_unproven :
+    summaryWord { factConforming with allInScopePassing := false } false = .unproven := by decide
+
+/-- **R-109** (transcription, v1.25): a risk-file hazard that no marker names has no controls and
+is `UNCONTROLLED`. -/
+theorem row_hazard_unmarked_uncontrolled : hazardStatus [] = .uncontrolled := rfl
+
+/-- **C-26, E-82, E-83** (transcription, v1.25): `verify`'s four exit codes. -/
+theorem row_verify_codes :
+    verifyExit .usageFault = exitUsage ∧ verifyExit .malformedManifest = exitContract ∧
+    verifyExit (.checked 0) = exitConforming ∧ verifyExit (.checked 1) = exitNotConforming := by
+  decide
+
+/-- **E-65, E-70, E-84, E-85** (transcription): the unreadable halves exit `2`, the malformed
+halves exit `3`, no report either way; `SOURCE_DATE_EPOCH` malformed is a usage fault. -/
+theorem row_fault_v119_v125 :
+    outcome (.fault .proofResultsUnreadable) = some { exit := exitUsage, reports := false } ∧
+    outcome (.fault .proofResultsMalformed) = some { exit := exitContract, reports := false } ∧
+    outcome (.fault .citationMapUnreadable) = some { exit := exitUsage, reports := false } ∧
+    outcome (.fault .citationMapMalformed) = some { exit := exitContract, reports := false } ∧
+    outcome (.fault .riskFileMalformed) = some { exit := exitContract, reports := false } ∧
+    outcome (.fault .sourceDateEpochInvalid) = some { exit := exitUsage, reports := false } := by
+  decide
+
+/-- **R-102** (transcription, v1.23): an invalid or repeated `--namespace` is a usage error. -/
+theorem row_fault_namespace :
+    outcome (.fault .namespaceInvalid) = some { exit := exitUsage, reports := false } := by decide
+
+/-- **E-86** (transcription, v1.26): an install with no hashed `RECORD` fails first as
+`not an installed wheel`, and exits `1`. -/
+theorem row_qualify_not_wheel :
+    firstFailure { treePresent := false, dataFaults := 0, mismatches := 0, missing := 0,
+                   casesPass := [true, true] } = some .notWheel ∧
+    qualifyExit { treePresent := false, dataFaults := 0, mismatches := 0, missing := 0,
+                  casesPass := [true, true] } = exitNotConforming := by
+  decide
+
 end Rows
 
 /-! ## Invariants — the "for all inputs" theorems -/
@@ -635,6 +696,231 @@ holds *unconditionally* on `contract`, not merely at one instance of it. See F-5
 for why this closes the gap `f503ExitPrecedenceDiffer` exhibited. -/
 theorem k18UsageWinsWhenBoth (contract : Bool) : exitPrecedence true contract = exitUsage := rfl
 
+/-- **R-105** (v1.24) — `UNPROVEN` never appears under `--strict`: for every report, a strict run
+that exits `0` has R-15's conditions holding, so its word is `CONFORMING`. Not a re-read of
+`summaryWord`: it discharges R-105's "only possible without `--strict`", which needs the strict
+exit rule to imply R-15's conditions. -/
+theorem unprovenNeverStrict (f : ReportFacts) : summaryWord f true ≠ .unproven := by
+  unfold summaryWord r15Holds exitOfCheck
+  cases f with
+  | mk a b c d e g h u x y =>
+    cases a <;> cases b <;> cases c <;> cases d <;> cases u <;> simp [strictJudgeHolds] <;> grind
+
+/-- **R-105, R-14** (v1.24) — the word follows the exit code, for every report and both modes:
+`NOT CONFORMING` exactly on exit `1`, and the exit code itself never depends on the word ("the
+exit code, every status and `speccheck.json` are unchanged"). -/
+theorem summaryWordTracksExit (f : ReportFacts) (s : Bool) :
+    (summaryWord f s = .notConforming ↔ exitOfCheck f s ≠ exitConforming) := by
+  unfold summaryWord
+  split <;> simp_all <;> split <;> simp
+
+/-- **R-15, D-64** (v1.25) — for every report: an `UNCONTROLLED` hazard makes a strict run exit
+`1`, whatever else holds. -/
+theorem strictUncontrolledFails (f : ReportFacts) (h : f.anyUncontrolled = true) :
+    exitOfCheck f true = exitNotConforming := by
+  simp [exitOfCheck, h]
+
+/-- **C-27** (v1.25) — support: the roll-up read as three cases of `CTRL(h)`. -/
+theorem hazardStatus_cases (cs : List Control) :
+    hazardStatus cs = if liveControls cs = [] then .uncontrolled
+      else if (liveControls cs).all (fun c => c.status == .passing) then .verified
+      else .notVerified := by
+  unfold hazardStatus
+  split <;> simp_all
+
+/-- **C-27** (v1.25) — support: `CTRL(h)` is exactly the non-retired controlling ids. -/
+theorem mem_liveControls (cs : List Control) (c : Control) :
+    c ∈ liveControls cs ↔ c ∈ cs ∧ c.retired = false := by
+  simp [liveControls]
+
+/-- **C-27** (v1.25) — `UNCONTROLLED` exactly when no non-retired id controls the hazard: "no
+marker names h, or every id naming it is retired". The spec states the condition on `CTRL(h)`;
+this proves it in terms of the controls themselves, for every list. -/
+theorem uncontrolledIffAllRetired (cs : List Control) :
+    hazardStatus cs = .uncontrolled ↔ ∀ c ∈ cs, c.retired = true := by
+  rw [hazardStatus_cases]
+  have hnil : liveControls cs = [] ↔ ∀ c ∈ cs, c.retired = true := by
+    simp [liveControls, List.filter_eq_nil_iff]
+  by_cases h : liveControls cs = []
+  · simp only [h, ite_true, true_iff]; exact hnil.mp h
+  · have : ¬ ∀ c ∈ cs, c.retired = true := fun hall => h (hnil.mpr hall)
+    simp only [h, ite_false, this, iff_false]
+    split <;> simp
+
+/-- **C-27** (v1.25) — `VERIFIED` means every non-retired control is `PASSING`, for every list. -/
+theorem verifiedImpliesLivePassing (cs : List Control) (h : hazardStatus cs = .verified) :
+    ∀ c ∈ cs, c.retired = false → c.status = .passing := by
+  intro c hc hr
+  rw [hazardStatus_cases] at h
+  have hm : c ∈ liveControls cs := (mem_liveControls cs c).mpr ⟨hc, hr⟩
+  by_cases hn : liveControls cs = []
+  · rw [hn] at hm; simp at hm
+  · simp only [hn, ite_false] at h
+    by_cases hall : (liveControls cs).all (fun c => c.status == .passing) = true
+    · have := List.all_eq_true.mp hall c hm
+      simpa using this
+    · simp [hall] at h
+
+/-- **C-27** (v1.25) — "`WEAKLY_PASSING` is not `PASSING`": a hazard with a live
+`WEAKLY_PASSING` control is never `VERIFIED`, for every list. -/
+theorem weaklyControlNeverVerifies (cs : List Control)
+    (h : ∃ c ∈ cs, c.retired = false ∧ c.status = .weaklyPassing) :
+    hazardStatus cs ≠ .verified := by
+  intro hv
+  obtain ⟨c, hc, hr, hs⟩ := h
+  have := verifiedImpliesLivePassing cs hv c hc hr
+  rw [hs] at this; cases this
+
+/-- **C-27** (v1.25) — support: a hazard with a live control, all of whose live controls are
+`PASSING`, is `VERIFIED`. -/
+theorem verifiedOfLivePassing (cs : List Control) (hne : ¬ ∀ c ∈ cs, c.retired = true)
+    (hp : ∀ c ∈ cs, c.retired = false → c.status = .passing) : hazardStatus cs = .verified := by
+  rw [hazardStatus_cases]
+  have hn : liveControls cs ≠ [] := fun h =>
+    hne ((uncontrolledIffAllRetired cs).mp (by rw [hazardStatus_cases, h]; rfl))
+  have hall : (liveControls cs).all (fun c => c.status == .passing) = true := by
+    apply List.all_eq_true.mpr
+    intro c hc
+    have := (mem_liveControls cs c).mp hc
+    simp [hp c this.1 this.2]
+  simp [hn, hall]
+
+/-- **C-27, R-11, I-004** — the downgrade-only judge cannot verify a hazard: for every list and
+every status map `g` that creates no `PASSING` (R-11: a verdict only ever lowers `PASSING` to
+`WEAKLY_PASSING`), if the hazard is `VERIFIED` after `g`, it was `VERIFIED` before. The roll-up runs
+"after C-05 step 5, from the final statuses; nothing flows back" — so the judge can only lower it. -/
+theorem judgeNeverVerifiesAHazard (cs : List Control) (g : Status → Status)
+    (hg : ∀ s, g s = .passing → s = .passing)
+    (h : hazardStatus (cs.map (fun c => { c with status := g c.status })) = .verified) :
+    hazardStatus cs = .verified := by
+  have hall := verifiedImpliesLivePassing _ h
+  apply verifiedOfLivePassing
+  · intro hret
+    have hu : hazardStatus (cs.map (fun c => { c with status := g c.status })) = .uncontrolled :=
+      (uncontrolledIffAllRetired _).mpr (by
+        intro c hc
+        obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
+        exact hret d hd)
+    rw [h] at hu; cases hu
+  · intro c hc hr
+    exact hg _ (hall { c with status := g c.status } (List.mem_map_of_mem hc) hr)
+
+/-- **C-27, R-15** (v1.25) — C-27's claim that `NOT_VERIFIED` "adds nothing" to `--strict`: for
+every hazard and every report in which a non-retired, non-`PASSING` control is an in-scope id that
+is not `PASSING` (the coherence hypothesis — a control is a declared R/C/I/K/E id, so in scope), a
+`NOT_VERIFIED` hazard already makes the strict run exit `1` through R-15's status condition. -/
+theorem notVerifiedAddsNothingToStrict (cs : List Control) (f : ReportFacts)
+    (hcoh : ∀ c ∈ cs, c.retired = false → c.status ≠ .passing → f.allInScopePassing = false)
+    (h : hazardStatus cs = .notVerified) :
+    exitOfCheck f true = exitNotConforming := by
+  have hne : ¬ ∀ c ∈ cs, c.retired = true := by
+    intro hret; rw [(uncontrolledIffAllRetired cs).mpr hret] at h; cases h
+  have hex : ∃ c ∈ cs, c.retired = false ∧ c.status ≠ .passing := by
+    apply Classical.byContradiction
+    intro hno
+    have hp : ∀ c ∈ cs, c.retired = false → c.status = .passing := by
+      intro c hc hr
+      apply Classical.byContradiction
+      intro hs
+      exact hno ⟨c, hc, hr, hs⟩
+    rw [verifiedOfLivePassing cs hne hp] at h; cases h
+  obtain ⟨c, hc, hr, hs⟩ := hex
+  have := hcoh c hc hr hs
+  simp [exitOfCheck, this]
+
+/-- **C-26, K-01** (v1.25) — `verify` exits only within the closed set, for every input. -/
+theorem verifyExitClosed (v : VerifyInput) : verifyExit v ∈ k01ExitSet := by
+  cases v with
+  | usageFault => decide
+  | malformedManifest => decide
+  | checked n => cases n <;> simp [verifyExit, k01ExitSet, exitNotConforming, exitConforming]
+
+/-- **E-83, E-82** (v1.25) — a `verify` run that exits `2` or `3` read no file the manifest names
+("no input file is read (a manifest cannot direct a read outside the tree)"), for every input. -/
+theorem verifyFaultReadsNothing (v : VerifyInput)
+    (h : verifyExit v = exitUsage ∨ verifyExit v = exitContract) :
+    verifyReadsInputs v = false := by
+  cases v with
+  | usageFault => rfl
+  | malformedManifest => rfl
+  | checked n =>
+    cases n <;> simp [verifyExit, exitConforming, exitNotConforming, exitUsage, exitContract] at h
+
+/-- **C-26** (v1.25) — `verify` exits `0` exactly when the manifest was well-formed and no file
+differs: for every input. -/
+theorem verifyOkIffNothingDiffers (v : VerifyInput) :
+    verifyExit v = exitConforming ↔ v = .checked 0 := by
+  cases v with
+  | usageFault => decide
+  | malformedManifest => decide
+  | checked n => cases n <;> simp [verifyExit, exitConforming, exitNotConforming]
+
+/-- **C-29, R-111** (v1.26) — C-29's two statements agree: the verdict sentence ("`QUALIFIED`
+iff …") and the first-failure order ("the first that applies, in this order") are transcribed
+separately, and for every set of facts the verdict is `QUALIFIED` exactly when no failure applies.
+A spec that let these disagree would print `QUALIFIED` with a failure, or a failure line under
+`QUALIFIED`. -/
+theorem verdictAgreesWithFirstFailure (q : IQFacts) :
+    verdictQualified q = true ↔ firstFailure q = none := by
+  unfold verdictQualified firstFailure
+  cases q with
+  | mk t d m k c =>
+    cases t <;> simp <;> by_cases hd : d = 0 <;> by_cases hm : m = 0 <;> by_cases hk : k = 0 <;>
+      simp [hd, hm, hk] <;> split <;> simp_all
+
+/-- **R-111, R-112, E-86** (v1.26) — the `QUALIFIED` line always has a tree to print: for every set
+of facts, exit `0` implies `package_tree_sha256` is non-null. -/
+theorem qualifiedHasTree (q : IQFacts) (h : qualifyExit q = exitConforming) :
+    q.treePresent = true := by
+  unfold qualifyExit verdictQualified at h
+  cases ht : q.treePresent <;> simp_all [exitConforming, exitNotConforming]
+
+/-- **E-86** (v1.26) — "not an installed wheel" outranks every other failure: for every set of
+facts with no tree, the first failure is `notWheel`, whatever the lists and cases hold. -/
+theorem notWheelOutranksAll (q : IQFacts) (h : q.treePresent = false) :
+    firstFailure q = some .notWheel := by
+  simp [firstFailure, h]
+
+/-- **E-88** (v1.26) — a failing OQ case can never be masked: for every set of facts in
+which some case failed, the run is not qualified. -/
+theorem caseFailureNeverQualifies (q : IQFacts) (h : q.casesPass.all id = false) :
+    qualifyExit q = exitNotConforming := by
+  simp [qualifyExit, verdictQualified, h]
+
+/-- **E-87** (v1.26) — a packaged-data fault can never be masked either. -/
+theorem dataFaultNeverQualifies (q : IQFacts) (h : q.dataFaults ≠ 0) :
+    qualifyExit q = exitNotConforming := by
+  simp [qualifyExit, verdictQualified, h]
+
+/-- **R-115** (v1.26) — the version order is strict: no version is later than itself. -/
+theorem verLtIrrefl (v : Version) : verLt v v = false := by
+  simp [verLt]
+
+/-- **R-115** (v1.26) — and asymmetric: if `a` is later than `b`, `b` is not later than `a`. -/
+theorem verLtAsymm (a b : Version) (h : verLt a b = true) : verLt b a = false := by
+  cases a; cases b; simp [verLt] at *; omega
+
+/-- **R-115, C-31** (v1.26) — an unfixed anomaly is always listed, for every file and version. -/
+theorem unfixedAlwaysListed (v : Version) (as : List Anomaly) (a : Anomaly) (ha : a ∈ as)
+    (hf : a.fixedIn = none) : a ∈ openAnomalies v as := by
+  simp [openAnomalies, ha, hf]
+
+/-- **R-115, C-31** (v1.26) — an anomaly fixed in the running version, or in an earlier one, is
+never listed, for every file. -/
+theorem fixedNotLaterNeverListed (v f : Version) (as : List Anomaly) (a : Anomaly)
+    (hf : a.fixedIn = some f) (hle : verLt v f = false) : a ∉ openAnomalies v as := by
+  simp [openAnomalies, hf, hle]
+
+/-- **R-115** (v1.26) — the fixed-in-this-version case, from the order's irreflexivity: an anomaly
+fixed in the running version is not listed. -/
+theorem fixedInRunningNeverListed (v : Version) (as : List Anomaly) (a : Anomaly)
+    (hf : a.fixedIn = some v) : a ∉ openAnomalies v as :=
+  fixedNotLaterNeverListed v v as a hf (verLtIrrefl v)
+
+/-- **R-115** (v1.26) — "in file order": the listed anomalies are a sublist of the file. -/
+theorem openAnomaliesKeepFileOrder (v : Version) (as : List Anomaly) :
+    (openAnomalies v as).Sublist as := List.filter_sublist
+
 end Invariants
 
 /-! ## Reachability — the spec claims each exit code is reachable -/
@@ -734,6 +1020,32 @@ longer a fact about this model). D-49 was amended same-session (before any imple
 existed) to gate the key on `--proof ∨ --proof-results`; `topLevelProofKeyPresent` now computes
 that rule, and the witness below proves the gap is closed. -/
 theorem f504ResolvedManifestAloneWritesKey : topLevelProofKeyPresent false true = true := rfl
+
+/-- **F-904 (G-2, two statements disagree) — open.** E-19 states that a run whose in-scope ids
+are all `UNCITED` (no `--src`/`--tests` citation at all) exits `1`. §5.4's table and R-15 give exit
+`0` to every non-strict run with no `FAILING` in-scope id, and an all-`UNCITED` run has none. The
+witness is one report — all ids uncited, nothing failing, `--strict` off — on which §5.4's exit map
+gives `0` while E-19's stated exit is `1`. The implementation follows E-19 (`report.py`
+`exit_code_for`); `proof/`'s model carries that branch. See `docs/reviews/SPEC_MODEL_FINDINGS.md`
+F-904. -/
+theorem f904E19DisagreesWithExitTable :
+    exitOfCheck { factConforming with allInScopePassing := false, allInScopeUncited := true } false
+      = exitConforming ∧
+    e19Exit { factConforming with allInScopePassing := false, allInScopeUncited := true }
+      = some exitNotConforming := by
+  decide
+
+/-- **F-905 (G-2, decision row and normative rows disagree) — open.** D-45 (confirmed v1.19)
+states that a `failed` proof trips `--strict` when `--proof-results` was given and is readable;
+R-15 states that status and hazard status are "the only inputs to this rule", and §5.4 never
+mentions a proof. The witness is one strict report — everything `PASSING`, no dangling, stale or
+uncontrolled hazard, a failed proof with a readable manifest — on which R-15/§5.4 exit `0` while
+D-45 says the strict gate fails. The implementation follows D-45 (`report.py` `exit_code_for`). See
+`docs/reviews/SPEC_MODEL_FINDINGS.md` F-905. -/
+theorem f905D45DisagreesWithR15 :
+    exitOfCheck { factConforming with proofFailedWithManifest := true } true = exitConforming ∧
+    d45StrictFails { factConforming with proofFailedWithManifest := true } true = true := by
+  decide
 
 end Findings
 
@@ -851,11 +1163,47 @@ end Findings
 -- | R-100 (v1.19) | With --proof PATHS, the checker MUST scan the named Lean files or directories with the lean adapter (C-20) and attr… | T-99 (planned) |
 -- | C-20 (v1.19) | The lean adapter: declaration-head split, bold-span doc-comment tag extraction, directory recursion, unparseable/un… | T-99 (planned) |
 -- | E-62 (v1.19) | An unreadable or non-Lean file in a --proof path — Recorded as a notes entry; MUST NOT be a usage error or change the… | T-99 (planned) |
--- | E-65 (v1.19) | --proof-results FILE given but unreadable, not well-formed JSON, or lacking build/theorems — Unreadable → exit 2; ma… | T-99 (planned) |
 -- | I-018 (v1.19) | Proof-input inertness: a check run without --proof/--proof-results writes speccheck.json and SPEC_CONFORMANCE_REPOR… | T-100 (planned) |
--- | T-01 … T-103 | the §9 acceptance tests (103 rows, +T-101..T-103 v1.20); each is the test that carries its own row | themselves (planned) |
+-- | R-101 (v1.23) | The checker MUST treat a TOKEN immediately preceded by <ns>: — where <ns> matches [A-Za-z][A-Za-z0-9_-] (no le… | T-107, T-108, T-112 (planned) |
+-- | R-103 (v1.23) | check, impact and explain MUST accept --citation-map FILE; each resolving entry MUST yield one mapped test cit… | T-110, T-111 (planned) |
+-- | R-104 (v1.22) | For every .ts, .tsx, .mts, .cts, .js, .jsx, .mjs and .cjs file in the --tests list the checker MUST delimit te… | T-113, T-114, T-115, T-116, T-117 (planned) |
+-- | R-106 (v1.25) | check MUST accept a boolean --manifest flag (v1.25). With it, after both reports are written, check MUST write… | T-122, T-123, T-125 (planned) |
+-- | R-107 (v1.25) | The checker MUST accept a fourth subcommand, speccheck verify --manifest FILE [--root DIR] [--verbose [LEVEL]]… | T-124, T-125 (planned) |
+-- | R-108 (v1.25) | A declaring row or heading of an R, C, I, K or E id MAY carry the CONTROLS marker (C-01, C-27; v1.25). The che… | T-126 (planned) |
+-- | R-110 (v1.26) | SPEC.md §0 MUST contain the Intended use block (v1.26), stating that the validated function is check, verify a… | T-130 (planned) |
+-- | R-113 (v1.26) | qualify's operational qualification MUST run every case of the packaged catalog speccheck/_qualify/cases.json … | T-132 (planned) |
+-- | R-114 (v1.26) | This repository MUST ship speccheck/_qualify/tool_risk.json, a C-28 risk file listing exactly the tool hazards… | T-135, T-48 (planned) |
+-- | C-22 (v1.23) | Foreign reference and namespace (v1.23; R-101, R-102) | T-107, T-108, T-111 (planned) |
+-- | C-23 (v1.23) | The citation map (v1.23; R-103) | T-110, T-111 (planned) |
+-- | C-24 (v1.24) | The JavaScript/TypeScript adapter (v1.22; R-104; moved from C-03 in v1.24) | T-113, T-114, T-115, T-116, T-117 (planned) |
+-- | C-25 (v1.25) | The provenance manifest (v1.25; R-106) | T-122, T-123 (planned) |
+-- | C-28 (v1.25) | The risk file (v1.25; R-109) | T-127 (planned) |
+-- | C-30 (v1.26) | The OQ case catalog and the tool hazards (v1.26; R-113, R-114) | T-132, T-135 (planned) |
+-- | I-019 (v1.23) | Namespace and map inertness (v1.23). A check run given neither --namespace nor --citation-map, over inputs in … | T-109 (planned) |
+-- | I-020 (v1.25) | Manifest determinism (v1.25). I-002 extends to speccheck.manifest.json: for --judge none and --judge mock, ide… | T-123 (planned) |
+-- | I-021 (v1.25) | Provenance and hazard inertness (v1.25). A check run given neither --manifest nor --risk-file, over a specific… | T-128 (planned) |
+-- | I-022 (v1.26) | qualify is read-only and offline (v1.26). A qualify run opens no socket, modifies no file of the installed pac… | T-132, T-134 (planned) |
+-- | I-023 (v1.26) | Validation-pack inertness (v1.26). check, impact, explain, verify and --self-check write and print output byte… | T-134 (planned) |
+-- | K-19 (v1.23) | Citation-map size (v1.23). A citation map (C-23) is at most 2 MiB, the K-02 file cap. Over it, E-70 (exit 3), … | T-111 (planned) |
+-- | K-20 (v1.25) | Risk-file and hazard-id size (v1.25). A risk file (C-28) is at most 2 MiB, the K-02 cap; over it, E-84 (exit 3… | T-124, T-126, T-127 (planned) |
+-- | E-66 (v1.21) | A table-declared row whose statement cell contains an odd number of unescaped $ outside backtick spans and whi… | T-106, T-120 (planned) |
+-- | E-67 (v1.23) | A scanned --src/--tests file contains a foreign reference (C-22) — a TOKEN preceded by <ns>:, <ns> not the --n… | T-107 (planned) |
+-- | E-68 (v1.23) | --namespace NS is given and a scanned file or a declared statement contains NS:ID | T-107, T-111 (planned) |
+-- | E-69 (v1.23) | A declared statement or an Affects cell contains a foreign reference | T-108 (planned) |
+-- | E-71 (v1.23) | A map entry's file and test match no scanned TestCase (the file was not scanned, or its test was renamed) | T-110, T-111 (planned) |
+-- | E-72 (v1.23) | A map entry resolves (C-23) and no literal citation of the same (id, testcase) exists | T-110 (planned) |
+-- | E-73 (v1.23) | A map entry resolves to a (id, testcase) already cited literally, or two entries name the same (id, testcase) | T-110 (planned) |
+-- | E-74 (v1.22) | A JavaScript/TypeScript test file whose parentheses do not balance, or with an unterminated block comment, str… | T-114 (planned) |
+-- | E-75 (v1.22) | An it/test call whose first argument is not a literal title (a variable, an interpolated template), or a descr… | T-114 (planned) |
+-- | E-76 (v1.22) | A JavaScript/TypeScript case whose title carries each placeholders, and several results that fill them | T-116 (planned) |
+-- | E-77 (v1.24) | A declared, non-retired id is the src or dst of no C-12 edge: no statement, row cell or Affects cell names it,… | T-121 (planned) |
+-- | E-78 (v1.25) | A CONTROLS marker (C-27) on the declaration of a T id | T-126 (planned) |
+-- | E-79 (v1.25) | With --risk-file, a CONTROLS marker names a hazard the file does not list | T-127 (planned) |
+-- | E-80 (v1.25) | The text in the CONTROLS position (C-01) begins (controls: but does not match C-27's grammar: an empty list, a… | T-126 (planned) |
+-- | E-81 (v1.25) | A hazard in C-27's set H has no non-retired control: it is listed in --risk-file and no marker names it, or ev… | T-126, T-127 (planned) |
+-- | T-01 … T-137 | the §9 acceptance tests (137 rows, +T-104..T-137 v1.21..v1.26); each is the test that carries its own row | themselves (planned) |
 --
--- The 103 `T-nn` acceptance tests themselves are the §9 inventory; each is its own carrier
+-- The 137 `T-nn` acceptance tests themselves are the §9 inventory; each is its own carrier
 -- (planned). A T id is never proven here: a T id's proof is a run, not a theorem.
 --
 -- ### Dual halves — proven in Lean, implementation half deferred
@@ -914,7 +1262,7 @@ end Findings
 -- | R-09 | T-24, T-46 (planned) |
 -- | R-11 | T-27, T-28, T-46 (planned) |
 -- | R-14 | T-39, T-46 (planned) |
--- | R-15 | T-39, T-27, T-46 (planned) |
+-- | R-15 | T-39, T-27, T-46, T-127 (planned) |
 -- | R-22 | T-26, T-69, T-75 (planned) |
 -- | R-25 | T-53 (planned) |
 -- | R-28 | T-59, T-101 (planned) |
@@ -925,6 +1273,25 @@ end Findings
 -- | E-63 (v1.19) | T-99 (planned) |
 -- | K-18 (v1.20) | T-103 (planned) |
 -- | E-64 (v1.20) | T-102 (planned) |
+-- | R-102 (v1.23) | T-107, T-111 (planned) |
+-- | R-105 (v1.24) | T-118 (planned) |
+-- | R-109 (v1.25) | T-127 (planned) |
+-- | R-111 (v1.26) | T-130, T-134, T-136 (planned) |
+-- | R-112 (v1.26) | T-130, T-131, T-137 (planned) |
+-- | R-115 (v1.26) | T-135 (planned) |
+-- | C-26 (v1.25) | T-124 (planned) |
+-- | C-27 (v1.25) | T-126, T-127, T-129 (planned) |
+-- | C-29 (v1.26) | T-130, T-131 (planned) |
+-- | C-31 (v1.26) | T-135 (planned) |
+-- | E-65 (v1.19) | T-99 (planned) |
+-- | E-70 (v1.23) | T-111 (planned) |
+-- | E-82 (v1.25) | T-124 (planned) |
+-- | E-83 (v1.25) | T-124 (planned) |
+-- | E-84 (v1.25) | T-127 (planned) |
+-- | E-85 (v1.25) | T-123, T-134 (planned) |
+-- | E-86 (v1.26) | T-133 (planned) |
+-- | E-87 (v1.26) | T-133 (planned) |
+-- | E-88 (v1.26) | T-132 (planned) |
 --
 -- ### Excluded — the spec puts these out of scope by name
 --
@@ -940,7 +1307,10 @@ end Findings
 -- | No multi-repository or multi-spec runs; `--against` reads a prior version of the same spec only | §0 Non-goals |
 -- | No change semantics: an edge records that a statement names another id, nothing more | §0 Non-goals |
 -- | No IDE integration, daemon mode, watch mode, or web UI | §0 Non-goals |
--- | No adapters other than Python and Swift; other languages get file-level attribution | §0 Non-goals, O-2 |
+-- | No adapters other than Python, Swift and JavaScript/TypeScript (v1.22); other languages get file-level attribution | §0 Non-goals, O-2 |
+-- | No risk management: hazard ids are labels owned by the user's ISO 14971 file; acceptability is never evaluated (v1.25) | §0 Non-goals |
+-- | No signatures or attribution of records (v1.25) | §0 Non-goals |
+-- | No validation on the user's behalf (v1.26) | §0 Non-goals |
 -- | No graphical surface at all | §5.2, O-3 |
 
 end SpeccheckSpec.Speccheck.Theorems

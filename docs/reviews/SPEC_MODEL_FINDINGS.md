@@ -1,18 +1,21 @@
-# SPEC_MODEL_FINDINGS — `speccheck` (SPEC.md v1.20)
+# SPEC_MODEL_FINDINGS — `speccheck` (SPEC.md v1.26)
 
 > - **Produced by:** `spec-model` over `SPEC.md` — the spec's own formal model, before any
 >   implementation proof. First run v1.18; extended for v1.19's proof-parameter fold (10 new ids,
->   all `UNCITED`, no implementation) and again for v1.20's determinacy fold (5 new ids). Output:
+>   all `UNCITED`, no implementation), again for v1.20's determinacy fold (5 new ids), and on
+>   2026-11-05 brought from v1.20 to v1.26 (55 new requirement-type ids, 19 amended). Output:
 >   `proof_from_spec/` (Lean 4, `lake build` exit 0, zero warnings).
 > - **What is certified:** the *spec*, not a system. There is no implementation in this bridge: the
 >   model is a pure Lean function, `lake build` kernel-checks the claims the spec makes about
 >   itself, and every requirement out of Lean's reach is mapped to the §9 test that will carry it
 >   (**planned**, not run). See `proof_from_spec/README.md` for the trust boundary.
-> - **Numbering:** `F-501..F-504`, continuing the spec's review sequence (`F-001..F-017`,
+> - **Numbering:** `F-501..F-504` and `F-904..F-905`, continuing the spec's review sequence (`F-001..F-017`,
 >   `F-101..F-110`, `F-201..F-210`, `F-301..F-307`, `F-401..F-407`, `Q-001..Q-011` are all cited
 >   inside `SPEC.md`). F-504 was new in the v1.19 extension, resolved v1.19.1; F-501..F-503 were
 >   found against v1.18 and are **resolved v1.20** — the proposal that fixed them
 >   (`docs/proposals/PROPOSAL_v1.20_spec_determinacy.md`) exists *because* this model found them.
+>   F-904 and F-905 are new in the v1.26 update and **open**; they follow F-901..F-903, which the
+>   v1.26 build recorded in `SPEC_BUILD_REPORT.md` §0q.
 > - **Disposition:** **findings are reported, not fixed.** This project does not edit `SPEC.md`;
 >   `spec-proposal` / `spec-writing` decide, and a fix bumps the spec's version.
 
@@ -24,11 +27,24 @@
 | F-502 | G-2 · under-determined pin | P1 | C-07 `judge_available`, E-35, R-28 | `f502ResolvedJudgeAvailableBudgetFalse`, `f502ResolvedStrictJudgeFailureUnavailable`, `judgeAvailableNullIffNone`, `f502Contrast` (was `f502JudgeAvailableBudgetSilent`, `f502JudgeAvailableBudgetSilentMock`, `f502StrictJudgeFailureNull`) | **resolved v1.20** |
 | F-503 | G-2 · under-specified relation | P2 | §5.4, K-01, K-18 | `k18UsageWinsWhenBoth` (was `f503ExitPrecedenceDiffer`, kept as the historical ambiguity record) | **resolved v1.20** |
 | F-504 | G-2 · under-specified interaction (v1.19) | P2 | C-07, D-49 (`proof` key presence) | `f504ManifestReadButKeyAbsent` | **resolved v1.19.1** |
+| F-904 | G-2 · two statements disagree | P1 | E-19 vs §5.4, R-15 | `f904E19DisagreesWithExitTable` | **open** |
+| F-905 | G-2 · decision row and normative rows disagree | P1 | D-45 vs R-15, §5.4 | `f905D45DisagreesWithR15` | **open** |
 
 No **G-3a** finding: every requirement Lean cannot reach names at least one §9 `T-nn` (§11's
-"Verified by" column is total over the 104 deferred-only requirements — checked mechanically).
+"Verified by" column is total over the 140 deferred-only requirements — checked mechanically).
+No **G-1** finding: `noSilence` still closes over every `Input` constructor.
 
-## Scope map
+## Scope map (v1.26)
+
+Over the **356 declared conformance IDs** (219 R/C/I/K/E + 137 T): **79 proven**, every one also a
+dual-half row; **140 deferred-only**, each naming its §11 `T-nn`; **137 `T-nn`**, the test
+inventory; and 12 named exclusions (§0 Non-goals, §5.2), which are not conformance IDs. The v1.26
+update proved the deterministic halves of R-102, R-105, R-109, R-111, R-112, R-115, C-26, C-27,
+C-29, C-31, E-65, E-70, E-82..E-88, and deferred R-101, R-103, R-104, R-106..R-108, R-110, R-113,
+R-114, C-22..C-25, C-28, C-30, I-019..I-023, K-19, K-20 and the remaining E-66..E-81. The partition
+was checked mechanically: every spec id is tagged or tabled, and nothing else is.
+
+## Scope map (v1.20, historical)
 
 The full classification is in `proof_from_spec/SpeccheckSpec/Speccheck/Theorems.lean`'s closing
 comment. In brief, over the **267 declared conformance IDs** (252 at v1.18, +10 at v1.19, +5 at
@@ -218,7 +234,80 @@ paragraph and revision-history row.
 
 ---
 
+## F-904 — E-19 states an exit code that §5.4 and R-15 do not give
+
+**Class:** G-2 (two statements of the same spec disagree). **Severity:** P1. **Anchors:** E-19,
+§5.4, R-15, R-14.
+
+**Observation.** E-19: "Both `--src` and `--tests` empty/absent — Run proceeds; every in-scope ID
+is `UNCITED`; exit `1`". §5.4's table gives exit `0` for "no in-scope ID is `FAILING`; and if
+`--strict`, …", and R-15 adds conditions only under `--strict`. A non-strict run whose in-scope
+ids are all `UNCITED` has no `FAILING` id, so §5.4 gives `0` and E-19 gives `1` for the same run.
+Since v1.24, R-105 would print `UNPROVEN` for the §5.4 reading.
+
+**Witness.** `f904E19DisagreesWithExitTable` (`Theorems.lean`): on the report with every id
+uncited, nothing failing and `--strict` off, `exitOfCheck … false = exitConforming` while
+`e19Exit … = some exitNotConforming`. The model carries E-19's statement as its own function
+(`e19Exit`) beside §5.4's (`exitOfCheck`) rather than choosing between them.
+
+**What the implementation does.** It follows E-19: `report.py` `exit_code_for` returns `1` when
+`by_status["UNCITED"] == in_scope` (lines 88–89). `proof/`'s model of the code carries that branch
+(`allInScopeUncited`); the spec model does not, because §5.4 does not state it.
+
+**Why it matters.** Two faithful readers of the spec build different exit codes for the first run
+most users make (no `--tests` yet). R-14 says the exit code is a pure function of the JSON plus
+`--strict`; both readings are, so R-14 does not settle it.
+
+**Proposed resolution (for `spec-proposal`).** Either (a) add E-19's condition to §5.4's exit-`1`
+row and to R-15's sibling R-14 text ("an all-`UNCITED` in-scope set exits `1` with or without
+`--strict`"), matching the implementation; or (b) drop E-19's "exit `1`" in favour of §5.4, so such
+a run exits `0` with `UNPROVEN` (R-105), and change the implementation.
+
+---
+
+## F-905 — D-45 makes a failed proof a strict failure; R-15 says it cannot be
+
+**Class:** G-2 (a confirmed decision row and the normative rows disagree). **Severity:** P1.
+**Anchors:** D-45, R-15, §5.4, K-17, E-63.
+
+**Observation.** D-45 (confirmed v1.19): a `failed` proof trips `--strict` "only when
+`--proof-results` was given and is readable". R-15: "Status (C-05) and hazard status (C-27) are the
+only inputs to this rule". §5.4's exit-`0` row lists its strict conditions and never mentions a
+proof. E-63 says a proof state never changes an id's status, which is consistent with both — the
+disagreement is about the exit code, not the status.
+
+**Witness.** `f905D45DisagreesWithR15`: on the strict report with every id `PASSING`, nothing
+dangling, stale or uncontrolled, and a failed proof under a readable manifest,
+`exitOfCheck … true = exitConforming` while `d45StrictFails … true = true`.
+
+**What the implementation does.** It follows D-45: `report.py` `exit_code_for` returns `1` under
+`--strict` when `proof.build` is present and `metrics.proof_failed > 0` (lines 99–104).
+
+**Why it matters.** The normative rows are what a second implementation would build, and they
+say a failed proof cannot fail the gate; the decision row and the shipped code say it does. A
+conformance claim about R-15 is then true of the spec and false of the code, or the reverse.
+
+**Proposed resolution (for `spec-proposal`).** Fold D-45 into R-15 and §5.4 ("and, with a readable
+`--proof-results`, no `failed` proof state", with E-63's status clause unchanged), matching the
+implementation; or reverse D-45 and change the code.
+
+---
+
 ## What was checked mechanically
+
+**v1.26 update.** `lake build`: exit 0, zero warnings. The audit script (spec ids from
+`speccheck.extract.parse_spec`, bold-span tags from every `.lean` file, rows of the closing tables)
+reports no spec id missing from both, no tag that is not a spec id, and no tabled id that is not a
+spec id: 79 proven (all dual), 140 deferred-only, 137 `T-nn`. The anti-tautology audit for the new
+theorems: `section Rows` holds the transcriptions (the uncontrolled strict exit, the `UNPROVEN`
+row, the unmarked hazard, `verify`'s codes, the new fault rows, the not-a-wheel row); every new
+theorem outside it discharges a sentence that is not its subject's definition — R-105's "only
+possible without `--strict`", C-27's condition on `CTRL(h)` restated over the controls, C-27's
+"`NOT_VERIFIED` adds nothing" (which needs a coherence hypothesis between hazards and the report),
+the downgrade-only judge's effect on a hazard, E-83's "no input file is read", C-29's two
+statements' agreement, and R-115's order properties.
+
+**v1.20 and earlier:**
 
 - **Tag audit** — `grep -rhoE '\*\*[^*]+\*\*' SpeccheckSpec/ | tr -d '*' | grep -oE '[RCIKE]-[0-9]+' | sort -u`
   yields exactly the 60 proven IDs (57 through v1.19.1, +K-18, +E-64, +E-35 newly dual at v1.20).

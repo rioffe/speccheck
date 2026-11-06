@@ -1,7 +1,7 @@
 /-
 # `SpeccheckSpec.Speccheck.Model` — the transcription
 
-The normative tables of `SPEC.md` v1.18 (Specification Conformance Checker, `speccheck`) as pure,
+The normative tables of `SPEC.md` v1.26 (Specification Conformance Checker, `speccheck`) as pure,
 total functions. This file is leg A of the trust boundary and the correspondence table below is
 manual: Lean cannot read the document, so the claim "the model is a faithful transcription of
 the spec's normative tables" is checked here row by row, and made *checkable* — not proven — by the
@@ -40,6 +40,15 @@ the spec's normative tables" is checked here row by row, and made *checkable* �
 | C-21, K-17 (v1.19) | `ProofState`, `ProofJoin`, `proofStateOf` | manifest-to-citation join: `checked`/`failed`/`unknown`/`stale`, `none` for no citation (D-49) |
 | E-63 (v1.19) | `statusWithProof`, `statusWithProof_ignoresProof` | proof is not a field of `Evidence`, so a wrapper that accepts it provably returns `statusOf`'s answer unchanged |
 | C-07, D-49 (v1.19, amended v1.19.1) | `topLevelProofKeyPresent` | finding F-504, resolved v1.19.1 |
+| R-15 amended, C-27, D-64 (v1.25) | `ReportFacts.anyUncontrolled`, `exitOfCheck`'s strict conjunct | an `UNCONTROLLED` hazard fails `--strict` |
+| R-105 (v1.24) | `SummaryWord`, `r15Holds`, `summaryWord` | `CONFORMING` / `UNPROVEN` / `NOT CONFORMING` from the exit and R-15's conditions |
+| E-19 | `ReportFacts.allInScopeUncited`, `e19Exit` | E-19's own stated exit, carried beside §5.4's — finding F-904 |
+| D-45 (v1.19) | `ReportFacts.proofFailedWithManifest`, `d45StrictFails` | D-45's strict rule, carried beside R-15's — finding F-905 |
+| C-27, R-108, R-109 (v1.25) | `HazardStatus`, `Control`, `liveControls`, `hazardStatus` | the roll-up over a hazard's controlling ids; a risk-file hazard nobody marks is the empty list |
+| R-107, C-26, E-82, E-83 (v1.25) | `VerifyInput`, `verifyExit`, `verifyReadsInputs` | the four exit codes and E-83's "no input file is read" |
+| R-111, C-29, E-86, E-87, E-88 (v1.26) | `IQFacts`, `QualFailure`, `firstFailure`, `verdictQualified`, `qualifyExit` | C-29's verdict sentence and its first-failure order, both transcribed, so their agreement is a theorem |
+| R-115, C-31 (v1.26) | `Version`, `verLt`, `Anomaly`, `openAnomalies` | entries not fixed in or before the running version, file order |
+| E-65, E-70, E-84, E-85, R-102 (v1.19..v1.25) | the new `Fault` constructors | each in the 2/3 class its row states |
 
 Deliberately not modelled, with the reason. The spec is a program that reads a tree of files;
 Lean operates on pure values, so nothing that *is* the filesystem, the network, or a clock is a
@@ -61,6 +70,10 @@ parameter of the model:
 | R-100, C-20 (v1.19) | the lean adapter — declaration-head split, bold-span doc-comment tag extraction | a text transformer over Lean source, the same class as C-01/C-03; carried by T-99 |
 | E-62, E-65 (v1.19) | an unreadable/non-Lean `--proof` file, or an unreadable/malformed `--proof-results` file | filesystem/IO, the same class as E-10/E-11/E-29/E-05; carried by T-99 |
 | I-018 (v1.19) | byte-identity of `speccheck.json`/`SPEC_CONFORMANCE_REPORT.md` under flag absence | rendering, the same class as C-08; carried by T-100 |
+| R-101..R-104, C-22..C-24 (v1.21..v1.23) | namespaces, the citation map's resolution, the JS/TS adapter | text transformers over files and a JSON map, the same class as C-01/C-03; carried by T-104..T-117 |
+| R-106, R-112, C-25, I-020 (v1.25, v1.26) | manifest and package-tree hashing | SHA-256 over bytes; the exit consequences (`verifyExit`, `firstFailure`) are modelled, the hashing is carried by T-122..T-125, T-130, T-131 |
+| R-113, R-114, C-28, C-30, I-019, I-021..I-023, K-19, K-20 | the OQ catalog runner, packaged data, risk-file parsing, inertness, size caps | process- and file-level; carried by the §9.17..§9.19 tests (deferral table) |
+| E-66..E-69, E-71..E-81 | Notes, marker grammar, adapter edge cases | rendering and parsing; carried by their §9 tests (deferral table) |
 -/
 import SpeccheckSpec.Speccheck.Spec
 
@@ -400,6 +413,15 @@ structure ReportFacts where
   judgeLlm : Bool
   judgeAvailable : Option Bool
   unknownRateExceeds : Bool
+  /-- R-15 amended (v1.25), C-27: some hazard is `UNCONTROLLED`. -/
+  anyUncontrolled : Bool := false
+  /-- E-19: every in-scope id is `UNCITED` (no `--src`/`--tests` citation at all). Read by
+  `e19Exit`, not by `exitOfCheck`: §5.4 and R-15 do not mention it (finding F-904). -/
+  allInScopeUncited : Bool := false
+  /-- D-45 (v1.19): a proof state is `failed` and `--proof-results` was given and readable. Read
+  by `d45StrictFails`, not by `exitOfCheck`: R-15 names status and hazard status as its only
+  inputs (finding F-905). -/
+  proofFailedWithManifest : Bool := false
   deriving DecidableEq, Repr
 
 /-- R-15, R-28, §5.4 — the strict judge gate: with `--judge llm` the judge must be available and
@@ -408,11 +430,12 @@ def strictJudgeHolds (f : ReportFacts) : Bool :=
   !f.judgeLlm ∨ (f.judgeAvailable = some true ∧ !f.unknownRateExceeds)
 
 /-- §5.4, R-14, R-15 — the exit code of a `check` run: `0` iff no in-scope ID is `FAILING` and,
-under `--strict`, every in-scope ID is `PASSING`, `dangling` and `stale` are empty, and the R-28
-judge gate holds; else `1`. -/
+under `--strict`, every in-scope ID is `PASSING`, `dangling` and `stale` are empty, no hazard is
+`UNCONTROLLED` (v1.25), and the R-28 judge gate holds; else `1`. -/
 def exitOfCheck (f : ReportFacts) (strict : Bool) : Nat :=
   if !f.anyInScopeFailing ∧
-     (!strict ∨ (f.allInScopePassing ∧ !f.anyDangling ∧ !f.anyStale ∧ strictJudgeHolds f))
+     (!strict ∨ (f.allInScopePassing ∧ !f.anyDangling ∧ !f.anyStale ∧ !f.anyUncontrolled ∧
+       strictJudgeHolds f))
   then exitConforming else exitNotConforming
 
 /-- §5.4, K-18 (v1.20) — the precedence the spec now pins between the two fault classes: when one
@@ -452,7 +475,7 @@ def remainingSeconds (t done n : Nat) : Option Nat :=
 
 /-- §5.1, §5.4 — the six surfaces of the CLI, plus the two inert ones. -/
 inductive Subcommand where
-  | check | impact | explain | selfCheck | version | help
+  | check | impact | explain | verify | qualify | selfCheck | version | help
   deriving DecidableEq, Repr
 
 /-- §5.1, §5.4, §8 — one constructor per *usage-error* (exit 2) and *input-contract-violation*
@@ -475,19 +498,33 @@ inductive Fault where
   | impactBothOrNeither
   | impactRejectedFlag
   | explainUndeclaredId
+  | namespaceInvalid
+  | citationMapUnreadable
+  | riskFileUnreadable
+  | proofResultsUnreadable
+  | sourceDateEpochInvalid
+  | verifyManifestUsage
   | specZeroIds
   | specDuplicateId
   | specRetireConflict
   | resultsMalformed
   | outNotWritable
+  | proofResultsMalformed
+  | citationMapMalformed
+  | riskFileMalformed
+  | verifyManifestMalformed
   deriving DecidableEq, Repr
 
 /-- §5.4, K-01 — the usage-error (exit 2) faults. -/
 def Fault.isUsage : Fault → Bool
-  | .specZeroIds | .specDuplicateId | .specRetireConflict | .resultsMalformed | .outNotWritable => false
+  | .specZeroIds | .specDuplicateId | .specRetireConflict | .resultsMalformed | .outNotWritable
+  | .proofResultsMalformed | .citationMapMalformed | .riskFileMalformed
+  | .verifyManifestMalformed => false
   | _ => true
 
-/-- §5.4, K-01 — the input-contract-violation (exit 3) faults: "E-01, E-02, E-03, E-05, E-18". -/
+/-- §5.4, K-01 — the input-contract-violation (exit 3) faults: "E-01, E-02, E-03, E-05, E-18,
+E-65 (malformed manifest), E-70 (map shape faults), E-84 (malformed risk file)", and `verify`'s
+E-83. -/
 def Fault.isContract (x : Fault) : Bool := !x.isUsage
 
 /-- §5.4, I-001 — the observable result of a run: the exit code and whether report files are
@@ -571,6 +608,152 @@ definition now matches the corrected rule — see `f504ResolvedManifestAloneWrit
 def topLevelProofKeyPresent (proofGiven proofResultsGiven : Bool) : Bool :=
   proofGiven || proofResultsGiven
 
+
+/-! ## R-105 (v1.24) — the summary line's status word -/
+
+/-- §5.1, R-105 — the three `<STATUS>` words. -/
+inductive SummaryWord where
+  | conforming | unproven | notConforming
+  deriving DecidableEq, Repr
+
+/-- R-15, R-105 — R-15's conditions (everything but the R-28 judge gate): every in-scope id
+`PASSING`, no dangling or stale citation, and (v1.25) no `UNCONTROLLED` hazard. -/
+def r15Holds (f : ReportFacts) : Bool :=
+  f.allInScopePassing ∧ !f.anyDangling ∧ !f.anyStale ∧ !f.anyUncontrolled
+
+/-- R-105, §5.1 — `NOT CONFORMING` on exit `1`; on exit `0`, `CONFORMING` only when R-15's
+conditions hold, else `UNPROVEN`. -/
+def summaryWord (f : ReportFacts) (strict : Bool) : SummaryWord :=
+  if exitOfCheck f strict = exitConforming then
+    (if r15Holds f then .conforming else .unproven)
+  else .notConforming
+
+/-! ## E-19 and D-45 — two exit statements outside §5.4 (findings F-904, F-905) -/
+
+/-- E-19 — the exit E-19 states for a run whose in-scope ids are all `UNCITED`: `1`; `none` when
+E-19 does not apply. -/
+def e19Exit (f : ReportFacts) : Option Nat :=
+  if f.allInScopeUncited then some exitNotConforming else none
+
+/-- D-45 (v1.19, confirmed) — "a `failed` proof trips `--strict` only when `--proof-results` was
+given and is readable". -/
+def d45StrictFails (f : ReportFacts) (strict : Bool) : Bool :=
+  strict && f.proofFailedWithManifest
+
+/-! ## C-27 (v1.25) — the hazard roll-up -/
+
+/-- C-27 — the three hazard statuses. -/
+inductive HazardStatus where
+  | verified | notVerified | uncontrolled
+  deriving DecidableEq, Repr
+
+/-- C-27 — one declared id whose CONTROLS marker names the hazard: whether it is retired, and its
+final C-05 status (after step 5). -/
+structure Control where
+  retired : Bool
+  status : Status
+  deriving DecidableEq, Repr
+
+/-- C-27 — `CTRL(h)`: the non-retired controlling ids. -/
+def liveControls (cs : List Control) : List Control := cs.filter (fun c => !c.retired)
+
+/-- C-27 — `UNCONTROLLED` if `CTRL(h)` is empty; `VERIFIED` if every id in it is `PASSING`
+(`WEAKLY_PASSING` is not); else `NOT_VERIFIED`. A risk-file hazard no marker names is the empty
+list. -/
+def hazardStatus (cs : List Control) : HazardStatus :=
+  match liveControls cs with
+  | [] => .uncontrolled
+  | live => if live.all (fun c => c.status == .passing) then .verified else .notVerified
+
+/-! ## C-26 (v1.25) — `verify`'s exit codes -/
+
+/-- C-26, E-82, E-83 — what a `verify` run meets: a usage fault (E-82), a malformed manifest
+(E-83), or a well-formed manifest whose files were re-hashed, `differing` of them missing or
+changed. -/
+inductive VerifyInput where
+  | usageFault
+  | malformedManifest
+  | checked (differing : Nat)
+  deriving DecidableEq, Repr
+
+/-- §5.4, C-26 — `0` every file matches, `1` one or more is missing or differs, `2` usage, `3`
+malformed manifest. -/
+def verifyExit : VerifyInput → Nat
+  | .usageFault => exitUsage
+  | .malformedManifest => exitContract
+  | .checked 0 => exitConforming
+  | .checked (_ + 1) => exitNotConforming
+
+/-- E-82, E-83 — whether any file the manifest names is read: only once the manifest is
+well-formed ("no input file is read (a manifest cannot direct a read outside the tree)"). -/
+def verifyReadsInputs : VerifyInput → Bool
+  | .checked _ => true
+  | _ => false
+
+/-! ## C-29, R-111 (v1.26) — the qualification verdict and its first failure -/
+
+/-- C-29, R-112 — the facts the verdict reads: whether `package_tree_sha256` is non-null, the
+sizes of the three IQ lists, and the catalog's results in order (`true` = `PASS`). -/
+structure IQFacts where
+  treePresent : Bool
+  dataFaults : Nat
+  mismatches : Nat
+  missing : Nat
+  casesPass : List Bool
+  deriving DecidableEq, Repr
+
+/-- C-29 — the failure kinds, one per clause of the first-failure order. -/
+inductive QualFailure where
+  | notWheel | dataFault | recordMismatch | recordMissing | caseFail
+  deriving DecidableEq, Repr
+
+/-- C-29 — "first failure (R-111's stdout line), the first that applies, in this order": E-86,
+the first data fault (E-87), the first RECORD mismatch, the first RECORD missing, the first failing
+case (E-88). `none` = nothing failed. -/
+def firstFailure (q : IQFacts) : Option QualFailure :=
+  if !q.treePresent then some .notWheel
+  else if q.dataFaults ≠ 0 then some .dataFault
+  else if q.mismatches ≠ 0 then some .recordMismatch
+  else if q.missing ≠ 0 then some .recordMissing
+  else if q.casesPass.all id then none
+  else some .caseFail
+
+/-- C-29 — the verdict sentence, transcribed separately from the order above: "`QUALIFIED` iff
+package_tree_sha256 is non-null, all three IQ lists are empty, and every `oq` result is `PASS`". -/
+def verdictQualified (q : IQFacts) : Bool :=
+  q.treePresent && q.dataFaults == 0 && q.mismatches == 0 && q.missing == 0 && q.casesPass.all id
+
+/-- R-111 — exit `0` when every IQ check and OQ case passed, else `1` (the usage and `--out`
+faults are `Fault` rows). -/
+def qualifyExit (q : IQFacts) : Nat :=
+  if verdictQualified q then exitConforming else exitNotConforming
+
+/-! ## R-115, C-31 (v1.26) — which known anomalies a record lists -/
+
+/-- C-31 — `X.Y.Z`. -/
+structure Version where
+  major : Nat
+  minor : Nat
+  patch : Nat
+  deriving DecidableEq, Repr
+
+/-- R-115 — "a version later than the running one (compared as three integers)". -/
+def verLt (a b : Version) : Bool :=
+  a.major < b.major || (a.major == b.major &&
+    (a.minor < b.minor || (a.minor == b.minor && a.patch < b.patch)))
+
+/-- C-31 — the field the selection reads. -/
+structure Anomaly where
+  fixedIn : Option Version
+  deriving DecidableEq, Repr
+
+/-- R-115 — "every entry whose `fixed_in` is `null` or a version later than the running one",
+in file order. -/
+def openAnomalies (running : Version) (as : List Anomaly) : List Anomaly :=
+  as.filter (fun a => match a.fixedIn with
+    | none => true
+    | some f => verLt running f)
+
 -- Cross-module normalization: every definition `Theorems.lean` reasons through is `grind unfold`
 -- (and `public`), so it unfolds in the proof module.
 attribute [grind unfold]
@@ -589,5 +772,10 @@ attribute [grind unfold]
   Fault.isUsage Fault.isContract
   outcome
   proofStateOf statusWithProof topLevelProofKeyPresent
+  r15Holds summaryWord e19Exit d45StrictFails
+  liveControls hazardStatus
+  verifyExit verifyReadsInputs
+  firstFailure verdictQualified qualifyExit
+  verLt openAnomalies
 
 end SpeccheckSpec.Speccheck.Model
