@@ -106,9 +106,10 @@ will look for a documented lifecycle, version control, defect handling, and a re
 
 ### 3.6 Templates customers can map to their own procedures
 
-- [ ] A SPEC.md profile and report layouts that map directly onto an IEC 62304 Software Requirements
+- [x] A SPEC.md profile and report layouts that map directly onto an IEC 62304 Software Requirements
   Specification, traceability matrix, and verification report.
-- [ ] Sections for **SOUP** (third-party components) and a **safety-class header**.
+- [x] Sections for **SOUP** (third-party components) and a **safety-class header**. Both done in
+  `docs/templates/` (2026-11-05); the safety class is a header for reviewers, not a speccheck check.
 
 ## 4. Suggested order
 
