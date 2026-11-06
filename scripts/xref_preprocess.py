@@ -20,6 +20,9 @@ Anchor resolution
       `[D-01]{#D-01}` -- D rows are not bold by convention.
   pandoc turns the span into phantomsection+label{R-07} and the link into
   hyperref[R-07]{R-07}; hyperref does the rest.
+* A label outside the spec's families (`TH-01`, `KA-01`: a prefix that is not
+  R/C/I/K/E/T/D) is anchored at the first table row whose first cell is exactly
+  that label, its definition row -- never at the section the row sits in.
 * A referenced-but-undeclared id (e.g. C-13) falls back by id PREFIX to its
   family's section anchor -- so a link is never "dead", just coarse.
 * A second declaration of the same id (a spec defect, E-02) keeps the first
@@ -127,6 +130,7 @@ DECL_CELL = re.compile(
     r"|\*\*~~(?P<c>[A-Z]{1,3}-\d{1,3})~~\*\*)(?=$|\s)"
 )
 DECISION_CELL = re.compile(r"^(?P<tok>D-\d{1,3})$")
+LABEL_CELL = re.compile(r"^(?P<tok>(?P<pre>[A-Z]{1,3})-\d{1,3})$")
 
 
 def declaration_in_row(line, section):
@@ -143,6 +147,12 @@ def declaration_in_row(line, section):
         m = DECISION_CELL.match(first)
         if m:
             return m.group("tok"), first, False, True
+    # A label of a family the spec does not declare (a tool hazard TH-01, a known anomaly KA-01)
+    # whose row starts with it is that label's definition: anchor the row, as for a D row. A
+    # family id (R-07 in a traceability column) never is: its declaration is the bold form.
+    m = LABEL_CELL.match(first)
+    if m and m.group("pre") not in PREFIX:
+        return m.group("tok"), first, False, True
     return None
 
 
