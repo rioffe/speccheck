@@ -229,7 +229,13 @@ def test_verbosity_levels(project, monkeypatch):
     bare = proj.check("--judge", "mock", "--verbose")
     info = proj.check("--judge", "mock", "--verbose", "INFO")
     assert quiet.stderr == ""
-    assert bare.stderr == info.stderr and bare.stderr != ""
+    # elapsed milliseconds differ between two runs (`ms=0` vs `ms=1` on a CI runner), so the
+    # comparison masks them; every stage line must still carry one
+    timing = re.compile(r"ms=\d+$", re.M)
+    assert timing.sub("ms=<n>", bare.stderr) == timing.sub("ms=<n>", info.stderr)
+    assert bare.stderr != ""
+    stage_lines = [ln for ln in info.stderr.splitlines() if ln.startswith("INFO stage=")]
+    assert stage_lines and all(timing.search(ln) for ln in stage_lines)
     for line in info.stderr.splitlines():
         assert line.startswith("INFO "), line
     assert (
